@@ -7,7 +7,7 @@ Updated: 2026-10-12. Read `agents/AGENTS.md`, `docs/DEVELOPMENT.md` and `todo.md
 `dev` starts from GitHub `main` release 1.3.1:
 `03d737445818ea7b439b427822126d432678b022`.
 The owner supplied `1.3.2-polish1-vs-1.3.1.patch`; it applies cleanly to this
-release and is restored in dev. Source now displays version 1.3.2-polish1.
+release and is restored in dev. That restored checkpoint displays version 1.3.2-polish1; the new hint candidate below is 1.3.2-polish2.
 Main, shipping payload and release assets are unchanged.
 
 The project is a battery-powered Snowsky Disc UI: round 360x360 LVGL, Ingenic
@@ -41,16 +41,26 @@ Check the recorded validation below for results from this recovery session.
 `60255a5f7db37f93d011205bdf2271b413803def`. They overlap improvements already in
 1.3.1. Do not apply the patch to dev blindly or call it the missing gesture build.
 
-No complete working MIPS toolchain is available in the checked environment.
-The remaining small compiler archive was truncated. Recover or rebuild a complete
-toolchain and publish a verified archive as a toolchain release asset, with legal
-source/license information and SHA-256. Do not publish the broken archive.
+The complete compiler archive was recovered and verified: SHA-256
+`2ba4be0cfbef2b28314b27a0a6f17b68da368fe496599d0e7541daaab6475b37`.
+GCC 11.2.0 now works. Host build recovery required removing empty generated
+objects; host configuration also needed a temp-path buffer sized from CFG_PATH
+rather than a fixed 64 bytes. Preserve/check toolchain release assets as described
+in docs/DEVELOPMENT.md; remote upload remains blocked by GitHub connection access.
+
+## Current candidate: 1.3.2-polish2
+
+Adds four first-use hints and System > Help > First-use hints (Automatic/On/Off),
+plus Show hints again. Auto retires learned tips (menu/navigation twice,
+Library/Music once) and stops after five healthy UI starts. Each start counts
+only after 30 seconds of event-loop uptime. Tips appear after 800 ms, disappear
+on interaction or after four seconds, and show at most once per context/session.
+On ignores retirement; Off hides tips. Reset affects hint state only.
 
 ## Next
 
-The owner wants usability for new users, beginning with contextual hints. The
-plan is in `todo.md`; documenting it does not authorize implementing it. Ask for
-the next batch's go-ahead. Inspect existing `disco_nav_hint` before adding hints.
+The owner authorized the hint implementation before uploading dev. It is now
+implemented; obtain device feedback next. Further usability work remains in todo.md.
 
 Main holds approved releases; dev holds work/checkpoints. This branch setup is
 authorized. Future releases still require owner approval. Keep private signing
@@ -58,11 +68,12 @@ keys and FiiO firmware out of GitHub. Use signed SD updates for test UI installs
 accept the trial before restarting. Leave stable payload/version tags untouched
 until the candidate is device-approved.
 
-## Validation during recovery
+## Current validation
 
-- Owner's patch applies cleanly to release 1.3.1.
-- `check-theme`, `checkpunct`, and `git diff --check` pass.
-- A fresh host-render build was attempted; linking failed with unresolved UI
-  symbols, including `screen_current` and `home_set_art_src`. Repair/diagnose
-  this before claiming the restored interaction tests pass in this environment.
-- No new MIPS binary or device test was performed.
+The patch applies to 1.3.1. Theme/punctuation/source whitespace checks pass,
+excluding byte-preserved historical recovery patch context. Real LVGL hint tests
+pass on Right/dark and Left/light, covering lifecycle, discovery, persisted state,
+save failure, Auto/On/Off and Help controls. Open-only gesture regression tests
+also pass on both sides. A static MIPS device binary was built and its ABI checked;
+final binary checksum is recorded alongside the deliverable. Device testing is
+pending. Main, stable payload, website release version and tags remain unchanged.

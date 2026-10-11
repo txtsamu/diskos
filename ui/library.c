@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -1159,6 +1160,7 @@ static void library_reload(void){
         lv_obj_update_layout(g_list);lv_obj_scroll_to_y(g_list,g_restore_y,LV_ANIM_OFF);
         lv_obj_update_layout(g_list);virt_follow();curve_rows();pdots_update();
     }
+    onboarding_library(g_count>0 && (g_view==VIEW_SONGS || g_view==VIEW_ALBUMS || g_view==VIEW_GROUP || g_view==VIEW_ARTIST_ALBUMS));
     g_restoring=0;
     if(g_position)lv_obj_add_flag(g_position,LV_OBJ_FLAG_HIDDEN);
 }

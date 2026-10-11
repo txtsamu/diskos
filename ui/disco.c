@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* The Disco theme (fork): the Ring interface on the album cover.
  *   - Backdrop: every screen except Music, Now Playing, the saver and Quick Settings shows the blurred cover, darkened
@@ -348,8 +349,9 @@ static void go_section(int idx, int dir){
     idx = (idx % g_nmenu + g_nmenu) % g_nmenu;
     g_cur = idx; picker_paint();
     const dsec_t *s = &SEC[g_menu[idx]];
-    if(s->open){ s->open(); return; }                                  /* screens that need their own refresh */
+    if(s->open){ s->open(); if(screen_current()==s->screen)onboarding_discovered(HINT_NAV); return; }                                  /* screens that need their own refresh */
     screen_section(s->screen, dir);
+    if(screen_current()==s->screen)onboarding_discovered(HINT_NAV);
 }
 static void nav_single_cb(lv_timer_t *timer){
     int section=g_single_section;
@@ -384,11 +386,6 @@ static void picker_cb(lv_event_t *e){
         if(!g_single_tap)go_section(g_cur,+1);
     }
 }
-/* first-time hint: until the circle has been opened once, a small "Menu" pill points at the sliver for a few seconds
- * after each start-up (cfg disco_nav_hint = 1 once it has been used) */
-static lv_obj_t *g_hint; static lv_timer_t *g_hint_tmr;
-static void hint_drop(void){ if(g_hint_tmr){ lv_timer_delete(g_hint_tmr); g_hint_tmr = NULL; } if(g_hint){ lv_obj_delete(g_hint); g_hint = NULL; } }
-static void hint_timeout(lv_timer_t *t){ (void)t; g_hint_tmr = NULL; if(g_hint){ lv_obj_delete(g_hint); g_hint = NULL; } }
 static void nav_show(void){                                             /* show the right state for the current screen */
     int want = g_cur_scr >= 0 && picker_wanted(g_cur_scr);
     if(want && g_open){ lv_obj_remove_flag(g_catch, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_catch);
@@ -396,8 +393,6 @@ static void nav_show(void){                                             /* show 
     else { lv_obj_add_flag(g_catch, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_pk, LV_OBJ_FLAG_HIDDEN); }
     if(want && !g_open){ lv_obj_remove_flag(g_tab, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_tab); }
     else lv_obj_add_flag(g_tab, LV_OBJ_FLAG_HIDDEN);
-    if(g_hint){ if(want && !g_open){ lv_obj_remove_flag(g_hint, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_hint); }
-                else lv_obj_add_flag(g_hint, LV_OBJ_FLAG_HIDDEN); }
 }
 /* open / close: the oval slides out of the right edge and back in (a plain move, no scaling: cheap to draw) */
 #define PK_OPEN_MS 180
@@ -413,7 +408,7 @@ void disco_nav_set_open(int open){
     int start = visible ? lv_obj_get_x(g_pk) : PK_OFF_X;
     lv_anim_delete(g_pk, slide_cb);
     int was = g_open; g_open = open ? 1 : 0;
-    if(g_open && g_hint){ hint_drop(); cfg_set_int("disco_nav_hint", 1); }   /* found it: no more hints */
+    onboarding_screen(g_cur_scr,g_open);
     lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, g_pk); lv_anim_set_exec_cb(&a, slide_cb);
     int end = g_open ? PK_OPEN_X : PK_OFF_X;
     int duration = (g_open ? PK_OPEN_MS : PK_CLOSE_MS) * abs(end - start) / (360 - PK_X);
@@ -432,7 +427,7 @@ void disco_nav_set_open(int open){
     }
 }
 static void catch_cb(lv_event_t *e){ (void)e; disco_nav_set_open(0); }
-static void tab_cb(lv_event_t *e){ (void)e; disco_nav_set_open(1); }
+static void tab_cb(lv_event_t *e){ (void)e; disco_nav_set_open(1); onboarding_discovered(HINT_MENU); onboarding_screen(g_cur_scr,g_open); }
 static void picker_create(void){
     g_pk = lv_obj_create(g_parent);
     lv_obj_remove_style_all(g_pk);
@@ -497,18 +492,7 @@ static void picker_create(void){
     g_tab_icon = lv_label_create(g_tab); lv_obj_set_style_text_color(g_tab_icon, white, 0);
     lv_obj_align(g_tab_icon, disco_mirror() ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID, disco_mirror() ? -10 : 10, 0);   /* in the visible sliver */
     picker_paint();
-    if(!cfg_get_int("disco_nav_hint", 0)){                             /* the first-time hint, left of the sliver */
-        g_hint = lv_obj_create(g_parent); lv_obj_remove_style_all(g_hint);
-        lv_obj_set_size(g_hint, 92, 34); lv_obj_set_pos(g_hint, disco_mx(TAB_X - 100, 92), TAB_Y + TAB_D / 2 - 17);
-        lv_obj_set_style_radius(g_hint, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(g_hint, TC(SCRIM), 0); lv_obj_set_style_bg_opa(g_hint, 210, 0);
-        lv_obj_set_style_border_width(g_hint, 1, 0); lv_obj_set_style_border_color(g_hint, white, 0); lv_obj_set_style_border_opa(g_hint, 90, 0);
-        lv_obj_clear_flag(g_hint, LV_OBJ_FLAG_SCROLLABLE); lv_obj_add_flag(g_hint, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_event_cb(g_hint, tab_cb, LV_EVENT_CLICKED, NULL);      /* a tap on the hint opens the circle too */
-        lv_obj_t *l = lv_label_create(g_hint); lv_label_set_text(l, disco_mirror() ? LV_SYMBOL_LEFT " Menu" : "Menu " LV_SYMBOL_RIGHT);
-        lv_obj_set_style_text_font(l, TF(UI_16), 0); lv_obj_set_style_text_color(l, white, 0); lv_obj_center(l);
-        g_hint_tmr = lv_timer_create(hint_timeout, 10000, NULL); lv_timer_set_repeat_count(g_hint_tmr, 1);
-    }
+
 }
 
 /* lists keep their rows clear of the circle: a row whose height overlaps it starts right of the circle's edge there */
@@ -574,6 +558,7 @@ static void ed_close(void);
 void dhome_overlay_close(void);
 int screen_popping(void);
 void disco_screen_entering(int which){
+    onboarding_dismiss();
     nav_cancel_tap();
     if(which == SCR_SEARCH && !screen_popping()) search_landing_reset();  /* Menu > Search: the landing page first; back keeps results */
     dhome_overlay_close(); ed_close();                                    /* top-layer panels never outlive their screen (standby, keys) */
@@ -598,6 +583,7 @@ void disco_screen_entered(int which, lv_obj_t *root){
                  if((which == SCR_HOME || which == SCR_PLVIEW) && cfg_get_int("disco_sheen", 1) && !g_sh_tm){
                      g_sh_tm = lv_timer_create(sheen_show_cb, 260, NULL); if(g_sh_tm) lv_timer_set_repeat_count(g_sh_tm, 1); } }
     if(g_pk){ g_cur_scr = which; picker_paint(); nav_show(); }
+    onboarding_screen(which,g_open);
 }
 void disco_art_changed(void){
     if(!th_disco() || !g_parent) return;

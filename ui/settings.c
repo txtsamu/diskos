@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -341,6 +342,10 @@ static void apply_grp_library(int v);
 static void apply_grp_controls(int v);
 static void apply_grp_maintenance(int v);
 static void apply_grp_about(int v);
+static void apply_grp_help(int v);
+static void apply_hints(int v){(void)v;onboarding_mode_changed();}
+static void apply_hints_reset(int v){(void)v;ui_toast(onboarding_reset()<0?"Couldn't save settings":"Hints reset");}
+static const char *OPT_HINTS[]={"Automatic","On","Off"};
 static void apply_disco_clock(int v){ dhome_show_clock(v); }
 void disco_progress_apply(void);
 static void apply_disco_progress(int v){ (void)v; disco_progress_apply(); }
@@ -819,6 +824,12 @@ static const setting_t TABLE[] = {
       "Volume keys, the interface the Disc starts in, and the language.", NULL },
     { "System", "Maintenance", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_maintenance, 0,
       "Update from the SD card, restart, reset settings and debug tools.", NULL },
+    { "System", "Help", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_help, 0,
+      "First-use hints and discovery tips for Disco.", NULL },
+    { "Help", "First-use hints", ST_CYCLER, "disco_hints", 0,0,0, OPT_HINTS,3, NULL, apply_hints,0,
+      "Automatic stops after discovery or five starts. On keeps tips available. Off hides tips.", NULL },
+    { "Help", "Show hints again", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", apply_hints_reset,0,
+      "Start first-use tips again. Your other settings stay as they are.", NULL },
     { "System", "About", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_about, 0,
       "Version, device information and temperature.", NULL },
     { "Power",   "Sleep Timer", ST_CYCLER, "sleep_idx", 0,0,0, OPT_SLEEP, 6, NULL, apply_sleep, 0,
@@ -1035,6 +1046,7 @@ static void apply_grp_datetime(int v){ (void)v; g_active_group = "Date & Time"; 
 static void apply_grp_library(int v){ (void)v; g_active_group = "Library"; setlist_refresh(); }
 static void apply_grp_controls(int v){ (void)v; g_active_group = "Controls"; setlist_refresh(); }
 static void apply_grp_maintenance(int v){ (void)v; g_active_group = "Maintenance"; setlist_refresh(); }
+static void apply_grp_help(int v){(void)v;g_active_group="Help";setlist_refresh();}
 static void apply_grp_about(int v){ (void)v; g_active_group = "About"; setlist_refresh(); }
 static void apply_volkeys_group(int v){ (void)v; g_active_group = "Volume Keys"; setlist_refresh(); }
 static void apply_ma_group(int v){ (void)v; ma_settings_load(); g_active_group = "MA Sendspin"; setlist_refresh(); }
@@ -1056,6 +1068,7 @@ static const struct { const char *child, *parent; } SUBGROUP[] = {
     { "Controls", "System" },
     { "Maintenance", "System" },
     { "About", "System" },
+    { "Help", "System" },
     { "Disco Options", "Display" },
     { "MA Sendspin", "Network" },
     { "Volume Keys", "Controls" } };
@@ -1431,7 +1444,7 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(!th_disco() && nav_setting(s))continue;
+        if(!th_disco() && (nav_setting(s) || s->apply==apply_grp_help || !strcmp(s->group,"Help")))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;

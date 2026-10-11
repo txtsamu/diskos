@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* Long-press menus in the orbit style (like Quick Settings and the file operations):
@@ -104,6 +105,7 @@ static void open_menu(const char *title, const int *acts, int n){
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 10);
     orbit_popup_polish(&g_orb);
     if(g_fav) for(int i=0;i<g_nact;i++) if(g_act[i]==A_FAV) orbit_set_on(&g_orb,i,1,ui_current_accent());
+    if(screen_current()==SCR_LIBRARY)onboarding_discovered(HINT_LIBRARY);
     disco_menu_glass(&g_orb, g_ov);                                   /* Disco: glass over the cover backdrop */
 }
 static void load_song(const char *path){

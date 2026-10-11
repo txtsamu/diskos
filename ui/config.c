@@ -64,7 +64,7 @@ static cfg_entry_t *find(const char *key){
 static int rewrite(void){
     if(g_load_failed){ g_save_err = 1; return -1; }   /* never persist an unloaded/partial config over a good file */
     g_renamed = 0;
-    char tmp[64];
+    char tmp[sizeof(CFG_PATH) + 4];
     snprintf(tmp, sizeof tmp, "%s.tmp", CFG_PATH);
     FILE *f = fopen(tmp, "w");
     if(!f){ g_save_err = 1; return -1; }

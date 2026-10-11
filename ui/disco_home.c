@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Music / Home in the Disco theme (fork): the playing album's cover, sharp, across the whole screen; the clock with a
  * small weather icon and the temperature under it in a glass pill at the top (Settings > Display > Show Clock); the
@@ -357,6 +358,7 @@ static void ov_act_cb(lv_event_t *e){
 static void ov_open(void){
     if(!g_have || g_ov) return;
     g_ov = lv_obj_create(lv_layer_top());
+    if(g_ov)onboarding_discovered(HINT_MUSIC);
     lv_obj_remove_style_all(g_ov);
     lv_obj_set_size(g_ov, 360, 360);
     lv_obj_set_style_bg_color(g_ov, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ov, 245, 0);

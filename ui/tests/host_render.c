@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "screens.h"
+#include "onboarding.h"
+#include <sys/stat.h>
 #include "ui.h"
 #include "theme.h"
 #include "theme_kit.h"
@@ -186,6 +188,69 @@ static void review_nav(void){
     }
     lv_indev_delete(in);
     puts("PASS: open-only nav gestures, seven actions, hold-release suppression, cancellation, Apply/Back");
+}
+
+
+static void review_hints(void){
+    void disco_test_nav_points(lv_point_t *,lv_point_t *);
+    lv_point_t icon,tab;disco_test_nav_points(&icon,&tab);
+    lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);
+    int side=cfg_get_int("disco_side",0);
+    assert(onboarding_reset()==0);onboarding_start();nav_wait(900);
+    const char *menu=side?LV_SYMBOL_LEFT " Tap for menu":"Tap for menu " LV_SYMBOL_RIGHT;
+    assert(find_visible_text(lv_layer_top(),menu));
+    nav_wait(4100);assert(!find_visible_text(lv_layer_top(),menu));
+    assert(cfg_get_int("hint_starts",0)==0); /* quick restarts do not consume a start */
+    onboarding_mode_changed();nav_wait(900);
+    lv_point_t hint_point={side?133:227,180};nav_touch(hint_point,70);nav_wait(900);
+    assert(cfg_get_int("hint_menu",0)==1);
+    assert(find_visible_text(lv_layer_top(),"Arrows: sections\nTap icon: open"));
+    lv_point_t top=icon;top.y=115;nav_touch(top,70);assert(cfg_get_int("hint_nav",0)==1);
+    nav_touch(top,70);assert(cfg_get_int("hint_nav",0)==2);
+    disco_nav_set_open(0);nav_wait(300);nav_touch(tab,70);assert(cfg_get_int("hint_menu",0)==2);
+    disco_nav_set_open(0);screen_show(SCR_LIBRARY);onboarding_library(1);nav_wait(900);
+    assert(find_visible_text(lv_layer_top(),"Hold a song or album\nfor actions"));
+    songmenu_open_song("/fixture/hint-song.flac");assert(cfg_get_int("hint_library",0)==1);
+    assert(!find_visible_text(lv_layer_top(),"Hold a song or album\nfor actions"));
+    lv_point_t hub={180,180};nav_touch(hub,70);
+    screen_show(SCR_HOME);nav_wait(900);
+    assert(find_visible_text(lv_layer_top(),"Tap title for more"));
+    lv_point_t title={180,155};nav_touch(title,70);assert(cfg_get_int("hint_music",0)==1);
+    dhome_overlay_close();nav_wait(100);
+    /* All four contexts learned: no automatic hints. */
+    onboarding_screen(SCR_HOME,0);nav_wait(900);assert(!find_visible_text(lv_layer_top(),menu));
+    assert(!find_visible_text(lv_layer_top(),"Tap title for more"));
+    cfg_set_int("disco_hints",1);onboarding_mode_changed();nav_wait(900);
+    assert(find_visible_text(lv_layer_top(),menu)); /* On ignores discovery */
+    cfg_set_int("disco_hints",2);onboarding_mode_changed();nav_wait(900);assert(!find_visible_text(lv_layer_top(),menu));
+    assert(onboarding_reset()==0);assert(cfg_get_int("disco_side",-1)==side);
+    cfg_set_int("hint_starts",4);nav_wait(30000);assert(cfg_get_int("hint_starts",0)==5);
+    onboarding_screen(SCR_HOME,0);nav_wait(900);assert(!find_visible_text(lv_layer_top(),menu));
+    cfg_set_int("disco_hints",1);onboarding_mode_changed();nav_wait(900);assert(find_visible_text(lv_layer_top(),menu));
+    /* A failed reset reports failure and restores prior in-memory counters/mode. */
+    assert(mkdir(CFG_PATH ".tmp",0700)==0);assert(onboarding_reset()<0);
+    assert(cfg_get_int("hint_starts",0)==5);assert(cfg_get_int("disco_hints",0)==1);
+    assert(rmdir(CFG_PATH ".tmp")==0);assert(onboarding_reset()==0);
+    assert(cfg_get_int("hint_starts",-1)==0);assert(cfg_get_int("disco_hints",-1)==0);
+    FILE *saved=fopen(CFG_PATH,"r");assert(saved);char line[128];int persisted=0;
+    while(fgets(line,sizeof line,saved))if(!strcmp(line,"hint_starts=0\n") || !strcmp(line,"hint_music=0\n") || !strcmp(line,"disco_hints=0\n"))persisted++;
+    fclose(saved);assert(persisted==3);
+    setlist_open("System");nav_wait(100);
+    lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Help");assert(label);
+    lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+    label=find_text(screen_get_root(SCR_SETLIST),"First-use hints");assert(label);
+    lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+    for(int value=1;value<=3;value++){
+        label=find_text(screen_get_root(SCR_SETTING_DETAIL),LV_SYMBOL_RIGHT);assert(label);
+        lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+        assert(cfg_get_int("disco_hints",-1)==value%3);
+    }
+    screen_back();nav_wait(100);
+    label=find_text(screen_get_root(SCR_SETLIST),"Show hints again");assert(label);
+    lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+    assert(cfg_get_int("hint_menu",-1)==0);
+    onboarding_dismiss();lv_indev_delete(in);
+    puts("PASS: hint lifetime/discovery, click-through, Auto/On/Off, healthy-start limit, reset/persistence/save failure");
 }
 
 int main(int argc, char **argv){
@@ -532,6 +597,20 @@ int main(int argc, char **argv){
         }
         for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}kit_pass(screen_get_root(scr));
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
+        if(getenv("REVIEW_HINTS")){review_hints();return 0;}
+        if(getenv("HINT_SHOT")){
+            cfg_set_int("disco_hints",1);onboarding_start();
+            int id=atoi(getenv("HINT_SHOT"));
+            if(id==4){
+                setlist_open("System");nav_wait(100);
+                lv_obj_t *help=find_text(screen_get_root(SCR_SETLIST),"Help");assert(help);
+                lv_obj_send_event(lv_obj_get_parent(help),LV_EVENT_CLICKED,NULL);
+            }
+            else if(id==1)disco_nav_set_open(1);
+            else if(id==2){screen_show(SCR_LIBRARY);onboarding_library(1);cfg_set_int("disco_hints",0);cfg_set_int("hint_menu",2);}
+            else if(id==3){cfg_set_int("disco_hints",0);cfg_set_int("hint_menu",2);cfg_set_int("hint_music",0);}
+            onboarding_mode_changed();nav_wait(1000);
+        }
         if(!strcmp(page,"albums")){                  /* Library > Albums */
             lv_obj_t *l=find_text(screen_get_root(SCR_LIBRARY),"Albums"); assert(l); lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);
             for(int i=0;i<60;i++){lv_tick_inc(10);lv_timer_handler();}

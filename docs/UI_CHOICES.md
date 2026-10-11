@@ -169,3 +169,34 @@ Recognition uses one temporary timer per pending tap, with no idle polling or
 new animations. Real LVGL pointer tests cover both sides, all seven actions,
 hold/release, closed-shard behaviour, cancellation and Apply/Back. Device
 testing remains required. Stable release assets remain at 1.3.1.
+
+## First-use hints (1.3.2-polish2 candidate)
+
+Disco offers contextual tips for opening navigation, using its arrows/icon,
+holding Library songs/albums for actions, and tapping the Music title. A small
+plain pill appears after an 800 ms pause and lasts four seconds. Only one is
+visible; touching the interface or changing screens dismisses it. Tapping the
+menu hint itself opens navigation. It mirrors with the shard; the other hints
+use shared positions that clear navigation buttons and Music transport/seek.
+
+Settings > System > Help > First-use hints offers:
+
+- **Automatic** (default): each tip retires after successful discovery. Opening
+  the menu and navigating sections each require two successful uses; Library
+  actions and the Music title overlay require one each. Automatic tips also
+  stop after five healthy Disco UI starts. A start counts only after 30 seconds
+  of event-loop uptime, so immediate crashes/restarts do not consume it.
+- **On**: tips remain available regardless of discovery/start counts, with
+  each tip shown at most once per UI session.
+- **Off**: contextual tips are hidden.
+
+**Show hints again** resets only hint state and returns to Automatic; unrelated
+preferences remain. Existing users who already discovered the old navigation
+hint retain that discovery until reset. Library tips are offered only for
+nonempty actionable views, not category/empty lists. Custom Hold/Double tap
+actions continue to be explained in their Controls settings.
+
+No blur, pulsing, transitions, or permanent hint polling is added. Counters use
+existing atomic configuration writes at discovery/start events, not timer ticks.
+Device testing remains pending. The compiled candidate is separate from the
+stable 1.3.1 payload.

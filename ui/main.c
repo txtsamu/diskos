@@ -1,3 +1,4 @@
+#include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include <stdio.h>
@@ -2926,6 +2927,7 @@ int main(int argc, char **argv){
         else if(!strcmp(argv[1],"datetime")) start = SCR_DATETIME;
     }
     screen_show(start);
+    onboarding_start();
     /* Force ONE full-screen repaint at startup. The framebuffer may still hold the stock
      * boot splash (switching stock->diskOS, or our own relaunch); the partial-render engine
      * only copies widget-dirty areas, so background regions would show stale splash pixels
