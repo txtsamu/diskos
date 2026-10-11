@@ -120,6 +120,74 @@ static void assert_visible_icon_glyphs(lv_obj_t *root){
     }
     for(uint32_t i=0;i<lv_obj_get_child_count(root);i++)assert_visible_icon_glyphs(lv_obj_get_child(root,i));
 }
+
+/* Real pointer events exercise LVGL's hold/release handling, not direct callbacks. */
+static lv_indev_data_t nav_pointer;
+static void nav_read(lv_indev_t *in,lv_indev_data_t *data){(void)in;*data=nav_pointer;}
+static void nav_wait(int ms){for(int i=0;i<ms;i+=10){lv_tick_inc(10);lv_timer_handler();}}
+static void nav_touch(lv_point_t point,int ms){
+    nav_pointer.point=point;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(ms);
+    nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
+}
+static void review_nav(void){
+    void disco_test_nav_points(lv_point_t *,lv_point_t *);int disco_test_nav_open(void);
+    lv_point_t icon,tab;disco_test_nav_points(&icon,&tab);
+    lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(in,nav_read);lv_indev_set_long_press_time(in,400);
+    int destinations[]={SCR_HOME,SCR_SEARCH,SCR_QUEUE,SCR_UPNEXT,SCR_APPS,SCR_QUICK,SCR_LIBRARY};
+    for(int action=0;action<DISCO_NAV_COUNT;action++){
+        cfg_set_int_deferred("disco_nav_double",action);cfg_set_int_deferred("disco_nav_hold",action);
+        screen_show(SCR_LIBRARY);disco_nav_set_open(0);nav_wait(300);
+        /* A hold on the CLOSED shard only opens it on release. */
+        nav_touch(tab,650);nav_wait(300);assert(screen_current()==SCR_LIBRARY);
+        assert(disco_test_nav_open());
+        nav_touch(icon,650);nav_wait(350);assert(screen_current()==destinations[action]);
+        assert(disco_test_nav_open()==(action==DISCO_NAV_NONE));
+        screen_show(SCR_LIBRARY);disco_nav_set_open(1);nav_wait(300);
+        nav_touch(icon,70);nav_wait(50);assert(screen_current()==SCR_LIBRARY);
+        nav_touch(icon,70);nav_wait(350);assert(screen_current()==destinations[action]);
+        assert(disco_test_nav_open()==(action==DISCO_NAV_NONE));
+    }
+    cfg_set_int_deferred("disco_nav_double",DISCO_NAV_SEARCH);
+    screen_show(SCR_LIBRARY);disco_nav_set_open(1);nav_wait(300);
+    nav_touch(icon,70);disco_nav_set_open(0);nav_wait(500);assert(screen_current()==SCR_LIBRARY);
+    disco_nav_set_open(1);nav_wait(300);nav_touch(icon,70);
+    screen_show(SCR_SETTINGS);nav_wait(500);assert(screen_current()==SCR_SETTINGS);
+    screen_show(SCR_LIBRARY);disco_nav_set_open(0);nav_wait(300);
+    nav_touch(tab,60);nav_wait(50);nav_touch(tab,60);nav_wait(500);
+    assert(screen_current()==SCR_LIBRARY); /* rapid taps on closed shard do not run Search */
+    disco_nav_set_open(1);nav_wait(300);
+    lv_point_t top=icon;top.y=115;nav_touch(top,70);
+    assert(screen_current()==SCR_HOME); /* arrow tap has no double-tap delay */
+    screen_show(SCR_LIBRARY);disco_nav_set_open(1);nav_wait(300);
+    nav_pointer.point=icon;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(70);
+    nav_pointer.point.x=180;nav_pointer.point.y=40;nav_wait(50);
+    nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(500);
+    assert(screen_current()==SCR_LIBRARY); /* leaving the menu cancels the press */
+    cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_MUSIC);
+    nav_pointer.point=icon;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(70);
+    nav_pointer.point.x=180;nav_pointer.point.y=40;nav_wait(50);
+    nav_pointer.point=icon;nav_wait(600);
+    nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(500);
+    assert(screen_current()==SCR_LIBRARY); /* returning inside cannot revive a cancelled hold */
+    /* Apply is the only persistence point; Back discards an unconfirmed choice. */
+    for(int attempt=0;attempt<2;attempt++){
+        setlist_open("System");nav_wait(100);
+        lv_obj_t *controls=find_text(screen_get_root(SCR_SETLIST),"Controls");assert(controls);
+        lv_obj_send_event(lv_obj_get_parent(controls),LV_EVENT_CLICKED,NULL);nav_wait(100);
+        lv_obj_t *label=find_visible_text(screen_get_root(SCR_SETLIST),"Double tap");assert(label);
+        lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+        lv_obj_t *root=screen_get_root(SCR_SETTING_DETAIL);
+        label=find_text(root,LV_SYMBOL_RIGHT);assert(label);
+        lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
+        assert(cfg_get_int("disco_nav_double",-1)==DISCO_NAV_SEARCH);
+        if(attempt){label=find_text(root,"Apply");assert(label);lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);assert(cfg_get_int("disco_nav_double",-1)==DISCO_NAV_QUEUE);}
+        else screen_back();
+    }
+    lv_indev_delete(in);
+    puts("PASS: open-only nav gestures, seven actions, hold-release suppression, cancellation, Apply/Back");
+}
+
 int main(int argc, char **argv){
     if(argc != 6){ fprintf(stderr,"usage: host-render PRESET VARIANT home|np|actions UP_NEXT OUT.ppm\n"); return 2; }
     setenv("TZ","UTC",1); tzset();
@@ -463,6 +531,7 @@ int main(int argc, char **argv){
             for(int i=0;i<100;i++){lyrics_poll(NULL);usleep(1000);}
         }
         for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}kit_pass(screen_get_root(scr));
+        if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(!strcmp(page,"albums")){                  /* Library > Albums */
             lv_obj_t *l=find_text(screen_get_root(SCR_LIBRARY),"Albums"); assert(l); lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);
             for(int i=0;i<60;i++){lv_tick_inc(10);lv_timer_handler();}

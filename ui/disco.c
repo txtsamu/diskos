@@ -283,7 +283,30 @@ static int g_open, g_cur_scr = -1;
 #define TAB_IN 38                                                   /* how far the sliver reaches into the screen */
 #define TAB_X (360 - TAB_IN)
 #define TAB_Y (PK_Y + PK_D / 2 - TAB_D / 2)
-static int g_press_y, g_long;
+static int g_press_y, g_long, g_second_tap;
+static lv_timer_t *g_single_tap;
+static int g_single_section;
+enum { NAV_DOUBLE_MS = 260 };
+static void nav_cancel_tap(void){
+    if(g_single_tap){lv_timer_delete(g_single_tap);g_single_tap=NULL;}
+    g_second_tap=0;
+}
+static int nav_action(const char *key,int fallback){
+    int action=cfg_get_int(key,fallback);
+    return action>=0 && action<DISCO_NAV_COUNT?action:fallback;
+}
+static void nav_run(int action){
+    if(!g_open || action==DISCO_NAV_NONE)return;
+    nav_cancel_tap();disco_nav_set_open(0);
+    switch(action){
+        case DISCO_NAV_MUSIC:screen_home();break;
+        case DISCO_NAV_SEARCH:screen_show(SCR_SEARCH);break;
+        case DISCO_NAV_QUEUE:queue_open();break;
+        case DISCO_NAV_UPNEXT:upnext_open();break;
+        case DISCO_NAV_SHORTCUTS:apps_reload();screen_show(SCR_APPS);break;
+        case DISCO_NAV_QUICK:screen_show(SCR_QUICK);break;
+    }
+}
 static int picker_wanted(int which){
     switch(which){
         case SCR_HOME: case SCR_LIBRARY: case SCR_SETTINGS: case SCR_SETLIST: case SCR_WORKMODE: case SCR_APPS:
@@ -328,21 +351,38 @@ static void go_section(int idx, int dir){
     if(s->open){ s->open(); return; }                                  /* screens that need their own refresh */
     screen_section(s->screen, dir);
 }
+static void nav_single_cb(lv_timer_t *timer){
+    int section=g_single_section;
+    g_single_tap=NULL;lv_timer_delete(timer);
+    if(g_open && g_cur==section)go_section(section,+1);
+}
 static void picker_cb(lv_event_t *e){
     lv_event_code_t c = lv_event_get_code(e);
+    if(!g_open){nav_cancel_tap();return;}
     lv_indev_t *in = lv_indev_active(); lv_point_t p = { 0, 0 };
     if(in) lv_indev_get_point(in, &p);
-    if(c == LV_EVENT_PRESSED){ g_press_y = p.y; g_long = 0; return; }
-    if(c == LV_EVENT_LONG_PRESSED){ g_long = 1; g_cur = 0; for(int i = 0; i < g_nmenu; i++) if(g_menu[i] == 0) g_cur = i;
-                                     picker_paint(); screen_home(); return; }   /* hold: back to Music */
+    if(c == LV_EVENT_PRESS_LOST || ((c == LV_EVENT_PRESSING || c == LV_EVENT_LONG_PRESSED || c == LV_EVENT_RELEASED) && !lv_obj_hit_test(g_pk,&p))){
+        nav_cancel_tap();g_long=1;return;
+    }
+    if(c == LV_EVENT_PRESSED){
+        int second=g_single_tap && p.y>=PK_Y+PK_D/3 && p.y<=PK_Y+PK_D*2/3;
+        nav_cancel_tap();g_second_tap=second;g_press_y=p.y;g_long=0;return;
+    }
+    if(c == LV_EVENT_LONG_PRESSED){if(g_long)return;g_long=1;nav_cancel_tap();nav_run(nav_action("disco_nav_hold",DISCO_NAV_MUSIC));return;}
     if(c != LV_EVENT_RELEASED || g_long) return;
     int dy = p.y - g_press_y;
-    if(dy < -24){ go_section(g_cur + 1, +1); return; }                 /* swipe up: next */
-    if(dy > 24){ go_section(g_cur - 1, -1); return; }                  /* swipe down: previous */
+    if(dy < -24){ nav_cancel_tap(); go_section(g_cur + 1, +1); return; }                 /* swipe up: next */
+    if(dy > 24){ nav_cancel_tap(); go_section(g_cur - 1, -1); return; }                  /* swipe down: previous */
     int rel = g_press_y - PK_Y;
-    if(rel < PK_D / 3) go_section(g_cur - 1, -1);                      /* top: previous */
-    else if(rel > PK_D * 2 / 3) go_section(g_cur + 1, +1);             /* bottom: next */
-    else go_section(g_cur, +1);                                         /* middle: the section's top screen */
+    if(rel < PK_D / 3){nav_cancel_tap();go_section(g_cur - 1,-1);}     /* arrows remain immediate */
+    else if(rel > PK_D * 2 / 3){nav_cancel_tap();go_section(g_cur + 1,+1);}
+    else if(g_second_tap){nav_run(nav_action("disco_nav_double",DISCO_NAV_SEARCH));}
+    else if(nav_action("disco_nav_double",DISCO_NAV_SEARCH)==DISCO_NAV_NONE)go_section(g_cur,+1);
+    else{
+        g_single_section=g_cur;
+        g_single_tap=lv_timer_create(nav_single_cb,NAV_DOUBLE_MS,NULL);
+        if(!g_single_tap)go_section(g_cur,+1);
+    }
 }
 /* first-time hint: until the circle has been opened once, a small "Menu" pill points at the sliver for a few seconds
  * after each start-up (cfg disco_nav_hint = 1 once it has been used) */
@@ -367,6 +407,7 @@ static void nav_show(void){                                             /* show 
 static void slide_cb(void *o, int32_t v){ lv_obj_set_x((lv_obj_t *)o, v); }
 static void slide_in_done(lv_anim_t *a){ (void)a; if(!g_open) nav_show(); }   /* closed: hide the oval, show the shard */
 void disco_nav_set_open(int open){
+    if(!open)nav_cancel_tap();
     if(!g_pk || g_open == !!open) return;
     int visible = !lv_obj_has_flag(g_pk, LV_OBJ_FLAG_HIDDEN);
     int start = visible ? lv_obj_get_x(g_pk) : PK_OFF_X;
@@ -533,6 +574,7 @@ static void ed_close(void);
 void dhome_overlay_close(void);
 int screen_popping(void);
 void disco_screen_entering(int which){
+    nav_cancel_tap();
     if(which == SCR_SEARCH && !screen_popping()) search_landing_reset();  /* Menu > Search: the landing page first; back keeps results */
     dhome_overlay_close(); ed_close();                                    /* top-layer panels never outlive their screen (standby, keys) */
     if(!g_pk) return;
@@ -702,3 +744,8 @@ void disco_test_tap(int zone){
     int rel = g_press_y - PK_Y;
     if(rel < PK_D / 3) go_section(g_cur - 1, -1); else if(rel > PK_D * 2 / 3) go_section(g_cur + 1, +1); else go_section(g_cur, +1);
 }
+
+void disco_test_nav_points(lv_point_t *icon,lv_point_t *tab){
+    icon->x=disco_mirror()?87:273;icon->y=164;tab->x=disco_mirror()?20:340;tab->y=180;
+}
+int disco_test_nav_open(void){return g_open;}

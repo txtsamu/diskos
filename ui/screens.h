@@ -38,6 +38,7 @@ void queue_note_prev(void);                  /* the Previous button was pressed 
 int  queue_remove_at(int i); int queue_move(int from, int to); void queue_shuffle(void); void queue_jump(int i);
 void queue_path_moved(const char *oldp, const char *newp); void queue_path_removed(const char *p);
 void queue_create(lv_obj_t *root);
+enum { DISCO_NAV_MUSIC, DISCO_NAV_SEARCH, DISCO_NAV_QUEUE, DISCO_NAV_UPNEXT, DISCO_NAV_SHORTCUTS, DISCO_NAV_QUICK, DISCO_NAV_NONE, DISCO_NAV_COUNT };
 void shortcuts_config_create(lv_obj_t *root); void shortcuts_config_refresh(void); void shortcut_run(const char *key); void queue_refresh(void);
 int ui_play_slot(int pos);
 int ui_play_restore(int type, const char *name, long pid, int pos);

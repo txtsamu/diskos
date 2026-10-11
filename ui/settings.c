@@ -363,6 +363,7 @@ static void apply_disco_side_ok(int v){
     theme_reload_or_revert("disco_side");
 }
 static void side_apply_cb(lv_event_t *e){ (void)e; apply_disco_side_ok(0); }
+static const char *OPT_NAV_ACTION[] = { "Music screen", "Search", "Queue", "Up Next", "Shortcuts", "Quick Settings", "Nothing" };
 static const char *OPT_DHOLD[] = { "Immersive", "Favourite", "Nothing" };
 void dhome_title_apply(void);
 static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }
@@ -840,6 +841,10 @@ static const setting_t TABLE[] = {
       "Re-scan the SD card for new or removed music.", NULL },
     { "Library",   "Import Playlists", ST_ACTION, NULL, 0,0,0, NULL,0, "Import", apply_import_m3u, 0,
       "Import .m3u / .m3u8 playlists found on the SD card.", NULL },
+    { "Controls", "Double tap", ST_CYCLER, "disco_nav_double", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_SEARCH,
+      "Double-tap the icon in the open Disco menu.", NULL },
+    { "Controls", "Hold", ST_CYCLER, "disco_nav_hold", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_MUSIC,
+      "Hold the icon in the open Disco menu.", NULL },
     { "Controls",   "Volume Keys", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_volkeys_group, 0,
       "What the volume keys do on a press, a double press and when held: adjust the volume or switch track.", NULL },
     { "Controls",   "Default UI",  ST_CYCLER, "boot_default", 0,0,0, OPT_BOOTDEF, 2, NULL, apply_boot_default, 0,
@@ -886,6 +891,7 @@ static const setting_t TABLE[] = {
 };
 #define N_SETTINGS ((int)(sizeof(TABLE)/sizeof(TABLE[0])))
 
+static int nav_setting(const setting_t *s){return s->cfg_key && (!strcmp(s->cfg_key,"disco_nav_double") || !strcmp(s->cfg_key,"disco_nav_hold"));}
 static int  get_val(const setting_t *s){ return s->cfg_key ? cfg_get_int(s->cfg_key, s->def) : 0; }
 static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
@@ -1010,6 +1016,7 @@ static void rescan_row_del_cb(lv_event_t *e){
     lv_timer_delete(rr->tm);
     free(rr);
 }
+static int g_nav_pending;
 static const setting_t *g_active;           /* setting shown in the detail screen */
 static lv_obj_t *g_detail_root;
 static lv_obj_t *g_setlist_root;            /* SCR_SETLIST root: one category's rows, rebuilt per entry */
@@ -1092,10 +1099,10 @@ static void detail_cycle_cb(lv_event_t *e){
         ui_toast("Turn Automatic Appearance off first"); return;
     }
     int dir = (int)(uintptr_t)lv_event_get_user_data(e);
-    int v = get_val(g_active) + dir;
+    int v = (nav_setting(g_active)?g_nav_pending:get_val(g_active)) + dir;
     if(v < 0) v = g_active->nopts-1;
     if(v >= g_active->nopts) v = 0;
-    set_val(g_active, v);
+    if(nav_setting(g_active))g_nav_pending=v;else set_val(g_active,v);
     /* rebuild detail body to reflect new value */
     void setting_detail_refresh(void); setting_detail_refresh();
 }
@@ -1113,6 +1120,11 @@ static void detail_choice_cb(lv_event_t *e){
     lv_async_call(detail_choice_async, NULL);           /* the tick moves after this event (rows can't delete themselves) */
 }
 
+static void nav_apply_cb(lv_event_t *e){
+    (void)e;if(!g_active || !nav_setting(g_active))return;
+    if(cfg_set_int(g_active->cfg_key,g_nav_pending)<0){ui_toast("Couldn't save settings");return;}
+    ui_toast("Saved");screen_back();
+}
 void setting_detail_refresh(void){
     if(!g_detail_root || !g_active) return;
     lv_obj_clean(g_detail_root);
@@ -1121,7 +1133,7 @@ void setting_detail_refresh(void){
     ui_header_cb(g_detail_root, g_active->label, detail_back_cb);   /* shared header */
 
     const setting_t *s = g_active;
-    int v = get_val(s);
+    int v = nav_setting(s)?g_nav_pending:get_val(s);
 
     if(s->type == ST_SLIDER){
         lv_obj_t *sl = lv_slider_create(g_detail_root);
@@ -1201,8 +1213,8 @@ void setting_detail_refresh(void){
     } else if(s->type == ST_CYCLER){
         /* < value > stepper */
         lv_obj_t *vl = lv_label_create(g_detail_root);
-        char b[24]; lv_label_set_text(vl, val_text(s,b,sizeof b));
-        lv_obj_set_size(vl, 220, 32); lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
+        char b[24]; lv_label_set_text(vl,nav_setting(s)?tr(s->opts[v]):val_text(s,b,sizeof b));
+        lv_obj_set_size(vl, nav_setting(s)?160:220, 32); lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
         lv_obj_align(vl, LV_ALIGN_CENTER, 0, 0);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, ui_current_accent(), 0);
@@ -1219,7 +1231,7 @@ void setting_detail_refresh(void){
         lv_obj_t *ri = lv_label_create(rb); lv_label_set_text(ri, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_center(ri);
         lv_obj_add_event_cb(rb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)1);
-        if(s->cfg_key && !strcmp(s->cfg_key, "disco_side_pick")){       /* Disco Layout > Side: Apply under the choice */
+        if(nav_setting(s) || (s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"))){ /* choices with explicit Apply */
             lv_obj_t *ab = lv_button_create(g_detail_root); lv_obj_remove_style_all(ab);
             lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_CENTER, 0, 58);
             lv_obj_set_style_radius(ab, LV_RADIUS_CIRCLE, 0);
@@ -1228,7 +1240,7 @@ void setting_detail_refresh(void){
             lv_obj_add_flag(ab, LV_OBJ_FLAG_USER_2);                        /* the kit leaves its colours alone */
             lv_obj_t *al = lv_label_create(ab); lv_label_set_text(al, "Apply"); lv_obj_center(al);
             lv_obj_set_style_text_font(al, TF(UI_20), 0); lv_obj_set_style_text_color(al, theme_on_color(ui_current_accent()), 0);
-            lv_obj_add_event_cb(ab, side_apply_cb, LV_EVENT_CLICKED, NULL);
+            lv_obj_add_event_cb(ab,nav_setting(s)?nav_apply_cb:side_apply_cb,LV_EVENT_CLICKED,NULL);
         }
     } else { /* readonly */
         lv_obj_t *vl = lv_label_create(g_detail_root);
@@ -1263,6 +1275,7 @@ void setting_detail_create(lv_obj_t *root){ g_detail_root = root; }
 void settings_open_detail(int idx){
     if(idx<0 || idx>=N_SETTINGS) return;
     g_active = &TABLE[idx];
+    if(nav_setting(g_active)){g_nav_pending=get_val(g_active);if(g_nav_pending<0 || g_nav_pending>=DISCO_NAV_COUNT)g_nav_pending=g_active->def;}
     screen_show(SCR_SETTING_DETAIL);
     setting_detail_refresh();
 }
@@ -1301,6 +1314,7 @@ static void row_cb(lv_event_t *e){
     if(s->type == ST_READONLY) return;   /* info rows (Temperature/About) aren't tappable */
     if(setting_unavailable(s)){ ui_toast("Not supported on this firmware yet"); return; }
     g_active = s;
+    if(nav_setting(s)){g_nav_pending=get_val(s);if(g_nav_pending<0 || g_nav_pending>=DISCO_NAV_COUNT)g_nav_pending=s->def;}
     screen_show(SCR_SETTING_DETAIL);
     setting_detail_refresh();
 }
@@ -1417,6 +1431,7 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
+        if(!th_disco() && nav_setting(s))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;

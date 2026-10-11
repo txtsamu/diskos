@@ -149,3 +149,23 @@ bitmap faces. Existing international/CJK fallback chains remain. Library positio
 bounded to twelve views in RAM; position hints reuse existing timing. These choices avoid
 runtime font rasterization, persistent scroll writes and new idle timers. Battery benefit is
 not a measured claim. See [1.3.1](releases/v1.3.1.md) for the full release.
+
+## Disco navigation gestures (1.3.2-polish1 candidate)
+
+Settings > System > Controls adds **Double tap** and **Hold**. Choose with the
+left/right arrows, then tap **Apply**; Back discards an unconfirmed choice.
+Both offer Music screen, Search, Queue, Up Next, Shortcuts, Quick Settings,
+and Nothing. The defaults are Double tap = Search and Hold = Music screen.
+
+These gestures operate only in the **open** Disco navigation menu, identically
+in Right and Left layouts and across navigation sections. The closed shard
+retains tap-to-open behaviour. Section arrows and swipes remain immediate.
+A centre-icon tap waits 260 ms for a second tap; selecting Nothing for Double
+tap removes that delay. A hold consumes its release, and closing the menu or
+changing screens cancels a pending tap. Gesture actions close the navigation
+menu before opening their destination.
+
+Recognition uses one temporary timer per pending tap, with no idle polling or
+new animations. Real LVGL pointer tests cover both sides, all seven actions,
+hold/release, closed-shard behaviour, cancellation and Apply/Back. Device
+testing remains required. Stable release assets remain at 1.3.1.
