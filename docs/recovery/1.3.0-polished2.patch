@@ -1,0 +1,549 @@
+diff --git a/ui/Makefile b/ui/Makefile
+index 24e5c9c..e67de65 100644
+--- a/ui/Makefile
++++ b/ui/Makefile
+@@ -107,14 +107,16 @@ $(HOST_DIR)/theme_kit.o: $(APP)/theme_kit.c | $(HOST_DIR)
+ 	$(CC) $(CFLAGS) -DDISKOS_HOST -c $< -o $@
+ $(HOST_DIR)/config.o: $(APP)/config.c | $(HOST_DIR)
+ 	$(CC) $(CFLAGS) $(HOST_CFG) -c $< -o $@
++$(HOST_DIR)/queue.o: $(APP)/queue.c | $(HOST_DIR)
++	$(CC) $(CFLAGS) -DQUEUE_FILE='"$(HOST_DIR)/queue.tsv"' -c $< -o $@
+ $(HOST_DIR)/diskos-artdec: $(APP)/tools/diskos_artdec.c $(APP)/tools/stb_image.h | $(HOST_DIR)
+ 	$(CC) -O2 -std=gnu11 $< -o $@ -lm
+ $(HOST_DIR)/art.o: $(APP)/art.c $(HOST_DIR)/diskos-artdec | $(HOST_DIR)
+ 	$(CC) $(CFLAGS) -DARTDEC_PATH='"$(HOST_DIR)/diskos-artdec"' -c $< -o $@
+ $(HOST_DIR)/host_render.o: $(APP)/tests/host_render.c | $(HOST_DIR)
+ 	$(CC) $(CFLAGS) $(HOST_CFG) -DDISKOS_HOST -c $< -o $@
+-HOST_OBJS := $(filter-out $(APP)/main.o $(APP)/theme_kit.o $(APP)/config.o $(APP)/art.o,$(OBJS)) \
+-             $(HOST_DIR)/main.o $(HOST_DIR)/theme_kit.o $(HOST_DIR)/config.o $(HOST_DIR)/art.o $(HOST_DIR)/host_render.o
++HOST_OBJS := $(filter-out $(APP)/main.o $(APP)/theme_kit.o $(APP)/config.o $(APP)/art.o $(APP)/queue.o,$(OBJS)) \
++             $(HOST_DIR)/main.o $(HOST_DIR)/theme_kit.o $(HOST_DIR)/config.o $(HOST_DIR)/art.o $(HOST_DIR)/queue.o $(HOST_DIR)/host_render.o
+ host-render: $(HOST_OBJS)
+ 	$(CC) $(LDFLAGS) -o $(HOST_DIR)/host-render $(HOST_OBJS) $(LDLIBS) -lcrypt -Wl,--wrap=ipc_send_cmd,--wrap=fw_custom_peq_writable,--wrap=fw_custom_peq_curve_writable,--wrap=mdb_get_peq_ex,--wrap=mdb_song_accent,--wrap=art_make_all_ex_gen
+ .PHONY: host-render
+diff --git a/ui/disco_home.c b/ui/disco_home.c
+index f236714..1c4337e 100644
+--- a/ui/disco_home.c
++++ b/ui/disco_home.c
+@@ -329,7 +329,7 @@ static lv_obj_t *g_ov, *g_ov_btn[6], *g_ov_cap[6];
+ static void ov_close(void){ if(g_ov){ lv_obj_delete(g_ov); g_ov = NULL; } }
+ void dhome_overlay_close(void){ ov_close(); }
+ static void ov_title_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) ov_close(); }
+-enum { OV_FAV, OV_ALBUM, OV_ARTIST, OV_QUEUE, OV_LYRICS, OV_IMM, OV_N };
++enum { OV_FAV, OV_ALBUM, OV_ARTIST, OV_QUEUE, OV_LYRICS, OV_INFO, OV_N };
+ void disco_open_np_immersive(void);
+ static void ov_mark(int i, int on){
+     lv_obj_t *b = g_ov_btn[i], *l = lv_obj_get_child(b, 0);
+@@ -337,7 +337,7 @@ static void ov_mark(int i, int on){
+     lv_obj_set_style_border_opa(b, on ? LV_OPA_COVER : 60, 0);
+     lv_obj_set_style_text_color(l, g_acc, 0); lv_obj_set_style_bg_color(b, on ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
+ }
+-static void ov_place_cap(int i, int x, int y){ lv_obj_update_layout(g_ov_cap[i]); lv_obj_set_pos(g_ov_cap[i], x - lv_obj_get_width(g_ov_cap[i]) / 2, y + 33); }
++static void ov_place_cap(int i, int x, int y){ lv_obj_update_layout(g_ov_cap[i]); lv_obj_set_pos(g_ov_cap[i], x - lv_obj_get_width(g_ov_cap[i]) / 2, y + 37); }
+ static void ov_paint(void){
+     if(!g_ov) return;
+     ov_mark(OV_FAV, ui_np_fav_state() == 1);
+@@ -351,7 +351,7 @@ static void ov_act_cb(lv_event_t *e){
+         case OV_ARTIST: ov_close(); ui_np_open_artist(); break;
+         case OV_QUEUE:  ov_close(); queue_open(); break;                /* our own Queue */
+         case OV_LYRICS: ov_close(); lyrics_open(); break;
+-        case OV_IMM:    ov_close(); disco_open_np_immersive(); break;
++        case OV_INFO: { track_state_t st; ipc_get_state(&st); ov_close(); songinfo_unpin(); songinfo_set(&st); screen_show(SCR_SONGINFO); break; }
+     }
+ }
+ static void ov_open(void){
+@@ -359,32 +359,40 @@ static void ov_open(void){
+     g_ov = lv_obj_create(lv_layer_top());
+     lv_obj_remove_style_all(g_ov);
+     lv_obj_set_size(g_ov, 360, 360);
+-    lv_obj_set_style_bg_color(g_ov, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ov, 225, 0);
++    lv_obj_set_style_bg_color(g_ov, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ov, 245, 0);
+     lv_obj_add_flag(g_ov, LV_OBJ_FLAG_CLICKABLE); lv_obj_clear_flag(g_ov, LV_OBJ_FLAG_SCROLLABLE);   /* swallows taps */
+     lv_obj_t *tb = lv_obj_create(g_ov); lv_obj_remove_style_all(tb);   /* the title + artist: tap here to close */
+-    lv_obj_set_size(tb, 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 66);
++    lv_obj_set_size(tb, 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 38);
+     lv_obj_add_flag(tb, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(tb, 10);
+     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
+     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
+     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT); lv_obj_set_size(t, 250, 28);
+-    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, ui_font_cjk(20), 0);
++    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, ui_font_cjk(22), 0);
+     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
+     lv_obj_t *ar = lv_label_create(tb); lv_label_set_text(ar, L_ARTIST.cur);
+     lv_label_set_long_mode(ar, LV_LABEL_LONG_DOT); lv_obj_set_size(ar, 230, 22);
+     lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, ui_font_cjk(16), 0);
+     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
+     static const struct { int x, y; const char *cap; } P[OV_N] = {          /* two gentle arcs of three */
+-        { 104, 164, "Favourite" }, { 180, 174, "Album" }, { 256, 164, "Artist" },
+-        { 112, 254, "Queue" },     { 180, 266, "Lyrics" }, { 248, 254, "Immersive" } };
+-    const char *G[OV_N] = { TH_IC_HEART, TH_IC_RECORD, "\xEF\x84\xB0", LV_SYMBOL_LIST, LV_SYMBOL_FILE, LV_SYMBOL_IMAGE };   /* Artist: microphone */
++        { 84, 146, "Favourite" }, { 180, 160, "Album" }, { 276, 146, "Artist" },
++        { 94, 250, "Queue" },     { 180, 270, "Lyrics" }, { 266, 250, "Info" } };
++    const char *G[OV_N] = { TH_IC_HEART, TH_IC_RECORD, "\xEF\x84\xB0", LV_SYMBOL_LIST, LV_SYMBOL_FILE, "i" };   /* Artist: microphone; Info: circled i */
+     for(int i = 0; i < OV_N; i++){
+-        lv_obj_t *b = glass_circle(g_ov, P[i].x, P[i].y, 58, G[i]);
++        lv_obj_t *b = glass_circle(g_ov, P[i].x, P[i].y, 66, G[i]);
+         g_ov_btn[i] = b; lv_obj_set_style_text_color(lv_obj_get_child(b, 0), g_acc, 0); lv_obj_set_style_border_color(b, g_acc, 0); lv_obj_set_style_border_opa(b, 140, 0);
+         if(i == OV_FAV || i == OV_ALBUM) lv_obj_set_style_text_font(lv_obj_get_child(b, 0), &font_theme_20, 0);
+         if(i == OV_ARTIST) lv_obj_set_style_text_font(lv_obj_get_child(b, 0), TF(ICON_20), 0);
+-        lv_obj_add_event_cb(b, ov_act_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
++        if(i == OV_INFO){
++            lv_obj_t *ic = lv_obj_get_child(b, 0);
++            lv_obj_set_style_text_font(ic, TF(UI_20), 0); lv_obj_set_size(ic, 26, 26);
++            lv_obj_set_style_text_align(ic, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_set_style_border_width(ic, 2, 0); lv_obj_set_style_border_color(ic, g_acc, 0);
++            lv_obj_set_style_radius(ic, LV_RADIUS_CIRCLE, 0); lv_obj_center(ic);
++        }
++        static const char *const actions[OV_N] = { "disco.track.favourite", "disco.track.album", "disco.track.artist", "disco.track.queue", "disco.track.lyrics", "disco.track.info" };
++        ui_on(b, ov_act_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i, actions[i], UI_REACHABLE);
+         g_ov_cap[i] = lv_label_create(g_ov); lv_label_set_text(g_ov_cap[i], P[i].cap);
+-        lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_12), 0); lv_obj_set_style_text_color(g_ov_cap[i], TC(TEXT_SECONDARY), 0);
++        lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_16), 0); lv_obj_set_style_text_color(g_ov_cap[i], TC(TEXT_PRIMARY), 0);
+         ov_place_cap(i, P[i].x, P[i].y);
+     }
+     kit_pass(g_ov);
+diff --git a/ui/eqcustom.c b/ui/eqcustom.c
+index b563493..c997534 100644
+--- a/ui/eqcustom.c
++++ b/ui/eqcustom.c
+@@ -184,9 +184,9 @@ static void braun_faders_paint(void){
+     else lv_obj_add_flag(g_flamp, LV_OBJ_FLAG_HIDDEN);
+ }
+ /* ---- Disco: rainbow faders - ten rounded glass sliders on a gentle smile, each filled from 0 dB in its own CD colour ---- */
+-#define DX0   40
+-#define DSTEP 28.4f
+-#define DTOP  72
++#define DX0   34
++#define DSTEP (292.0f / (NB - 1))
++#define DTOP  88
+ #define DBOT  206
+ #define DMID  ((DTOP + DBOT) / 2)
+ #define DKPX  ((DBOT - DTOP) / 2.0f / 6.0f * 0.88f)          /* px per dB (a little headroom at the ends) */
+@@ -211,7 +211,7 @@ static void disco_faders_create(lv_obj_t *root){
+         lv_obj_set_style_bg_color(g_dknob[i], TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(g_dknob[i], LV_OPA_COVER, 0);
+         lv_obj_t *ob[3] = { g_dtrk[i], g_dfill[i], g_dknob[i] };
+         for(int k = 0; k < 3; k++) lv_obj_clear_flag(ob[k], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+-        lv_obj_set_style_text_font(g_rim[i], TF(UI_12), 0);
++        lv_obj_set_style_text_font(g_rim[i], TF(UI_14), 0);
+         lv_obj_align(g_rim[i], LV_ALIGN_TOP_MID, x - 180, DBOT + o + 6);
+     }
+ }
+@@ -334,7 +334,7 @@ static void refresh_labels(void){
+         if(th_disco()){                                  /* bigger text, bigger touch areas (the active value on the lower line) */
+             lv_obj_set_style_text_font(g_flbl, g_mode_freq ? TF(UI_32) : TF(UI_22), 0);
+             lv_obj_set_style_text_font(g_glbl, g_mode_freq ? TF(UI_22) : TF(UI_32), 0);
+-            lv_obj_align(g_flbl, LV_ALIGN_TOP_MID, -4, g_mode_freq ? 290 : 252); lv_obj_align(g_glbl, LV_ALIGN_TOP_MID, -4, g_mode_freq ? 252 : 290);
++            lv_obj_align(g_flbl, LV_ALIGN_TOP_MID, 0, g_mode_freq ? 290 : 252); lv_obj_align(g_glbl, LV_ALIGN_TOP_MID, 0, g_mode_freq ? 252 : 290);
+             lv_obj_set_ext_click_area(g_flbl, 22); lv_obj_set_ext_click_area(g_glbl, 22);   /* two well-separated lines, each easy to hit */
+         }
+         lv_label_set_text(g_modecap, g_mode_freq ? "FREQ" : "GAIN");
+@@ -342,7 +342,7 @@ static void refresh_labels(void){
+     const char *note = NULL;
+     if(g_save_busy) note="Saving...";
+     else if(!g_editable) note = g_preset == 0 ? "EQ off" : g_readfail ? "Couldn't read this preset" : g_parametric ? "Advanced preset" : g_preset >= USER_MIN ? "Custom editing unavailable" : th_braun() ? "Built-in preset" : "built-in preset";
+-    else if(g_sel < 0) note = "tap a band";
++    else if(g_sel < 0) note = th_disco() ? "Choose a band" : "tap a band";
+     if(note){ lv_label_set_text(g_note, note); lv_obj_remove_flag(g_note, LV_OBJ_FLAG_HIDDEN); }
+     else lv_obj_add_flag(g_note, LV_OBJ_FLAG_HIDDEN);
+     lv_obj_add_flag(g_lock, LV_OBJ_FLAG_HIDDEN);   /* no lock glyph in the fonts: the grey + caption say it */
+@@ -569,6 +569,7 @@ static void glbl_cb(lv_event_t *e){
+ }
+ 
+ /* ------------------------------------------------------------------ building the screen */
++static void editor_back_cb(lv_event_t *e){ (void)e; screen_back(); }
+ static lv_obj_t *round_btn(lv_obj_t *p, const char *sym, int dx, int dir){
+     lv_obj_t *b = lv_button_create(p);
+     lv_obj_remove_style_all(b);
+@@ -670,19 +671,34 @@ void eqcustom_create(lv_obj_t *root){
+     }
+     if(th_disco()){                                    /* Disco: the faders; preset on top, the band's value and - / + below */
+         disco_faders_create(root);
+-        lv_obj_align(pill, LV_ALIGN_TOP_MID, -10, 24); lv_obj_set_size(pill, 150, 32);
++        lv_obj_align(pill, LV_ALIGN_TOP_MID, 22, 30); lv_obj_set_size(pill, 184, 44);
+         lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_color(pill, TC(SURFACE), 0); lv_obj_set_style_bg_opa(pill, 170, 0);
+         lv_obj_set_style_border_width(pill, 1, 0); lv_obj_set_style_border_color(pill, TC(TEXT_PRIMARY), 0); lv_obj_set_style_border_opa(pill, 60, 0);
+-        lv_obj_set_style_text_font(g_pill_lbl, TF(UI_14), 0);
++        lv_obj_set_style_text_font(g_pill_lbl, TF(UI_18), 0);
++        lv_obj_set_width(g_pill_lbl, 148); lv_label_set_long_mode(g_pill_lbl, LV_LABEL_LONG_DOT);
++        lv_obj_set_style_text_align(g_pill_lbl, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_align(g_pill_lbl, LV_ALIGN_CENTER, -10, 0);
++        lv_obj_set_style_text_font(chev, TF(UI_18), 0);
++        lv_obj_align(chev, LV_ALIGN_RIGHT_MID, -10, 0);
++        lv_obj_t *back = lv_button_create(root); lv_obj_remove_style_all(back);
++        lv_obj_set_size(back, 44, 44); lv_obj_set_pos(back, 58, 30);
++        lv_obj_set_style_radius(back, LV_RADIUS_CIRCLE, 0);
++        lv_obj_set_style_bg_color(back, TC(SURFACE), 0); lv_obj_set_style_bg_opa(back, 170, 0);
++        lv_obj_set_style_bg_color(back, TC(SURFACE_RAISED), LV_STATE_PRESSED);
++        lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_STATE_PRESSED);
++        lv_obj_set_style_border_width(back, 1, 0); lv_obj_set_style_border_color(back, TC(TEXT_PRIMARY), 0); lv_obj_set_style_border_opa(back, 60, 0);
++        lv_obj_t *back_label = lv_label_create(back); lv_label_set_text(back_label, LV_SYMBOL_LEFT);
++        lv_obj_set_style_text_font(back_label, TF(UI_18), 0); lv_obj_set_style_text_color(back_label, TC(TEXT_PRIMARY), 0); lv_obj_center(back_label);
++        ui_on(back, editor_back_cb, LV_EVENT_CLICKED, NULL, "eq.editor.back", UI_CORE);
+         lv_obj_t *pm[2] = { g_minus, g_plus };
+-        for(int k = 0; k < 2; k++){ lv_obj_set_size(pm[k], 52, 52); lv_obj_align(pm[k], LV_ALIGN_TOP_MID, k ? 92 : -100, 268); lv_obj_set_ext_click_area(pm[k], 8);
++        for(int k = 0; k < 2; k++){ lv_obj_set_size(pm[k], 52, 52); lv_obj_align(pm[k], LV_ALIGN_TOP_MID, k ? 94 : -94, 268); lv_obj_set_ext_click_area(pm[k], 8);
+             lv_obj_set_style_bg_color(pm[k], TC(SURFACE), 0); lv_obj_set_style_bg_opa(pm[k], 190, 0);
+             lv_obj_set_style_border_width(pm[k], 1, 0); lv_obj_set_style_border_color(pm[k], ui_current_accent(), 0); lv_obj_set_style_border_opa(pm[k], 150, 0);
+             kit_keep(pm[k]); lv_obj_add_flag(pm[k], LV_OBJ_FLAG_USER_2); }
+         lv_obj_align(g_modecap, LV_ALIGN_TOP_MID, -4, 232);   /* right under the band labels */ lv_obj_set_style_text_color(g_modecap, TC(TEXT_SECONDARY), 0);
+         lv_obj_set_style_text_font(g_modecap, TF(UI_12), 0);
+-        lv_obj_align(g_note, LV_ALIGN_TOP_MID, -4, 290); lv_obj_set_style_text_color(g_note, TC(TEXT_SECONDARY), 0);
+-        lv_obj_set_style_text_font(g_note, TF(UI_14), 0);
++        lv_obj_align(g_note, LV_ALIGN_TOP_MID, 0, 290); lv_obj_set_style_text_color(g_note, TC(TEXT_PRIMARY), 0);
++        lv_obj_set_style_text_font(g_note, TF(UI_20), 0);
+     }
+     if(!g_draw_tmr) g_draw_tmr = lv_timer_create(draw_tmr_cb, 50, NULL);
+     /* No profile reads/verification for a hidden editor at startup. */
+diff --git a/ui/modes.c b/ui/modes.c
+index 7c8450f..918e591 100644
+--- a/ui/modes.c
++++ b/ui/modes.c
+@@ -359,6 +359,10 @@ void modes_create(lv_obj_t *root){
+             int y = 54 + k * 58, h = 56;
+             g_drow[i] = disco_row(root, y, h, MODES[i].glyph,
+                                  i == 1 ? TF(UI_20) : TF(UI_24), NM[i], disco_row_cb, (void *)(intptr_t)i);
++            lv_obj_set_style_bg_opa(g_drow[i], LV_OPA_COVER, LV_STATE_PRESSED);
++            lv_obj_set_style_border_width(g_drow[i], 2, LV_STATE_PRESSED);
++            lv_obj_set_style_border_color(g_drow[i], ui_current_accent(), LV_STATE_PRESSED);
++            lv_obj_set_style_border_opa(g_drow[i], LV_OPA_COVER, LV_STATE_PRESSED);
+             /* Rounded caps fit the rim more closely than a rectangular bounding box.
+              * Keep the final row readable while using the panel down to y=342. */
+             int dy = y + h / 2 - 180, radius = h / 2;
+diff --git a/ui/queue.c b/ui/queue.c
+index e7bf8cf..acdcec6 100644
+--- a/ui/queue.c
++++ b/ui/queue.c
+@@ -324,10 +324,25 @@ static void handle_cb(lv_event_t *e){
+ static lv_obj_t *section(const char *t){
+     lv_obj_t *l = lv_label_create(g_list); lv_label_set_text(l, t);
+     lv_obj_set_width(l, QW - 24);
+-    lv_obj_set_style_text_font(l, TF(UI_10), 0);
+-    if(!strncmp(t, "then back", 9)){ lv_obj_set_width(l, QW); lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(l, ui_font_cjk(14), 0); } lv_obj_set_style_text_color(l, TC(TEXT_DISABLED), 0);
++    lv_obj_set_style_text_font(l, TF(UI_16), 0);
++    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_style_text_color(l, TC(TEXT_SECONDARY), 0);
+     return l;
+ }
++static void row_size_cb(lv_event_t *e){
++    lv_obj_t *r = lv_event_get_target(e);
++    int now = (int)(intptr_t)lv_event_get_user_data(e), x = now ? 48 : 22;
++    int w = lv_obj_get_width(r) - x - (now ? 22 : 64);
++    if(w < 32) w = 32;
++    lv_obj_set_width(lv_obj_get_child(r, now ? 1 : 0), w);
++    lv_obj_set_width(lv_obj_get_child(r, now ? 2 : 1), w);
++}
++static void separator(void){
++    lv_obj_t *r = lv_obj_create(g_list); lv_obj_remove_style_all(r);
++    lv_obj_set_size(r, QW - 32, 1);
++    lv_obj_set_style_bg_color(r, TC(BORDER), 0); lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_clear_flag(r, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
++}
+ static lv_obj_t *qrow(const char *t, const char *a, int now, int idx){
+     lv_obj_t *r = lv_button_create(g_list);
+     lv_obj_remove_style_all(r);
+@@ -337,6 +352,7 @@ static lv_obj_t *qrow(const char *t, const char *a, int now, int idx){
+     lv_obj_set_style_bg_color(r, now ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
+     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
+     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
++    if(now){ lv_obj_set_style_border_width(r, 1, 0); lv_obj_set_style_border_color(r, ui_current_accent(), 0); }
+     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+     int x = 22;
+     if(now){ lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, LV_SYMBOL_VOLUME_MAX);
+@@ -356,6 +372,7 @@ static lv_obj_t *qrow(const char *t, const char *a, int now, int idx){
+         lv_obj_t *g = lv_label_create(h); lv_label_set_text(g, LV_SYMBOL_BARS);
+         lv_obj_set_style_text_color(g, TC(QUEUE_HANDLE), 0); lv_obj_center(g);
+     }
++    lv_obj_add_event_cb(r, row_size_cb, LV_EVENT_SIZE_CHANGED, (void *)(intptr_t)now);
+     return r;
+ }
+ static void view_reload(void){
+@@ -369,32 +386,36 @@ static void view_reload(void){
+     lv_label_set_text(g_sub, b);
+     track_state_t st; ipc_get_state(&st);
+     if(st.have_track){
+-        section("PLAYING NOW");
+         mdb_song_t s; int have = mdb_song_by_path(st.path, &s);
+         qrow(st.title[0] ? st.title : (have ? s.title : "-"), st.artist[0] ? st.artist : (have ? s.artist : ""), 1, -1);
+     }
+-    section(g_qn ? "UP NEXT" : "Hold a song in the Library or a folder and choose Add to queue");
++    if(st.have_track && g_qn) separator();
+     row_child0 = (int)lv_obj_get_child_count(g_list);
+     for(int i = 0; i < g_qn; i++) qrow(g_q[i].title[0] ? g_q[i].title : "-", g_q[i].artist, 0, i);
+-    if(g_qn && g_active && g_ctx_label[0]){ snprintf(b, sizeof b, "then back to  %.44s", g_ctx_label); section(b); }
++    if(!g_qn && !st.have_track) section("Nothing queued");
+     lv_obj_update_layout(g_list); curvelist_update(&g_cl);
+ }
+ void queue_refresh(void){ g_clear_armed = 0; if(g_clear_btn){ lv_obj_t *l = lv_obj_get_child(g_clear_btn, 1); if(l) lv_label_set_text(l, "Clear"); } view_reload(); }
+ static lv_obj_t *pill(const char *icon, const char *t, int x, int w, lv_event_cb_t cb, int accent){
+     lv_obj_t *b = lv_button_create(g_root);
+     lv_obj_remove_style_all(b);
+-    lv_obj_set_size(b, w, 28); lv_obj_set_pos(b, x, 64);
+-    lv_obj_set_style_radius(b, 14, 0);
+-    lv_obj_set_style_bg_color(b, th_braun() ? accent ? TC(ACCENT_PRIMARY) : TC(SURFACE) : accent ? ui_current_accent() : TC(SURFACE), 0);
++    lv_obj_set_size(b, w, 44); lv_obj_set_pos(b, x, 68);
++    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
++    lv_color_t bg = accent ? (th_braun() ? TC(ACCENT_PRIMARY) : ui_current_accent()) : TC(SURFACE);
++    if(accent) lv_obj_add_flag(b, LV_OBJ_FLAG_USER_2); /* keep contrast ink on the filled Play button */
++    lv_obj_set_style_bg_color(b, bg, 0);
+     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+-    lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), LV_STATE_PRESSED);
++    lv_obj_set_style_bg_color(b, accent ? bg : TC(SURFACE_RAISED), LV_STATE_PRESSED);
++    lv_obj_set_style_border_width(b, 2, LV_STATE_PRESSED);
++    lv_obj_set_style_border_color(b, TC(TEXT_PRIMARY), LV_STATE_PRESSED);
++    lv_obj_set_style_border_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
+     lv_obj_set_ext_click_area(b, 4);
+     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
+-    lv_obj_t *i = lv_label_create(b); lv_label_set_text(i, icon); lv_obj_set_style_text_font(i, TF(UI_12), 0);
+-    lv_obj_set_style_text_color(i, th_braun() && !accent ? TC(TEXT_PRIMARY) : TC(TEXT_PRIMARY), 0);
++    lv_obj_t *i = lv_label_create(b); lv_label_set_text(i, icon); lv_obj_set_style_text_font(i, TF(UI_18), 0);
++    lv_obj_set_style_text_color(i, accent ? theme_on_color(bg) : TC(TEXT_PRIMARY), 0);
+     if(t){ lv_obj_align(i, LV_ALIGN_LEFT_MID, 12, 0);
+-           lv_obj_t *l = lv_label_create(b); lv_label_set_text(l, t); lv_obj_set_style_text_font(l, TH_F_CAPTION, 0);
+-           lv_obj_set_style_text_color(l, th_braun() && !accent ? TC(TEXT_PRIMARY) : TC(TEXT_PRIMARY), 0); lv_obj_align(l, LV_ALIGN_LEFT_MID, 28, 0); }
++           lv_obj_t *l = lv_label_create(b); lv_label_set_text(l, t); lv_obj_set_style_text_font(l, TF(UI_18), 0);
++           lv_obj_set_style_text_color(l, accent ? theme_on_color(bg) : TC(TEXT_PRIMARY), 0); lv_obj_align(l, LV_ALIGN_LEFT_MID, 36, 0); }
+     else lv_obj_center(i);
+     return b;
+ }
+@@ -413,14 +434,14 @@ void queue_create(lv_obj_t *root){
+     lv_obj_t *tt = lv_label_create(hb); lv_label_set_text(tt, "Queue");
+     if(th_braun()){ lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); }
+     lv_obj_set_style_text_font(tt, th_braun() ? br_font(18, 1) : TH_F_TITLE, 0); lv_obj_set_style_text_color(tt, th_braun() ? TC(TEXT_PRIMARY) : TC(TEXT_PRIMARY), 0); lv_obj_align(tt, LV_ALIGN_LEFT_MID, 34, 0);
+-    g_sub = lv_label_create(root); lv_obj_set_style_text_font(g_sub, th_braun() ? br_font(12, 0) : ui_font_cjk(14), 0);   /* has the middle dot */ lv_obj_set_style_text_color(g_sub, TC(TEXT_DISABLED), 0);
++    g_sub = lv_label_create(root); lv_obj_set_style_text_font(g_sub, th_braun() ? br_font(14, 0) : ui_font_cjk(16), 0);   /* has the middle dot */ lv_obj_set_style_text_color(g_sub, TC(TEXT_SECONDARY), 0);
+     lv_obj_align(g_sub, LV_ALIGN_TOP_MID, 0, 44);
+-    pill(LV_SYMBOL_PLAY, "Play", 92, 68, play_cb, 1);
+-    pill(LV_SYMBOL_SHUFFLE, NULL, 166, 28, shuffle_cb, 0);        /* icon only */
+-    g_clear_btn = pill(LV_SYMBOL_TRASH, "Clear", 200, 68, clear_cb, 0);
++    pill(LV_SYMBOL_PLAY, "Play", 44, 104, play_cb, 1);
++    pill(LV_SYMBOL_SHUFFLE, NULL, 156, 48, shuffle_cb, 0);        /* Random: icon only */
++    g_clear_btn = pill(LV_SYMBOL_TRASH, "Clear", 212, 104, clear_cb, 0);
+     g_list = lv_obj_create(root);
+     lv_obj_remove_style_all(g_list);
+-    lv_obj_set_pos(g_list, (360 - QW) / 2, 100); lv_obj_set_size(g_list, QW, 260);
++    lv_obj_set_pos(g_list, (360 - QW) / 2, 122); lv_obj_set_size(g_list, QW, 238);
+     lv_obj_set_style_pad_bottom(g_list, 40, 0);
+     lv_obj_set_style_pad_row(g_list, 8, 0);
+     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
+diff --git a/ui/quicksettings.c b/ui/quicksettings.c
+index b46e732..1b26fc7 100644
+--- a/ui/quicksettings.c
++++ b/ui/quicksettings.c
+@@ -200,6 +200,10 @@ static void disco_layout(lv_obj_t *root){
+         lv_obj_set_pos(r, left, y); lv_obj_set_size(r, w, DQ_H);
+         lv_obj_set_style_radius(r, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_color(r, TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, 150, 0);
+         lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
++        lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
++        lv_obj_set_style_border_width(r, 1, LV_STATE_PRESSED);
++        lv_obj_set_style_border_color(r, ui_current_accent(), LV_STATE_PRESSED);
++        lv_obj_set_style_border_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
+         lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_USER_2); lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+         lv_obj_add_event_cb(r, dq_row_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)i);
+         lv_obj_add_event_cb(r, dq_row_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)i);
+@@ -283,6 +287,13 @@ void quicksettings_create(lv_obj_t *root)
+         { LV_SYMBOL_WIFI, "Wi-Fi" }, { LV_SYMBOL_BLUETOOTH, "Bluetooth" }, { LV_SYMBOL_DIRECTORY, "Library" },
+         { LV_SYMBOL_REFRESH, "Rescan" }, { LV_SYMBOL_SD_CARD, "Mode" }, { LV_SYMBOL_SETTINGS, "Settings" } };
+     orbit_create(&g_orb, root, it, T_N, -60, pick_cb);
++    if(th_disco()) for(int i = 0; i < T_N; i++){
++        /* Also cover the optional icon-arcs layout. No timer or animation. */
++        lv_obj_set_style_bg_opa(g_orb.btn[i], LV_OPA_COVER, LV_STATE_PRESSED);
++        lv_obj_set_style_border_width(g_orb.btn[i], 2, LV_STATE_PRESSED);
++        lv_obj_set_style_border_color(g_orb.btn[i], ui_current_accent(), LV_STATE_PRESSED);
++        lv_obj_set_style_border_opa(g_orb.btn[i], LV_OPA_COVER, LV_STATE_PRESSED);
++    }
+     lv_obj_add_event_cb(g_orb.btn[T_WIFI], wifi_long_cb, LV_EVENT_LONG_PRESSED, NULL);
+     lv_obj_add_event_cb(g_orb.btn[T_BT],   bt_long_cb,   LV_EVENT_LONG_PRESSED, NULL);
+     orbit_set_glyph(&g_orb, T_MODE, mode_glyph());
+@@ -327,6 +338,9 @@ void quicksettings_create(lv_obj_t *root)
+     lv_obj_set_style_bg_color(g_pp, TC(CANVAS), 0);
+     lv_obj_set_style_bg_opa(g_pp, 170, 0);
+     lv_obj_set_style_bg_opa(g_pp, 230, LV_STATE_PRESSED);
++    lv_obj_set_style_bg_color(g_pp, TC(SURFACE_RAISED), LV_STATE_PRESSED);
++    lv_obj_set_style_border_width(g_pp, 1, LV_STATE_PRESSED);
++    lv_obj_set_style_border_color(g_pp, ui_current_accent(), LV_STATE_PRESSED);
+     lv_obj_set_ext_click_area(g_pp, 4);
+     lv_obj_add_event_cb(g_pp, pp_cb, LV_EVENT_CLICKED, NULL);
+     g_pp_glyph = lv_label_create(g_pp);
+diff --git a/ui/songinfo.c b/ui/songinfo.c
+index dbe30be..c65786b 100644
+--- a/ui/songinfo.c
++++ b/ui/songinfo.c
+@@ -238,13 +238,14 @@ static int si_poll(const char *path, int track, si_tech_t *out, int *changed){
+     return got;
+ }
+ 
++static void sleeve_back_cb(lv_event_t *e){ (void)e; screen_back(); }
+ void songinfo_create(lv_obj_t *root)
+ {
+     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+ 
+-    g_header = ui_header(root, "Song Info");   /* kept for the book relabel; the cover ring replaces it visually */
+-    lv_obj_add_flag(g_header, LV_OBJ_FLAG_HIDDEN);
++    g_header = th_disco() ? NULL : ui_header(root, "Song Info");
++    if(g_header) lv_obj_add_flag(g_header, LV_OBJ_FLAG_HIDDEN);
+     /* the cover inside its progress ring, then title and artist */
+     g_ring = lv_arc_create(root);
+     lv_obj_remove_style(g_ring, NULL, LV_PART_KNOB);
+@@ -312,6 +313,48 @@ void songinfo_create(lv_obj_t *root)
+         g_val[i] = v;
+         if(i == F_TITLE || i == F_ARTIST) lv_obj_add_flag(cell, LV_OBJ_FLAG_HIDDEN);   /* shown in the header instead */
+     }
++    if(th_disco()){
++        /* Album back sleeve: a compact artwork stamp and a roomy metadata panel.
++         * The existing metadata worker and pinned-track handling stay shared. */
++        lv_obj_add_flag(g_ring, LV_OBJ_FLAG_HIDDEN);
++        lv_obj_t *back = lv_button_create(root); lv_obj_remove_style_all(back);
++        lv_obj_set_size(back, 152, 36); lv_obj_align(back, LV_ALIGN_TOP_MID, 0, 26);
++        lv_obj_set_style_radius(back, LV_RADIUS_CIRCLE, 0);
++        lv_obj_set_style_bg_color(back, TC(SURFACE), 0); lv_obj_set_style_bg_opa(back, 170, 0);
++        lv_obj_set_style_bg_color(back, TC(SURFACE_RAISED), LV_STATE_PRESSED); lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_STATE_PRESSED);
++        lv_obj_t *arrow = lv_label_create(back); lv_label_set_text(arrow, LV_SYMBOL_LEFT);
++        lv_obj_set_style_text_font(arrow, TF(UI_18), 0); lv_obj_set_style_text_color(arrow, TC(TEXT_PRIMARY), 0); lv_obj_align(arrow, LV_ALIGN_LEFT_MID, 14, 0);
++        g_header = lv_label_create(back); lv_label_set_text(g_header, "Song Info");
++        lv_obj_set_style_text_font(g_header, TF(UI_18), 0); lv_obj_set_style_text_color(g_header, TC(TEXT_PRIMARY), 0); lv_obj_align(g_header, LV_ALIGN_CENTER, 10, 0);
++        lv_obj_add_event_cb(back, sleeve_back_cb, LV_EVENT_CLICKED, NULL);
++        lv_obj_t *sleeve = lv_obj_create(root); lv_obj_remove_style_all(sleeve);
++        lv_obj_set_pos(sleeve, 44, 72); lv_obj_set_size(sleeve, 272, 246);
++        lv_obj_set_style_radius(sleeve, 20, 0);
++        lv_obj_set_style_bg_color(sleeve, TC(SURFACE), 0); lv_obj_set_style_bg_opa(sleeve, 205, 0);
++        lv_obj_set_style_border_width(sleeve, 1, 0); lv_obj_set_style_border_color(sleeve, TC(BORDER), 0);
++        lv_obj_clear_flag(sleeve, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_move_to_index(sleeve, lv_obj_get_index(g_cover));
++        lv_obj_set_size(g_cover, 52, 52); lv_obj_align(g_cover, LV_ALIGN_TOP_LEFT, 58, 86);
++        lv_obj_set_style_radius(g_cover, 8, 0);
++        lv_obj_set_width(g_title, 178); lv_obj_set_style_text_font(g_title, ui_font_cjk(20), 0);
++        lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_LEFT, 0); lv_obj_align(g_title, LV_ALIGN_TOP_LEFT, 122, 86);
++        lv_obj_set_width(g_artist, 178); lv_obj_set_style_text_font(g_artist, ui_font_cjk(16), 0);
++        lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_LEFT, 0); lv_obj_align(g_artist, LV_ALIGN_TOP_LEFT, 122, 115);
++        lv_obj_t *rule = lv_obj_create(root); lv_obj_remove_style_all(rule);
++        lv_obj_set_pos(rule, 58, 148); lv_obj_set_size(rule, 244, 1);
++        lv_obj_set_style_bg_color(rule, TC(BORDER), 0); lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
++        lv_obj_clear_flag(rule, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_pos(list, 58, 156); lv_obj_set_size(list, 244, 146);
++        lv_obj_set_style_pad_row(list, 8, 0); lv_obj_set_style_pad_bottom(list, 8, 0);
++        for(int i = 0; i < F_COUNT; i++){
++            lv_obj_set_style_pad_bottom(g_cell[i], 7, 0);
++            lv_obj_set_style_border_width(g_cell[i], 1, 0); lv_obj_set_style_border_side(g_cell[i], LV_BORDER_SIDE_BOTTOM, 0);
++            lv_obj_set_style_border_color(g_cell[i], TC(BORDER), 0); lv_obj_set_style_border_opa(g_cell[i], 100, 0);
++            lv_obj_set_style_text_font(g_key[i], TF(UI_14), 0); lv_obj_set_style_text_color(g_key[i], TC(TEXT_SECONDARY), 0);
++            lv_obj_set_style_text_font(g_val[i], ui_font_cjk(18), 0);
++            lv_label_set_long_mode(g_val[i], LV_LABEL_LONG_WRAP);
++        }
++    }
+     if(th_braun()){                                               /* Braun: the grille; details on the lower segment */
+         br_face(root); lv_obj_move_to_index(br_segment(root, 186), 1);
+         lv_obj_set_style_text_color(g_title, TC(TEXT_PRIMARY), 0); lv_obj_set_style_text_font(g_title, br_font(18, 1), 0);
+@@ -337,7 +380,7 @@ static void header_update(const track_state_t *st){         /* cover (the playin
+     const void *dsc = current ? ui_current_cover_dsc() : NULL;
+     lv_image_set_src(g_cover_img, NULL);
+     if(dsc){ const lv_image_dsc_t *d = dsc; lv_image_set_src(g_cover_img, dsc);
+-             if(d->header.w > 0) lv_image_set_scale(g_cover_img, (uint32_t)(88 * 256 / d->header.w) + 2);
++             if(d->header.w > 0) lv_image_set_scale(g_cover_img, (uint32_t)((th_disco() ? 52 : 88) * 256 / d->header.w) + 2);
+              lv_obj_center(g_cover_img); lv_obj_remove_flag(g_cover_img, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_cover_note, LV_OBJ_FLAG_HIDDEN); }
+     else { lv_obj_add_flag(g_cover_img, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(g_cover_note, LV_OBJ_FLAG_HIDDEN); }
+ }
+diff --git a/ui/tests/host_render.c b/ui/tests/host_render.c
+index 56e0d95..c2e5f8f 100644
+--- a/ui/tests/host_render.c
++++ b/ui/tests/host_render.c
+@@ -100,6 +100,14 @@ static lv_obj_t *find_text(lv_obj_t *o,const char *text){
+     }
+     return NULL;
+ }
++static lv_obj_t *find_visible_text(lv_obj_t *o,const char *text){
++    if(!lv_obj_is_visible(o)) return NULL;
++    if(lv_obj_check_type(o,&lv_label_class) && !strcmp(lv_label_get_text(o),text)) return o;
++    for(uint32_t i=0;i<lv_obj_get_child_count(o);i++){
++        lv_obj_t *found=find_visible_text(lv_obj_get_child(o,i),text); if(found) return found;
++    }
++    return NULL;
++}
+ int main(int argc, char **argv){
+     if(argc != 6){ fprintf(stderr,"usage: host-render PRESET VARIANT home|np|actions UP_NEXT OUT.ppm\n"); return 2; }
+     setenv("TZ","UTC",1); tzset();
+@@ -342,6 +350,13 @@ int main(int argc, char **argv){
+     }
+     if(!strncmp(argv[3],"preview-",8)){
+         fixture=1;sd_io_init(media_local);assert(sd_io_resume());
++        if(strstr(argv[3],"queue")){
++            char qp[512]; snprintf(qp,sizeof qp,"%s",CFG_PATH);
++            char *slash=strrchr(qp,'/'); assert(slash); strcpy(slash+1,"queue.tsv");
++            FILE *qf=fopen(qp,"w"); assert(qf);
++            if(!getenv("QUEUE_EMPTY")) fputs("/preview/01.flac\tSunset Drive\tThe Midnight\t240000\t1\t1\t0\t0\t1\n/preview/02.flac\tNightfall\tKavinsky\t220000\t2\t2\t0\t0\t1\n/preview/03.flac\tA Long Way Home\tTimecop1983\t260000\t3\t3\t0\t0\t1\n",qf);
++            assert(!fclose(qf));
++        }
+         cfg_set_int_deferred("online_lyrics",0);cfg_set_int_deferred("online_art",0);
+         cfg_set_int_deferred("eq_preset",11);cfg_set_int_deferred("eq_last",11);cfg_set_str("eq_name11","Warm analogue");
+         if(getenv("DISCO_QS"))cfg_set_int_deferred("disco_qs",atoi(getenv("DISCO_QS")));
+@@ -365,7 +380,7 @@ int main(int argc, char **argv){
+             snprintf(st.title,sizeof st.title,"The Last Train Home Through Northern Lights");
+             snprintf(st.artist,sizeof st.artist,"The Midnight & The Northern Lights Orchestra");
+         }
+-        st.have_track=1;st.state=2;st.duration_ms=240000;st.position_ms=92000;ipc_seed_state(&st);
++        st.have_track=1;st.state=2;st.duration_ms=240000;st.position_ms=92000;st.sample_rate=44100;ipc_seed_state(&st);
+         if(getenv("MA_TRACK")){                      /* MA Sendspin: Music shows Music Assistant's track + its sidecar cover */
+             struct timespec tn; clock_gettime(CLOCK_MONOTONIC,&tn);
+             ipc_set_external("Midnight City","M83","Hurry Up, We're Dreaming",getenv("MA_TRACK"),243000,61000,tn.tv_sec*1000LL+tn.tv_nsec/1000000,1000);
+@@ -399,6 +414,7 @@ int main(int argc, char **argv){
+         else if(!strcmp(page,"bands"))scr=SCR_EQ_EDITOR;else if(!strcmp(page,"display")){setlist_open("Display");scr=SCR_SETLIST;}else if(!strcmp(page,"network")){setlist_open("Network");scr=SCR_SETLIST;}else if(!strcmp(page,"system")){setlist_open("System");scr=SCR_SETLIST;}else if(!strcmp(page,"info")){songinfo_unpin();songinfo_set(&st);scr=SCR_SONGINFO;}else if(!strcmp(page,"group")){void settings_open_group(const char*);setlist_open("Display");scr=SCR_SETLIST;screen_show(scr);settings_open_group(getenv("SETGROUP"));}
+         else if(!strcmp(page,"library") || !strcmp(page,"albums"))scr=SCR_LIBRARY;else if(!strcmp(page,"settings"))scr=SCR_SETTINGS;
+         else if(!strcmp(page,"upnext"))scr=SCR_UPNEXT;else if(!strcmp(page,"modes"))scr=SCR_WORKMODE;
++        else if(!strcmp(page,"queue"))scr=SCR_QUEUE;
+         else if(!strcmp(page,"shortcuts")){apps_reload();scr=SCR_APPS;}
+         else if(!strcmp(page,"search")){if(getenv("SEARCH_RECENT")){cfg_set_str("search_r1","boris");cfg_set_str("search_r2","alpha band");cfg_set_str("search_r3","northern");}scr=SCR_SEARCH;}
+         else if(!strcmp(page,"battery")){void usage_demo(int);scr=SCR_USAGE;screen_show(scr);usage_demo(getenv("CHG")!=NULL);}
+@@ -552,6 +568,42 @@ int main(int argc, char **argv){
+         if(getenv("DISCO_EQ"))cfg_set_int_deferred("disco_eq",atoi(getenv("DISCO_EQ")));
+         if(getenv("DISCO_VOL"))cfg_set_int_deferred("disco_vol",atoi(getenv("DISCO_VOL")));
+         if(getenv("EQSEL")){ void eqcustom_test_select(int); eqcustom_test_select(atoi(getenv("EQSEL"))); for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();} }
++        if(getenv("REVIEW_PRESS")){
++            lv_obj_t *label=find_visible_text(screen_get_root(scr),getenv("REVIEW_PRESS")); assert(label);
++            lv_obj_t *button=lv_obj_get_parent(label);
++            assert(button!=screen_get_root(scr));
++            lv_opa_t resting=lv_obj_get_style_bg_opa(button,0);
++            lv_obj_add_state(button,LV_STATE_PRESSED);
++            assert(lv_obj_get_style_bg_opa(button,0)==LV_OPA_COVER);
++            assert(lv_obj_get_style_border_width(button,0)>0);
++            lv_obj_remove_state(button,LV_STATE_PRESSED);
++            assert(lv_obj_get_style_bg_opa(button,0)==resting);
++            lv_obj_add_state(button,LV_STATE_PRESSED); /* leave held for the render */
++            puts("PASS: pressed feedback restores on release");
++        }
++        if(getenv("REVIEW_QUEUE_CLEAR")){
++            int n=queue_count(); assert(n>0);
++            lv_obj_t *clear=find_visible_text(screen_get_root(SCR_QUEUE),"Clear"); assert(clear);
++            lv_obj_t *button=lv_obj_get_parent(clear);
++            lv_obj_send_event(button,LV_EVENT_CLICKED,NULL);
++            assert(queue_count()==n && !strcmp(lv_label_get_text(clear),"Sure?"));
++            lv_obj_send_event(button,LV_EVENT_CLICKED,NULL);
++            assert(!queue_count());
++            assert(find_visible_text(screen_get_root(SCR_QUEUE),st.title));
++            puts("PASS: Queue Clear requires confirmation and keeps the current track visible");
++        }
++        if(getenv("REVIEW_TRACK_INFO")){
++            lv_obj_t *info=ui_action_find("disco.track.info"); assert(info);
++            lv_obj_send_event(info,LV_EVENT_CLICKED,NULL);
++            for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
++            assert(screen_current()==SCR_SONGINFO);
++            assert(find_visible_text(screen_get_root(SCR_SONGINFO),st.title));
++            assert(!ui_action_find("disco.track.info"));
++            lv_obj_send_event(lv_obj_get_parent(find_visible_text(screen_get_root(SCR_SONGINFO),"Song Info")),LV_EVENT_CLICKED,NULL);
++            for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
++            assert(screen_current()==SCR_HOME);
++            puts("PASS: Disco popup Info opens current-track details and Back returns to Music");
++        }
+         if(getenv("VOLSHOW")){ void ui_show_volume(int); ui_show_volume(atoi(getenv("VOLSHOW"))); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
+         if(getenv("TICKS")){ int ms=atoi(getenv("TICKS")); for(int i=0;i<ms/20;i++){lv_tick_inc(20);lv_timer_handler();} }
+         if(!strncmp(page,"immersive",9)){
+diff --git a/ui/version.h b/ui/version.h
+index 3dd6719..2cf08e2 100644
+--- a/ui/version.h
++++ b/ui/version.h
+@@ -5,5 +5,5 @@
+ /* The diskOS release this UI belongs to (shown in Settings > About). Bump when a release is cut. */
+ #define DISKOS_VERSION "1.2.4"            /* internal only (the hidden online-update path compares it); never shown to users */
+ #define DISCO_NAME     "diskOS Disco!"
+-#define DISCO_VERSION  "1.3.0"             /* this fork's own release, shown in Settings > About */
++#define DISCO_VERSION  "1.3.0-polished2"    /* this fork's own release, shown in Settings > About */
+ #endif
