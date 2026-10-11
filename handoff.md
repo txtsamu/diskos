@@ -8,7 +8,7 @@ Updated: 2026-10-12. Read `agents/AGENTS.md`, `docs/DEVELOPMENT.md` and `todo.md
 `03d737445818ea7b439b427822126d432678b022`.
 The owner supplied `1.3.2-polish1-vs-1.3.1.patch`; it applies cleanly to this
 release and is restored in dev. That restored checkpoint displays version 1.3.2-polish1; the new hint candidate below is 1.3.2-polish2.
-Main, shipping payload and release assets are unchanged.
+Main and release assets remain unchanged. The dev payload now matches its candidate source; see payload/mq_ui.build.json.
 
 The project is a battery-powered Snowsky Disc UI: round 360x360 LVGL, Ingenic
 X2000 MIPS32r2, FP64, NaN2008, device firmware V2.57. Prioritize readable controls,
@@ -65,8 +65,8 @@ implemented; obtain device feedback next. Further usability work remains in todo
 Main holds approved releases; dev holds work/checkpoints. This branch setup is
 authorized. Future releases still require owner approval. Keep private signing
 keys and FiiO firmware out of GitHub. Use signed SD updates for test UI installs;
-accept the trial before restarting. Leave stable payload/version tags untouched
-until the candidate is device-approved.
+accept the trial before restarting. Keep the dev payload synchronized with its candidate source. Leave main and
+release tags untouched until the candidate is device-approved.
 
 ## Current validation
 
@@ -76,4 +76,5 @@ pass on Right/dark and Left/light, covering lifecycle, discovery, persisted stat
 save failure, Auto/On/Off and Help controls. Open-only gesture regression tests
 also pass on both sides. A static MIPS device binary was built and its ABI checked;
 final binary checksum is recorded alongside the deliverable. Device testing is
-pending. Main, stable payload, website release version and tags remain unchanged.
+pending. Dev now carries the candidate payload; main, website release version
+and release tags remain unchanged.

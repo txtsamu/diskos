@@ -10,6 +10,9 @@
 Work against the verified current branch, not a remembered chat version. Preserve
 uncommitted work before switching. Push source checkpoints at agreed milestones;
 a local commit alone is not a remote backup. Keep `handoff.md` and `todo.md` current.
+Keep dev source and its committed payload synchronized when a candidate builds
+successfully. Record the source commit, compiler, checksum and pending device-test
+status in `payload/mq_ui.build.json`. A commit to dev does not approve a release.
 Do not force-push shared branches. Main branch protection is recommended; it has
 not been configured by this setup.
 
@@ -18,6 +21,7 @@ not been configured by this setup.
 | Material | Durable home |
 | --- | --- |
 | UI source, scripts, docs, tests, recovery notes | `dev` commits on GitHub |
+| Candidate source and matching `payload/mq_ui`, with build metadata | `dev` |
 | Approved source and shipping payload | `main` and release tags |
 | Test `mq_ui`, source archive, checksums, manifest | Explicitly labelled development prerelease assets |
 | Complete verified MIPS toolchain archive, license/source information, checksum | Separate toolchain release assets |
