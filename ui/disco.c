@@ -1,4 +1,5 @@
 #include "onboarding.h"
+#include "quicksettings.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* The Disco theme (fork): the Ring interface on the album cover.
  *   - Backdrop: every screen except Music, Now Playing, the saver and Quick Settings shows the blurred cover, darkened
@@ -111,12 +112,6 @@ static void menu_load(void){
     int mi = in_menu(0);                                           /* Music always first: the top of the dots */
     if(mi > 0){ memmove(g_menu + 1, g_menu, sizeof(int) * (size_t)mi); g_menu[0] = 0; }
     if(g_cur >= g_nmenu) g_cur = 0;
-}
-static void menu_save(void){
-    char buf[MAXM + 1]; int n = 0;
-    for(int i = 0; i < g_nmenu && n < MAXM; i++) buf[n++] = CODE[g_menu[i]];
-    buf[n] = 0;
-    cfg_set_str("disco_mnu", buf);
 }
 
 /* ---- backdrop: the blurred cover, tinted once per album ------------------------------------------- */
@@ -594,90 +589,94 @@ void disco_art_changed(void){
 
 /* ---- Settings > Display > Disco Menu: choose, order, add and remove the picker's sections ----------- */
 static lv_obj_t *g_ed, *g_ed_list;
+static int g_edit[10],g_edit_n,g_edit_qs;
 static void ed_build(void);
-static void ed_build_async(void *p){ (void)p; ed_build(); }
-static void ed_close(void){ if(g_ed){ lv_obj_delete(g_ed); g_ed = NULL; g_ed_list = NULL; picker_paint(); } }
-static void ed_close_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) ed_close(); }
-static void ed_act_cb(lv_event_t *e){
-    if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    intptr_t v = (intptr_t)lv_event_get_user_data(e);
-    int s = (int)(v & 0xFF), act = (int)(v >> 8), i = in_menu(s);
-    if(act == 1 && i > 0){ int t = g_menu[i - 1]; g_menu[i - 1] = g_menu[i]; g_menu[i] = t; }             /* up */
-    else if(act == 2 && i >= 0 && i < g_nmenu - 1){ int t = g_menu[i + 1]; g_menu[i + 1] = g_menu[i]; g_menu[i] = t; }   /* down */
-    else if(act == 3 && i >= 0 && !SEC[s].prot){ memmove(g_menu + i, g_menu + i + 1, sizeof(int) * (size_t)(g_nmenu - i - 1)); g_nmenu--; }   /* remove */
-    else if(act == 4 && i < 0){ if(g_nmenu >= MAXM){ ui_toast("The menu holds up to ten"); return; } g_menu[g_nmenu++] = s; }   /* add */
-    else return;
-    if(g_cur >= g_nmenu) g_cur = 0;
-    menu_save();
-    lv_async_call(ed_build_async, NULL);                        /* rebuild after this click finishes */
+static int ed_in(int id){for(int i=0;i<g_edit_n;i++)if(g_edit[i]==id)return i;return -1;}
+static int ed_catalog_count(void){return g_edit_qs?quicksettings_item_count():NSEC;}
+static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name:SEC[id].name;}
+static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:SEC[id].icon;}
+static int ed_protected(int id){return !g_edit_qs && SEC[id].prot;}
+static void ed_build_async(void *p){(void)p;ed_build();}
+static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();}}
+static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
+static int ed_save(void){
+    if(g_edit_qs)return quicksettings_items_save(g_edit,g_edit_n);
+    char codes[MAXM+1],old[48];for(int i=0;i<g_edit_n;i++)codes[i]=CODE[g_edit[i]];codes[g_edit_n]=0;
+    snprintf(old,sizeof old,"%s",cfg_get_str("disco_mnu",""));
+    if(cfg_set_str("disco_mnu",codes)<0){cfg_set_str_deferred("disco_mnu",old);cfg_flush();return -1;}
+    memcpy(g_menu,g_edit,sizeof(int)*(size_t)g_edit_n);g_nmenu=g_edit_n;
+    if(g_cur>=g_nmenu)g_cur=0;
+    return 0;
 }
-static lv_obj_t *ed_btn(lv_obj_t *row, int x, const char *glyph, int s, int act, int dim){
-    lv_obj_t *b = lv_button_create(row); lv_obj_remove_style_all(b);
-    lv_obj_set_size(b, 34, 34); lv_obj_set_pos(b, x, 6);
-    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0); lv_obj_set_style_bg_opa(b, dim ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(b, TC(CONTROL_TRACK), LV_STATE_PRESSED);
-    lv_obj_t *l = lv_label_create(b); lv_label_set_text(l, glyph); lv_obj_set_style_text_font(l, TF(UI_14), 0);
-    lv_obj_set_style_text_color(l, dim ? TC(TEXT_DISABLED) : TC(TEXT_PRIMARY), 0); lv_obj_center(l);
-    if(!dim) lv_obj_add_event_cb(b, ed_act_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(s | (act << 8)));
-    else lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE);
+static void ed_act_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED)return;
+    intptr_t v=(intptr_t)lv_event_get_user_data(e);int id=(int)(v&0xff),act=(int)(v>>8),i=ed_in(id);
+    if(id<0 || id>=ed_catalog_count())return;
+    int old[10],old_n=g_edit_n;memcpy(old,g_edit,sizeof old);
+    if(act==1 && i>0){int t=g_edit[i-1];g_edit[i-1]=g_edit[i];g_edit[i]=t;}
+    else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
+    else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
+    else if(act==4 && i<0){
+        if(g_edit_n>=(g_edit_qs?QS_MAX_ITEMS:MAXM)){ui_toast(g_edit_qs?"Remove an item first (eight maximum)":"The menu holds up to ten");return;}
+        g_edit[g_edit_n++]=id;
+    }else return;
+    if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
+    lv_async_call(ed_build_async,NULL);
+}
+static lv_obj_t *ed_btn(lv_obj_t *row,int x,const char *glyph,int id,int act,int dim){
+    lv_obj_t *b=lv_button_create(row);lv_obj_remove_style_all(b);lv_obj_set_size(b,34,34);lv_obj_set_pos(b,x,6);
+    lv_obj_set_style_radius(b,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(b,TC(SURFACE_RAISED),0);
+    lv_obj_set_style_bg_opa(b,dim?LV_OPA_TRANSP:LV_OPA_COVER,0);lv_obj_set_style_bg_color(b,TC(CONTROL_TRACK),LV_STATE_PRESSED);
+    lv_obj_t *l=lv_label_create(b);lv_label_set_text(l,glyph);lv_obj_set_style_text_font(l,TF(UI_14),0);
+    lv_obj_set_style_text_color(l,dim?TC(TEXT_DISABLED):TC(TEXT_PRIMARY),0);lv_obj_center(l);
+    if(!dim)lv_obj_add_event_cb(b,ed_act_cb,LV_EVENT_CLICKED,(void*)(intptr_t)(id|(act<<8)));else lv_obj_clear_flag(b,LV_OBJ_FLAG_CLICKABLE);
     return b;
 }
-static void ed_row(int s, int pos){
-    lv_obj_t *r = lv_obj_create(g_ed_list); lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, 276, 46);
-    lv_obj_set_style_radius(r, TH_R_ROW, 0);
-    lv_obj_set_style_bg_color(r, TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, pos >= 0 ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, SEC[s].icon);
-    lv_obj_set_style_text_font(ic, !strcmp(SEC[s].icon, TH_IC_SEARCH) ? &font_theme_20 : !strcmp(SEC[s].icon, IC_MIC) ? TF(ICON_20) : ((!strcmp(SEC[s].icon, "EQ") || !strcmp(SEC[s].icon, "MA")) ? TF(UI_14) : TF(UI_18)), 0);
-    lv_obj_set_style_text_color(ic, pos >= 0 ? ui_current_accent() : TC(TEXT_MUTED), 0); lv_obj_align(ic, LV_ALIGN_LEFT_MID, 12, 0);
-    roulette_icon(ic, SEC[s].icon, 20);
-    lv_obj_t *nm = lv_label_create(r); lv_label_set_text(nm, SEC[s].name);
-    lv_obj_set_style_text_font(nm, TF(UI_16), 0);
-    lv_obj_set_style_text_color(nm, pos >= 0 ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0); lv_obj_align(nm, LV_ALIGN_LEFT_MID, 44, 0);
-    if(pos < 0){ ed_btn(r, 234, LV_SYMBOL_PLUS, s, 4, 0); return; }
-    ed_btn(r, 150, LV_SYMBOL_UP, s, 1, pos == 0);
-    ed_btn(r, 188, LV_SYMBOL_DOWN, s, 2, pos == g_nmenu - 1);
-    if(SEC[s].prot){ lv_obj_t *lk = lv_label_create(r); lv_label_set_text(lk, LV_SYMBOL_EYE_OPEN); lv_obj_set_style_text_font(lk, TF(UI_14), 0);
-                     lv_obj_set_style_text_color(lk, TC(TEXT_DISABLED), 0); lv_obj_set_pos(lk, 244, 14); }   /* always shown */
-    else ed_btn(r, 234, LV_SYMBOL_CLOSE, s, 3, 0);
+static void ed_row(int id,int pos){
+    lv_obj_t *r=lv_obj_create(g_ed_list);lv_obj_remove_style_all(r);lv_obj_set_size(r,276,46);
+    lv_obj_set_style_radius(r,TH_R_ROW,0);lv_obj_set_style_bg_color(r,TC(SURFACE),0);
+    lv_obj_set_style_bg_opa(r,pos>=0?LV_OPA_COVER:LV_OPA_TRANSP,0);lv_obj_clear_flag(r,LV_OBJ_FLAG_SCROLLABLE);
+    const char *icon=ed_icon(id);lv_obj_t *ic=lv_label_create(r);lv_label_set_text(ic,icon);
+    const lv_font_t *font=!strcmp(icon,TH_IC_SEARCH)?&font_theme_20:!strcmp(icon,IC_MIC)?TF(ICON_20):(!strcmp(icon,"EQ") || !strcmp(icon,"MA"))?TF(UI_14):TF(UI_18);
+    if(g_edit_qs && (!strcmp(quicksettings_item(id)->code,"h") || !strcmp(quicksettings_item(id)->code,"a")))font=TF(ICON_20);
+    lv_obj_set_style_text_font(ic,font,0);lv_obj_set_style_text_color(ic,pos>=0?ui_current_accent():TC(TEXT_MUTED),0);lv_obj_align(ic,LV_ALIGN_LEFT_MID,12,0);
+    if(!g_edit_qs)roulette_icon(ic,icon,20);
+    lv_obj_t *nm=lv_label_create(r);lv_label_set_text(nm,ed_name(id));lv_obj_set_style_text_font(nm,TF(UI_16),0);
+    lv_obj_set_width(nm,102);lv_label_set_long_mode(nm,LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_color(nm,pos>=0?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY),0);lv_obj_align(nm,LV_ALIGN_LEFT_MID,44,0);
+    if(pos<0){ed_btn(r,234,LV_SYMBOL_PLUS,id,4,0);return;}
+    ed_btn(r,150,LV_SYMBOL_UP,id,1,pos==0);ed_btn(r,188,LV_SYMBOL_DOWN,id,2,pos==g_edit_n-1);
+    if(ed_protected(id)){lv_obj_t *lock=lv_label_create(r);lv_label_set_text(lock,LV_SYMBOL_EYE_OPEN);lv_obj_set_style_text_font(lock,TF(UI_14),0);lv_obj_set_style_text_color(lock,TC(TEXT_DISABLED),0);lv_obj_set_pos(lock,244,14);}
+    else ed_btn(r,234,LV_SYMBOL_CLOSE,id,3,0);
 }
 static void ed_build(void){
-    if(!g_ed) return;
-    int32_t sy = lv_obj_get_scroll_y(g_ed_list);
-    lv_obj_clean(g_ed_list);
-    for(int i = 0; i < g_nmenu; i++) ed_row(g_menu[i], i);
-    lv_obj_t *h = lv_label_create(g_ed_list); lv_label_set_text(h, "Add to the menu");
-    lv_obj_set_style_text_font(h, TF(UI_14), 0); lv_obj_set_style_text_color(h, TC(TEXT_MUTED), 0);
-    for(int s = 0; s < NSEC; s++) if(in_menu(s) < 0) ed_row(s, -1);
-    lv_obj_t *pad = lv_obj_create(g_ed_list); lv_obj_remove_style_all(pad); lv_obj_set_size(pad, 10, 40);
-    lv_obj_update_layout(g_ed_list); lv_obj_scroll_to_y(g_ed_list, sy, LV_ANIM_OFF);
+    if(!g_ed)return;
+    int32_t sy=lv_obj_get_scroll_y(g_ed_list);lv_obj_clean(g_ed_list);
+    for(int i=0;i<g_edit_n;i++)ed_row(g_edit[i],i);
+    lv_obj_t *h=lv_label_create(g_ed_list);lv_label_set_text(h,g_edit_qs?"Available items":"Add to the menu");
+    lv_obj_set_style_text_font(h,TF(UI_14),0);lv_obj_set_style_text_color(h,TC(TEXT_MUTED),0);
+    for(int id=0;id<ed_catalog_count();id++)if(ed_in(id)<0)ed_row(id,-1);
+    lv_obj_t *pad=lv_obj_create(g_ed_list);lv_obj_remove_style_all(pad);lv_obj_set_size(pad,10,40);
+    lv_obj_update_layout(g_ed_list);lv_obj_scroll_to_y(g_ed_list,sy,LV_ANIM_OFF);
 }
-void disco_menu_open(void){
-    if(!th_disco()){ ui_toast("Disco Menu is part of the Disco theme"); return; }
-    if(g_ed) return;                                                    /* already open */
-    menu_load();
-    g_ed = lv_obj_create(lv_layer_top());
-    lv_obj_remove_style_all(g_ed);
-    lv_obj_set_size(g_ed, 360, 360);
-    lv_obj_set_style_bg_color(g_ed, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ed, LV_OPA_COVER, 0);
-    if(g_bd_ok) lv_obj_set_style_bg_image_src(g_ed, &g_bd_dsc, 0);
-    lv_obj_add_flag(g_ed, LV_OBJ_FLAG_CLICKABLE); lv_obj_clear_flag(g_ed, LV_OBJ_FLAG_SCROLLABLE);
-    ui_header_cb(g_ed, "Disco Menu", ed_close_cb);
-    lv_obj_t *hint = lv_label_create(g_ed); lv_label_set_text(hint, "Music and Settings always stay");
-    lv_obj_set_style_text_font(hint, TF(UI_12), 0); lv_obj_set_style_text_color(hint, TC(TEXT_MUTED), 0);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 64);
-    g_ed_list = lv_obj_create(g_ed); lv_obj_remove_style_all(g_ed_list);
-    lv_obj_set_pos(g_ed_list, 42, 86); lv_obj_set_size(g_ed_list, 276, 274);
-    lv_obj_set_flex_flow(g_ed_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(g_ed_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(g_ed_list, 6, 0);
-    lv_obj_set_scroll_dir(g_ed_list, LV_DIR_VER); lv_obj_set_scrollbar_mode(g_ed_list, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_flag(g_ed_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
-    ed_build();
-    kit_pass(g_ed);
+static void editor_open(int qs){
+    if(!th_disco()){ui_toast("This editor is part of Disco");return;}if(g_ed)return;
+    onboarding_dismiss();g_edit_qs=qs;
+    if(qs)g_edit_n=quicksettings_items_load(g_edit);else{menu_load();g_edit_n=g_nmenu;memcpy(g_edit,g_menu,sizeof(int)*(size_t)g_nmenu);}
+    g_ed=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(g_ed);lv_obj_set_size(g_ed,360,360);
+    lv_obj_set_style_bg_color(g_ed,TC(CANVAS),0);lv_obj_set_style_bg_opa(g_ed,LV_OPA_COVER,0);
+    if(g_bd_ok)lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
+    lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
+    ui_header_cb(g_ed,qs?"Quick Items":"Disco Menu",ed_close_cb);
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?"Choose up to eight; arrows change order":"Music and Settings always stay");
+    lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
+    g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
+    lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(g_ed_list,6,0);lv_obj_set_scroll_dir(g_ed_list,LV_DIR_VER);lv_obj_set_scrollbar_mode(g_ed_list,LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(g_ed_list,LV_OBJ_FLAG_SCROLL_MOMENTUM);ed_build();kit_pass(g_ed);
 }
+void disco_menu_open(void){editor_open(0);}
+void disco_qs_menu_open(void){editor_open(1);}
 
 /* ---- Disco list rows for hand-built screens (Modes, Shortcuts, ...): the Settings look, all rows in view ----
  * A rounded row at height y, as wide as the circle allows there, its right end clear of the closed sliver.
@@ -735,3 +734,5 @@ void disco_test_nav_points(lv_point_t *icon,lv_point_t *tab){
     icon->x=disco_mirror()?87:273;icon->y=164;tab->x=disco_mirror()?20:340;tab->y=180;
 }
 int disco_test_nav_open(void){return g_open;}
+
+void disco_test_editor_close(void){ed_close();}

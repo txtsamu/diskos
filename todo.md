@@ -30,3 +30,15 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [ ] Preserve list position when returning from a detail screen.
 - [ ] Test the 260 ms centre-icon tap delay from the gesture candidate on device.
       Check that it still feels snappy.
+
+## Quick Settings: 1.3.2-polish4 dev checkpoint
+
+- [x] Approved inset Arc layout: eight 66px targets; mirror Left.
+- [x] Current/Arc selector and shared eight-item selection/reordering editor.
+- [x] Reserve inner radio positions, explicit state and hold-to-settings.
+- [x] Keep music disc/rim geometry and inexpensive press feedback.
+- [x] Both-side LVGL geometry/input/editor/state, hints and gesture checks.
+- [x] Build matching device binary, synchronize dev payload and metadata.
+- [x] Prepare dev bundle and updated handoff/release notes.
+- [ ] Owner uploads dev bundle and tests/accepts candidate on Disc.
+- [ ] Consider stable 1.3.2 release only after device approval.

@@ -2,6 +2,7 @@
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "screens.h"
 #include "onboarding.h"
+#include "quicksettings.h"
 #include <sys/stat.h>
 #include "ui.h"
 #include "theme.h"
@@ -35,6 +36,15 @@ int __wrap_art_make_all_ex_gen(const char *path,const char *c,const char *t,cons
     }
     return __real_art_make_all_ex_gen(path,c,t,b,cancel,gen);
 }
+
+/* Radio fixtures are host-only: tests never toggle the computer's real radios. */
+static int qs_wifi=-1,qs_bt=-1,qs_wifi_taps,qs_bt_taps;
+int __real_wifi_radio_live(void);int __real_bt_state(void);
+int __real_wifi_toggle(void);int __real_bt_toggle(void);
+int __wrap_wifi_radio_live(void){return qs_wifi>=0?qs_wifi:__real_wifi_radio_live();}
+int __wrap_bt_state(void){return qs_bt>=0?qs_bt:__real_bt_state();}
+int __wrap_wifi_toggle(void){if(qs_wifi<0)return __real_wifi_toggle();qs_wifi_taps++;return qs_wifi=!qs_wifi;}
+int __wrap_bt_toggle(void){if(qs_bt<0)return __real_bt_toggle();qs_bt_taps++;qs_bt=qs_bt==BT_OFF?BT_ON:BT_OFF;return qs_bt==BT_ON;}
 
 /* A fixed clock makes repeated frames comparable; this symbol exists only in the host executable. */
 time_t time(time_t *out){ time_t t=1791022170; if(out) *out=t; return t; }
@@ -253,6 +263,81 @@ static void review_hints(void){
     puts("PASS: hint lifetime/discovery, click-through, Auto/On/Off, healthy-start limit, reset/persistence/save failure");
 }
 
+
+static void qs_editor_click(const char *name,const char *glyph){
+    lv_obj_t *label=find_text(lv_layer_top(),name);assert(label);
+    lv_obj_t *button=find_text(lv_obj_get_parent(label),glyph);assert(button);
+    lv_obj_send_event(lv_obj_get_parent(button),LV_EVENT_CLICKED,NULL);nav_wait(60);
+}
+static void review_qs(void){
+    lv_indev_t *pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(pointer,nav_read);
+    lv_obj_t *quicksettings_test_button(int);lv_obj_t *quicksettings_test_disc(void);
+    void disco_test_editor_close(void);
+    int items[QS_MAX_ITEMS];
+    cfg_set_str("disco_qs_items","wbmlefrs");assert(quicksettings_items_load(items)==8);
+    qs_wifi=0;qs_bt=BT_OFF;
+    cfg_set_str("disco_qs_items","wbmlefrs");
+    for(int style=0;style<2;style++){
+        qs_wifi=0;qs_bt=BT_OFF;
+        cfg_set_int("disco_qs_style",style);screen_show(SCR_QUICK);quicksettings_build();nav_wait(100);
+        lv_obj_t *root=screen_get_root(SCR_QUICK);lv_area_t disc;lv_obj_get_coords(quicksettings_test_disc(),&disc);
+        assert(lv_obj_get_width(quicksettings_test_disc())==120);
+        assert((disc.x1+disc.x2+1)/2==(disco_mirror()?88:272));
+        for(int i=0;i<8;i++){
+            lv_obj_t *button=quicksettings_test_button(i);assert(button);lv_area_t a;lv_obj_get_coords(button,&a);
+            int x[2]={a.x1,a.x2},y[2]={a.y1,a.y2};
+            for(int k=0;k<2;k++)for(int j=0;j<2;j++){int dx=x[k]-180,dy=y[j]-180;assert(dx*dx+dy*dy<180*180);}
+            for(int j=0;j<i;j++){lv_area_t b;lv_obj_get_coords(quicksettings_test_button(j),&b);if(style){int dx=a.x1-b.x1,dy=a.y1-b.y1;assert(dx*dx+dy*dy>=66*66);}else assert(a.x2<b.x1 || b.x2<a.x1 || a.y2<b.y1 || b.y2<a.y1);}
+        }
+        assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
+        lv_obj_t *wifi=quicksettings_test_button(0);lv_area_t hit;lv_obj_get_coords(wifi,&hit);
+        nav_pointer.point.x=(hit.x1+hit.x2)/2;nav_pointer.point.y=(hit.y1+hit.y2)/2;
+        nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(40);assert(lv_obj_has_state(wifi,LV_STATE_PRESSED));
+        nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);assert(qs_wifi_taps==style+1);
+        assert(find_text(quicksettings_test_button(0),qs_wifi?"On":"Off"));
+        qs_bt=BT_TURNING_ON;quicksettings_refresh(1);assert(find_text(quicksettings_test_button(1),"..."));
+        qs_bt=BT_ON;quicksettings_refresh(1);assert(find_text(quicksettings_test_button(1),"On"));
+        assert_visible_icon_glyphs(root);
+    }
+    /* Reorder Wi-Fi to a different slot: state and action must follow the item. */
+    int reordered[]={6,7,8,9,1,0};assert(quicksettings_items_save(reordered,6)==0);quicksettings_build();
+    lv_obj_send_event(quicksettings_test_button(5),LV_EVENT_SHORT_CLICKED,NULL);assert(qs_wifi_taps==3);
+    assert(find_text(quicksettings_test_button(5),qs_wifi?"On":"Off"));
+    lv_obj_send_event(quicksettings_test_button(4),LV_EVENT_SHORT_CLICKED,NULL);assert(qs_bt_taps==1);
+    assert_visible_icon_glyphs(screen_get_root(SCR_QUICK));
+    /* Every selectable glyph and sparse/empty layouts. */
+    for(int id=0;id<quicksettings_item_count();id++){
+        assert(quicksettings_items_save(&id,1)==0);quicksettings_build();nav_wait(20);
+        assert_visible_icon_glyphs(screen_get_root(SCR_QUICK));assert(quicksettings_test_button(0));assert(!quicksettings_test_button(1));
+    }
+    assert(quicksettings_items_save(items,0)==0);quicksettings_build();assert(!quicksettings_test_button(0));
+    cfg_set_str("disco_qs_items","????");assert(quicksettings_items_load(items)==8);
+    cfg_set_str("disco_qs_items","wwbbm");assert(quicksettings_items_load(items)==3);
+    cfg_set_str("disco_qs_items","wbmlefrs");
+    /* The shared editor enforces eight, reorders, removes/adds and persists. */
+    screen_show(SCR_SETTINGS);disco_qs_menu_open();qs_editor_click("Wi-Fi",LV_SYMBOL_DOWN);
+    assert(!strcmp(cfg_get_str("disco_qs_items",""),"bwmlefrs"));
+    qs_editor_click("Queue",LV_SYMBOL_PLUS);assert(!strcmp(cfg_get_str("disco_qs_items",""),"bwmlefrs"));
+    qs_editor_click("Modes",LV_SYMBOL_CLOSE);qs_editor_click("Queue",LV_SYMBOL_PLUS);
+    assert(!strcmp(cfg_get_str("disco_qs_items",""),"bwlefrsq"));
+    char original[48];snprintf(original,sizeof original,"%s",cfg_get_str("disco_qs_items",""));
+    assert(mkdir(CFG_PATH ".tmp",0700)==0);qs_editor_click("Wi-Fi",LV_SYMBOL_DOWN);
+    assert(!strcmp(cfg_get_str("disco_qs_items",""),original));assert(rmdir(CFG_PATH ".tmp")==0);
+    disco_test_editor_close();
+    /* Existing Disco Menu uses the same editor and retains protected entries. */
+    disco_menu_open();lv_obj_t *music=find_text(lv_layer_top(),"Music");assert(music);
+    assert(!find_text(lv_obj_get_parent(music),LV_SYMBOL_CLOSE));disco_test_editor_close();
+    setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(l);
+    lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+    l=find_text(screen_get_root(SCR_SETLIST),"Quick Settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+    l=find_text(screen_get_root(SCR_SETLIST),"Style");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+    l=find_text(screen_get_root(SCR_SETTING_DETAIL),LV_SYMBOL_RIGHT);assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+    assert(cfg_get_int("disco_qs_style",-1)==0);screen_back();nav_wait(60);
+    assert(find_text(screen_get_root(SCR_SETLIST),"Items"));
+    lv_indev_delete(pointer);
+    puts("PASS: QS both styles, round bounds/non-overlap, disc preserved, radio state/action mapping, all glyphs, editor/persistence/failure, submenu");
+}
+
 int main(int argc, char **argv){
     if(argc != 6){ fprintf(stderr,"usage: host-render PRESET VARIANT home|np|actions UP_NEXT OUT.ppm\n"); return 2; }
     setenv("TZ","UTC",1); tzset();
@@ -263,6 +348,8 @@ int main(int argc, char **argv){
     lv_display_set_buffers(d,buf,NULL,sizeof buf,LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(d,flush);
     cfg_load();
+    if(getenv("QS_WIFI"))qs_wifi=atoi(getenv("QS_WIFI"));
+    if(getenv("QS_BT"))qs_bt=atoi(getenv("QS_BT"));
     if(!strcmp(argv[3],"migration") || !strcmp(argv[3],"reset")){
         int prior=atoi(argv[1]), variant=atoi(argv[2]);
         assert(!cfg_set_int_deferred("volume",37));
@@ -519,7 +606,8 @@ int main(int argc, char **argv){
         }
         cfg_set_int_deferred("online_lyrics",0);cfg_set_int_deferred("online_art",0);
         cfg_set_int_deferred("eq_preset",11);cfg_set_int_deferred("eq_last",11);cfg_set_str("eq_name11","Warm analogue");
-        if(getenv("DISCO_QS"))cfg_set_int_deferred("disco_qs",atoi(getenv("DISCO_QS")));
+        if(getenv("QS_ITEMS"))cfg_set_str_deferred("disco_qs_items",getenv("QS_ITEMS"));
+        if(getenv("DISCO_QS"))cfg_set_int_deferred("disco_qs_style",atoi(getenv("DISCO_QS")));
         if(getenv("DISCO_PROG"))cfg_set_int_deferred("disco_progress",atoi(getenv("DISCO_PROG")));
         if(getenv("DISCO_IMMSTYLE"))cfg_set_int_deferred("disco_imm",atoi(getenv("DISCO_IMMSTYLE")));
         if(getenv("DISCO_SCROLL"))cfg_set_int_deferred("disco_scroll",atoi(getenv("DISCO_SCROLL")));if(getenv("DISCO_SIDE"))cfg_set_int_deferred("disco_side",atoi(getenv("DISCO_SIDE")));
@@ -598,6 +686,13 @@ int main(int argc, char **argv){
         for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}kit_pass(screen_get_root(scr));
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}
+        if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(getenv("QS_EDITOR"))disco_qs_menu_open();
+        if(getenv("QS_SETTINGS")){
+            setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(l);
+            lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+            l=find_text(screen_get_root(SCR_SETLIST),"Quick Settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+        }
         if(getenv("HINT_SHOT")){
             cfg_set_int("disco_hints",1);onboarding_start();
             int id=atoi(getenv("HINT_SHOT"));

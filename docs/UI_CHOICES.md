@@ -200,3 +200,31 @@ No blur, pulsing, transitions, or permanent hint polling is added. Counters use
 existing atomic configuration writes at discovery/start events, not timer ticks.
 Device testing remains pending. The compiled candidate is separate from the
 stable 1.3.1 payload.
+
+## Disco Quick Settings (1.3.2-polish4 development candidate)
+
+Display > Disco Options > Quick Settings offers Style (Current / Arc) and Items.
+Arc is the default when no style has been saved. Existing saved styles remain.
+The approved Arc layout has eight 66px circular targets: six evenly spaced on a
+116px radius, concentric with the battery/brightness rim, and two inner targets
+between that arc and the music disc. Left mirrors the complete layout.
+The music disc, progress, playback and rim controls keep their existing geometry.
+
+Items uses the Disco Menu editor to add, remove and reorder up to eight distinct
+choices, with immediate persistence. Wi-Fi and Bluetooth reserve the two inner
+positions when selected. Other actions fill the outer arc in editor order; if a
+radio is omitted, its inner position can hold an additional action after the six
+outer positions. Fewer items and an empty selection are supported.
+
+Default items: Wi-Fi, Bluetooth, Modes, Library, Equalizer, Search, Rescan,
+Settings. Also available: Queue, Up Next, Shortcuts, Weather, Lyrics, Song Info,
+Immersive, Folders and Favourites. Existing saved item lists remain intact.
+Wi-Fi/BT always show live On/Off state; Bluetooth startup shows pending dots.
+Hold a radio for its settings; hold another button for its action name.
+Rescan retains confirmation. Press feedback uses simple fill/border changes.
+
+Current retains its row design for six or fewer items and uses compact rows for
+seven/eight, preserving every selected action when switching styles. Changes
+rebuild only controls, preserving playback and the disc. No new periodic timer
+or expensive animation is added. Device testing is pending; this is dev work,
+not a stable release.

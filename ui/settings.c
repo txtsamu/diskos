@@ -1,4 +1,5 @@
 #include "onboarding.h"
+#include "quicksettings.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -336,6 +337,10 @@ static void apply_grp_onlineextras(int v);
 static void apply_grp_musicscreen(int v);
 static void apply_grp_discocolours(int v);
 static void apply_grp_discolayout(int v);
+static void apply_grp_discoqs(int v);
+static void apply_disco_qs(int v){(void)v;quicksettings_build();}
+static void apply_disco_qs_items(int v){(void)v;disco_qs_menu_open();}
+static const char *OPT_QS_STYLE[]={"Current","Arc"};
 static void apply_grp_power(int v);
 static void apply_grp_datetime(int v);
 static void apply_grp_library(int v);
@@ -786,6 +791,12 @@ static const setting_t TABLE[] = {
       "Rim sheen and the colours of the equalizer, volume and progress, plus the progress shape.", NULL },
     { "Disco Options", "Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discolayout, 0,
       "Which side the navigation circle sits on, and how lists scroll.", NULL },
+    { "Disco Options", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discoqs,0,
+      "Choose the button style and up to eight quick actions.", NULL },
+    { "Quick Settings", "Style", ST_CYCLER, "disco_qs_style",0,0,1,OPT_QS_STYLE,2,NULL,apply_disco_qs,0,
+      "Current keeps the rows. Arc uses up to eight round buttons. The music disc stays.", NULL },
+    { "Quick Settings", "Items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
+      "Add, remove and reorder quick actions with the Disco Menu editor.", NULL },
     { "Disco Options", "Immersive", ST_CYCLER, "disco_imm", 0,0,0, OPT_DIMM, 2, NULL, apply_disco_imm, 0,
       "The full-screen spinning cover: Vinyl (grooves and a dark label) or CD (a clear hub, a still rainbow sheen and faint spokes, like light on a spinning disc). The lyrics shade stays the same.", NULL },
     { "Music Screen", "Show Clock", ST_TOGGLE, "disco_clock", 0,1,1, NULL,0, NULL, apply_disco_clock, 1,
@@ -1040,6 +1051,7 @@ static void apply_grp_screenstandby(int v){ (void)v; g_active_group = "Standby";
 static void apply_grp_onlineextras(int v){ (void)v; g_active_group = "Online & Extras"; setlist_refresh(); }
 static void apply_grp_musicscreen(int v){ (void)v; g_active_group = "Music Screen"; setlist_refresh(); }
 static void apply_grp_discocolours(int v){ (void)v; g_active_group = "Disco Colours"; setlist_refresh(); }
+static void apply_grp_discoqs(int v){(void)v;g_active_group="Quick Settings";setlist_refresh();}
 static void apply_grp_discolayout(int v){ (void)v; g_active_group = "Disco Layout"; setlist_refresh(); }
 static void apply_grp_power(int v){ (void)v; g_active_group = "Power"; setlist_refresh(); }
 static void apply_grp_datetime(int v){ (void)v; g_active_group = "Date & Time"; setlist_refresh(); }
@@ -1062,6 +1074,7 @@ static const struct { const char *child, *parent; } SUBGROUP[] = {
     { "Music Screen", "Disco Options" },
     { "Disco Colours", "Disco Options" },
     { "Disco Layout", "Disco Options" },
+    { "Quick Settings", "Disco Options" },
     { "Power", "System" },
     { "Date & Time", "System" },
     { "Library", "System" },
@@ -1444,7 +1457,7 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(!th_disco() && (nav_setting(s) || s->apply==apply_grp_help || !strcmp(s->group,"Help")))continue;
+        if(!th_disco() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s) || s->apply==apply_grp_help || !strcmp(s->group,"Help")))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;

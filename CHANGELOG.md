@@ -5,6 +5,17 @@ All notable changes to diskOS Disco! (and the diskOS releases underneath) are do
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
+## [1.3.2-polish4] - 2026-10-12 (dev candidate)
+
+- Includes open-menu Hold/Double tap controls and first-use hints from earlier dev work.
+- Disco Quick Settings: Current/Arc styles, eight 66px circular targets with
+  inset concentric spacing and reserved inner Wi-Fi/Bluetooth controls.
+- Shared item editor supports eight selectable/reorderable actions; live radio
+  indicators, hold-to-settings and inexpensive press feedback.
+- Left mirrors Arc; Current supports all eight selections with compact rows.
+- Matching rebuilt dev payload and metadata. Both-side LVGL checks and static
+  MIPS ABI checks; physical-device acceptance pending. Main remains 1.3.1.
+
 ## [Disco! 1.3.1] - 2026-10-11
 
 ### Added

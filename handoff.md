@@ -48,7 +48,7 @@ objects; host configuration also needed a temp-path buffer sized from CFG_PATH
 rather than a fixed 64 bytes. Preserve/check toolchain release assets as described
 in docs/DEVELOPMENT.md; remote upload remains blocked by GitHub connection access.
 
-## Current candidate: 1.3.2-polish2
+## Included baseline: 1.3.2-polish2
 
 Adds four first-use hints and System > Help > First-use hints (Automatic/On/Off),
 plus Show hints again. Auto retires learned tips (menu/navigation twice,
@@ -78,3 +78,24 @@ also pass on both sides. A static MIPS device binary was built and its ABI check
 final binary checksum is recorded alongside the deliverable. Device testing is
 pending. Dev now carries the candidate payload; main, website release version
 and release tags remain unchanged.
+
+## Current dev candidate: 1.3.2-polish4
+
+Owner approved the inset eight-button Arc layout and requested a dev bundle.
+Disco Options > Quick Settings has Current/Arc and the shared Items editor
+(maximum eight). Wi-Fi/BT reserve the middle inner positions; six other actions
+follow the concentric arc. All targets are 66px, mirrored for Left. Default
+items are wbmlefrs; existing saved lists/styles remain. Current supports all
+eight without truncation. Simple press feedback and live radio state are present.
+Gesture and hint work from polish1/polish2 is included. Standalone apps unchanged.
+
+Both-side native LVGL checks cover geometry, radio input/state, all catalog
+icons, item parsing, editing/persistence/save failure, navigation and hints.
+The supplied payload is rebuilt from this source with static MIPS32r2/FP64/
+NaN2008 ABI checks. Metadata: payload/mq_ui.build.json. Device test pending.
+Main and release tags are untouched; the bundle advances dev only.
+
+Test: signed SD update, select Arc if a saved style remains Current, check both
+sides, On/Off and hold-to-settings, selection/reordering, Current with eight,
+and playback/rim controls. Accept the trial before restarting. Do not replace
+mq_ui directly over SSH. See docs/releases/v1.3.2-polish4.md for installation.

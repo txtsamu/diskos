@@ -28,6 +28,12 @@
   <a href="#thanks">Thanks</a>
 </p>
 
+
+**Dev preview:** [1.3.2-polish4](docs/releases/v1.3.2-polish4.md) adds Disco
+Quick Settings with an eight-button Arc layout and a shared item editor,
+alongside the navigation gestures and first-use hints. Device testing is pending;
+the stable release remains 1.3.1.
+
 ---
 
 > [!CAUTION]
