@@ -5,6 +5,15 @@ All notable changes to diskOS Disco! (and the diskOS releases underneath) are do
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
+## [1.3.2-polish8] - 2026-10-12 (dev candidate)
+
+- Current QS action pills move beyond the edge-Back zone with an 8px buffer;
+  mirrored for Left. Compact curved rows and equal gaps remain.
+- Modes containers are shorter and inset from the same protected edge, with
+  adaptive single-line labels and existing 56px row heights.
+- Radio positions, Arc and mode-switching logic unchanged. Native both-side
+  checks pass; matching static MIPS dev payload, device acceptance pending.
+
 ## [1.3.2-polish7] - 2026-10-12 (dev candidate)
 
 - Compact uniform Current QS pills sized for the longest abbreviation, keeping

@@ -256,15 +256,16 @@ static void controls_build(lv_obj_t *root){
     if(row_h>50)row_h=50;
     int row_gap=rows?(240-row_h*rows)/(rows==1?2:rows):0;
     /* Uniform compact pills sized for the widest abbreviated action, including
-     * optional choices, with 12px trailing padding. Font measurement is build-only. */
-    int row_w=60;
+     * optional choices, with 8px trailing padding. Font measurement is build-only. */
+    int row_w=50;
     if(rows){
         const lv_font_t *font=row_font("SONGS",1000,row_h-4);
         for(int id=2;id<Q_COUNT;id++){
             lv_point_t size;lv_text_get_size(&size,row_caption(id),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-            if(size.x+60>row_w)row_w=size.x+60;
+            if(size.x+50>row_w)row_w=size.x+50;
         }
     }
+    if(row_w>116)row_w=116; /* 64px Back zone + 8px protection, clear of the disc */
     for(int slot=0;slot<g_nitems;slot++){
         int id=g_items[slot],radio=id==T_WIFI || id==T_BT;
         int x,y,w,h;
@@ -274,6 +275,7 @@ static void controls_build(lv_obj_t *root){
             else{h=row_h;y=80+row_gap+row_index*(row_h+row_gap);row_index++;
                 int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);
                 x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;
+                x=72+(x-16)/3; /* retain a gentle curve beyond the edge-Back zone */
                 /* Follow both the round bezel and the rounded navigation field.
                  * Below the field, the final pill returns to the screen centre,
                  * as the original Settings row did. */
@@ -308,16 +310,16 @@ static void controls_build(lv_obj_t *root){
             lv_obj_set_style_radius(badge,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(badge,LV_OPA_COVER,0);lv_obj_clear_flag(badge,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
             g_dq_val[slot]=lv_label_create(badge);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_14),0);lv_obj_center(g_dq_val[slot]);
         }else{
-            lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,10,0);
+            lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,8,0);
             g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],row_caption(id));
-            int text_w=w-60;
+            int text_w=w-50;
             lv_obj_set_style_text_font(g_dq_name[slot],row_font(row_caption(id),text_w,h-4),0);
             lv_obj_set_style_text_letter_space(g_dq_name[slot],0,0);
             lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);
             lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_CLIP);
             lv_obj_set_width(g_dq_name[slot],text_w);
             lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_LEFT,0);
-            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,48,0);
+            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,42,0);
         }
     }
     dq_paint();

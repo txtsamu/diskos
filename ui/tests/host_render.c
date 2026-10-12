@@ -298,6 +298,10 @@ static void review_qs(void){
         }else{
             assert(lv_obj_get_width(quicksettings_test_button(7))==lv_obj_get_width(quicksettings_test_button(4)));
             assert(lv_obj_get_style_text_align(lv_obj_get_child(quicksettings_test_button(2),1),0)==LV_TEXT_ALIGN_LEFT);
+            for(int i=2;i<8;i++){
+                lv_area_t area;lv_obj_get_coords(quicksettings_test_button(i),&area);
+                assert(disco_mirror()?area.x2<288:area.x1>=72);
+            }
         }
         assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
         lv_obj_t *wifi=quicksettings_test_button(0);lv_area_t hit;lv_obj_get_coords(wifi,&hit);
@@ -831,10 +835,13 @@ int main(int argc, char **argv){
                 lv_point_t size; lv_text_get_size(&size,names[i],lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
                 assert(size.x<=lv_obj_get_width(label));
                 assert(lv_obj_get_width(row)>130);
+                lv_area_t area;lv_obj_get_coords(row,&area);
+                assert(disco_mirror()?area.x2<288:area.x1>=72);
+                assert(lv_obj_get_width(row)<=260);
             }
             lv_obj_t *last=lv_obj_get_parent(find_text(root,"AirPlay"));
             assert(lv_obj_get_y(last)+lv_obj_get_height(last)==342);
-            puts("PASS: Modes rows are 56px, all labels fit, bottom row ends at y=342");
+            puts("PASS: Modes 56px rows, labels fit, protected edge gutter, shortened caps, bottom y=342");
         }
         if(getenv("REVIEW_IMM_REOPEN")){
             screen_set_anim(1);

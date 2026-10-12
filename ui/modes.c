@@ -373,11 +373,26 @@ void modes_create(lv_obj_t *root){
                 int clear_right = disco_mx(lv_obj_get_x(g_drow[i]), lv_obj_get_width(g_drow[i])) + lv_obj_get_width(g_drow[i]);   /* as if on the right */
                 if(right > clear_right) right = clear_right; /* leave the section picker clear */
             }
-            int width = right - (180 - half);
-            lv_obj_set_x(g_drow[i], disco_mx(180 - half, width));   /* Disco Left: mirrored */
-            lv_obj_set_width(g_drow[i], width);
-            lv_obj_set_width(lv_obj_get_child(g_drow[i], 1), width - 96);
-            lv_obj_set_style_text_font(lv_obj_get_child(g_drow[i], 1), TF(UI_22), 0);
+            /* Shorter caps and a real hit-target gutter beyond Back's 64px zone.
+             * Mirror the protected edge with Side; source switching is unchanged. */
+            int left=180-half+12;
+            if(left<72)left=72;
+            right-=12;
+            int width=right-left;
+            if(width>260)width=260;
+            lv_obj_set_x(g_drow[i], disco_mx(left,width));
+            lv_obj_set_width(g_drow[i],width);
+            lv_obj_align(lv_obj_get_child(g_drow[i],0),LV_ALIGN_LEFT_MID,14,0);
+            lv_obj_t *label=lv_obj_get_child(g_drow[i],1);
+            lv_obj_set_width(label,width-84);lv_obj_align(label,LV_ALIGN_LEFT_MID,48,0);
+            const lv_font_t *fonts[]={TF(UI_22),TF(UI_20),TF(UI_18),TF(UI_16)};
+            const lv_font_t *font=fonts[3];
+            for(int f=0;f<4;f++){
+                lv_point_t size;lv_text_get_size(&size,NM[i],fonts[f],0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+                if(size.x<=width-84){font=fonts[f];break;}
+            }
+            lv_obj_set_style_text_font(label,font,0);
+            lv_obj_align(lv_obj_get_child(g_drow[i],2),LV_ALIGN_RIGHT_MID,-12,0);
             lv_obj_set_style_text_font(lv_obj_get_child(g_drow[i], 2), TF(UI_20), 0);
         }
         mark_selected();

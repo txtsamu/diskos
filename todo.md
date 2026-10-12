@@ -63,3 +63,10 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [x] Inset Arc to 122px radius for more clearance from rim controls.
 - [x] Native both-side checks, rebuilt payload and dev bundle.
 - [ ] Owner Disc test and acceptance.
+
+## 1.3.2-polish8
+
+- [x] Protect Current QS and Modes targets beyond the edge-Back zone.
+- [x] Shorter Modes caps; single-line labels and 56px rows preserved.
+- [x] Both-side native checks and matching rebuilt dev payload.
+- [ ] Owner Disc test of protection margin, readability and mode interaction.

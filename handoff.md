@@ -1,6 +1,6 @@
 # Disco development handoff
 
-Current dev checkpoint: **1.3.2-polish7** (latest details below).
+Current dev checkpoint: **1.3.2-polish8** (latest details below).
 
 Updated: 2026-10-12. Read `agents/AGENTS.md`, `docs/DEVELOPMENT.md` and `todo.md`.
 
@@ -143,3 +143,17 @@ from the brightness/battery rim while preserving equal angular spacing, 66px
 buttons and both fixed radio positions. Both-side native geometry, exact gaps,
 uniform widths, all caption fits, radio state/input/editor tests and theme/text
 checks pass. Matching static MIPS candidate supplied; owner device test pending.
+
+## Protected edge targets: 1.3.2-polish8
+
+Back starts within 64px of the side edge (ui/main.c). Current QS action targets
+now start at least 72px inward: an 8px buffer beyond that gesture zone, mirrored
+for Left. Compact pills are at most 116px wide, gently curved, with equal gaps
+and single-line bold labels sized to fit. Radio positions and Arc are unchanged.
+
+Disco Modes retains 56px row heights and existing vertical positions, shortens
+caps by 12px at each end, and enforces the same protected edge. Icons/labels/check
+indicators keep separate space; label fonts step down only where necessary to
+fit. Mode switching and back gesture handling are unchanged. Native both-side
+checks verify protected bounds, caption fits, row heights and QS interactions.
+Static MIPS build supplied; owner physical-device testing is pending.
