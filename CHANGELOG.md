@@ -10,6 +10,9 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 **Needs a reflash** (boot-script fixes). Bug reports by [ingvarr777](https://github.com/ingvarr777), issues #1-#8: thank you.
 
+- Security: MA Sendspin WebSocket frames with a top-bit-set 64-bit length bypassed the bounds checks (heap overflow in the
+  root helper, reachable from the LAN). Lengths are unsigned and capped at 16 MB; buffer growth is checked
+  (private report by ingvarr777).
 - Fixed: SD updates after the first one rolled back (the boot record outgrew the UI's 256-byte read) (#8).
 - Fixed (boot script): first SD update after a fresh flash dropped; a trial whose boot count can't be saved now rolls
   back; a build that can't be checked for a moment is kept, not deleted; capped install log; a stale rejected copy

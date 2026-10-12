@@ -73,6 +73,8 @@ replaces only what you see and touch.
 > **1.4.1 needs a reflash.** Its update-safety fixes are in the boot script, which only the installer can
 > replace. Flash once with your existing `--ota-key` ([Install](#install)); your music, settings and keys stay.
 
+- **Security fix for MA Sendspin.** A malformed message from another device on your network could overflow memory
+  in the Sendspin helper. Update, or keep MA Sendspin off until you do.
 - **SD updates you can keep.** Every update after the first one used to roll back by itself; fixed, along with
   several rarer update and rollback problems.
 - **Steadier.** No more multi-second freezes during library scans or when playback starts; pop-ups close when you

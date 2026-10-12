@@ -52,7 +52,10 @@ static int jbool(const char *s, const char *key, int *v){
 }
 
 /* ---------------------------------------------------------------- WebSocket client */
-typedef struct { int fd; uint8_t *rx; int rxn, rxcap; uint8_t *msg; int msgn, msgcap, msgop; } ws_t;
+/* Sizes are size_t and every incoming length is checked against WS_MAX before it is used (1.4.1 security fix: a
+ * frame length with the top bit set used to go negative and bypass the checks). */
+#define WS_MAX ((size_t)16 << 20)           /* largest frame and largest reassembled message we accept */
+typedef struct { int fd; uint8_t *rx; size_t rxn, rxcap; uint8_t *msg; size_t msgn, msgcap; int msgop; } ws_t;
 static int ws_send_frame(ws_t *w, int op, const void *data, int len){
     if(w->fd < 0) return -1;
     uint8_t h[14]; int hl = 0; uint8_t mask[4]; ap_rnd(mask, 4);
@@ -88,47 +91,59 @@ static int ws_connect(ws_t *w, const char *host, int port, const char *path){
     if(strncmp(rep, "HTTP/1.1 101", 12)){ char first[128] = ""; sscanf(rep, "%127[^\r\n]", first); logf_("WebSocket refused: %s", got ? first : "(no reply)"); close(fd); return -1; }
     tv.tv_sec = 0; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     fcntl(fd, F_SETFL, O_NONBLOCK);
-    w->fd = fd; w->rxcap = 1 << 16; w->rx = malloc(w->rxcap); w->msgcap = 1 << 16; w->msg = malloc(w->msgcap);
+    w->rxn = w->msgn = 0; w->rxcap = 1 << 16; w->rx = malloc(w->rxcap); w->msgcap = 1 << 16; w->msg = malloc(w->msgcap);
+    if(!w->rx || !w->msg){ free(w->rx); free(w->msg); w->rx = w->msg = NULL; close(fd); return -1; }
+    w->fd = fd;
     return 0;
 }
 static void ws_close(ws_t *w){ if(w->fd >= 0){ ws_send_frame(w, 8, "", 0); close(w->fd); } w->fd = -1; free(w->rx); free(w->msg); w->rx = w->msg = NULL; }
 /* reads what's there; returns 1 with a complete message in w->msg (op 1 text / 2 binary), 0 none, -1 closed */
+static int ws_grow(uint8_t **buf, size_t *cap, size_t need){       /* 0 ok, -1 out of memory (the buffer is kept) */
+    if(need <= *cap) return 0;
+    size_t ncap = need + 4096;
+    uint8_t *n = realloc(*buf, ncap);
+    if(!n) return -1;
+    *buf = n; *cap = ncap; return 0;
+}
 static int ws_poll_msg(ws_t *w){
     for(;;){
         /* try to parse one frame from rx */
         if(w->rxn >= 2){
             uint8_t *b = w->rx; int fin = b[0] & 0x80, op = b[0] & 15, masked = b[1] & 0x80;
-            long long len = b[1] & 127; int hl = 2;
-            if(len == 126){ if(w->rxn < 4) goto more; len = b[2] << 8 | b[3]; hl = 4; }
+            uint64_t len = b[1] & 127; size_t hl = 2;
+            if(len == 126){ if(w->rxn < 4) goto more; len = (uint64_t)b[2] << 8 | b[3]; hl = 4; }
             else if(len == 127){ if(w->rxn < 10) goto more; len = 0; for(int i = 0; i < 8; i++) len = len << 8 | b[2 + i]; hl = 10; }
             if(masked) hl += 4;
-            if(len > (64 << 20)) return -1;
-            if(w->rxn < hl + len){
-                if(hl + len > w->rxcap){ w->rxcap = (int)(hl + len) + 4096; w->rx = realloc(w->rx, w->rxcap); }
+            if(len > WS_MAX) return -1;                                  /* unsigned: no length can slip past this */
+            if((op & 8) && len > 125) return -1;                         /* control frames are short by definition */
+            size_t flen = (size_t)len, need = hl + flen;
+            if(w->rxn < need){
+                if(ws_grow(&w->rx, &w->rxcap, need) < 0) return -1;
                 goto more;
             }
             uint8_t *pl = b + hl;
-            if(masked) for(long long i = 0; i < len; i++) pl[i] ^= b[hl - 4 + (i & 3)];
+            if(masked) for(size_t i = 0; i < flen; i++) pl[i] ^= b[hl - 4 + (i & 3)];
             int done = 0;
             if(op == 8){ return -1; }
-            else if(op == 9){ ws_send_frame(w, 10, pl, (int)len); }
+            else if(op == 9){ ws_send_frame(w, 10, pl, (int)flen); }
             else if(op == 10){ }
             else if(op == 0 || op == 1 || op == 2){
                 if(op){ w->msgn = 0; w->msgop = op; }
-                if(w->msgn + len + 1 > w->msgcap){ w->msgcap = (int)(w->msgn + len) + 4096; w->msg = realloc(w->msg, w->msgcap); }
-                memcpy(w->msg + w->msgn, pl, len); w->msgn += (int)len; w->msg[w->msgn] = 0;
+                if(flen > WS_MAX - w->msgn) return -1;                   /* continuations can't build a message past the limit */
+                if(ws_grow(&w->msg, &w->msgcap, w->msgn + flen + 1) < 0) return -1;
+                memcpy(w->msg + w->msgn, pl, flen); w->msgn += flen; w->msg[w->msgn] = 0;
                 if(fin) done = 1;
             }
-            int used = hl + (int)len; memmove(w->rx, w->rx + used, w->rxn - used); w->rxn -= used;
+            memmove(w->rx, w->rx + need, w->rxn - need); w->rxn -= need;
             if(done) return 1;
             continue;
         }
     more:
-        if(w->rxn >= w->rxcap){ w->rxcap *= 2; w->rx = realloc(w->rx, w->rxcap); }
-        int r = recv(w->fd, w->rx + w->rxn, w->rxcap - w->rxn, 0);
+        if(w->rxn >= w->rxcap && ws_grow(&w->rx, &w->rxcap, w->rxcap * 2) < 0) return -1;
+        ssize_t r = recv(w->fd, w->rx + w->rxn, w->rxcap - w->rxn, 0);
         if(r == 0) return -1;
         if(r < 0) return (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) ? 0 : -1;
-        w->rxn += r;
+        w->rxn += (size_t)r;
     }
 }
 
