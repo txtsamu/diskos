@@ -2,6 +2,8 @@
 
 Updated: 2026-10-12. Companion: `handoff.md`.
 
+Shelved proposals and their restart notes: `todo-ideas.md` (Windows installer).
+
 The owner authorized this batch before uploading dev. First-use hints are
 implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 
@@ -70,3 +72,32 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [x] Shorter Modes caps; single-line labels and 56px rows preserved.
 - [x] Both-side native checks and matching rebuilt dev payload.
 - [ ] Owner Disc test of protection margin, readability and mode interaction.
+
+## 1.3.2-polish9: responsive track changes
+
+- [x] Optional sharp-cover cache; existing artwork cache remains compatible.
+- [x] Worker-prepared pixels and Disco tint; publish before cache persistence.
+- [x] Unchanged-art guards and foreground priority over new prewarm work.
+- [x] Nonblocking play-history enqueue, sleeping worker and separate DB connection.
+- [x] Song Info metadata refresh only while visible; pending artwork delivery at 30ms.
+- [x] Native rapid skips/stale results/SD guards/SQLite contention and ASan/UBSan.
+- [x] Compile matching static MIPS mq_ui, displaying 1.3.2-polish9.
+- [ ] Owner tests same-album skips, shuffled albums, rapid skips, Info, immersive,
+      Most/Recently Played and wake; report responsiveness/any audio interruptions.
+- [ ] Measure device latency/battery impact; accept before committing/promoting.
+
+## List layout follow-up (2026-10-12, preview only)
+
+- QS List and Working Modes: continuous free-edge curve, shorter middle mode caps, 4px gutter beyond the 64px Back strip; mirrored for Left.
+- Consistent 22px text per screen; mode label spacing -1px to retain readable Bluetooth DAC and the selected-state mark.
+- Disco first in the theme picker; Progress Shape moved from Disco Colours to Disco Layout.
+- Native dark/light and Right/Left previews checked. Await visual approval before device compilation or commit.
+- The 1.4.0 freeze/crash investigation remains open; these layout edits do not fix the reported crashes.
+
+## Replacement 1.4.0 release
+
+- [x] Approved free-edge QS/Modes layouts, consistent fonts, theme order and Progress Shape move.
+- [x] Asynchronous isolated EQ reads, worker-provided album colour, bounded artwork preparation and swipe cancellation.
+- [x] Restore Battery gauge and keep Disc Shelf 1.0.4 / Album Roulette 1.3.1 separate.
+- [ ] Owner device acceptance, collect persistent crash logs if automatic restarts recur.
+- [ ] Owner publishes dev, then main and v1.4.0 after acceptance.

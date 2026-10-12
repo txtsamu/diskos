@@ -83,3 +83,6 @@ build/release/
 diskos-keys/
 *.key
 diskos-update/
+
+# Owner-specific Navidrome credentials
+shelf.conf

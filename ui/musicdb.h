@@ -3,6 +3,9 @@
 #ifndef MUSICDB_H
 #define MUSICDB_H
 
+int mdb_get_peq_readonly(int p,double *m,int *g,int *hz,int *ed,double *q);
+int mdb_song_accent_readonly(const char *path);
+
 #define MDB_MAX_SONGS   1500
 #define MDB_MAX_GROUPS  600
 #define MDB_STR         160

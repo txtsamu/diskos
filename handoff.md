@@ -1,159 +1,25 @@
-# Disco development handoff
+# diskOS Disco handoff - replacement 1.4.0 (2026-10-12)
 
-Current dev checkpoint: **1.3.2-polish8** (latest details below).
+Source baseline: origin/dev c7545b2 (polish8), plus recovered polish9, restored Battery layout, standalone Disc Shelf 1.0.4, approved list changes and the three stability fixes. The original unpublished 1.4.0 bundle is superseded; do not merge or tag it. The release tag v1.4.0 points to the replacement bundle's final payload commit. No remote push performed.
 
-Updated: 2026-10-12. Read `agents/AGENTS.md`, `docs/DEVELOPMENT.md` and `todo.md`.
+## Working agreement
 
-## Verified starting point
+Owner tests on Snowsky Disc V2.57, 360x360, X2000 MIPS32r2 FP64 NaN2008. Provide native LVGL previews before layout approval, then a complete compiled mq_ui and Git bundle. Owner publishes dev/main/tags. Update todo.md. Device SSH root@192.168.178.63; no adb or scp. Install UI only by signed SD update; keep the fail-closed launch verification and rollback.
 
-`dev` starts from GitHub `main` release 1.3.1:
-`03d737445818ea7b439b427822126d432678b022`.
-The owner supplied `1.3.2-polish1-vs-1.3.1.patch`; it applies cleanly to this
-release and is restored in dev. That restored checkpoint displays version 1.3.2-polish1; the new hint candidate below is 1.3.2-polish2.
-Main and release assets remain unchanged. The dev payload now matches its candidate source; see payload/mq_ui.build.json.
+## Changes
 
-The project is a battery-powered Snowsky Disc UI: round 360x360 LVGL, Ingenic
-X2000 MIPS32r2, FP64, NaN2008, device firmware V2.57. Prioritize readable controls,
-predictable navigation, both Left/Right Disco layouts and inexpensive rendering.
-The owner does not code; provide clear explanations, frequent progress updates,
-real LVGL previews where requested, and a compiled `mq_ui` for test builds.
+Read docs/releases/v1.4.0.md for the exact release scope and validation. EQ profile reads are asynchronous, isolated and bounded; both the profile and editor use ui/eqprofile.c. Worker artwork results carry RGB, so ui.c no longer reads SQLite for album colours. Under low RAM, pixel preparation falls back to proven static-buffer loading. Stale/no-track results are released early. QS and mode controls use ui_on's swipe guard.
 
-## Restored candidate: 1.3.2-polish1
+Approved layouts: curved free-edge QS List/Modes, consistent 22px text, 4px gutter beyond Back's 64px strip; mirror for Left. Disco first in picker; Progress Shape under Layout. Battery open gauge mirrors the nav side, centred heading, larger estimate, pill backgrounds below gauge. QS Arc and fixed radios retained.
 
-The uploaded patch restores the gesture handler, Controls selectors, docs,
-version and real LVGL pointer regression tests. Its original compiled binary
-is still missing, and the device test status is unknown. Historical binary SHA-256:
-`ac84d102a7f0b3b203f0492c4cb4962c2f21a445fbb7084664d67b1f3a9f19af`.
-This hash is a historical reference, not a newly verified binary or proof of
-device acceptance. Compile a new binary only after recovering the complete toolchain.
+Optional apps are in apps/: Disc Shelf 1.0.4 and Album Roulette 1.3.1, with source archives under corresponding-source. Disc Shelf is owner device-tested; it is not embedded in mq_ui. Actual shelf.conf and private keys must never enter Git or packages.
 
-Its intended contract: System > Controls > Double tap and Hold, arrow selectors
-and Apply, Back discards pending selection. Options: Music screen, Search, Queue,
-Up Next, Shortcuts, Quick Settings, Nothing. Defaults: Search/Music respectively.
-Gestures work ONLY while Disco navigation is OPEN, across all sections and both
-sides. Closed shard remains tap-to-open. Arrows/swipes remain immediate; centre
-taps wait 260 ms unless Double tap is Nothing. Hold consumes release. Closing,
-navigation, or leaving the picker cancels the action, including returning inside.
-Source regression tests are present in `ui/tests/host_render.c` (`REVIEW_NAV`).
-Check the recorded validation below for results from this recovery session.
+## Build and diagnostics
 
-## Recovery material
+Use ui/tools/build_device.py with the complete GCC11.2 toolchain, a separate cache, --jobs 1 or 2, --approved and a new output directory. New source files must be git-visible. Preserve mq_ui.debug for address symbolication. Metadata payload/mq_ui.build.json binds binary identity to source. Host: make -C ui CROSS= host-render. Gates: check-theme and checkpunct. Focused tests: eq_profile_async_test.py, art_responsiveness_test.py, music_responsiveness_ui_test.py, stability_test.py, art_transition_test.py; host REVIEW_QS / REVIEW_MODES / REVIEW_DISCO_SETTINGS.
 
-`docs/recovery/1.3.0-polished2.patch` preserves older local edits against
-`60255a5f7db37f93d011205bdf2271b413803def`. They overlap improvements already in
-1.3.1. Do not apply the patch to dev blindly or call it the missing gesture build.
-
-The complete compiler archive was recovered and verified: SHA-256
-`2ba4be0cfbef2b28314b27a0a6f17b68da368fe496599d0e7541daaab6475b37`.
-GCC 11.2.0 now works. Host build recovery required removing empty generated
-objects; host configuration also needed a temp-path buffer sized from CFG_PATH
-rather than a fixed 64 bytes. Preserve/check toolchain release assets as described
-in docs/DEVELOPMENT.md; remote upload remains blocked by GitHub connection access.
-
-## Included baseline: 1.3.2-polish2
-
-Adds four first-use hints and System > Help > First-use hints (Automatic/On/Off),
-plus Show hints again. Auto retires learned tips (menu/navigation twice,
-Library/Music once) and stops after five healthy UI starts. Each start counts
-only after 30 seconds of event-loop uptime. Tips appear after 800 ms, disappear
-on interaction or after four seconds, and show at most once per context/session.
-On ignores retirement; Off hides tips. Reset affects hint state only.
+The owner reported freezes and automatic UI restarts into stock in the first 1.4.0 candidate. Four-second SQLite waits were reproduced, but fatal crash/OOM cause remains unconfirmed. Get persistent /usr/data/diskos_boot.log and /usr/data/diskos_install.log after recovery. Do not claim the crash is solved or publish a device-tested status until the owner tests this replacement.
 
 ## Next
 
-The owner authorized the hint implementation before uploading dev. It is now
-implemented; obtain device feedback next. Further usability work remains in todo.md.
-
-Main holds approved releases; dev holds work/checkpoints. This branch setup is
-authorized. Future releases still require owner approval. Keep private signing
-keys and FiiO firmware out of GitHub. Use signed SD updates for test UI installs;
-accept the trial before restarting. Keep the dev payload synchronized with its candidate source. Leave main and
-release tags untouched until the candidate is device-approved.
-
-## Current validation
-
-The patch applies to 1.3.1. Theme/punctuation/source whitespace checks pass,
-excluding byte-preserved historical recovery patch context. Real LVGL hint tests
-pass on Right/dark and Left/light, covering lifecycle, discovery, persisted state,
-save failure, Auto/On/Off and Help controls. Open-only gesture regression tests
-also pass on both sides. A static MIPS device binary was built and its ABI checked;
-final binary checksum is recorded alongside the deliverable. Device testing is
-pending. Dev now carries the candidate payload; main, website release version
-and release tags remain unchanged.
-
-## Current dev candidate: 1.3.2-polish4
-
-Owner approved the inset eight-button Arc layout and requested a dev bundle.
-Disco Options > Quick Settings has Current/Arc and the shared Items editor
-(maximum eight). Wi-Fi/BT reserve the middle inner positions; six other actions
-follow the concentric arc. All targets are 66px, mirrored for Left. Default
-items are wbmlefrs; existing saved lists/styles remain. Current supports all
-eight without truncation. Simple press feedback and live radio state are present.
-Gesture and hint work from polish1/polish2 is included. Standalone apps unchanged.
-
-Both-side native LVGL checks cover geometry, radio input/state, all catalog
-icons, item parsing, editing/persistence/save failure, navigation and hints.
-The supplied payload is rebuilt from this source with static MIPS32r2/FP64/
-NaN2008 ABI checks. Metadata: payload/mq_ui.build.json. Device test pending.
-Main and release tags are untouched; the bundle advances dev only.
-
-Test: signed SD update, select Arc if a saved style remains Current, check both
-sides, On/Off and hold-to-settings, selection/reordering, Current with eight,
-and playback/rim controls. Accept the trial before restarting. Do not replace
-mq_ui directly over SSH. See docs/releases/v1.3.2-polish4.md for installation.
-
-## Current QS row polish: 1.3.2-polish5
-
-Current style locks Wi-Fi/BT to their original top pills by identity, independent
-of editor order. Remaining actions share the 224px row field equally, with at
-least 4px between targets and a 50px height cap for sparse selections. Both side
-layouts mirror correctly. Bold Inter captions fit on one line, stepping through
-22/18/16px as needed; icons shrink for an eight-action list without radios.
-Captions: MODE, SCAN, SONGS, EQ, FIND, SET, QUEUE, NEXT, SHORT, WEATH, LYRICS,
-INFO, COVER, FILES, FAVS. Hold still shows the full action name. Arc is unchanged.
-Native checks exercise every action at the narrow bottom row, equal heights,
-gaps, unwrapped/unclipped text, no-radio eight-item layout, both sides and radio
-state/input/editor persistence. Theme/punctuation checks pass. Device test pending.
-
-## QS curvature follow-up: 1.3.2-polish6
-
-Current rows follow the outer bezel and rounded music/navigation field instead
-of ending at one straight edge. Captions align left along the curve, with extra
-icon/text clearance. Below the field the final pill returns to the screen centre,
-matching the original Settings row. Equal row heights/gaps and bold single-line
-labels remain. Radio positions remain unchanged in both styles.
-
-Arc's six outer target centres move from 116px to 128px radius, concentric with
-the battery/brightness arcs. Targets remain 66px with equal angular spacing;
-Wi-Fi/BT keep their inner positions. Both sides, text fit, circular bounds,
-non-overlap, curve/radius, item editing and radio controls pass native LVGL checks.
-Device performance/acceptance is still pending.
-
-## QS spacing follow-up: 1.3.2-polish7
-
-Current pills share a compact width measured from the widest catalog abbreviation
-at the actual bold font size, with 12px trailing padding. Curved positioning is
-retained and the final pill stays centred below the navigation field. The gap
-below fixed Wi-Fi/BT equals all action inter-row gaps: 4px in the full selection.
-Sparse layouts keep equal integer gaps and capped 50px row heights. No wrapping,
-clipping or per-frame measurement is added; text sizing happens on control rebuild.
-
-Arc outer centres move inward from 128px to 122px radius, adding 6px clearance
-from the brightness/battery rim while preserving equal angular spacing, 66px
-buttons and both fixed radio positions. Both-side native geometry, exact gaps,
-uniform widths, all caption fits, radio state/input/editor tests and theme/text
-checks pass. Matching static MIPS candidate supplied; owner device test pending.
-
-## Protected edge targets: 1.3.2-polish8
-
-Back starts within 64px of the side edge (ui/main.c). Current QS action targets
-now start at least 72px inward: an 8px buffer beyond that gesture zone, mirrored
-for Left. Compact pills are at most 116px wide, gently curved, with equal gaps
-and single-line bold labels sized to fit. Radio positions and Arc are unchanged.
-
-Disco Modes retains 56px row heights and existing vertical positions, shortens
-caps by 12px at each end, and enforces the same protected edge. Icons/labels/check
-indicators keep separate space; label fonts step down only where necessary to
-fit. Mode switching and back gesture handling are unchanged. Native both-side
-checks verify protected bounds, caption fits, row heights and QS interactions.
-Static MIPS build supplied; owner physical-device testing is pending.
+Owner signs replacement with fresh epoch, tests on Disc, then pushes dev. After acceptance publish main and v1.4.0; the tag workflow packages payload and optional apps, and main updates the website. Windows installer stays shelved in todo-ideas.md.

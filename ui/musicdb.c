@@ -19,7 +19,9 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#ifndef DB_PATH
 #define DB_PATH "/usr/data/fiio/db/song.db"
+#endif
 
 /* The whole library is held in a dynamically-sized array (no fixed cap): sized to
  * the actual SONG count at load. Loaded ONCE at startup, so the realloc never moves
@@ -1331,17 +1333,66 @@ int mdb_love_path(int love_id, char *out, int cap){
 }
 
 /* ---- Play history (diskOS PLAY_STATS): Most-Played / Recently-Played ------- */
-/* Record one play: bump PLAYS + stamp LAST_PLAYED for this path. Best-effort. */
+/* History must never wait behind the player's DB lock on the input thread.
+ * One bounded FIFO, one dedicated connection, and a condition-variable sleep
+ * when idle. No background polling or shared-connection transactions. */
+#define HISTORY_CAP 32
+typedef struct { char path[512]; sqlite3_int64 stamp; } history_job_t;
+static history_job_t history_jobs[HISTORY_CAP];
+static unsigned history_head, history_count;
+static int history_started;
+static pthread_mutex_t history_mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t history_cv = PTHREAD_COND_INITIALIZER;
+static void *history_worker(void *unused){
+    (void)unused;
+    sqlite3 *d = NULL;
+    for(;;){
+        pthread_mutex_lock(&history_mu);
+        while(!history_count) pthread_cond_wait(&history_cv, &history_mu);
+        history_job_t job = history_jobs[history_head];
+        history_head = (history_head + 1) % HISTORY_CAP; history_count--;
+        pthread_mutex_unlock(&history_mu);
+        if(!d){
+            if(sqlite3_open_v2(DB_PATH, &d, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK){
+                if(d) sqlite3_close(d); d = NULL; continue;
+            }
+            sqlite3_busy_timeout(d, 100);
+        }
+        for(int attempt = 0; attempt < 40; attempt++){
+            sqlite3_stmt *st = NULL;
+            int rc = sqlite3_prepare_v2(d,
+                "INSERT INTO PLAY_STATS(PATH,PLAYS,LAST_PLAYED) VALUES(?1,1,?2) "
+                "ON CONFLICT(PATH) DO UPDATE SET PLAYS=PLAYS+1, LAST_PLAYED=?2;", -1, &st, NULL);
+            if(rc == SQLITE_OK){
+                sqlite3_bind_text(st, 1, job.path, -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(st, 2, job.stamp);
+                rc = sqlite3_step(st);
+            }
+            if(st) sqlite3_finalize(st);
+            if(rc != SQLITE_BUSY && rc != SQLITE_LOCKED) break;
+        }
+    }
+    return NULL;
+}
+/* Best-effort, as before. On overload/OOM drop history rather than stall a tap. */
 void mdb_record_play(const char *path){
-    if(!path || !path[0]) return;
-    sqlite3 *d = db(); if(!d) return;
-    sqlite3_stmt *st;
-    if(sqlite3_prepare_v2(d,
-        "INSERT INTO PLAY_STATS(PATH,PLAYS,LAST_PLAYED) VALUES(?1,1,?2) "
-        "ON CONFLICT(PATH) DO UPDATE SET PLAYS=PLAYS+1, LAST_PLAYED=?2;", -1, &st, NULL) != SQLITE_OK) return;
-    sqlite3_bind_text (st, 1, path, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(st, 2, (sqlite3_int64)time(NULL));
-    sqlite3_step(st); sqlite3_finalize(st);
+    if(!path || !path[0] || strlen(path) >= sizeof history_jobs[0].path) return;
+    pthread_mutex_lock(&history_mu);
+    if(!history_started){
+        pthread_attr_t attr; pthread_t worker;
+        pthread_attr_init(&attr); pthread_attr_setstacksize(&attr, 256 * 1024);
+        int rc = pthread_create(&worker, &attr, history_worker, NULL);
+        pthread_attr_destroy(&attr);
+        if(rc){ pthread_mutex_unlock(&history_mu); return; }
+        pthread_detach(worker); history_started = 1;
+    }
+    if(history_count < HISTORY_CAP){
+        history_job_t *job = &history_jobs[(history_head + history_count) % HISTORY_CAP];
+        snprintf(job->path, sizeof job->path, "%s", path);
+        job->stamp = (sqlite3_int64)time(NULL); history_count++;
+        pthread_cond_signal(&history_cv);
+    }
+    pthread_mutex_unlock(&history_mu);
 }
 /* Fill `out` with songs from PLAY_STATS joined to SONG, ordered by plays (by_recent=0) or by
  * last-played time (by_recent=1). Playback is by SONG.ID, same as favourites. Returns count. */
@@ -3289,12 +3340,12 @@ static int peq_tok_tenths(const char *js, const jsmntok_t *t, int *out){   /* "-
     long v = ip * 10 + (fr + 5) / 10; if(v > 1000) return 0;
     *out = (int)(neg ? -v : v); return 1;
 }
-static int mdb_get_peq_ex_leased(int style_preset, double *master_out, int *tenths_out, int *freq_out, int *editable_out, double *q_out){
+static int mdb_get_peq_on(sqlite3 *d, int style_preset, double *master_out, int *tenths_out, int *freq_out, int *editable_out, double *q_out){
     static const int GFREQ[10] = {32,64,125,250,500,1000,2000,4000,8000,16000};
     for(int i = 0; i < 10; i++){ if(tenths_out) tenths_out[i] = 0; if(freq_out) freq_out[i] = GFREQ[i]; if(q_out)q_out[i]=0.7; }
     if(master_out) *master_out = 0;
     if(editable_out) *editable_out = 1;
-    sqlite3 *d = db(); if(!d) return -1;
+    if(!d) return -1;
     sqlite3_stmt *st;
     if(sqlite3_prepare_v2(d, "SELECT MASTER_GAIN, PARAMS_JSON FROM PEQ WHERE STYLE_PRESET=?;", -1, &st, NULL) != SQLITE_OK) return -1;
     sqlite3_bind_int(st, 1, style_preset);
@@ -3340,6 +3391,30 @@ static int mdb_get_peq_ex_leased(int style_preset, double *master_out, int *tent
     if(editable_out) *editable_out = ed;
     if(!found && rc != SQLITE_DONE) return -1;
     return found;
+}
+static int mdb_get_peq_ex_leased(int p,double *m,int *g,int *hz,int *ed,double *q){
+    return mdb_get_peq_on(db(),p,m,g,hz,ed,q);
+}
+/* Worker-only snapshot: no shared connection, schema writes or four-second wait. */
+int mdb_get_peq_readonly(int p,double *m,int *g,int *hz,int *ed,double *q){
+    if(!sd_io_begin())return -1;
+    sqlite3 *d=NULL;int rc=-1;
+    if(sqlite3_open_v2(DB_PATH,&d,SQLITE_OPEN_READONLY|SQLITE_OPEN_FULLMUTEX,NULL)==SQLITE_OK){
+        sqlite3_busy_timeout(d,50);rc=mdb_get_peq_on(d,p,m,g,hz,ed,q);
+    }
+    if(d)sqlite3_close(d);sd_io_end();return rc;
+}
+int mdb_song_accent_readonly(const char *path){
+    if(!path || !*path || !sd_io_begin())return 0;
+    sqlite3 *d=NULL;sqlite3_stmt *st=NULL;int rgb=0;
+    if(sqlite3_open_v2(DB_PATH,&d,SQLITE_OPEN_READONLY|SQLITE_OPEN_FULLMUTEX,NULL)==SQLITE_OK){
+        sqlite3_busy_timeout(d,50);
+        if(sqlite3_prepare_v2(d,"SELECT ACCENT FROM SONG WHERE PATH=? LIMIT 1;",-1,&st,NULL)==SQLITE_OK){
+            sqlite3_bind_text(st,1,path,-1,SQLITE_STATIC);
+            if(sqlite3_step(st)==SQLITE_ROW)rgb=sqlite3_column_int(st,0);
+        }
+    }
+    if(st)sqlite3_finalize(st);if(d)sqlite3_close(d);sd_io_end();return rgb;
 }
 int mdb_get_peq_ex(int style_preset, double *master_out, int *tenths_out, int *freq_out, int *editable_out, double *q_out){
     if(!sd_io_begin()) return -1;

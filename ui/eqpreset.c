@@ -7,6 +7,7 @@
 #include "musicdb.h"
 #include "fwcaps.h"
 #include "eqrate.h"
+#include "eqprofile.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -20,18 +21,32 @@ static void name_for(int p,char *b,size_t n){
  char key[24];snprintf(key,sizeof key,"eq_name%d",p);const char *s=cfg_get_str(key,NULL);
  if(s && *s)snprintf(b,n,"%s",s);else snprintf(b,n,"USER%d",p-10);
 }
-void eqpreset_refresh(void){
- if(!name_label)return;if(fw_os_ver()==257)eq_rate_request();int p=selected();char b[80];name_for(p,b,sizeof b);lv_label_set_text(name_label,b);
- double master;int gains[10],hz[10],graphic=1;int read=p>=11?mdb_get_peq_ex(p,&master,gains,hz,&graphic,NULL):0;
+static unsigned profile_ticket;
+static lv_timer_t *profile_timer;
+static void profile_paint(int p,int read,int graphic,const int hz[10]){
  int user=p>=11 && read>=0 && graphic;
  if(user){lv_obj_remove_state(edit_button,LV_STATE_DISABLED);lv_obj_remove_state(rename_button,LV_STATE_DISABLED);}
  else {lv_obj_add_state(edit_button,LV_STATE_DISABLED);lv_obj_add_state(rename_button,LV_STATE_DISABLED);}
+ lv_label_set_text(note_label,read==-2?"Loading profile...":read<0?"Profile unavailable":p<11?"Built-in preset":!graphic?"Parametric profile":!fw_custom_peq_curve_writable(hz,10)?"Custom editing unavailable":"Editable profile");
+}
+static void profile_poll(lv_timer_t *timer){
+ (void)timer;if(screen_current()!=SCR_EQ || !profile_ticket)return;
+ eq_profile_t result;
+ if(eq_profile_take(profile_ticket,&result)){
+  profile_ticket=0;
+  if(result.preset==selected())profile_paint(result.preset,result.read,result.graphic,result.hz);
+ }
+}
+void eqpreset_refresh(void){
+ if(!name_label)return;if(fw_os_ver()==257)eq_rate_request();int p=selected();char b[80];name_for(p,b,sizeof b);lv_label_set_text(name_label,b);
+ profile_ticket=0;
+ if(p>=11){profile_ticket=eq_profile_request(p);profile_paint(p,profile_ticket?-2:-1,0,NULL);}
+ else profile_paint(p,0,0,NULL);
  lv_label_set_text(switch_label,p?"On":"Off");
- if(switch_pointer&&th_braun())br_pointer_set(switch_pointer,58,p);   /* Braun: OFF straight up, ON turned 45 deg, like every switch */
- if(switch_pointer)lv_obj_set_style_bg_color(switch_pointer,p?theme_on_color(ui_current_accent()):TC(TEXT_MUTED),0);   /* readable on the lit switch */
+ if(switch_pointer&&th_braun())br_pointer_set(switch_pointer,58,p);
+ if(switch_pointer)lv_obj_set_style_bg_color(switch_pointer,p?theme_on_color(ui_current_accent()):TC(TEXT_MUTED),0);
  lv_obj_set_style_bg_color(switch_button,p?ui_current_accent():TC(SURFACE),0);
  lv_obj_set_style_text_color(switch_label,p?theme_on_color(ui_current_accent()):TC(TEXT_PRIMARY),0);
- lv_label_set_text(note_label,read<0?"Profile unavailable":p<11?"Built-in preset":!graphic?"Parametric profile":!fw_custom_peq_curve_writable(hz,10)?"Custom editing unavailable":"Editable profile");
 }
 static void cycle(lv_event_t *e){int dir=(int)(intptr_t)lv_event_get_user_data(e);int p=(selected()+dir+21)%21;
  if(ui_eq_select(p)<0){ui_toast("Couldn't switch EQ");return;}eqpreset_refresh();}
@@ -69,5 +84,6 @@ void eqpreset_create(lv_obj_t *root){
   lv_obj_set_style_translate_x(next_b,disco_mirror()?4:-36,0); lv_obj_set_style_translate_x(prev_b,disco_mirror()?36:-4,0);
   lv_obj_add_flag(switch_pointer,LV_OBJ_FLAG_HIDDEN);
  }
- /* Screen entry calls eqpreset_refresh; no hidden startup DB/proc probe. */
+ if(!profile_timer)profile_timer=lv_timer_create(profile_poll,100,NULL);
+ /* Screen entry schedules a read; this page never waits on SQLite. */
 }

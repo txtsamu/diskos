@@ -819,7 +819,7 @@ static const setting_t TABLE[] = {
       "The colour of the volume arc: Disco is the CD rainbow, Accent uses the album's accent (or your picked one).", NULL },
     { "Disco Colours", "Progress Bar", ST_CYCLER, "disco_progress", 0,0,0, OPT_DPROG, 3, NULL, apply_disco_progress, 0,
       "The progress on Music (line or arc, see Progress Shape): Disco is the rainbow, Accent follows the cover colour (or your picked accent), Off hides it.", NULL },
-    { "Disco Colours", "Progress Shape", ST_CYCLER, "disco_prog_shape", 0,0,0, OPT_DSHAPE, 2, NULL, apply_disco_progress, 0,
+    { "Disco Layout", "Progress Shape", ST_CYCLER, "disco_prog_shape", 0,0,0, OPT_DSHAPE, 2, NULL, apply_disco_progress, 0,
       "Linear is the line under the title. Arc runs the progress round the edge of Music instead, from just below the menu, clockwise, to just above it. Drag or tap either to seek.", NULL },
     { "Disco Layout", "Side", ST_CYCLER, "disco_side_pick", 0,0,0, OPT_DSIDE, 2, NULL, NULL, 0,
       "Pick a side, then Apply. The interface restarts.", NULL },
@@ -1193,9 +1193,9 @@ void setting_detail_refresh(void){
         lv_obj_t *list = make_list(g_detail_root);
         if(s->opts == i18n_lang_names) lv_obj_set_height(list, 215);
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
-        /* Themes: our own first (Ring, Braun), then Stone; the other presets stay in the code and keep working if
+        /* Themes: Disco first, then Ring, Braun and Stone; the other presets stay in the code and keep working if
          * already selected, but are not offered here for now. Rows still carry the real preset index. */
-        int THEME_SHOWN[4] = { THEME_PRESET_RING, THEME_PRESET_BRAUN, THEME_PRESET_DISCO, -1 }, nshown = 3;
+        int THEME_SHOWN[4] = { THEME_PRESET_DISCO, THEME_PRESET_RING, THEME_PRESET_BRAUN, -1 }, nshown = 3;
         for(int k = 0; k < THEME_PRESET_COUNT; k++) if(!strcmp(theme_preset_names[k], "stone")){ THEME_SHOWN[nshown++] = k; break; }
         int nrows = is_theme ? nshown : s->nopts;
         for(int r = 0; r < nrows; r++){

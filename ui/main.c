@@ -2628,6 +2628,16 @@ void ui_publish_art_surfaces(const track_state_t *st,int playing){
  saver_set_track(st->have_track?st->title:NULL,st->have_track?st->artist:NULL,ui_current_backdrop_src(),st->have_track?st->path:NULL);
  npmenu_set(st->have_track?st:NULL,playing,ui_current_thumb_src());
 }
+void ui_art_set_pending(int pending){
+    if(!g_t_art) return;
+    static uint32_t last_period = 120;
+    uint32_t period = pending ? 30 : 120;
+    if(last_period != period){
+        last_period = period;
+        lv_timer_set_period(g_t_art, period);
+        if(pending) lv_timer_reset(g_t_art);
+    }
+}
 
 /* fork: feedback for the back swipe. A dark bubble with a back chevron slides in from the left edge under the finger,
  * following it; once the swipe has gone far enough to count it fills with the accent. Hidden on release. */
@@ -3073,6 +3083,7 @@ int main(int argc, char **argv){
         }
         if(bl_state != 2 && (st.seq != last || playing != last_playing || ui_take_art_force())){
             last = st.seq; last_playing = playing;
+            if(strcmp(st.have_track ? st.path : "", np_last_path)) ui_perf_note("track-reported");
             ui_update(&st);
             /* Disco Options > Track Number: "3. Title" (the number from the tags, looked up once per track) */
             const char *np_title = st.have_track ? st.title : NULL; static char np_numbered[200];
@@ -3099,7 +3110,7 @@ int main(int argc, char **argv){
                 ui_publish_art_surfaces(&st,playing);
             }
             quicksettings_refresh(playing);
-            songinfo_set(&st);
+            /* Song Info's file/DB probes are deferred until the page is visible. */
             npmenu_set(st.have_track ? &st : NULL, playing, ui_current_thumb_src());
         }
         /* album art decodes off-thread now, so it usually lands AFTER the seq-gated
@@ -3108,6 +3119,13 @@ int main(int argc, char **argv){
          * off (bl_state==2): it stays set and is applied on wake, else art goes stale. */
         if(bl_state != 2 && ui_take_art_applied()){
             ui_publish_art_surfaces(&st,playing);
+        }
+        {
+            static unsigned info_seq; static int info_active;
+            if(bl_state != 2 && screen_current() == SCR_SONGINFO){
+                if(!info_active || info_seq != st.seq){ songinfo_set(&st); info_seq = st.seq; }
+                info_active = 1;
+            } else info_active = 0;
         }
         /* playback-start timeout: no track update within 6s of a rebuild-play. The 6 s count from when the play
          * actually reached the player: while it is still waiting in our outbound line (a busy player) the clock waits. */

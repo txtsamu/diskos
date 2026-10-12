@@ -30,3 +30,5 @@
 - [License](../LICENSE), [UI license](../ui/COPYING), [third-party notice](../NOTICE.md), [license texts](../licenses/README.md).
 - [SPL source and DDR parameter provenance](../SPL_SOURCE.md), [onefile dependencies](../build/ONEFILE_DEPENDENCIES.md).
 - [Security reporting](../SECURITY.md).
+
+Current candidate: diskOS Disco! **1.4.0 replacement**. See docs/releases/v1.4.0.md for the full scope, pending device acceptance and optional app installation. Disco Options > Layout contains Progress Shape; the theme picker starts with Disco.

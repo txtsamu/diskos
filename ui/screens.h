@@ -229,6 +229,8 @@ int  saver_wants_bright(void);/* 1 = keep full brightness (vinyl art showcase), 
 int  ui_run_bounded(char *const argv[], int timeout_ms);  /* external cmd as a killable child w/ hard timeout */
 void ui_decode_lock(void);    /* serialize an ffmpeg artwork decode against the other decoders (OOM guard) */
 void ui_decode_unlock(void);
+void ui_art_set_pending(int pending); /* temporarily faster delivery while artwork is in flight */
+void ui_perf_note(const char *stage); /* opt-in DISKOS_PERF diagnostics, no idle polling */
 void tune_refresh(void);      /* re-sync Tune panel Play Mode/EQ labels on show */
 
 /* Audio/DAC cluster: send live command (no-op if value <0 = unmanaged). main.c. */

@@ -284,3 +284,9 @@ indicators keep separate space; label fonts step down only where necessary to
 fit. Mode switching and back gesture handling are unchanged. Native both-side
 checks verify protected bounds, caption fits, row heights and QS interactions.
 Static MIPS build supplied; owner physical-device testing is pending.
+
+## Replacement 1.4.0
+
+QS List/Modes bow toward the free edge, with consistent 22px labels and 4px protection beyond the 64px Back strip. QS radios stay fixed and Arc style is unchanged. Disco is first in the theme list; Progress Shape belongs to Layout. The Battery gauge opens around the navigation side, mirrors for Left, and layers its total-pill backgrounds below the arc.
+
+EQ and album-colour database work must not run on the UI thread. Large artwork preparation is optional when memory is constrained. Swipe motion cancels QS/mode button actions. These changes preserve theme roles and do not add continuously running animations.

@@ -126,3 +126,5 @@ All bundled components are permissive or public-domain and GPL-compatible.
 ## Contributing
 Issues and patches welcome via the [diskOS repo](https://github.com/b0hemia/diskos). By contributing
 to this directory you agree your changes are licensed GPL-3.0-or-later.
+
+Current candidate: diskOS Disco! **1.4.0 replacement**. See docs/releases/v1.4.0.md for the full scope, pending device acceptance and optional app installation. Disco Options > Layout contains Progress Shape; the theme picker starts with Disco.

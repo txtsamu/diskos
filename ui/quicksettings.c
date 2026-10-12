@@ -257,15 +257,16 @@ static void controls_build(lv_obj_t *root){
     int row_gap=rows?(240-row_h*rows)/(rows==1?2:rows):0;
     /* Uniform compact pills sized for the widest abbreviated action, including
      * optional choices, with 8px trailing padding. Font measurement is build-only. */
-    int row_w=50;
+    const lv_font_t *list_font=row_font("SONGS",82,row_h-4);
+    int row_w=40;
     if(rows){
-        const lv_font_t *font=row_font("SONGS",1000,row_h-4);
+        const lv_font_t *font=list_font;
         for(int id=2;id<Q_COUNT;id++){
             lv_point_t size;lv_text_get_size(&size,row_caption(id),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-            if(size.x+50>row_w)row_w=size.x+50;
+            if(size.x+40>row_w)row_w=size.x+40;
         }
     }
-    if(row_w>116)row_w=116; /* 64px Back zone + 8px protection, clear of the disc */
+    if(row_w>122)row_w=122; /* protected outer edge; text fits beside the music disc */
     for(int slot=0;slot<g_nitems;slot++){
         int id=g_items[slot],radio=id==T_WIFI || id==T_BT;
         int x,y,w,h;
@@ -275,19 +276,24 @@ static void controls_build(lv_obj_t *root){
             else{h=row_h;y=80+row_gap+row_index*(row_h+row_gap);row_index++;
                 int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);
                 x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;
-                x=72+(x-16)/3; /* retain a gentle curve beyond the edge-Back zone */
+                /* Bow toward the free edge at the middle, with a 4px gutter
+                 * beyond Back's 64px strip. Mirror the whole path for Left. */
+                int cy=y+h/2-180;
+                int curve=(int)lroundf(0.65f*(150.0f-sqrtf((float)(150*150-cy*cy))));
+                int safe_left=68+curve;
+                if(x<safe_left)x=safe_left;
                 /* Follow both the round bezel and the rounded navigation field.
-                 * Below the field, the final pill returns to the screen centre,
-                 * as the original Settings row did. */
+                 * Lower rows continue the same curve instead of jumping to
+                 * the centre for the final item. */
                 int right=360-x;
                 if(y<270 && y+h>90){
                     int near=y>180?y:y+h<180?y+h:180;
                     int d=near-180;
                     int field_left=286-(int)sqrtf((float)(90*90-d*d));
-                    if(right>field_left-8)right=field_left-8;
+                    if(right>field_left-2)right=field_left-2;
                 }
                 w=right-x;if(w>row_w)w=row_w;
-                if(y>=270)x=(360-w)/2;}
+                }
             x=disco_mx(x,w);
         }
         lv_obj_t *r=g_dq_row[slot]=lv_obj_create(g_controls);lv_obj_remove_style_all(r);lv_obj_set_pos(r,x,y);lv_obj_set_size(r,w,h);
@@ -296,12 +302,14 @@ static void controls_build(lv_obj_t *root){
         lv_obj_set_style_border_width(r,g_style?1:0,0);lv_obj_set_style_border_color(r,ui_current_accent(),0);lv_obj_set_style_border_opa(r,80,0);
         lv_obj_set_style_border_width(r,2,LV_STATE_PRESSED);lv_obj_set_style_border_color(r,ui_current_accent(),LV_STATE_PRESSED);lv_obj_set_style_border_opa(r,LV_OPA_COVER,LV_STATE_PRESSED);
         lv_obj_add_flag(r,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_USER_2);if(g_style)lv_obj_add_flag(r,LV_OBJ_FLAG_ADV_HITTEST);lv_obj_clear_flag(r,LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_event_cb(r,dq_row_cb,LV_EVENT_SHORT_CLICKED,(void*)(intptr_t)slot);lv_obj_add_event_cb(r,dq_row_cb,LV_EVENT_LONG_PRESSED,(void*)(intptr_t)slot);
+        ui_on(r,dq_row_cb,LV_EVENT_SHORT_CLICKED,(void*)(intptr_t)slot,"qs.item",UI_CORE);ui_on(r,dq_row_cb,LV_EVENT_LONG_PRESSED,(void*)(intptr_t)slot,"qs.item.hold",UI_CORE);
         g_dq_ico[slot]=lv_label_create(r);lv_label_set_text(g_dq_ico[slot],CATALOG[id].icon);
         int small=!g_style && h<30;
         lv_obj_set_style_text_font(g_dq_ico[slot],id==Q_SEARCH?(small?&font_theme_20:&font_theme_24):
             (id==Q_WEATHER || id==Q_FAVS)?(small?TF(ICON_20):TF(ICON_28)):
             id==Q_EQ?(g_style?TF(UI_24):TF(UI_20)):g_style?TF(UI_28):small?TF(UI_20):TF(UI_24),0);
+        if(!g_style && !radio)lv_obj_set_style_text_font(g_dq_ico[slot],
+            id==Q_SEARCH?&font_theme_20:(id==Q_WEATHER || id==Q_FAVS)?TF(ICON_20):id==Q_EQ?TF(UI_14):TF(UI_20),0);
         if(g_style){lv_obj_align(g_dq_ico[slot],LV_ALIGN_CENTER,0,radio?-9:0);
             if(radio){g_dq_val[slot]=lv_label_create(r);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_14),0);lv_obj_set_style_text_color(g_dq_val[slot],TC(TEXT_PRIMARY),0);lv_obj_align(g_dq_val[slot],LV_ALIGN_BOTTOM_MID,0,-4);}}
         else if(radio){
@@ -312,14 +320,14 @@ static void controls_build(lv_obj_t *root){
         }else{
             lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,8,0);
             g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],row_caption(id));
-            int text_w=w-50;
-            lv_obj_set_style_text_font(g_dq_name[slot],row_font(row_caption(id),text_w,h-4),0);
+            int text_w=w-40;
+            lv_obj_set_style_text_font(g_dq_name[slot],list_font,0);
             lv_obj_set_style_text_letter_space(g_dq_name[slot],0,0);
             lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);
             lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_CLIP);
             lv_obj_set_width(g_dq_name[slot],text_w);
             lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_LEFT,0);
-            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,42,0);
+            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,34,0);
         }
     }
     dq_paint();

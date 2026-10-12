@@ -83,7 +83,7 @@ Run from the repository root. This example signs the release's bundled UI with k
 
 ```sh
 sh ui/tools/owner-keys/diskos-sign.sh \
-  payload/mq_ui 1.3.1-Disco \
+  payload/mq_ui 1.4.0-Disco \
   /absolute/path/to/your/diskos-keys ./diskos-update
 ```
 
@@ -91,7 +91,7 @@ Replace `payload/mq_ui` with `ui/mq_ui` for a new build, or the full path of a d
 If your keys are in `./diskos-keys`, the short form is:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh payload/mq_ui 1.3.1-Disco
+sh ui/tools/owner-keys/diskos-sign.sh payload/mq_ui 1.4.0-Disco
 ```
 
 Arguments are `binary [version-label] [keys-folder] [output-folder]`. The label is at most 32
@@ -185,3 +185,7 @@ Do not overwrite the UI over SSH or alter the boot manifest to get an update acc
 **Settings > System > Controls > Default UI > Stock** makes FiiO's UI the default. Holding Volume Up from
 power-on selects the other UI once. Use the installer when changing boot scripts or root update
 keys; these changes are outside a UI-only SD package. See the [README](../README.md#going-back).
+
+## Replacement 1.4.0 candidate
+
+Sign the new mq_ui as version 1.4.0 with a fresh epoch using the owner's existing keys. Do not reuse the old signed manifest or manually copy mq_ui over SSH. The replay floor compares epochs, so a previously accepted 1.4.0 must receive a newer epoch. About displays 1.4.0 for both candidates; the binary SHA-256 in `payload/mq_ui.build.json` identifies this replacement. The UI update does not install or overwrite either optional app.

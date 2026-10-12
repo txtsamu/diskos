@@ -1,0 +1,14 @@
+{
+  "app": "Disc Shelf",
+  "version": "1.0.4",
+  "base": "owner-uploaded Disc-Shelf-1.0.3-source.tar(1).gz",
+  "source_sha256": "731b5764fdbbafe55ee79d8c886ddfa39dde451ebf804531068cab797ec4eccd",
+  "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
+  "abi": "static MIPS32r2, FP64, NaN2008",
+  "binary": {
+    "bytes": 3396300,
+    "sha256": "87ce392f42431bb5119ffa3b0e0f8528ebbd1a6ba43a6b3cc88b3f77fbb6094d",
+    "md5": "4c43a6fb2ea80718d543a8c8ac12cc51"
+  },
+  "device_testing": "owner tested 1.0.4 successfully; exact previously tested app binary retained"
+}

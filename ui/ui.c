@@ -10,6 +10,7 @@
 #include "musicdb.h"   /* persistent per-song accent cache */
 #include "scanner.h"   /* scan_read_chapters: Now Playing shows a book's current chapter */
 #include "netart.h"
+#include "art_pixels.h"
 #include "artcache.h"   /* persistent decoded-cover cache on SD */
 #include "config.h"
 #include "screens.h"
@@ -356,6 +357,22 @@ static void style_text(lv_obj_t *obj, const lv_font_t *font, lv_color_t color)
 void ui_pp_glyph(lv_obj_t *label,int playing){
     if(label) set_label_text_changed(label,playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
 }
+static _Atomic unsigned art_interactive_until;
+static _Atomic unsigned perf_started;
+static unsigned art_clock_ms(void){
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    return (unsigned)((uint64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000);
+}
+static int art_interactive(void){
+    unsigned until = atomic_load(&art_interactive_until);
+    return until && (int32_t)(until - art_clock_ms()) > 0;
+}
+void ui_perf_note(const char *stage){
+    if(!getenv("DISKOS_PERF")) return;
+    unsigned start = atomic_load(&perf_started);
+    fprintf(stderr, "perf: %s at=%u since-tap=%ums\n", stage, art_clock_ms(),
+            start ? art_clock_ms() - start : 0);
+}
 int ui_transport_command(const char *cmd)
 {
     if(!cmd) return -1;
@@ -363,6 +380,11 @@ int ui_transport_command(const char *cmd)
     int is_prev = !strcmp(cmd, "0201000C0002");
     int is_toggle = !strcmp(cmd, "0201000C0000");
     if(!is_next && !is_prev && !is_toggle) return -1;
+    if(is_next || is_prev){
+        atomic_store(&perf_started, art_clock_ms());
+        atomic_store(&art_interactive_until, art_clock_ms() + 2000);
+        ui_perf_note("transport-tap");
+    }
     if(ma_controls()){ ma_send(is_toggle ? "toggle" : is_next ? "next" : "previous"); return 0; }   /* MA Sendspin */
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(!ui_local_playback_allowed()){
@@ -385,10 +407,11 @@ int ui_transport_command(const char *cmd)
     if(is_next){
         int q=queue_next();
         if(q<0){ ui_toast("Couldn't start queued song - try again"); return -1; }
-        if(q>0){ ui_cancel_book_resume(); ui_disarm_book_eoc(); return 0; }
+        if(q>0){ ui_perf_note("queued-track-accepted"); ui_cancel_book_resume(); ui_disarm_book_eoc(); return 0; }
     }
     ui_note_transport_sent();
     if(ipc_send_cmd(cmd) < 0){ ui_toast("Player busy - try again"); return -1; }
+    if(is_next || is_prev) ui_perf_note("transport-accepted");
     if(is_toggle){
         ui_pp_tap_hint();
         ui_pp_glyph(btn_pp, ui_pp_icon_playing(ui_is_playing()));
@@ -940,9 +963,8 @@ static void np_accent_from_track(const char *path){
     if(!path) path = "";
     if(!strcmp(np_acc_path, path)) return;           /* once per track: this is a DB lookup */
     copy_cstr(np_acc_path, sizeof np_acc_path, path);
-    int rgb = path[0] ? mdb_song_accent(path) : 0;
-    np_acc_set = (rgb && np_rgb_vivid(rgb));
-    if(np_acc_set) np_acc = theme_color_from_rgb(rgb);
+    /* Keep the last ready colour while pixels load; the worker publishes RGB. */
+    if(!path[0])np_acc_set=0;
 }
 int ui_accent_is_static(void);   /* fork: a colour picked in Accent wins over the album colour everywhere */
 static lv_color_t np_col(void){ if(th_braun()) return TC(ACCENT_PRIMARY); return ((g_np_poster || g_np_ring) && np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }
@@ -1694,18 +1716,20 @@ static void update_accent_seed(const track_state_t *st)
      * DON'T flash an arbitrary text-hash colour (that looked "random" between tracks) - keep
      * the current accent until apply_art() applies the real OKLab colour when the cover
      * finishes decoding. So the accent only ever shows a real, album-derived colour. */
-    int rgb = mdb_song_accent(st->path);
-    if(rgb){ accent = theme_color_from_rgb(rgb); apply_accent(); }
+    /* No database read here: the artwork worker carries the colour back. */
 }
 
 /* set by clear_art_state / apply_art (main thread); main.c re-pushes the
  * art-dependent surfaces (Home pill / Saver backdrop / Options thumb) when set. */
 static int g_art_applied = 0;
+static unsigned g_art_revision;
+unsigned ui_art_revision(void){ return g_art_revision; }
 
 /* Drop all album-art state to the no-art fallback (used for no-track, empty
  * path, and failed decode) so stale art isn't republished to Home/Saver. */
 static void clear_art_state(void)
 {
+    g_art_revision++;
     g_sharp_valid = 0;
     g_spin_ok = 0; imm_fast = 0;
     if(fsart_on){
@@ -1725,15 +1749,24 @@ static void clear_art_state(void)
 }
 
 /* ---- album-art worker ---------------------------------------------------
- * art_make_all() forks ffmpeg (hundreds of ms) - running it inline stalled
- * touch/render on every cross-album track change. It now runs on a detached
- * worker thread that ONLY writes the /tmp BMPs (touches no LVGL / g_coverbuf
+ * Bounded in-process decoding runs on a detached worker, not on the input/
+ * render thread. The worker writes /tmp files and prepares owned pixel buffers
+ * (touches no LVGL / g_coverbuf
  * state); the main thread applies the result in ui_art_poll() (LVGL is not
  * thread-safe). A new decode ALWAYS targets the non-displayed buffer
  * (displayed_idx ^ 1), so an in-flight decode can never overwrite the /tmp BMP the
  * shown art (Home pill / Saver backdrop) may still be rendering from. */
 typedef struct {
+    uint8_t cover[CBMP * CBMP * 4], backdrop[BDW * BDW * 4], sharp[PSZ * PSZ * 3];
+    uint8_t *tinted; /* optional; allocated only for Disco */
+    int sharp_ok;
+} art_pixels_t;
+static void art_pixels_free(art_pixels_t *p){if(p){free(p->tinted);free(p);}}
+typedef struct {
     char track[256];
+    art_pixels_t *pixels; /* worker-owned until published; main consumes/frees */
+    uint32_t canvas;
+    int disco, variant, rgb;
     int  idx;
     char out[40], tout[40], bout[40], sharp[40];
     char art_key[420];       /* album+dir reuse/staleness key (see last_art_key) */
@@ -1742,8 +1775,8 @@ typedef struct {
     int  is_clear;           /* "no track" - handled on the main thread; worker skips */
 } art_req_t;
 
-/* Serializes the two ffmpeg art decoders (the live NP worker below + the background cover prewarm) so
- * they never run two ~19MB image pipelines at once (OOM/stall). Held only around the ffmpeg call. */
+/* Serialize live/prewarm/saver decodes to keep bounded decoder scratch from
+ * overlapping under memory pressure. Held only around decoder calls. */
 static pthread_mutex_t g_decode_mu = PTHREAD_MUTEX_INITIALIZER;
 /* Shared by ALL ffmpeg artwork decoders (live NP, prewarm, AND the vinyl saver) so at most one runs at
  * once - two ~19MB pipelines together risk OOM. saver.c wraps its decode with these. */
@@ -1817,10 +1850,21 @@ static int poster_load_raw(const char *path){
 
 static void apply_art(const art_req_t *job)
 {
+    unsigned applied_at = art_clock_ms();
     snprintf(cover_src,    sizeof cover_src,    "A:/tmp/cover%d.bmp",    job->idx);
     snprintf(thumb_src,    sizeof thumb_src,    "A:/tmp/thumb%d.bmp",    job->idx);
     snprintf(backdrop_src, sizeof backdrop_src, "A:/tmp/backdrop%d.bmp", job->idx);
-    coverdsc_valid = (load_cover_dsc(job->out) == 0);   /* track whether g_coverdsc is THIS track's */
+    g_art_revision++;
+    if(job->pixels){
+        memcpy(g_coverbuf, job->pixels->cover, sizeof g_coverbuf);
+        memset(&g_coverdsc, 0, sizeof g_coverdsc);
+        g_coverdsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        g_coverdsc.header.cf = LV_COLOR_FORMAT_ARGB8888;
+        g_coverdsc.header.w = g_coverdsc.header.h = CBMP;
+        g_coverdsc.header.stride = CBMP * 4;
+        g_coverdsc.data = g_coverbuf; g_coverdsc.data_size = sizeof g_coverbuf;
+        coverdsc_valid = 1;
+    } else coverdsc_valid = (load_cover_dsc(job->out) == 0);   /* track whether g_coverdsc is THIS track's */
     if(coverdsc_valid) lv_image_set_src(cover_img, &g_coverdsc);
     else               lv_image_set_src(cover_img, cover_src);
     lv_image_set_inner_align(cover_img, LV_IMAGE_ALIGN_CENTER);
@@ -1832,10 +1876,13 @@ static void apply_art(const art_req_t *job)
      * colour), keep the text-hash accent set by update_accent_seed().
      * In static mode the user picked a fixed accent - never let cached art override it. */
     if(g_accent_mode != 1){
-        int acc_rgb = mdb_song_accent(job->track);
+        int acc_rgb = job->rgb;
         if(acc_rgb){ accent = theme_color_from_rgb(acc_rgb); apply_accent(); }
     }
-    np_acc_path[0] = '\0'; np_accent_from_track(job->track); apply_accent();   /* poster: album colour */
+    np_acc_path[0] = '\0'; np_accent_from_track(job->track);
+    np_acc_set=job->rgb && np_rgb_vivid(job->rgb);
+    if(np_acc_set)np_acc=theme_color_from_rgb(job->rgb);
+    apply_accent();   /* poster: album colour */
     copy_cstr(last_art_key, sizeof last_art_key, job->art_key);   /* cache key (album+dir) */
     if(backdrop) {
         lv_image_set_src(backdrop, backdrop_src);
@@ -1843,7 +1890,18 @@ static void apply_art(const art_req_t *job)
         lv_obj_move_background(backdrop);
         if(g_np_poster || th_braun() || !g_np_backdrop_on) lv_obj_add_flag(backdrop, LV_OBJ_FLAG_HIDDEN);   /* the sharp poster replaces it; Braun: the grille */
     }
-    g_sharp_valid = poster_load_raw(job->sharp) == 0;
+    if(job->pixels){
+        g_sharp_valid = job->pixels->sharp_ok;
+        if(g_sharp_valid){
+            memcpy(g_posterbuf, job->pixels->sharp, sizeof g_posterbuf);
+            memset(&g_posterdsc, 0, sizeof g_posterdsc);
+            g_posterdsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+            g_posterdsc.header.cf = LV_COLOR_FORMAT_RGB888;
+            g_posterdsc.header.w = g_posterdsc.header.h = PSZ;
+            g_posterdsc.header.stride = PSZ * 3;
+            g_posterdsc.data = g_posterbuf; g_posterdsc.data_size = sizeof g_posterbuf;
+        }
+    } else g_sharp_valid = poster_load_raw(job->sharp) == 0;
     g_spin_ok = 0;
     if(g_np_poster) poster_reload();
     else g_poster_stale = 1;
@@ -1851,10 +1909,23 @@ static void apply_art(const art_req_t *job)
         if(g_poster_stale) poster_reload();
         if(g_spin_ok){imm_bind_record();lv_obj_remove_flag(imm_spin,LV_OBJ_FLAG_HIDDEN);lv_obj_add_flag(fsart_img,LV_OBJ_FLAG_HIDDEN);}
     }
-    backdrop_to_ram();                                    /* the blurred backdrop, once, into RAM */
+    if(job->pixels){
+        memcpy(g_bdbuf, job->pixels->backdrop, sizeof g_bdbuf);
+        memset(&g_bddsc, 0, sizeof g_bddsc);
+        g_bddsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        g_bddsc.header.cf = LV_COLOR_FORMAT_XRGB8888;
+        g_bddsc.header.w = g_bddsc.header.h = BDW; g_bddsc.header.stride = BDW * 4;
+        g_bddsc.data = g_bdbuf; g_bddsc.data_size = sizeof g_bdbuf; g_bd_ok = 1;
+    } else backdrop_to_ram(); /* allocation failure keeps the proven fallback */
+    if(job->pixels && job->disco && job->pixels->tinted){
+        extern void disco_backdrop_prepared(const uint8_t *, uint32_t, int);
+        disco_backdrop_prepared(job->pixels->tinted, job->canvas, job->variant);
+    }
     if(backdrop && backdrop_valid){ lv_image_set_src(backdrop, NULL); lv_image_set_src(backdrop, ui_current_backdrop_img()); }
     displayed_idx = job->idx;   /* this buffer is now the one on screen */
     g_art_applied = 1;          /* main.c re-pushes Home/Saver/npmenu art next loop */
+    if(getenv("DISKOS_PERF")) fprintf(stderr, "perf: artwork-apply cost=%ums\n", art_clock_ms() - applied_at);
+    ui_perf_note("artwork-applied");
 }
 
 static void *art_worker(void *arg)
@@ -1869,7 +1940,7 @@ static void *art_worker(void *arg)
         pthread_mutex_unlock(&g_art_mu);
 
         char sharp_src[512]; copy_cstr(sharp_src,sizeof sharp_src,job.track);
-        int rc, from_net = 0;                             /* from_net: the picture came from Online Album Art */
+        int rc, from_net = 0, cache_primary = 0, cache_sharp = 0;                             /* from_net: the picture came from Online Album Art */
         char fp0[24] = "";                                /* the cover's fingerprint (for the accent's freshness) */
         if(job.is_clear) rc = -1;
         else if(artcache_get(job.track, job.out, job.tout, job.bout) == 0){ rc = 0;   /* cached -> fast copy, no decode */
@@ -1893,37 +1964,71 @@ static void *art_worker(void *arg)
                }
                pthread_mutex_unlock(&g_decode_mu);
                /* an online picture is never cached as the song's own cover: turning the setting off must drop it */
-               if(rc == 0 && have_fp && !from_net) artcache_put_if(job.track, fp0, job.out, job.tout, job.bout); }
+               cache_primary = rc == 0 && have_fp && !from_net; }
 
         unlink(job.sharp);
         if(rc == 0 && !job.is_clear){
-            pthread_mutex_lock(&g_decode_mu);
-            art_make_poster(sharp_src, job.sharp, my_gen);
-            pthread_mutex_unlock(&g_decode_mu);
-        }
-
-        /* compute + cache the OKLab accent HERE (off the UI thread) so apply_art()
-         * never blocks: by the time the main thread applies this decode, the accent
-         * is already in the DB and is just read back. Skipped in static-accent mode. */
-        if(rc == 0 && !from_net && !job.is_clear && !ui_accent_is_static() && fp0[0] && !mdb_song_accent_fresh(job.track, fp0)){
-            uint8_t *buf = malloc(CBMP*CBMP*4);
-            if(buf){
-                uint32_t rgb;
-                if(read_cover_bmp(job.out, buf) == 0 && accent_from_buf(buf, &rgb))
-                    mdb_set_song_accent(job.track, (int)(rgb & 0xFFFFFF), fp0);
-                free(buf);
+            int hit = !from_net && artcache_get_sharp(job.track, job.sharp) == 0;
+            if(!hit){
+                pthread_mutex_lock(&g_decode_mu);
+                int sharp_rc = art_make_poster(sharp_src, job.sharp, my_gen);
+                pthread_mutex_unlock(&g_decode_mu);
+                cache_sharp = sharp_rc == 0 && !from_net && fp0[0];
             }
         }
 
+        /* Superseded requests never allocate large preparation buffers. */
+        pthread_mutex_lock(&g_art_mu);int current=g_art_req==my_req;pthread_mutex_unlock(&g_art_mu);
+        if(!current)continue;
+        job.pixels=NULL;job.rgb=0;
+        if(rc==0 && !job.is_clear && art_pixels_memory_ok(sizeof(art_pixels_t)+(job.disco?BDW*BDW*4:0))){
+            job.pixels=calloc(1,sizeof *job.pixels);
+            if(job.pixels){
+                if(art_pixels_bmp(job.out,CBMP,job.pixels->cover) || art_pixels_bmp(job.bout,BDW,job.pixels->backdrop)){
+                    art_pixels_free(job.pixels);job.pixels=NULL;
+                }else{
+                    job.pixels->sharp_ok=art_pixels_sharp(job.sharp,job.pixels->sharp)==0;
+                    if(job.disco){
+                        job.pixels->tinted=malloc(BDW*BDW*4);
+                        if(job.pixels->tinted)art_pixels_tint(job.pixels->backdrop,job.pixels->tinted,job.canvas,job.variant);
+                    }
+                }
+            }
+        }
+        /* Always derive from these pixels, never block the UI on ACCENT queries.
+         * Persistent writes happen only after publication, off the input thread. */
+        if(rc==0 && !job.is_clear && !ui_accent_is_static()){
+            uint8_t *buf=job.pixels?job.pixels->cover:malloc(CBMP*CBMP*4);
+            if(buf){uint32_t rgb;
+                if((job.pixels || read_cover_bmp(job.out,buf)==0) && accent_from_buf(buf,&rgb))job.rgb=(int)(rgb&0xffffff);
+                if(!job.pixels)free(buf);
+            }
+        }
         job.from_net = from_net;
+        ui_perf_note("artwork-prepared");
         pthread_mutex_lock(&g_art_mu);
         if(g_art_req == my_req){            /* still the latest request -> publish + stop */
+            art_pixels_free(g_art_result.pixels);
             g_art_rc = rc; g_art_result = job; g_art_done_req = my_req;
-            g_art_ready = 1; g_art_inflight = 0;
+            g_art_ready = 1;
             pthread_mutex_unlock(&g_art_mu);
-            return NULL;
+            /* Publish before best-effort persistent cache writes. The same
+             * worker remains owner of the output files until writes finish.
+             * A new request cannot launch a second worker on these files. */
+            pthread_mutex_lock(&g_art_mu); int current = g_art_req == my_req; pthread_mutex_unlock(&g_art_mu);
+            if(current && job.rgb && !from_net && fp0[0])mdb_set_song_accent(job.track,job.rgb,fp0);
+            if(current && cache_primary) artcache_put_if(job.track, fp0, job.out, job.tout, job.bout);
+            pthread_mutex_lock(&g_art_mu); current = g_art_req == my_req; pthread_mutex_unlock(&g_art_mu);
+            if(current && cache_sharp) artcache_put_sharp_if(job.track, fp0, job.sharp);
+            pthread_mutex_lock(&g_art_mu);
+            if(g_art_req == my_req){
+                g_art_inflight = 0; pthread_mutex_unlock(&g_art_mu); return NULL;
+            }
+            pthread_mutex_unlock(&g_art_mu);
+            continue; /* published pixels now belong to main, never free here */
         }
         pthread_mutex_unlock(&g_art_mu);    /* a newer request arrived -> loop, serve it */
+        art_pixels_free(job.pixels);
     }
 }
 
@@ -1934,6 +2039,7 @@ static void art_request_clear(void)
     clear_art_state();
     pthread_mutex_lock(&g_art_mu);
     g_art_req++;
+    art_pixels_free(g_art_result.pixels);g_art_result.pixels=NULL;g_art_ready=0;
     memset(&g_art_target, 0, sizeof g_art_target);
     g_art_target.is_clear = 1;
     pthread_mutex_unlock(&g_art_mu);
@@ -2145,6 +2251,7 @@ static void update_cover_for_path(const track_state_t *st)
     int nidx = displayed_idx ^ 1;
     art_req_t job; memset(&job, 0, sizeof job);
     job.idx = nidx;
+    job.disco = th_disco(); job.canvas = theme_rgb(THEME_CLR_CANVAS); job.variant = theme_variant();
     copy_cstr(job.track, sizeof job.track, st->path);
     copy_cstr(job.art_key, sizeof job.art_key, art_key);
     copy_cstr(job.artist,sizeof job.artist,st->artist);
@@ -2158,23 +2265,24 @@ static void update_cover_for_path(const track_state_t *st)
 
     int launch = 0;
     pthread_mutex_lock(&g_art_mu);
+    art_pixels_free(g_art_result.pixels); g_art_result.pixels = NULL; g_art_ready = 0;
     g_art_req++;
     g_art_target = job;
+    art_cancel(); /* cancel old live/background attempts before worker snapshots */
     if(!g_art_inflight){ g_art_inflight = 1; launch = 1; }
-    else art_cancel();   /* a worker is mid-decode on a now-stale track -> kill its ffmpeg so it serves this
-                          * one. Done UNDER g_art_mu (not after unlocking): otherwise the worker could read
-                          * the NEW target and start its ffmpeg in the gap, and this cancel would kill THAT
-                          * valid decode instead (leaving art missing). Deadlock-free: no path holds g_pid_mu
-                          * (which art_cancel takes) while acquiring g_art_mu, and kill() doesn't block. */
+    /* Cancellation is under the request mutex so a worker cannot snapshot the
+     * new target with an old token. In-process decoding completes its bounded
+     * current call, then discards stale output and skips subsequent attempts. */
     pthread_mutex_unlock(&g_art_mu);
 
+    ui_art_set_pending(1);
     if(launch){
         pthread_t th;
         if(pthread_create(&th, NULL, art_worker, NULL) == 0){
             pthread_detach(th);
         } else {                            /* memory pressure: never block the UI on a decode */
             pthread_mutex_lock(&g_art_mu); g_art_inflight = 0; pthread_mutex_unlock(&g_art_mu);
-            clear_art_state();
+            clear_art_state(); ui_art_set_pending(0);
         }
     }
     /* else: a worker is already running; it will pick up g_art_target when it loops */
@@ -2186,15 +2294,18 @@ void ui_art_poll(lv_timer_t *t)
     (void)t;
     { char got[512];                        /* Online Album Art saved a picture: redo that song's cover if it's on */
       if(netart_take_ready(got, sizeof got) && cfg_get_int("online_art", 0) && strcmp(got, last_path) == 0) ui_art_retry(); }
-    int ready = 0, rc = -1; art_req_t res; unsigned done_req = 0, cur_req = 0;
+    int ready = 0, rc = -1, inflight; art_req_t res; unsigned done_req = 0, cur_req = 0;
     pthread_mutex_lock(&g_art_mu);
+    inflight = g_art_inflight;
     if(g_art_ready){
         ready = 1; g_art_ready = 0;
-        rc = g_art_rc; res = g_art_result; done_req = g_art_done_req; cur_req = g_art_req;
+        rc = g_art_rc; res = g_art_result; g_art_result.pixels = NULL;
+        done_req = g_art_done_req; cur_req = g_art_req;
     }
     pthread_mutex_unlock(&g_art_mu);
+    ui_art_set_pending(inflight);
     if(!ready) return;
-    if(done_req != cur_req) return;        /* superseded - a newer decode is in flight */
+    if(done_req != cur_req){ art_pixels_free(res.pixels); return; }        /* superseded - a newer decode is in flight */
     if(res.is_clear)      clear_art_state();/* main already cleared; idempotent */
     else if(rc == 0 && res.from_net && !cfg_get_int("online_art", 0)){
         clear_art_state();                  /* an online picture that landed after the setting was turned off */
@@ -2217,6 +2328,7 @@ void ui_art_poll(lv_timer_t *t)
         if(rc != -2 && res.online && cfg_get_int("online_art", 0) && strcmp(res.art_key, want_art_key) == 0)
             netart_request(res.track, res.artist, res.album, res.title);
     }
+    art_pixels_free(res.pixels);
 }
 
 /* main.c calls this each loop: returns 1 once after art was (re)applied so the
@@ -2230,6 +2342,7 @@ int ui_take_art_applied(void)
 
 /* Settings hook: apply the chosen accent mode/colour immediately (main thread). */
 void ui_set_accent_config(int mode, int rgb){
+    int was_static=g_accent_mode;
     g_accent_mode  = mode ? 1 : 0;           /* fork: Ring follows the chosen accent too (the merge had forced the album colour) */
     g_accent_color = (uint32_t)rgb & 0xFFFFFF;
     if(g_accent_mode){
@@ -2241,6 +2354,7 @@ void ui_set_accent_config(int mode, int rgb){
     apply_accent();
     g_static_last = g_accent_mode ? g_accent_color : 0xFFFFFFFFu;   /* config just repainted; keep the guard in sync */
     g_art_applied = 1;   /* re-push Home/Saver/npmenu accent surfaces */
+    if(was_static && !g_accent_mode && last_path[0])ui_art_retry();
 }
 
 /* ---- background art prewarm (user-gated, heat-safe) ------------------------
@@ -2281,8 +2395,25 @@ static void pw_wait_window(int *hot){
         if(*hot){ if(t < 400) *hot=0; else { sleep(15); continue; } }   /* hysteresis: pause >=42C, resume <40C */
         else if(t >= 420){ *hot=1; sleep(15); continue; }
         int busy; pthread_mutex_lock(&g_art_mu); busy=g_art_inflight; pthread_mutex_unlock(&g_art_mu);
-        if(busy){ usleep(300*1000); continue; }     /* never a 2nd ffmpeg while the user's decode runs */
+        if(busy || art_interactive()){ usleep(300*1000); continue; }     /* never a 2nd ffmpeg while the user's decode runs */
         return;
+    }
+}
+
+static int pw_decode(const char *path, const char *cover, const char *thumb,
+                     const char *backdrop, int *hot){
+    for(;;){
+        pw_wait_window(hot);
+        pthread_mutex_lock(&g_decode_mu);
+        pthread_mutex_lock(&g_art_mu);
+        int busy = g_art_inflight || art_interactive();
+        unsigned gen = art_cancel_gen();
+        pthread_mutex_unlock(&g_art_mu);
+        if(busy){ pthread_mutex_unlock(&g_decode_mu); usleep(300000); continue; }
+        int rc = art_make_all_ex_gen(path, cover, thumb, backdrop, 1, gen);
+        pthread_mutex_unlock(&g_decode_mu);
+        if(rc == -2) continue; /* superseded by foreground; retain this queued album */
+        return rc;
     }
 }
 
@@ -2308,9 +2439,7 @@ static void *art_prewarm_worker(void *arg)
             if(artcache_has(qpath)){ usleep(15*1000); continue; }   /* already cached (the UI thread no longer checks) */
             char fp0[24];
             if(!artcache_has(qpath) && artcache_key(qpath, fp0, sizeof fp0) == 0){
-                pthread_mutex_lock(&g_decode_mu);
-                int r = art_make_all(qpath, PC, PT, PB);
-                pthread_mutex_unlock(&g_decode_mu);
+                int r = pw_decode(qpath, PC, PT, PB, &hot);
                 if(r == 0) artcache_put_if(qpath, fp0, PC, PT, PB);
             }
             usleep(120*1000);                            /* light pace; the temp gate is the real limiter */
@@ -2344,9 +2473,7 @@ static void *art_prewarm_worker(void *arg)
         if(!have_art){
             char fp0[24];
             if(artcache_key(path, fp0, sizeof fp0) != 0){ usleep(300*1000); continue; }
-            pthread_mutex_lock(&g_decode_mu);
-            int r = art_make_all(path, PC, PT, PB);
-            pthread_mutex_unlock(&g_decode_mu);
+            int r = pw_decode(path, PC, PT, PB, &hot);
             if(r == 0) artcache_put_if(path, fp0, PC, PT, PB);
             else { usleep(300*1000); continue; }                  /* undecodable -> skip */
         }

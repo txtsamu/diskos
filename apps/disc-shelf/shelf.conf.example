@@ -1,0 +1,6 @@
+# Local Navidrome server; no trailing /rest. Plaintext credentials.
+server=http://192.168.178.10:4533
+username=YOUR_USERNAME
+password=YOUR_PASSWORD
+# Must be a directory on the mounted SD card. Existing music is never overwritten.
+download_dir=/tmp/sdcard/Navidrome

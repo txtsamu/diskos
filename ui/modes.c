@@ -359,6 +359,8 @@ void modes_create(lv_obj_t *root){
             int y = 54 + k * 58, h = 56;
             g_drow[i] = disco_row(root, y, h, MODES[i].glyph,
                                  i == 1 ? TF(UI_20) : TF(UI_24), NM[i], disco_row_cb, (void *)(intptr_t)i);
+            lv_obj_remove_event_cb(g_drow[i],disco_row_cb);
+            ui_on(g_drow[i],disco_row_cb,LV_EVENT_CLICKED,(void *)(intptr_t)i,"modes.select",UI_CORE);
             lv_obj_set_style_bg_opa(g_drow[i], LV_OPA_COVER, LV_STATE_PRESSED);
             lv_obj_set_style_border_width(g_drow[i], 2, LV_STATE_PRESSED);
             lv_obj_set_style_border_color(g_drow[i], ui_current_accent(), LV_STATE_PRESSED);
@@ -369,30 +371,30 @@ void modes_create(lv_obj_t *root){
             int half = (int)sqrtf((176 - radius) * (176 - radius) - dy * dy) + radius;
             int right = 180 + half;
             if(k > 0 && k < 4){
-                lv_obj_update_layout(g_drow[i]);
-                int clear_right = disco_mx(lv_obj_get_x(g_drow[i]), lv_obj_get_width(g_drow[i])) + lv_obj_get_width(g_drow[i]);   /* as if on the right */
+                int clear_right=disco_mirror()?360-disco_clear_left(y,y+h):disco_clear_right(y,y+h);
+                if(!clear_right)clear_right=360;
                 if(right > clear_right) right = clear_right; /* leave the section picker clear */
             }
             /* Shorter caps and a real hit-target gutter beyond Back's 64px zone.
              * Mirror the protected edge with Side; source switching is unchanged. */
             int left=180-half+12;
-            if(left<72)left=72;
+            /* Match QS's free-edge bow while retaining rounded-cap clearance
+             * and a 4px gutter beyond Back's 64px strip. */
+            int curve=(int)lroundf(0.6f*(180.0f-sqrtf((float)(180*180-dy*dy))));
+            int safe_left=68+curve;
+            if(left<safe_left)left=safe_left;
             right-=12;
             int width=right-left;
-            if(width>260)width=260;
+            if(width>222)width=222; /* middle caps bow away from the nav flyout */
             lv_obj_set_x(g_drow[i], disco_mx(left,width));
             lv_obj_set_width(g_drow[i],width);
-            lv_obj_align(lv_obj_get_child(g_drow[i],0),LV_ALIGN_LEFT_MID,14,0);
+            lv_obj_set_style_text_font(lv_obj_get_child(g_drow[i],0),TF(UI_20),0);
+            lv_obj_align(lv_obj_get_child(g_drow[i],0),LV_ALIGN_LEFT_MID,8,0);
             lv_obj_t *label=lv_obj_get_child(g_drow[i],1);
-            lv_obj_set_width(label,width-84);lv_obj_align(label,LV_ALIGN_LEFT_MID,48,0);
-            const lv_font_t *fonts[]={TF(UI_22),TF(UI_20),TF(UI_18),TF(UI_16)};
-            const lv_font_t *font=fonts[3];
-            for(int f=0;f<4;f++){
-                lv_point_t size;lv_text_get_size(&size,NM[i],fonts[f],0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-                if(size.x<=width-84){font=fonts[f];break;}
-            }
-            lv_obj_set_style_text_font(label,font,0);
-            lv_obj_align(lv_obj_get_child(g_drow[i],2),LV_ALIGN_RIGHT_MID,-12,0);
+            lv_obj_set_width(label,width-62);lv_obj_align(label,LV_ALIGN_LEFT_MID,34,0);
+            lv_obj_set_style_text_font(label,TF(UI_22),0);
+            lv_obj_set_style_text_letter_space(label,-1,0);
+            lv_obj_align(lv_obj_get_child(g_drow[i],2),LV_ALIGN_RIGHT_MID,-8,0);
             lv_obj_set_style_text_font(lv_obj_get_child(g_drow[i], 2), TF(UI_20), 0);
         }
         mark_selected();

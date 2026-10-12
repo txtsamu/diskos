@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>diskOS Disco!</title>
-<meta name="description" content="diskOS Disco! 1.3.1 - bigger buttons, clearer type and an album back sleeve. A touch interface for the round screen of the FiiO Snowsky Disc, where the album cover is the interface. Built on b0hemia's diskOS.">
-<meta property="og:title" content="diskOS Disco! 1.3.1">
+<meta name="description" content="diskOS Disco! 1.4.0 - responsive track changes, curved controls, a new Battery gauge and optional Disc Shelf. A touch interface for the round screen of the FiiO Snowsky Disc, where the album cover is the interface. Built on b0hemia's diskOS.">
+<meta property="og:title" content="diskOS Disco! 1.4.0">
 <meta property="og:description" content="The album cover is the interface. A touch UI for the FiiO Snowsky Disc, built on diskOS.">
 <meta property="og:image" content="https://zmd22.github.io/diskos-disco/disco/hero.png">
 <link rel="icon" href="disco/music.png">
@@ -179,12 +179,12 @@ footer a:hover{color:var(--text)}
   <!-- hero -->
   <div class="hero">
     <div class="wrap">
-      <span class="eyebrow"><b>1.3.1</b> · for the FiiO Snowsky Disc · firmware V2.57</span>
+      <span class="eyebrow"><b>1.4.0</b> · for the FiiO Snowsky Disc · firmware V2.57</span>
       <h1>diskOS Disco<span class="bang">!</span></h1>
       <p class="lede"><strong>The album cover is the interface.</strong> A touch UI made for the Disc's round
         360&nbsp;px screen, built on b0hemia's diskOS: the playing album fills the screen, a faint CD rainbow runs
         around the rim, and everything else sits on glass around it.</p>
-      <p class="small"><strong>New in 1.3.1:</strong> bigger buttons, clearer type, an album back sleeve and a cleaner queue. <a href="#updates">See what's new</a>.</p>
+      <p class="small"><strong>New in 1.4.0:</strong> responsive track changes, curved controls, a new Battery gauge and Disc Shelf. <a href="#updates">See what's new</a>.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/zmd22/diskos-disco/releases/latest">Download the latest release</a>
         <a class="btn ghost" href="#install">Install</a>
@@ -207,23 +207,23 @@ footer a:hover{color:var(--text)}
     <div class="wrap">
       <div class="feature reveal" style="padding-top:0">
         <div>
-          <span class="kicker">New in 1.3.1</span>
-          <h2>More room.<br>More music.</h2>
-          <p>A little bigger. A lot nicer to use. Readable action menus, generous shortcut pills and crisp pressed
-            feedback make the Disc feel more confident. Song Info becomes an album back sleeve, and Queue
-            gives the space back to your music. All in your chosen side and appearance.</p>
+          <span class="kicker">New in 1.4.0</span>
+          <h2>Less waiting.<br>More listening.</h2>
+          <p>Worker artwork delivery, a sharp-cover cache and background play history keep more work off
+            the touch loop. EQ profiles load asynchronously, and album colours arrive with the cover.
+            Curved QS and mode buttons stay clear of the navigation flyout, with consistent readable type.</p>
           <ul>
-            <li><b>Turn the sleeve:</b> tap the title, then Info, for the cover, credits and track details.</li>
-            <li><b>Your kind of type:</b> Original, Inter Semibold or Nunito Bold on Music.</li>
-            <li><b>Room to touch:</b> bigger menus and Shortcuts; ten EQ bands spread across the screen.</li>
-            <li><b>Find your place:</b> session scroll memory and brief position hints. Bitmap fonts and RAM-only state keep the cost modest.</li>
+            <li><b>Stay responsive:</b> isolated EQ reads and worker-provided artwork colours.</li>
+            <li><b>Follow the curve:</b> QS List and Working Modes bow toward the free edge; Left mirrors Right.</li>
+            <li><b>See your charge:</b> an open Battery gauge around the nav side, larger estimates and themed totals.</li>
+            <li><b>Make it yours:</b> Disco first in Themes; Progress Shape under Disco Options > Layout.</li>
           </ul>
-          <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/releases/v1.3.1.md">Release notes</a>
+          <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/releases/v1.4.0.md">Release notes</a>
         </div>
         <div class="shots">
-          <div class="dev"><img src="disco/song-info.png" alt="Song Info album back sleeve" width="360" height="360" loading="lazy"></div>
-          <div class="dev"><img src="disco/queue.png" alt="Queue with larger controls and highlighted current track" width="360" height="360" loading="lazy"></div>
-          <div class="dev"><img src="disco/music-inter.png" alt="Music with Inter Semibold" width="360" height="360" loading="lazy"></div>
+          <div class="dev"><img src="disco/battery.png" alt="Battery gauge around the navigation side" width="360" height="360" loading="lazy"></div>
+          <div class="dev"><img src="disco/modes.png" alt="Curved Working Modes with consistent readable labels" width="360" height="360" loading="lazy"></div>
+          <div class="dev"><img src="disco/quick-current.png" alt="Curved Quick Settings list with readable labels" width="360" height="360" loading="lazy"></div>
           <div class="dev"><img src="disco/shortcuts.png" alt="Larger Shortcuts pills" width="360" height="360" loading="lazy"></div>
         </div>
       </div>
@@ -242,6 +242,23 @@ footer a:hover{color:var(--text)}
         <div class="tile"><div class="dev"><img src="disco/music-nunito.png" alt="Nunito Bold Music font" width="360" height="360" loading="lazy"></div><p><b>Nunito Bold</b>Round, warm, a little playful.</p></div>
       </div>
     </div>
+  </section>
+
+  <section id="disc-shelf" style="background:var(--bg2)">
+    <div class="wrap"><div class="feature reveal">
+      <div><span class="kicker">Optional app · Disc Shelf 1.0.4</span>
+        <h2>Your collection.<br>Within reach.</h2>
+        <p>A Navidrome browser that feels like a record store: browse by artist, open all their albums,
+          select what you want and download original files to the Disc. The landing screen's faded CD tower,
+          clear round selectors and large Download control follow your theme and appearance.</p>
+        <p>A-Z opens the full matching artist list; albums form one continuous list. Existing configuration
+          is preserved on app updates. After downloading, rescan the local music library.</p>
+        <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISC_SHELF_INSTALL.md">Install and configure Disc Shelf</a>
+        <p class="small">A separate add-in, included with its source and licenses. A UI update does not install it.
+          Open All apps or add it to Shortcuts. Disc Shelf 1.0.4 has been tested on the owner's Disc.</p>
+      </div>
+      <div class="shots"><div class="dev"><img src="disco/disc-shelf.png" alt="Disc Shelf Navidrome browser landing screen" width="360" height="360" loading="lazy"></div></div>
+    </div></div>
   </section>
 
   <!-- Album Roulette -->
@@ -467,7 +484,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre>
           <p style="margin-top:14px">Expect <code>mq_ui: OK</code>. From the repository root, sign with the keys
             matching the public root key already installed on your Disc:</p>
 <pre>sh ui/tools/owner-keys/diskos-sign.sh \
-  /path/to/mq_ui 1.3.1 \
+  /path/to/mq_ui 1.4.0 \
   /absolute/path/to/your/diskos-keys ./diskos-update</pre>
           <p style="margin-top:14px">The output contains six files: <code>mq_ui</code>, <code>update.manifest</code>,
             <code>update.manifest.sig</code>, <code>leafpub.pem</code>, <code>keyauthz</code> and <code>keyauthz.sig</code>.
@@ -480,11 +497,11 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre>
             from the same signing run together. The path must be <code>&lt;SD&gt;/diskos-update/mq_ui</code>.</p>
           <p>Safely eject the card or USB storage connection. Return to Playback if using the Disc's USB storage
             mode, then select <b>Settings › System › Maintenance › Update from SD Card › Update</b>. Wait for successful staging
-            and restart when prompted. UI updates do not install the separate Album Roulette app.</p>
+            and restart when prompted. UI updates do not install the separate Disc Shelf or Album Roulette apps.</p>
         </div>
         <div class="step">
           <h4>Test and keep the trial</h4>
-          <p>Check <b>Settings › System › About</b> for the new version (Disco! 1.3.1). Keep the trial running for
+          <p>Check <b>Settings › System › About</b> for the new version (Disco! 1.4.0). Keep the trial running for
             at least three minutes and test playback. A confirmed playback start with running audio can
             accept it automatically after the minimum time; otherwise choose <b>Keep</b> when asked.
             Choose <b>Go back</b> and restart to revert.</p>

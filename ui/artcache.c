@@ -14,7 +14,10 @@
 #include <stdatomic.h>
 
 /* cache lives on the (large) SD card so it persists across reboots */
-#define CACHE_ROOT "/tmp/sdcard/.diskos/artcache"
+#ifndef ART_SD_ROOT
+#define ART_SD_ROOT "/tmp/sdcard"
+#endif
+#define CACHE_ROOT ART_SD_ROOT "/.diskos/artcache"
 #define MIN_FREE_BYTES (1024ULL*1024*1024)   /* stop caching if < 1GB free */
 /* Bump when the art RECIPE changes (cover/thumb/backdrop generation in art.c) so old
  * cached files auto-invalidate: it's mixed into the fingerprint -> all keys change ->
@@ -91,7 +94,7 @@ static int copy_file(const char *src, const char *dst){
 }
 static int enough_free(void){
     struct statvfs v;
-    if(statvfs("/tmp/sdcard", &v) != 0) return 0;     /* unknown -> don't cache */
+    if(statvfs(ART_SD_ROOT, &v) != 0) return 0;     /* unknown -> don't cache */
     return ((uint64_t)v.f_bavail * v.f_frsize) > MIN_FREE_BYTES;
 }
 
@@ -153,7 +156,7 @@ static void artcache_put_leased(const char *track, const char *fp_before, const 
     if(!enough_free()) return;
     if(!sd_write_begin()) return;   /* M18: card is host-owned or an export is in progress -> skip the SD write */
     char dir[600];
-    mkdir("/tmp/sdcard/.diskos", 0755);   /* ignore EEXIST */
+    mkdir(ART_SD_ROOT "/.diskos", 0755);   /* ignore EEXIST */
     mkdir(CACHE_ROOT, 0755);
     snprintf(dir,sizeof dir,"%s/%s",CACHE_ROOT,fp);
     mkdir(dir, 0755);
@@ -209,6 +212,33 @@ int artcache_key(const char *track, char *out, int cap){
     int r = fingerprint(track, out, cap);
     sd_io_end();
     return r;
+}
+
+static int sharp_valid(const char *path){
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode) && st.st_size == 364 * 364 * 4;
+}
+int artcache_get_sharp(const char *track, const char *out){
+    if(!sd_io_begin()) return -1;
+    char fp[24], path[600]; int r = -1;
+    if(fingerprint(track, fp, sizeof fp) == 0){
+        snprintf(path, sizeof path, "%s/%s/p7.bgra", CACHE_ROOT, fp);
+        if(sharp_valid(path) && copy_file(path, out) == 0 && sharp_valid(out)) r = 0;
+    }
+    sd_io_end(); return r;
+}
+void artcache_put_sharp_if(const char *track, const char *before, const char *source){
+    if(!before || !before[0] || !sd_io_begin()) return;
+    char fp[24], dir[600], path[600];
+    if(fingerprint(track, fp, sizeof fp) == 0 && !strcmp(fp, before) &&
+       sharp_valid(source) && enough_free() && sd_write_begin()){
+        mkdir(ART_SD_ROOT "/.diskos", 0755); mkdir(CACHE_ROOT, 0755);
+        snprintf(dir, sizeof dir, "%s/%s", CACHE_ROOT, fp); mkdir(dir, 0755);
+        snprintf(path, sizeof path, "%s/%s/p7.bgra", CACHE_ROOT, fp);
+        copy_file(source, path);
+        sd_write_end();
+    }
+    sd_io_end();
 }
 void artcache_put_if(const char *track, const char *fp_before, const char *cover, const char *thumb, const char *bg){
     if(!sd_io_begin()) return;

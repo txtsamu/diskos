@@ -7,7 +7,7 @@ def section(s,a,b):return s[s.index(a):s.index(b,s.index(a))]
 db=(app/'musicdb.c').read_text();eq=(app/'eqcustom.c').read_text();fw=(app/'fwcaps.c').read_text()
 gate=section(fw,'int fw_custom_peq_writable(',"/* V2.57's player arbitrates")
 utils=section(db,'static int peq_tok_int(','/* Is a PEQ slot representable')
-reader=section(db,'static int peq_tok_tenths(','int mdb_get_peq_ex(')
+reader=section(db,'static int peq_tok_tenths(','/* Worker-only snapshot:')
 writer=section(db,'static int mdb_set_peq_transaction(','/* Read a PEQ slot')
 state=section(eq,'static int g_preset,','static int g_sel')
 helpers=section(eq,'static int clampi(','/* ------------------------------------------------------------------ player I/O */')
@@ -26,6 +26,7 @@ prefix=r'''
 #include <unistd.h>
 #include <time.h>
 #include "jsmn.h"
+#include "eqprofile.h"
 #define NB 10
 #define NPRESET 21
 #define USER_MIN 11
@@ -39,7 +40,7 @@ int eq_rate_cached(void){return cached_rate;}
 int eq_player_rate(void){return live_rate;}
 void eq_rate_request(void){}
 #define SCR_EQ_EDITOR 99
-static int screen_current(void){return 0;}
+static int screen_current(void){return SCR_EQ_EDITOR;}
 static int version=240,selected=11,send_ok=1,send_count,mirror_count;
 int fw_os_ver(void){return version;}
 static int sd_io_begin(void){return 1;}
@@ -54,7 +55,11 @@ static void ui_toast(const char *s){snprintf(toast,sizeof toast,"%s",s);}
 static void redraw(void){}
 typedef int lv_timer_t;
 '''
-wrapper='static int mdb_get_peq_ex(int p,double *m,int *t,int *f,int *e,double *q){return mdb_get_peq_ex_leased(p,m,t,f,e,q);}\n'
+wrapper=r'''
+static eq_profile_t fixture_profile;
+unsigned eq_profile_request(int p){memset(&fixture_profile,0,sizeof fixture_profile);fixture_profile.preset=p;fixture_profile.read=mdb_get_peq_ex_leased(p,&fixture_profile.master,fixture_profile.gains,fixture_profile.hz,&fixture_profile.graphic,fixture_profile.q);return 1;}
+int eq_profile_take(unsigned t,eq_profile_t *p){if(!t)return 0;*p=fixture_profile;return 1;}
+'''
 tail=r'''
 static void profile(int unordered){
  char js[2000];int n=snprintf(js,sizeof js,"[");

@@ -131,7 +131,27 @@ static void backdrop_apply(void){
         if(g_bd_ok) lv_obj_set_style_bg_image_src(r, &g_bd_dsc, 0);
     }
 }
+static unsigned g_baked_revision;
+static uint32_t g_baked_canvas;
+static int g_baked_variant, g_baked_idle, g_baked_seen;
+extern unsigned ui_art_revision(void);
+void disco_backdrop_prepared(const uint8_t *pixels, uint32_t canvas, int variant){
+    if(!th_disco() || canvas != theme_rgb(THEME_CLR_CANVAS) || variant != theme_variant() || dhome_idle()) return;
+    memcpy(g_bd, pixels, sizeof g_bd);
+    memset(&g_bd_dsc, 0, sizeof g_bd_dsc);
+    g_bd_dsc.header.magic = LV_IMAGE_HEADER_MAGIC; g_bd_dsc.header.cf = LV_COLOR_FORMAT_XRGB8888;
+    g_bd_dsc.header.w = g_bd_dsc.header.h = BDW; g_bd_dsc.header.stride = BDW * 4;
+    g_bd_dsc.data = g_bd; g_bd_dsc.data_size = sizeof g_bd; g_bd_ok = 1;
+    g_baked_revision = ui_art_revision(); g_baked_canvas = canvas;
+    g_baked_variant = variant; g_baked_idle = 0; g_baked_seen = 1;
+}
 static void backdrop_bake(void){
+    unsigned revision = ui_art_revision(); uint32_t canvas = theme_rgb(THEME_CLR_CANVAS);
+    int variant = theme_variant(), idle = dhome_idle();
+    if(g_baked_seen && revision == g_baked_revision && canvas == g_baked_canvas &&
+       variant == g_baked_variant && idle == g_baked_idle) return;
+    g_baked_seen = 1; g_baked_revision = revision; g_baked_canvas = canvas;
+    g_baked_variant = variant; g_baked_idle = idle;
     const lv_image_dsc_t *src = (const lv_image_dsc_t *)ui_current_backdrop_img();
     g_bd_ok = 0;
     if(dhome_idle()) src = (const lv_image_dsc_t *)disco_idle_art();   /* nothing playing: the CD */
@@ -582,6 +602,21 @@ void disco_screen_entered(int which, lv_obj_t *root){
 }
 void disco_art_changed(void){
     if(!th_disco() || !g_parent) return;
+    /* Track identity and position frames can republish unchanged art. Re-bake
+     * only when pixels, appearance or idle state actually changed. */
+    extern unsigned ui_art_revision(void);
+    static unsigned last_revision;
+    static uint32_t last_canvas;
+    static int last_variant, last_idle, seen;
+    static lv_color_t last_accent;
+    unsigned revision = ui_art_revision();
+    uint32_t canvas = theme_rgb(THEME_CLR_CANVAS);
+    int variant = theme_variant(), idle = dhome_idle();
+    lv_color_t accent = ui_current_accent();
+    if(seen && revision == last_revision && canvas == last_canvas &&
+       variant == last_variant && idle == last_idle && lv_color_eq(accent, last_accent)) return;
+    seen = 1; last_revision = revision; last_canvas = canvas;
+    last_variant = variant; last_idle = idle; last_accent = accent;
     backdrop_bake(); backdrop_apply();
     dhome_art_changed();
     picker_paint();                                                     /* the current dot follows the accent */

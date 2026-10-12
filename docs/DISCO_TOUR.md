@@ -621,3 +621,5 @@ instead of stepping between width bands. Settings categories and submenus use th
 Long virtual lists keep their existing small window of live rows, A-Z navigation and rim scrolling. Straight-row
 themes retain their layout. Quick Settings moves the Wi-Fi/Bluetooth pills 4 px upward; Working mode has larger
 rows and text while keeping all five choices on screen.
+
+Current candidate: diskOS Disco! **1.4.0 replacement**. See docs/releases/v1.4.0.md for the full scope, pending device acceptance and optional app installation. Disco Options > Layout contains Progress Shape; the theme picker starts with Disco.

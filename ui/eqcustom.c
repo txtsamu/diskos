@@ -15,6 +15,7 @@
 #include "screens.h"
 #include "fwcaps.h"
 #include "eqrate.h"
+#include "eqprofile.h"
 #include "theme_kit.h"
 #include "braun.h"
 #include "theme.h"
@@ -107,13 +108,17 @@ static void persist_saved(void){                                 /* a mirror in 
     }
     cfg_flush();
 }
-static void load(int preset){
-    g_preset = clampi(preset, 0, NPRESET - 1);
-    g_editable = g_parametric = g_readfail = 0; g_master = 0;
-    for(int i = 0; i < NB; i++){ g_t[i] = 0; g_f[i] = STDF[i]; g_q[i]=0.7; }
-    if(g_preset == 0) return;                               /* Off: flat, grey */
-    int ed = 1, r = mdb_get_peq_ex(g_preset, &g_master, g_t, g_f, &ed, g_q);
-    if(r < 0){ g_readfail = 1; return; }                    /* unknown curve: show flat, never write */
+static unsigned profile_ticket;
+static int g_loading;
+static void load_poll(void){
+    eq_profile_t p;
+    if(!profile_ticket || !eq_profile_take(profile_ticket,&p))return;
+    profile_ticket=0;g_loading=0;
+    if(p.preset!=g_preset)return;
+    g_readfail=p.read<0;g_editable=g_parametric=0;
+    if(g_readfail){g_dirty_draw=1;return;}
+    g_master=p.master;memcpy(g_t,p.gains,sizeof g_t);memcpy(g_f,p.hz,sizeof g_f);memcpy(g_q,p.q,sizeof g_q);
+    int ed=p.graphic;
     if(g_preset >= USER_MIN){
         if(!ed) g_parametric = 1;                           /* filters we can't represent: show, don't overwrite */
         else g_editable = fw_custom_peq_curve_writable(g_f,NB);
@@ -124,6 +129,16 @@ static void load(int preset){
         g_editable=0;g_parametric=1;
     }
     if(g_save_busy)g_editable=0;
+    g_dirty_draw=1;
+}
+static void load(int preset){
+    g_preset=clampi(preset,0,NPRESET-1);
+    g_editable=g_parametric=g_readfail=g_loading=0;g_master=0;profile_ticket=0;
+    for(int i=0;i<NB;i++){g_t[i]=0;g_f[i]=STDF[i];g_q[i]=0.7;}
+    if(g_preset==0)return;
+    profile_ticket=eq_profile_request(g_preset);
+    g_loading=profile_ticket!=0;g_readfail=1;
+    load_poll();
 }
 
 /* ------------------------------------------------------------------ drawing */
@@ -341,6 +356,7 @@ static void refresh_labels(void){
     }
     const char *note = NULL;
     if(g_save_busy) note="Saving...";
+    else if(g_loading)note="Loading profile...";
     else if(!g_editable) note = g_preset == 0 ? "EQ off" : g_readfail ? "Couldn't read this preset" : g_parametric ? "Advanced preset" : g_preset >= USER_MIN ? "Custom editing unavailable" : th_braun() ? "Built-in preset" : "built-in preset";
     else if(g_sel < 0) note = th_disco() ? "Choose a band" : "tap a band";
     if(note){ lv_label_set_text(g_note, note); lv_obj_remove_flag(g_note, LV_OBJ_FLAG_HIDDEN); }
@@ -350,6 +366,7 @@ static void refresh_labels(void){
 static void redraw(void){ paint(); refresh_labels(); }
 static void draw_tmr_cb(lv_timer_t *t){
     (void)t;
+    load_poll();
     if(g_save_busy && atomic_load_explicit(&g_save_done,memory_order_acquire)){
         g_save_busy=0;
         if(g_save.result){
@@ -359,7 +376,8 @@ static void draw_tmr_cb(lv_timer_t *t){
             if(cfg_get_int("eq_preset",0)!=g_save.preset)ui_toast("EQ saved");
             else if(!fw_custom_peq_curve_writable(g_save.hz,NB) || ui_eq_select(g_save.preset)<0)ui_toast("EQ saved; not applied");
         }else ui_toast("EQ not saved");
-        load(g_preset);if(!g_editable)g_sel=-1;g_dirty_draw=1;
+        if(screen_current()==SCR_EQ_EDITOR){load(g_preset);if(!g_editable)g_sel=-1;g_dirty_draw=1;}
+        else {profile_ticket=0;g_loading=0;}
     }
     if(screen_current()==SCR_EQ_EDITOR && fw_os_ver()==257){
         eq_rate_request();

@@ -174,3 +174,7 @@ rebuild and relink `usbboot` against a modified libusb using the included source
 Album Roulette 1.3.1 is included as a separate user app under GPL-3.0-or-later. Corresponding source,
 vendored dependencies and individual licenses are in `corresponding-source/album-roulette-1.3.1-source.tar.gz`.
 See `apps/album-roulette/NOTICE.md` and `apps/album-roulette/README.md` for notices and reproduction.
+
+## Disc Shelf 1.0.4
+
+The optional standalone Disc Shelf app is GPL-3.0-or-later. Exact corresponding source accompanies the binary at corresponding-source/disc-shelf-1.0.4-source.tar.gz. Third-party notices and license texts are in apps/disc-shelf/NOTICE.md and apps/disc-shelf/licenses/. It is distributed alongside the UI and does not become part of mq_ui.

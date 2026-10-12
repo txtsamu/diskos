@@ -10,6 +10,9 @@
 /* Satisfy a request from cache: copies the cached cover/thumb/backdrop BMPs to the
  * given output paths. Returns 0 on a full hit (all three written), -1 on miss. */
 int  artcache_get(const char *track, const char *cover_out, const char *thumb_out, const char *bg_out);
+/* Optional full-size sharp picture; old three-file entries remain valid. */
+int artcache_get_sharp(const char *track, const char *out);
+void artcache_put_sharp_if(const char *track, const char *fingerprint, const char *source);
 
 /* Store freshly-decoded BMPs into the cache for this track (atomic, best-effort).
  * No-op if the SD is nearly full. */

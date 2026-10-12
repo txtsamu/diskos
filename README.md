@@ -1,5 +1,9 @@
 <h1 align="center">diskOS Disco!</h1>
 
+Current release candidate: **1.4.0**, replacing the unpublished first 1.4.0 build. Includes asynchronous EQ reads, nonblocking album colours, memory-aware artwork preparation, swipe-safe QS/Modes actions, curved lists, the Battery layout and separate Disc Shelf/Album Roulette add-ins. [Release notes](docs/releases/v1.4.0.md).
+
+Use the current [signed SD update workflow](docs/UPDATING.md); use the new binary's hash to distinguish the two 1.4.0 candidates. Optional app installation: [Disc Shelf](docs/DISC_SHELF_INSTALL.md) and [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md).
+
 <p align="center">
   <b>The album cover is the interface.</b><br>
   A touch UI for the round screen of the FiiO Snowsky Disc, built on
@@ -29,9 +33,10 @@
 </p>
 
 
-**Dev preview:** [1.3.2-polish8](docs/releases/v1.3.2-polish8.md) adds Disco
-Quick Settings with an eight-button Arc layout and a shared item editor,
-alongside the navigation gestures and first-use hints. Device testing is pending;
+**Dev preview:** [1.3.2-polish9](docs/releases/v1.3.2-polish9.md) improves track-change
+responsiveness with sharp-cover caching, worker-prepared images and fewer redundant
+redraws. Includes the configurable Quick Settings, navigation gestures and first-use
+hints from earlier previews. Device testing is pending;
 the stable release remains 1.3.1.
 
 ---

@@ -2,7 +2,7 @@
 """Keep MIPS objects and native objects separate; retain all incremental build state."""
 import argparse, hashlib, json, os, shutil, subprocess
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--toolchain',required=True,type=Path);p.add_argument('--cache',required=True,type=Path);p.add_argument('--out',required=True,type=Path);p.add_argument('--approved',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--toolchain',required=True,type=Path);p.add_argument('--cache',required=True,type=Path);p.add_argument('--out',required=True,type=Path);p.add_argument('--jobs',type=int,default=2);p.add_argument('--approved',action='store_true');a=p.parse_args()
 source=Path(__file__).resolve().parents[1];cache=a.cache.resolve();cache.mkdir(parents=True,exist_ok=True)
 skip={'host_build','__pycache__','.git','config.mk','mq_ui','mq_ui.debug','mq_ui.manifest','diskos-artdec','diskos-bootprobe'}
 digest=hashlib.sha256()
@@ -15,7 +15,8 @@ for path in sorted(paths):
  data=path.read_bytes();digest.update(str(rel).encode()+b'\0'+data);dest=cache/rel;dest.parent.mkdir(parents=True,exist_ok=True)
  if not dest.exists() or dest.read_bytes()!=data:shutil.copy2(path,dest);os.utime(dest,None)
 prefix=str(a.toolchain.resolve()/'bin/mipsel-linux-musl-')
-subprocess.run(['make','-C',str(cache),'CROSS='+prefix,'-j8','mq_ui','diskos-artdec','diskos-bootprobe'],check=True)
+cc=prefix+'gcc'+(' -fuse-ld=bfd' if Path(prefix+'ld.bfd').exists() else '')
+subprocess.run(['make','-C',str(cache),'CROSS='+prefix,'CC='+cc,'-j'+str(max(1,a.jobs)),'mq_ui','diskos-artdec','diskos-bootprobe'],check=True)
 a.out.mkdir(parents=True,exist_ok=True);artifacts={}
 for name in ('mq_ui','diskos-artdec','diskos-bootprobe'):
  binary=cache/name;hdr=subprocess.check_output([prefix+'readelf','-h','-A',str(binary)],text=True)

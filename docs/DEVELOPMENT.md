@@ -61,3 +61,5 @@ they do not accidentally invoke the stable payload packaging workflow.
 Install UI test builds through the existing signed SD workflow. Keep signature
 verification, trial acceptance and rollback intact. Development uploads never
 contain private keys or stock firmware.
+
+Current candidate: diskOS Disco! **1.4.0 replacement**. See docs/releases/v1.4.0.md for the full scope, pending device acceptance and optional app installation. Disco Options > Layout contains Progress Shape; the theme picker starts with Disco.

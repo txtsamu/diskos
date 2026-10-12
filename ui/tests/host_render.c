@@ -95,6 +95,10 @@ int __wrap_mdb_get_peq_ex(int p,double *m,int *g,int *hz,int *editable,double *q
  static const int freq[]={32,64,125,250,500,1000,2000,4000,8000,16000};
  *m=0;*editable=1;for(int i=0;i<10;i++){g[i]=(i%3-1)*20;hz[i]=freq[i];if(q)q[i]=0.7;}return 1;
 }
+int __real_mdb_get_peq_readonly(int p,double *m,int *g,int *hz,int *ed,double *q);
+int __wrap_mdb_get_peq_readonly(int p,double *m,int *g,int *hz,int *ed,double *q){
+ return fixture?__wrap_mdb_get_peq_ex(p,m,g,hz,ed,q):__real_mdb_get_peq_readonly(p,m,g,hz,ed,q);
+}
 int __real_mdb_song_accent(const char *p);
 int __wrap_mdb_song_accent(const char *p){return fixture?0xCE713E:__real_mdb_song_accent(p);}
 static void assert_no_tokens(lv_obj_t *o){
@@ -300,7 +304,7 @@ static void review_qs(void){
             assert(lv_obj_get_style_text_align(lv_obj_get_child(quicksettings_test_button(2),1),0)==LV_TEXT_ALIGN_LEFT);
             for(int i=2;i<8;i++){
                 lv_area_t area;lv_obj_get_coords(quicksettings_test_button(i),&area);
-                assert(disco_mirror()?area.x2<288:area.x1>=72);
+                assert(disco_mirror()?area.x2<292:area.x1>=68);
             }
         }
         assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
@@ -309,6 +313,13 @@ static void review_qs(void){
         nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(40);assert(lv_obj_has_state(wifi,LV_STATE_PRESSED));
         nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);assert(qs_wifi_taps==style+1);
         assert(find_text(quicksettings_test_button(0),qs_wifi?"On":"Off"));
+        /* A moving press must not toggle a radio when the finger is released. */
+        nav_pointer.point.x=(hit.x1+hit.x2)/2;nav_pointer.point.y=(hit.y1+hit.y2)/2;
+        nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(40);
+        nav_pointer.point.x+=disco_mirror()?-24:24;nav_wait(40);
+        nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
+        assert(qs_wifi_taps==style+1);
+
         qs_bt=BT_TURNING_ON;quicksettings_refresh(1);assert(find_text(quicksettings_test_button(1),"..."));
         qs_bt=BT_ON;quicksettings_refresh(1);assert(find_text(quicksettings_test_button(1),"On"));
         assert_visible_icon_glyphs(root);
@@ -623,7 +634,7 @@ int main(int argc, char **argv){
         for(int i=0;i<5;i++){setlist_open(groups[i]);assert_no_tokens(r);}
         cfg_set_int_deferred("eq_preset",11);cfg_set_int_deferred("eq_last",11);
         assert(cfg_get_int("eq_preset",-1)==11);
-        screen_show(SCR_EQ);assert(screen_current()==SCR_EQ);assert(ui_action_find("eq.edit"));
+        screen_show(SCR_EQ);for(int n=0;n<40;n++){lv_tick_inc(10);lv_timer_handler();usleep(1000);}assert(screen_current()==SCR_EQ);assert(ui_action_find("eq.edit"));
         lv_obj_send_event(ui_action_find("eq.edit"),LV_EVENT_CLICKED,NULL);assert(screen_current()==SCR_EQ_EDITOR);
         screen_back();assert(screen_current()==SCR_EQ);
         assert(cfg_get_int("eq_preset",-1)==11);
@@ -685,6 +696,35 @@ int main(int argc, char **argv){
         }
         ui_update(&st);
         int loaded=0;for(int i=0;i<500;i++){ui_art_poll(NULL);if(ui_current_cover_dsc()){loaded=1;break;}usleep(10000);}assert(loaded);
+        if(getenv("REVIEW_TRACK_SWITCHES")){
+            extern unsigned ui_art_revision(void);
+            unsigned revision = ui_art_revision();
+            track_state_t same = st;
+            snprintf(same.path, sizeof same.path, "%s-same.png", st.path);
+            snprintf(same.title, sizeof same.title, "Another song in the same album");
+            ipc_seed_state(&same); ui_update(&same);
+            for(int i=0;i<20;i++){ui_art_poll(NULL);usleep(1000);}
+            assert(ui_art_revision() == revision && ui_current_cover_dsc());
+            ui_publish_art_surfaces(&same,1); ui_publish_art_surfaces(&same,1);
+            /* Rapid new albums must ultimately bind the LAST sharp pixels. */
+            track_state_t next = st;
+            for(int i=0;i<12;i++){
+                snprintf(next.path,sizeof next.path,"%s-%s.png",st.path,i%2?"blue":"red");
+                snprintf(next.album,sizeof next.album,"Album %d",i);
+                ipc_seed_state(&next);ui_update(&next);
+            }
+            int fresh=0;
+            for(int i=0;i<500;i++){
+                ui_art_poll(NULL);
+                const lv_image_dsc_t *dsc=ui_current_sharp_img();
+                if(ui_art_revision()!=revision && dsc && dsc->header.cf==LV_COLOR_FORMAT_RGB888 &&
+                   dsc->data[0]==209 && dsc->data[1]==71 && dsc->data[2]==11){fresh=1;break;}
+                usleep(10000);
+            }
+            assert(fresh);
+            st=next;
+            puts("PASS: same-album pixels reused; 12 rapid skips retain the latest sharp cover");
+        }
         int art_race=!strncmp(argv[3],"preview-art-race-",17);
         if(art_race){
             track_state_t other=st;
@@ -735,6 +775,22 @@ int main(int argc, char **argv){
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}
         if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(getenv("REVIEW_DISCO_SETTINGS")){
+            void settings_open_group(const char *);
+            setlist_open("Display");settings_open_group("Theme Colours");nav_wait(80);
+            lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Theme");assert(label);
+            lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(80);
+            lv_obj_t *root=screen_get_root(SCR_SETTING_DETAIL);
+            lv_obj_t *disco=find_text(root,"Disco"),*ring=find_text(root,"Ring"),*braun=find_text(root,"Braun");
+            assert(disco && ring && braun);lv_obj_update_layout(root);
+            lv_area_t a,b,c;lv_obj_get_coords(disco,&a);lv_obj_get_coords(ring,&b);lv_obj_get_coords(braun,&c);
+            assert(a.y1<b.y1 && b.y1<c.y1);
+            screen_show(SCR_SETLIST);settings_open_group("Disco Colours");nav_wait(80);
+            assert(!find_text(screen_get_root(SCR_SETLIST),"Progress Shape"));
+            settings_open_group("Disco Layout");nav_wait(80);
+            assert(find_text(screen_get_root(SCR_SETLIST),"Progress Shape"));
+            puts("PASS: Disco first in theme picker; Progress Shape in Layout, absent from Colours");return 0;
+        }
         if(getenv("QS_EDITOR"))disco_qs_menu_open();
         if(getenv("QS_SETTINGS")){
             setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(l);
@@ -826,17 +882,45 @@ int main(int argc, char **argv){
             if(ms>=260) assert(lv_obj_has_flag(np,LV_OBJ_FLAG_HIDDEN));
             printf("PASS: Disco exit %dms keeps Ring covered until NP is hidden\n",ms);
         }
+        if(getenv("REVIEW_BATTERY_LAYOUT")){
+            lv_obj_t *root=screen_get_root(SCR_USAGE),*arc=NULL;
+            lv_obj_update_layout(root);
+            for(uint32_t j=0;j<lv_obj_get_child_count(root);j++){
+                lv_obj_t *o=lv_obj_get_child(root,j);if(lv_obj_check_type(o,&lv_arc_class))arc=o;
+            }
+            assert(arc && lv_obj_get_width(arc)==344 && lv_obj_get_height(arc)==344);
+            assert(lv_arc_get_rotation(arc)==(disco_mirror()?220:40));
+            assert(lv_arc_get_bg_angle_start(arc)==0 && lv_arc_get_bg_angle_end(arc)==280);
+            assert(lv_arc_get_mode(arc)==(disco_mirror()?LV_ARC_MODE_REVERSE:LV_ARC_MODE_NORMAL));
+            lv_obj_t *title=find_text(root,"Battery");assert(title);
+            lv_area_t a;lv_obj_get_coords(title,&a);assert(abs((a.x1+a.x2+1)/2-180)<=1);
+            const char *caps[]={"Playback","Screen on"};
+            for(int j=0;j<2;j++){
+                lv_obj_t *l=find_text(root,caps[j]);assert(l);lv_obj_t *pill=lv_obj_get_parent(l);
+                assert(lv_obj_get_index(pill)<lv_obj_get_index(arc));
+                lv_point_t size;lv_text_get_size(&size,caps[j],lv_obj_get_style_text_font(l,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+                assert(size.x<=lv_obj_get_width(pill));
+            }
+            const int pct[]={0,15,67,100};
+            for(int charging=0;charging<2;charging++)for(int j=0;j<4;j++){
+                usage_note_battery(pct[j],charging);usage_refresh();assert(lv_arc_get_value(arc)==pct[j]);
+                lv_color_t want=charging?TC(STATUS_SUCCESS):pct[j]<=15?TC(STATUS_DANGER):th_braun()?TC(ACCENT_PRIMARY):ui_current_accent();
+                assert(lv_color_eq(lv_obj_get_style_arc_color(arc,LV_PART_INDICATOR),want));
+            }
+            puts("PASS: Battery geometry, mirrored sweep, centred title, pill layering and charge states");
+        }
         if(getenv("REVIEW_MODES")){
             static const char *names[]={"Playback","USB storage","Bluetooth DAC","USB DAC","AirPlay"};
             lv_obj_t *root=screen_get_root(SCR_WORKMODE); lv_obj_update_layout(root);
             for(int i=0;i<5;i++){
                 lv_obj_t *label=find_text(root,names[i]); assert(label);
+                assert(lv_obj_get_style_text_font(label,0)==TF(UI_22));
                 lv_obj_t *row=lv_obj_get_parent(label); assert(lv_obj_get_height(row)==56);
-                lv_point_t size; lv_text_get_size(&size,names[i],lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+                lv_point_t size; lv_text_get_size(&size,names[i],lv_obj_get_style_text_font(label,0),lv_obj_get_style_text_letter_space(label,0),0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
                 assert(size.x<=lv_obj_get_width(label));
                 assert(lv_obj_get_width(row)>130);
                 lv_area_t area;lv_obj_get_coords(row,&area);
-                assert(disco_mirror()?area.x2<288:area.x1>=72);
+                assert(disco_mirror()?area.x2<292:area.x1>=68);
                 assert(lv_obj_get_width(row)<=260);
             }
             lv_obj_t *last=lv_obj_get_parent(find_text(root,"AirPlay"));
