@@ -1,16 +1,16 @@
 {
-  "version": "1.4.0",
-  "status": "replacement release candidate; device acceptance pending",
-  "source_commit": "2044c4b00450ecbc61c91182c027125853617834",
-  "base_commit": "c7545b290732ca901f430fe92fa5a44224e781f2",
+  "version": "1.4.1",
+  "status": "release candidate; device acceptance pending (needs a reflash: boot script changed)",
+  "source_commit": "6a591ac606d9529e9e13e48ba423fe907f801fa5",
+  "base_commit": "2997e1419792a60c7fbaa53b40a966d845c6558e",
   "working_changes": false,
-  "ui_source_sha256": "7febf534ecbdb9e01346d5f12562d72650c9e05c470c4c3e1733a509fbce5b19",
+  "ui_source_sha256": "0801767e235bff323847233a9b6d7cf3b920239383c15bbc4c90e44004704b54",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "4b5d7e318eb192fd183da1d06bfb42398aa6eea57ff63a9c0a3e18d60a872bc8",
-    "md5": "81cda641c5809eb71a0719d232019bb5",
-    "bytes": 5185968
+    "sha256": "230927b9a8cea34337eba2e618fc7bd1279ae10521c589ed26301cd227530e80",
+    "md5": "55dd29b03e306ba17553454026218917",
+    "bytes": 5193368
   },
-  "replaces_binary_sha256": "acbeb8b56a0c69f6c276163916ee492083a9aec426193258efcd5093f5fea99e"
+  "replaces_binary_sha256": "4b5d7e318eb192fd183da1d06bfb42398aa6eea57ff63a9c0a3e18d60a872bc8"
 }
