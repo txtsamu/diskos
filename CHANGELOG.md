@@ -1,32 +1,23 @@
 # Changelog
 
-## 1.4.0 - replacement candidate (2026-10-12)
-
-- QS List and Working Modes follow the free edge, with shorter middle mode caps away from the navigation flyout. The font stays consistent across each list. Left mirrors Right.
-- Back keeps its 64px strip plus a 4px protection gutter. Wi-Fi/BT positions and On/Off indicators are retained; QS Arc is retained.
-- Disco is first in the theme picker, followed by Ring, Braun and Stone. Progress Shape is in Disco Options > Layout.
-- Battery uses a 344px open gauge around the nav side: Right has 100% at the upper right, decreasing counter-clockwise to 0%; Left mirrors it. Centred heading, larger time estimate, themed totals below the gauge.
-- First-use hints, configurable open-nav hold/double-tap, editable QS items/styles and all previous 1.3.1 polish remain included.
-
-## Responsiveness and stability
-
-- EQ profile and editor reads use one sleeping worker and isolated read-only SQLite connections with a 50ms lock timeout. Stale profile requests cannot replace a newer choice. Editing stays disabled while loading or on read failure.
-- Album colour travels with the artwork result. The UI no longer reads SQLite for the current album colour during track changes or artwork delivery. Best-effort cache writes follow publication.
-- Superseded artwork is discarded before large preparation allocations. Clear/no-track frees pending results. Only Disco allocates the optional tint buffer, and preparation falls back to existing static-buffer loading when it would leave less than 6 MiB of available RAM.
-- QS and mode actions use the common moving-press guard: a swipe cannot also activate the pressed control on release.
-- Polish9's sharp artwork cache, worker pixel preparation, faster pending-result polling, background play-history writes and visible-only Song Info reads are retained.
-
-## Optional apps
-
-Disc Shelf **1.0.4** (owner device-tested) and Album Roulette **1.3.1** remain separate apps. The complete ZIP contains their binaries, corresponding sources, licenses and installation instructions. Updating mq_ui alone does not install them. Private signing keys, Navidrome credentials and FiiO firmware are not distributed.
-
-See [Disc Shelf installation](../DISC_SHELF_INSTALL.md), [Album Roulette installation](../ALBUM_ROULETTE_INSTALL.md) and [signed SD updates](../UPDATING.md).
-
-
 All notable changes to diskOS Disco! (and the diskOS releases underneath) are documented here.
 
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
+
+
+## [1.4.0] - 2026-10-12
+
+- Quick Settings (Current style) and Working Modes follow the free edge of the screen, with one font size per list; Left mirrors Right.
+  Buttons stay clear of the back-swipe edge, and a swipe can no longer also press the button it started on.
+- Quick Settings: Current or Arc style, with editable items (Disco Options > Quick Settings).
+- Open navigation circle: configurable Double tap and Hold (System > Controls). First-use hints (System > Help).
+- Disco is first in the theme list; Progress Shape moved to Disco Options > Layout.
+- Battery: open gauge on the navigation side, centred heading, larger estimate.
+- Faster track changes: covers, album colours and EQ reads prepared in the background; lower memory use for large covers.
+- Optional apps: Disc Shelf 1.0.4 (new) and Album Roulette 1.3.1, installed separately.
+  See [Disc Shelf](docs/DISC_SHELF_INSTALL.md), [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md), [SD updates](docs/UPDATING.md)
+  and the [release notes](docs/releases/v1.4.0.md).
 
 ## [1.3.2-polish9] - 2026-10-12 (dev candidate)
 

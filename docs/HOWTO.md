@@ -20,6 +20,13 @@ removed.
 
 **Open Quick Settings.** Pull down from the top edge; swipe up to close.
 
+**Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or Current (rows);
+**Items** chooses and orders up to eight buttons.
+
+**Change what a double tap or hold on the open circle does.** Settings > System > Controls > Double tap / Hold.
+
+**Bring the first-use tips back.** Settings > System > Help > Show hints again (or turn them Off there).
+
 **Use it left-handed.** Settings > Display > Disco Options > Layout > Side: choose **Left** and tap **Apply**. The
 interface restarts with the navigation circle, Quick Settings, Weather and the rest on the left, and the back
 swipe on the right edge.
@@ -105,7 +112,7 @@ cover; or pick a fixed one.
 **Make the rainbow parts use your accent instead.** Settings > Display > Disco Options > Colours: set Equalizer,
 Volume or Progress Bar to **Accent**. Progress Bar can also be **Off**.
 
-**Progress around the rim.** Disco Options > Colours > Progress Shape > Arc. **Title from the left:** Disco Options > Music
+**Progress around the rim.** Disco Options > Layout > Progress Shape > Arc. **Title from the left:** Disco Options > Music
 Screen > Title Position > Left.
 
 **Hide the clock on Music.** Hold the top of Music (the clock); hold again to bring it back. Or Disco Options >
@@ -139,7 +146,7 @@ Rescan Library). A small dot runs around the rim while it scans.
 **Update from the SD card.**
 
 1. On your computer, make a signed update with the signing script:
-   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.3.1` (the last part labels the update package; About shows the version compiled into mq_ui).
+   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0` (the last part is just a label for the package).
 2. Copy the resulting `diskos-update` folder to the root of the SD card.
 3. On the Disc: Settings > System > Maintenance > Update from SD Card > Update, then restart.
 4. The new version starts as a **trial**. Play some music (or tap **Keep** when asked) to keep it. If it
@@ -148,7 +155,7 @@ Rescan Library). A small dot runs around the rim while it scans.
 Updates are signed with your own keys, made once with `diskos-keys.sh`; the Disc only accepts updates signed with
 the key it was installed with.
 
-**See which version you're on.** Settings > System > About ("Disco! 1.3.1" plus the build ID).
+**See which version you're on.** Settings > System > About (version plus build ID).
 
 **If a restart is refused.** The toast says why; for details, `cat /tmp/restart_last` over SSH (Debug Mode).
 
@@ -163,3 +170,8 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 **Sleep timer.** Settings > System > Power > Sleep Timer; When Sleep Ends chooses pause or shut down.
 
 **When nothing is playing.** Music shows a CD and **Go to Library**; tap it to choose some music.
+
+## Optional apps
+
+**Install Album Roulette or Disc Shelf.** They're separate from the interface: follow
+[Album Roulette](ALBUM_ROULETTE_INSTALL.md) or [Disc Shelf](DISC_SHELF_INSTALL.md). Open them from All apps or a shortcut.

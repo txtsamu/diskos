@@ -1,9 +1,5 @@
 <h1 align="center">diskOS Disco!</h1>
 
-Current release candidate: **1.4.0**, replacing the unpublished first 1.4.0 build. Includes asynchronous EQ reads, nonblocking album colours, memory-aware artwork preparation, swipe-safe QS/Modes actions, curved lists, the Battery layout and separate Disc Shelf/Album Roulette add-ins. [Release notes](docs/releases/v1.4.0.md).
-
-Use the current [signed SD update workflow](docs/UPDATING.md); use the new binary's hash to distinguish the two 1.4.0 candidates. Optional app installation: [Disc Shelf](docs/DISC_SHELF_INSTALL.md) and [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md).
-
 <p align="center">
   <b>The album cover is the interface.</b><br>
   A touch UI for the round screen of the FiiO Snowsky Disc, built on
@@ -32,12 +28,6 @@ Use the current [signed SD update workflow](docs/UPDATING.md); use the new binar
   <a href="#thanks">Thanks</a>
 </p>
 
-
-**Dev preview:** [1.3.2-polish9](docs/releases/v1.3.2-polish9.md) improves track-change
-responsiveness with sharp-cover caching, worker-prepared images and fewer redundant
-redraws. Includes the configurable Quick Settings, navigation gestures and first-use
-hints from earlier previews. Device testing is pending;
-the stable release remains 1.3.1.
 
 ---
 
@@ -77,49 +67,33 @@ replaces only what you see and touch.
 </tr>
 </table>
 
-## Interface polish retained from 1.3.1
+## New in 1.4.0
 
-**A little bigger. A lot nicer to use.** Readable menus, confident buttons and more room for your music.
+- **Quicker track changes.** Covers, album colours and the equalizer load in the background, so the screen
+  doesn't stall when you skip.
+- **Quick Settings your way.** Choose **Current** (curved rows) or the eight-button **Arc**, and pick and order the
+  buttons (Disco Options › Quick Settings).
+- **Safer touches.** A swipe that starts on a button no longer presses it, and buttons stay clear of the back-swipe edge.
+- **Navigation circle shortcuts.** Double-tap or hold the open circle for an action you choose (System › Controls).
+- **First-use hints** for new users (System › Help), and a new **Battery** gauge.
+- **Disc Shelf**, a new optional app: browse your Navidrome server and download original files to the card.
 
 <table><tr>
-<td align="center" width="25%"><img src="docs/disco/song-info.png" width="190" alt="Song Info album back sleeve"><br><sub><b>Back sleeve</b>: track details, beautifully readable</sub></td>
-<td align="center" width="25%"><img src="docs/disco/queue.png" width="190" alt="Cleaner Queue"><br><sub><b>Queue</b>: bigger controls, less clutter</sub></td>
-<td align="center" width="25%"><img src="docs/disco/music-inter.png" width="190" alt="Inter Semibold on Music"><br><sub><b>Track Font</b>: Original, Inter Semibold, Nunito Bold</sub></td>
-<td align="center" width="25%"><img src="docs/disco/eq.png" width="190" alt="Roomier equalizer"><br><sub><b>Equalizer</b>: ten bands with breathing room</sub></td>
+<td align="center" width="25%"><img src="docs/disco/quick-current.png" width="190" alt="Quick Settings list"><br><sub><b>Quick Settings</b>: Current</sub></td>
+<td align="center" width="25%"><img src="docs/disco/battery.png" width="190" alt="Battery"><br><sub><b>Battery</b> gauge</sub></td>
+<td align="center" width="25%"><img src="docs/disco/song-info.png" width="190" alt="Song Info album back sleeve"><br><sub><b>Song Info</b>: the album back sleeve</sub></td>
+<td align="center" width="25%"><img src="docs/disco/left-nav.png" width="190" alt="Left-handed mode"><br><sub><b>Left-handed mode</b></sub></td>
 </tr></table>
 
-- Bigger track/group/file action menus, confirmation buttons and Shortcuts pills.
-- Clear pressed feedback in Quick Settings, Modes and Shortcuts.
-- Music's title menu now opens **Info**; hold the title for Immersive.
-- Library remembers your place during the session; long lists and queues briefly show position/count.
-- Pre-rendered fonts, RAM-only scroll memory and brief feedback keep the work modest.
-
-[1.3.1 release notes](docs/releases/v1.3.1.md) · [Update from SD](docs/UPDATING.md)
-
-## From 1.3.0
-
-<table>
-<tr>
-<td align="center" width="25%"><img src="docs/disco/left-nav.png" width="190" alt="Left-handed mode"><br><sub><b>Left-handed mode</b>: the circle and everything around it on the left</sub></td>
-<td align="center" width="25%"><img src="docs/disco/scroll-disco.png" width="190" alt="Disco scroll"><br><sub><b>Disco scroll</b>: rows swing round the circle like a CD</sub></td>
-<td align="center" width="25%"><img src="docs/disco/idle.png" width="190" alt="Idle Music"><br><sub><b>Nothing playing?</b> A CD and <i>Go to Library</i></sub></td>
-<td align="center" width="25%"><img src="docs/disco/settings-display.png" width="190" alt="Settings"><br><sub><b>Tidier Settings</b>: short pages, less scrolling</sub></td>
-</tr>
-</table>
-
-- **Left-handed mode**: Disco Options › Layout › Side › Left › Apply. The back swipe moves to the right edge.
-- **Scroll styles**: Classic, Straight or Disco.
-- **Hold the top of Music** to hide or show the clock and status icons.
-- **Hold an album › Tags** tags the whole album; **Song Info** shows the bitrate beside the file size.
-- **Glass hold menus**, a fixed "Couldn't save settings" bug, and "Since full charge" that starts at 95%.
-
-All the details: [1.3.0 release notes](docs/releases/v1.3.0.md).
+All the details: [release notes](docs/releases/v1.4.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
 - **Album Roulette.** Too much music, nothing to play? Spin your collection: covers fly past, slow down and
-  land on an album. Tap **Play!** to listen, long-press to spin again. It's a separate user app in the complete
-  release package: [install it](docs/ALBUM_ROULETTE_INSTALL.md), [how it works](docs/DISCO_TOUR.md#album-roulette).
+  land on an album. Tap **Play!** to listen, long-press to spin again. A separate app in the release package:
+  [install it](docs/ALBUM_ROULETTE_INSTALL.md), [how it works](docs/DISCO_TOUR.md#album-roulette).
+- **Disc Shelf.** Browse your Navidrome server's artists and download original files to the card. Also a separate
+  app: [install it](docs/DISC_SHELF_INSTALL.md).
 - **Music is home.** Big title and artist (centred or from the left), the play mode one tap away, transport on an
   arc. Progress as a rainbow **line** under the title or an **arc** around the rim. Drag either to seek.
 - **Tap the title** for Favourite, Album, Artist, Queue, Lyrics and Info. **Hold it** to go straight to the
@@ -133,7 +107,7 @@ All the details: [1.3.0 release notes](docs/releases/v1.3.0.md).
 - **Readable on any cover.** Text and fades adapt to each album, and the accent colour follows the cover (or your
   own pick).
 - **Disco Options** let you choose the menu sections, clock, track times, track number, title position, font and hold,
-  rim sheen, EQ / volume / progress colours, progress shape, the side and the scroll style.
+  rim sheen, EQ / volume / progress colours, progress shape, Quick Settings, the side and the scroll style.
 - **MA Sendspin** *(experimental)*: the Disc as a [Music Assistant](https://www.music-assistant.io/) speaker, with
   the track, cover and controls on Music. See the [tour](docs/DISCO_TOUR.md#ma-sendspin-experimental).
 - **Safe updates.** Signed builds from the SD card install as a trial and roll back by themselves if they don't
@@ -164,7 +138,7 @@ cable and about 20 quiet minutes. The installer is upstream diskOS's (`./diskos-
 
 **0. Get it.** Download the **[latest release](https://github.com/zmd22/diskos-disco/releases/latest)** (Source
 code, tar.gz) and unpack it, or `git clone https://github.com/zmd22/diskos-disco`. The ready-built interface is
-already in it as `payload/mq_ui` (Disco! 1.4.0); the release also has `mq_ui` on its own, with checksums, for SD-card
+already in it as `payload/mq_ui`; the release also has `mq_ui` on its own, with checksums, for SD-card
 updates.
 
 **1. Make your update keys (once, optional but recommended).** They let you install new builds from the SD card
@@ -199,7 +173,7 @@ Download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco
 your keys:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0      # -> ./diskos-update/
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0      # -> ./diskos-update/ (the label is free text)
 ```
 
 Reuse the signing keys whose root public key was installed on this Disc. Copy the complete
@@ -209,7 +183,7 @@ go to **Settings › System › Maintenance › Update from SD Card › Update**
 The new interface runs as a **trial**. Check Settings › System › About and leave it running for at
 least three minutes. Confirmed playback can accept it automatically; otherwise choose **Keep**
 when prompted, or **Go back** to revert. Restart after acceptance to confirm the kept build.
-An unproven or failing trial rolls back. UI-only updates do not install or update Album Roulette.
+An unproven or failing trial rolls back. SD updates change the interface only, not the optional apps.
 The **[full SD update guide](docs/UPDATING.md)** covers first-time keys, verification, folder contents,
 epoch ordering, trial acceptance and troubleshooting.
 
@@ -244,7 +218,7 @@ Stock is never far:
 | [Windows (WSL)](docs/WINDOWS.md) | Flashing from Windows: highly experimental, untested and unsupported |
 | [UI choices](docs/UI_CHOICES.md) | Why things look and work the way they do |
 | [Changelog](CHANGELOG.md) | Every Disco! release, newest first |
-| [All docs](docs/README.md) | Hardware notes, command map, developer workflow, legal |
+| [All docs](docs/README.md) | Optional apps, hardware notes, developer workflow, legal |
 
 ## Thanks
 

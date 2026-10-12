@@ -2,38 +2,20 @@
 
 [Back to the README](../README.md) · [Developer workflow](DEV_WORKFLOW.md)
 
-Flash once with your public update key, then install later **UI builds** from the SD card.
-Normal updates need no reflash and no SSH. The Disc verifies the signatures, starts the new
-build as a trial, and can return to the previous verified build if the trial fails.
+Flash once with your own public update key. After that, new **interface builds** install from the SD card: no
+reflash, no SSH. The Disc checks the signatures, runs the new build as a trial, and goes back to the previous
+build if the trial fails.
 
-## What an SD update includes
+An SD update changes `mq_ui` (the interface) only. It doesn't touch the stock player, the boot scripts or the
+optional apps ([Album Roulette](ALBUM_ROULETTE_INSTALL.md), [Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
+`mq_ui` is **not** signed with your keys yet; you sign it yourself (step 3).
 
-An SD package updates `mq_ui` only. It does not change the stock player, installer or boot
-scripts, and does not install or update separate user apps. For Disco! 1.2.2 and later, install Album
-Roulette 1.3.1 separately using [these instructions](ALBUM_ROULETTE_INSTALL.md).
-A downloaded `mq_ui` or complete release ZIP is **not** already signed with your keys.
+## 1. Make keys and flash once
 
-The generated folder contains exactly these six files:
+**Already flashed with an update key?** Keep using that same keys folder and skip to step 2. A new key is not
+trusted by an existing install.
 
-| File | Purpose |
-|---|---|
-| `mq_ui` | The MIPS UI executable |
-| `update.manifest` | Component, version label, size, SHA-256 and update epoch |
-| `update.manifest.sig` | Leaf-key signature of that manifest |
-| `leafpub.pem` | Public key used to check the manifest signature |
-| `keyauthz` | Root-authorized permission for the leaf key |
-| `keyauthz.sig` | Root-key signature of that authorization |
-
-The installed root public key checks the leaf authorization; the leaf public key checks the
-manifest; the manifest's size and hash check the executable. Verification happens while staging
-and again at boot. Preserve that chain.
-
-## 1. Set up keys and flash once
-
-**Already installed with an update key?** Reuse the same signing folder and skip to step 2.
-Generating a new root key does not make it trusted by an existing install.
-
-For a first install, run from the repository root on your Linux computer:
+First install, from the repository root on your Linux computer:
 
 ```sh
 sh ui/tools/owner-keys/diskos-keys.sh
@@ -46,148 +28,103 @@ sha256sum diskos-keys/diskos-root.pub.pem
   --ota-key payload/diskos-root.pub.pem
 ```
 
-Power the Disc off, hold Volume Down and connect USB when instructed by the installer.
-At confirmation, check that `ota: ON` shows the start of the hash you printed. If it says
-`OFF` or names another hash, answer **N** and correct the command before flashing.
-Use the public variant; the dev USB serial gadget blocks USB storage.
+Power the Disc off, hold Volume Down and connect USB when the installer asks. Before you confirm, check that
+`ota: ON` shows the start of the hash you just printed. If it says `OFF` or another hash, answer **N** and fix the
+command. Use the public variant (dev's USB serial gadget blocks USB storage).
 
-| Key file | Where to keep it |
+| Key file | Keep it |
 |---|---|
-| `root.key` | Private; back up offline. Authorizes leaf keys. Not needed for daily signing. |
-| `leaf.key` | Private; keep on your computer and back it up. Signs UI packages. |
-| `diskos-root.pub.pem` / `root.pub.pem` | Public; the root key installed once on the Disc. |
-| `leafpub.pem`, `keyauthz`, `keyauthz.sig` | Public; included in each package. |
+| `root.key` | Private, backed up offline. Only needed to authorize leaf keys. |
+| `leaf.key` | Private, on your computer, backed up. Signs every update. |
+| `diskos-root.pub.pem` / `root.pub.pem` | Public: the key installed on the Disc. |
+| `leafpub.pem`, `keyauthz`, `keyauthz.sig` | Public: copied into every package. |
 
-Keep private keys out of the repository, release downloads and SD card. The whole signing folder
-is worth backing up. Daily signing requires `leaf.key`, `leafpub.pem`, `keyauthz` and `keyauthz.sig`;
-keep `diskos-root.pub.pem` too for verification and matching the installed key.
-If signing credentials are lost, restore the backup; installing a different root key requires
-reflashing. Do not regenerate keys to troubleshoot an ordinary rejected update.
+Back up the whole keys folder and keep private keys out of the repository, downloads and the SD card. Lost keys:
+restore the backup (a different root key means reflashing). Don't make new keys to fix an ordinary rejected update.
 
-## 2. Choose and check the UI binary
+## 2. Get and check the interface
 
-Download `mq_ui` and `SHA256SUMS` from the
-[release](https://github.com/zmd22/diskos-disco/releases), place them in the same folder, then run:
+Download `mq_ui` and `SHA256SUMS` from the [latest release](https://github.com/zmd22/diskos-disco/releases/latest)
+into one folder, then:
 
 ```sh
 awk '$2 == "mq_ui" { print }' SHA256SUMS | sha256sum -c -
 ```
 
-Expect `mq_ui: OK`. This checks only the UI entry, so other release downloads need not be present.
-For a local build, follow [DEV_WORKFLOW.md](DEV_WORKFLOW.md); the result is `ui/mq_ui`.
-Never use the desktop `host-render` executable as a device UI.
+Expect `mq_ui: OK`. If you build it yourself ([DEV_WORKFLOW.md](DEV_WORKFLOW.md)), the result is `ui/mq_ui`. Never
+use the desktop `host-render` program on the Disc.
 
-## 3. Sign with your existing keys
+## 3. Sign it
 
-Run from the repository root. This example signs the release's bundled UI with keys stored elsewhere:
-
-```sh
-sh ui/tools/owner-keys/diskos-sign.sh \
-  payload/mq_ui 1.4.0-Disco \
-  /absolute/path/to/your/diskos-keys ./diskos-update
-```
-
-Replace `payload/mq_ui` with `ui/mq_ui` for a new build, or the full path of a downloaded binary.
-If your keys are in `./diskos-keys`, the short form is:
+From the repository root, with your keys in `./diskos-keys`:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh payload/mq_ui 1.4.0-Disco
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0
 ```
 
-Arguments are `binary [version-label] [keys-folder] [output-folder]`. The label is at most 32
-letters/digits/dots/hyphens/underscores. It labels the package; it does not rewrite the compiled
-version shown in About. The script deletes and recreates its output directory: use a dedicated
-`diskos-update` folder, never your keys or source folder.
+With keys elsewhere: `diskos-sign.sh <binary> [label] [keys-folder] [output-folder]`. The label (up to 32 letters,
+digits, `.`, `-`, `_`) only names the package; About shows the version built into `mq_ui`. The script empties and
+recreates its output folder, so never point it at your keys or source folder.
 
-### Update ordering: epochs
+**Epochs.** Each package gets an epoch: whole minutes since 2026-01-01 (UTC), from your computer's clock. The Disc
+only accepts a higher epoch than the last one it accepted; the version label doesn't matter. So keep your clock
+right, and to retest, simply sign again a minute later. An old folder is refused as a downgrade.
 
-The signer calculates the epoch from the computer's UTC clock, in **whole minutes since
-2026-01-01**. It does not maintain a counter. Two packages signed in the same minute can have the
-same epoch. Once an epoch is accepted, another package must have a higher epoch to install.
-Changing only the version label does not bypass this rule.
-
-For a retest, sign again in a later minute and copy the newly generated folder. Keep the computer's
-clock correct. An older source version can be deliberately retested if signed with a fresh epoch;
-version numbers themselves are not the anti-rollback order.
-
-### Verify on the computer
+Optional check on the computer:
 
 ```sh
-sh payload/diskos-verify.sh \
-  /absolute/path/to/your/diskos-keys/diskos-root.pub.pem \
-  1 1 ./diskos-update ./diskos-update/mq_ui
+sh payload/diskos-verify.sh /path/to/diskos-keys/diskos-root.pub.pem 1 1 ./diskos-update ./diskos-update/mq_ui
 ```
 
-Expect `OK component=mq_ui version=... epoch=... keyepoch=...`. The two `1` arguments are initial
-minimum key/UI epochs. This validates the bundle but does not check the Disc's later accepted
-epoch or prove that this root key matches the installed one.
+Expect `OK component=mq_ui ...`. This proves the package is intact, not that the key matches your Disc.
 
-## 4. Copy the whole folder to the card
+## 4. Copy the folder to the card
 
-Use your file manager to copy `diskos-update` to the SD card's top level. The final path must be
-`<SD>/diskos-update/mq_ui`, not `<SD>/diskos-update/diskos-update/mq_ui`.
-Copy all six files together from the same signing run; do not mix packages.
+Copy the whole `diskos-update` folder to the top of the SD card, so the path is `<SD>/diskos-update/mq_ui` (not
+`diskos-update/diskos-update/...`). It holds six files from one signing run: `mq_ui`, `update.manifest` and
+`update.manifest.sig`, `leafpub.pem`, `keyauthz` and `keyauthz.sig`. Don't mix files from different runs.
 
-Finish the transfer, then safely eject/unmount the card or USB storage connection. If using the
-Disc's USB storage mode, return to Playback after ejecting. Do not edit the folder while the Disc
-is reading it.
+Eject the card safely. If you used the Disc's USB storage mode, eject on the computer, then switch back to Playback.
 
-## 5. Install and check the trial
+## 5. Install and keep the trial
 
-1. Open **Settings > System > Maintenance > Update from SD Card > Update**.
-2. Wait for successful staging and restart when prompted. The running UI is not replaced live.
-3. Open **Settings > System > About** and check the expected compiled Disco version and build ID.
-4. Keep the trial running for at least **three minutes**. Start a track and check playback,
-   navigation and the changed screens.
-5. After that minimum time, a confirmed playback start plus running audio can mark the trial
-   healthy automatically. Otherwise the UI asks **Keep diskOS <label>?** Choose **Keep** to retain
-   it, or **Go back** and restart to revert. Navigation by itself does not accept the build.
-6. Restart once after the health proof/Keep choice and confirm the build still runs. Boot promotes
-   the healthy trial to the accepted build.
+1. **Settings > System > Maintenance > Update from SD Card > Update.** Wait for staging, then restart when asked.
+2. Check **Settings > System > About** for the expected version and build ID.
+3. Use it for at least **three minutes** and play some music. After that, music that actually plays accepts the
+   build by itself; otherwise answer **Keep** when asked (or **Go back** to revert). Just browsing doesn't count.
+4. Restart once more and check it still runs: the build is now kept.
 
-An unproven trial is allowed two trial boots; the following boot rolls it back if it still has no
-health proof. A repeatedly crashing trial can be rejected sooner. Avoid repeated restarts before
-checking/accepting a trial. If it fails, boot falls back to the previous verified build, or the
-flashed baseline when no kept SD build exists. Stock remains the verification-failure fallback.
+A trial that never proves itself gets two boots, then rolls back; one that keeps crashing rolls back sooner. A
+rollback returns to the previous kept build (or the flashed one); stock is the last fallback. Avoid restarting
+repeatedly before the trial is accepted.
 
 ## Troubleshooting
 
 | Symptom | What to check |
 |---|---|
-| No update key installed | Reflash once with the intended `--ota-key`; signing alone cannot enable trust. |
-| Update folder not found | Folder is named `diskos-update` at the card root; all six files are present. |
-| Update refused / damaged | Verify the bundle on the computer, check installed root-key hash, recopy all files, check the epoch. Read `last_result` if available. |
-| Same or older epoch | Sign in a later minute with a correct computer clock, then replace the whole card folder. |
-| Not enough space | Free space on the Disc's writable data partition; spare space on the SD card alone is insufficient. |
-| Old build after a trial | Check whether the trial was accepted or rolled back; check About and boot state. |
-| Old build after flashing | Confirm the exact file passed with `--ui`; a newer flash's boot hook clears old SD builds when the flashed UI hash changes. |
-| Host verifier passes, Disc refuses | The installed root key or accepted epoch can differ from the host check's key and initial `1 1` floors. |
+| No update key installed | Reflash once with `--ota-key`; signing alone can't add trust. |
+| Update folder not found | `diskos-update` at the card's top level, all six files present. |
+| Update refused / damaged | Verify on the computer, compare the root key hash (below), recopy the whole folder, check the epoch. |
+| Same or older epoch | Sign again a minute later with a correct clock and replace the whole folder. |
+| Not enough space | The Disc's own data partition is full; free space on the SD card doesn't help. |
+| Old build after a trial | The trial was rolled back or never accepted; check About. |
+| Old build after flashing | Check which file you passed with `--ui`. A new flash clears old SD builds. |
 
-Optional read-only diagnostics: enable **Settings > System > Maintenance > Debug Mode**, then use SSH with the
-address and credentials it displays. Use the current displayed address if it changes.
+For details, turn on **Settings > System > Maintenance > Debug Mode** and use the address it shows:
 
 ```sh
-DISKOS_IP=192.168.1.50  # replace with the address shown in Debug Mode
+DISKOS_IP=192.168.1.50  # the address shown in Debug Mode
 ssh "root@$DISKOS_IP" 'cat /usr/data/updates/last_result'
 ssh "root@$DISKOS_IP" 'cat /usr/data/updates/run; cat /usr/data/updates/accepted'
 ssh "root@$DISKOS_IP" 'sha256sum /etc/diskos-ota/root.pub.pem'
-ssh "root@$DISKOS_IP" 'md5sum /usr/data/mq_ui'
 ```
 
-Compare the root hash with `sha256sum /path/to/your/diskos-keys/diskos-root.pub.pem` on the computer.
-Some state files are absent before a first update. `last_result` records staging return code,
-source line and available verifier/file error details after the update directory has opened;
-earlier failures can leave it missing or stale. Capture the message shown on the Disc too.
-Do not overwrite the UI over SSH or alter the boot manifest to get an update accepted.
+The root hash must match `sha256sum diskos-keys/diskos-root.pub.pem` on your computer. Some files only exist after
+a first update. Note the message shown on the Disc too. Never copy `mq_ui` over SSH or edit the boot manifest:
+the Disc would reject it and fall back to stock.
 
-## Returning to stock or changing the boot chain
+## Returning to stock
 
-**Settings > System > Controls > Default UI > Stock** makes FiiO's UI the default. Holding Volume Up from
-power-on selects the other UI once. Use the installer when changing boot scripts or root update
-keys; these changes are outside a UI-only SD package. See the [README](../README.md#going-back).
-
-## Replacement 1.4.0 candidate
-
-Sign the new mq_ui as version 1.4.0 with a fresh epoch using the owner's existing keys. Do not reuse the old signed manifest or manually copy mq_ui over SSH. The replay floor compares epochs, so a previously accepted 1.4.0 must receive a newer epoch. About displays 1.4.0 for both candidates; the binary SHA-256 in `payload/mq_ui.build.json` identifies this replacement. The UI update does not install or overwrite either optional app.
-
-Disc Shelf 1.0.4 is also a separate optional add-in; see [its installation guide](DISC_SHELF_INSTALL.md). It is not installed by a signed UI update.
+**Settings > System > Controls > Default UI > Stock** makes FiiO's interface the default; holding Volume Up from
+power-on boots the other one once. Boot scripts and root keys can only be changed by flashing with the installer.
+See the [README](../README.md#going-back).

@@ -1,10 +1,11 @@
-# Install diskOS Disco! 1.4.0
+# Install diskOS Disco!
 
-`mq_ui` is the rebuilt interface. Install it using the signed SD-card workflow in [docs/UPDATING.md](docs/UPDATING.md), with the owner's existing keys and a fresh signing epoch. No SSH hot-swapping of mq_ui. The first 1.4.0 candidate has been superseded; see [release notes](RELEASE-NOTES.md) and `mq_ui.build.json` for this binary's identity.
+`mq_ui` is the interface. Sign it with your own keys and install it from the SD card: see
+[docs/UPDATING.md](docs/UPDATING.md). What's new is in [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
-Optional separate apps:
+Optional apps, installed separately:
 
-- [Disc Shelf 1.0.4](docs/DISC_SHELF_INSTALL.md): Navidrome artist browser and original-file downloader.
-- [Album Roulette 1.3.1](docs/ALBUM_ROULETTE_INSTALL.md): discover albums from the local collection.
+- [Disc Shelf](docs/DISC_SHELF_INSTALL.md): Navidrome browser and original-file downloader.
+- [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md): spin your collection for an album to play.
 
-The ZIP is a UI/apps package, not a self-contained flasher. Your FiiO firmware, music, private signing keys and account credentials are not included.
+This package is not a flasher. It contains no FiiO firmware, music, signing keys or account details.
