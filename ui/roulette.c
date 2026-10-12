@@ -2,6 +2,8 @@
 #include "screens.h"
 #include "theme.h"
 #include <unistd.h>
+#include <stdio.h>
+#include <string.h>
 static void launch_cb(lv_event_t *e){
     (void)e;
     const char *app = "/usr/data/apps/album-roulette/app";
@@ -53,4 +55,78 @@ void roulette_create(lv_obj_t *root){
     lv_obj_add_event_cb(button, launch_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l = lv_label_create(button); lv_label_set_text(l, "I feel lucky!");
     lv_obj_set_style_text_font(l, TF(UI_18), 0); lv_obj_set_style_text_color(l, TC(ON_ACCENT), 0); lv_obj_center(l);
+}
+
+/* ---- App landing page: Boomshine, and any installed app (text from its app.conf, or plain defaults). */
+static lv_obj_t *g_land_root, *g_land_art, *g_land_title, *g_land_tag, *g_land_about, *g_land_btn_l;
+static char g_land_exec[256];
+static void land_cb(lv_event_t *e){
+    (void)e;
+    if(strncmp(g_land_exec, "builtin:", 8) && access(g_land_exec, X_OK)){ ui_toast("That app is not installed"); return; }
+    app_launch_direct(g_land_exec);
+}
+static lv_obj_t *dot(lv_obj_t *parent, int d){
+    lv_obj_t *o = lv_obj_create(parent); lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, d, d); lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    return o;
+}
+static void land_art(const char *name, int boom){
+    lv_obj_clean(g_land_art);
+    if(boom){                                                    /* a blast ring, its core, dots caught in it */
+        lv_obj_t *ring = dot(g_land_art, 86); lv_obj_align(ring, LV_ALIGN_CENTER, -10, 10);
+        lv_obj_set_style_border_width(ring, 3, 0); lv_obj_set_style_border_color(ring, TC(ACCENT_PRIMARY), 0);
+        lv_obj_set_style_bg_color(ring, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_bg_opa(ring, LV_OPA_20, 0);
+        lv_obj_t *core = dot(g_land_art, 40); lv_obj_align(core, LV_ALIGN_CENTER, -10, 10);
+        lv_obj_set_style_bg_color(core, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_bg_opa(core, LV_OPA_COVER, 0);
+        static const signed char P[4][3] = { { 40, -38, 14 }, { 14, -48, 10 }, { 46, -10, 10 }, { -38, -30, 8 } };
+        for(int i = 0; i < 4; i++){
+            lv_obj_t *d = dot(g_land_art, P[i][2]); lv_obj_align(d, LV_ALIGN_CENTER, P[i][0], P[i][1]);
+            lv_obj_set_style_bg_color(d, TC(TEXT_SECONDARY), 0); lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        }
+        return;
+    }
+    char letter[8] = "?";                                        /* any other app: its first letter */
+    if(name && name[0]){ int n = 1; unsigned char c = (unsigned char)name[0];
+        if(c >= 0xF0) n = 4; else if(c >= 0xE0) n = 3; else if(c >= 0xC0) n = 2;
+        snprintf(letter, sizeof letter, "%.*s", n, name);
+        if(n == 1 && letter[0] >= 'a' && letter[0] <= 'z') letter[0] = (char)(letter[0] - 32); }
+    lv_obj_t *l = lv_label_create(g_land_art); lv_label_set_text(l, letter);
+    lv_obj_set_style_text_font(l, TF(UI_48), 0); lv_obj_set_style_text_color(l, TC(ACCENT_PRIMARY), 0); lv_obj_center(l);
+}
+void applanding_create(lv_obj_t *root){
+    g_land_root = root;
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+    g_land_art = dot(root, 128); lv_obj_align(g_land_art, LV_ALIGN_TOP_MID, 0, 38);
+    lv_obj_set_style_bg_color(g_land_art, TC(SURFACE), 0); lv_obj_set_style_bg_opa(g_land_art, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(g_land_art, 2, 0); lv_obj_set_style_border_color(g_land_art, TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_clip_corner(g_land_art, true, 0);
+    g_land_title = text(root, "", 181, 272, TF(UI_22), TC(TEXT_PRIMARY));
+    lv_label_set_long_mode(g_land_title, LV_LABEL_LONG_DOT);
+    g_land_tag = text(root, "", 215, 260, TF(UI_16), TC(ACCENT_PRIMARY));
+    lv_label_set_long_mode(g_land_tag, LV_LABEL_LONG_DOT);
+    g_land_about = text(root, "", 243, 258, TF(UI_16), TC(TEXT_SECONDARY));
+    lv_label_set_long_mode(g_land_about, LV_LABEL_LONG_WRAP);   /* two lines fit above the button */
+    lv_obj_t *button = lv_button_create(root); lv_obj_remove_style_all(button);
+    lv_obj_set_size(button, 174, 42); lv_obj_align(button, LV_ALIGN_TOP_MID, 0, 296);
+    lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(button, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(button, TC(PRIMARY_PRESSED), LV_STATE_PRESSED);
+    lv_obj_add_event_cb(button, land_cb, LV_EVENT_CLICKED, NULL);
+    g_land_btn_l = lv_label_create(button);
+    lv_obj_set_style_text_font(g_land_btn_l, TF(UI_18), 0); lv_obj_set_style_text_color(g_land_btn_l, TC(ON_ACCENT), 0);
+    lv_obj_center(g_land_btn_l);
+}
+void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec){
+    if(!g_land_root) return;
+    snprintf(g_land_exec, sizeof g_land_exec, "%s", exec ? exec : "");
+    land_art(name, !strcmp(g_land_exec, APP_BUILTIN_BOOMSHINE));
+    lv_label_set_text(g_land_title, name && name[0] ? name : "App");
+    lv_label_set_text(g_land_tag, tagline && tagline[0] ? tagline : "Installed app");
+    lv_label_set_text(g_land_about, about && about[0] ? about : "Opens full screen. Your music\nkeeps playing.");
+    lv_label_set_text(g_land_btn_l, button && button[0] ? button : "Launch");
+    lv_obj_center(g_land_btn_l);
+    screen_show(SCR_APPLAND);
 }

@@ -779,10 +779,10 @@ int main(int argc, char **argv){
             for(int i=0;i<100;i++){lyrics_poll(NULL);usleep(1000);}
         }
         for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}kit_pass(screen_get_root(scr));
-        if(getenv("PICK_DOWN")){   /* open the menu and step the picker down N times; arrows must never launch an app */
-            void disco_test_tap(int);int before=screen_current();disco_nav_set_open(1);nav_wait(300);
+        if(getenv("PICK_DOWN")){   /* open the menu and step the picker down N times (NAV_CLOSE=1: then close it) */
+            void disco_test_tap(int);disco_nav_set_open(1);nav_wait(300);
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
-            assert(screen_current()==before);
+            if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
         }
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}

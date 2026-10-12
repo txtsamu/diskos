@@ -83,7 +83,10 @@ static void roulette_icon(lv_obj_t *label, const char *icon, int size){
     }
 }
 /* Boomshine is built into mq_ui: the menu starts it like an installed app (it owns the screen until you Exit) */
-static void open_boomshine(void){ app_launch(APP_BUILTIN_BOOMSHINE); }
+static void open_boomshine(void){
+    applanding_show("Boomshine", "One tap. Chain reaction.",
+                    "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
+}
 static const dsec_t SEC[] = {
     { "music",     "Music",     LV_SYMBOL_AUDIO,     SCR_HOME,      NULL,              1 },
     { "library",   "Library",   LV_SYMBOL_LIST,      SCR_LIBRARY,   NULL,              0 },
@@ -102,7 +105,7 @@ static const dsec_t SEC[] = {
     { "weather",   "Weather",   LV_SYMBOL_IMAGE,     SCR_WEATHER,   weather_app_open,  0 },
     { "ma",        "Sendspin",  "MA",               SCR_MA,       NULL,              0 },
     { "roulette",  "Album Roulette", IC_ROULETTE,    SCR_ROULETTE, NULL,              0 },
-    { "boomshine", "Boomshine", IC_BOOM,            -1,            open_boomshine,    0 },   /* screen -1: launches */
+    { "boomshine", "Boomshine", IC_BOOM,            SCR_APPLAND,   open_boomshine,    0 },
 };
 #define NSEC ((int)(sizeof SEC / sizeof SEC[0]))
 #define MAXM 10                                    /* the picker holds at most ten (the dots must fit) */
@@ -111,7 +114,7 @@ static int g_menu[MAXM], g_nmenu, g_cur;           /* active items (indices into
 static dsec_t menu_section(int id){
     if(id>=0&&id<NSEC)return SEC[id];
     const menu_app_t *app=menu_apps_get(id-NSEC);
-    return (dsec_t){app?app->id:"",app?app->name:"App unavailable",LV_SYMBOL_FILE,-1,NULL,0};
+    return (dsec_t){app?app->id:"",app?app->name:"App unavailable",LV_SYMBOL_FILE,SCR_APPLAND,NULL,0};
 }
 static int sec_find(const char *id, size_t n){ for(int i = 0; i < NSEC; i++) if(strlen(SEC[i].id) == n && !strncmp(SEC[i].id, id, n)) return i; return -1; }
 static int menu_has_screen(int scr);
@@ -370,7 +373,7 @@ static int picker_wanted(int which){
     switch(which){
         case SCR_HOME: case SCR_LIBRARY: case SCR_SETTINGS: case SCR_SETLIST: case SCR_WORKMODE: case SCR_APPS:
         case SCR_PLVIEW: case SCR_FOLDER: case SCR_BOOKS: case SCR_ALBUMWALL: case SCR_UPNEXT: case SCR_WIFI:
-        case SCR_ROULETTE: case SCR_BT: case SCR_WEATHER: case SCR_MODEINFO: case SCR_USAGE: case SCR_EQ: case SCR_MA: return 1;
+        case SCR_ROULETTE: case SCR_BT: case SCR_WEATHER: case SCR_MODEINFO: case SCR_USAGE: case SCR_EQ: case SCR_MA: case SCR_APPLAND: return 1;
         case SCR_SEARCH: return search_landing_active();             /* the landing page has the menu; the keyboard doesn't */
         default: return 0;
     }
@@ -405,15 +408,13 @@ static void picker_paint(void){
 static void go_section(int idx, int dir){
     if(g_nmenu <= 0) return;
     idx = (idx % g_nmenu + g_nmenu) % g_nmenu;
-    int explicit_tap = idx == g_cur;                                  /* a tap on the middle; the arrows move to another */
     g_cur = idx; picker_paint();
     const dsec_t section=menu_section(g_menu[idx]);const dsec_t *s=&section;
-    if(s->screen<0){                                                 /* a game or app: it takes over the whole screen, */
-        if(!explicit_tap) return;                                    /* so browsing past it never starts it - only a tap */
-        if(s->open) s->open();
-        else { const menu_app_t *app=menu_apps_get(g_menu[idx]-NSEC); if(app) app_launch(app->exec); else ui_toast("That app is not installed"); }
-        disco_nav_set_open(0);
-        for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == screen_current()){ g_cur = i; picker_paint(); break; }   /* back on its screen */
+    if(g_menu[idx] >= NSEC){                                         /* an installed app: its landing page, never a straight launch */
+        const menu_app_t *app=menu_apps_get(g_menu[idx]-NSEC);
+        if(!app){ ui_toast("That app is not installed"); return; }
+        applanding_show(app->name, app->tagline, app->about, app->button, app->exec);
+        if(screen_current()==SCR_APPLAND)onboarding_discovered(HINT_NAV);
         return;
     }
     if(s->open){ s->open(); if(screen_current()==s->screen)onboarding_discovered(HINT_NAV); return; }                                  /* screens that need their own refresh */

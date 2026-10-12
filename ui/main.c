@@ -1506,6 +1506,11 @@ void app_launch(const char *exec){
         screen_show(SCR_ROULETTE);
         return;
     }
+    if(!strcmp(exec, APP_BUILTIN_BOOMSHINE)){
+        applanding_show("Boomshine", "One tap. Chain reaction.",
+                        "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
+        return;
+    }
     app_launch_direct(exec);
 }
 /* Live Vol-Up pin level; 1 = held. Same register map as the boot override (x2000 pinctrl, GPB PxPIN,

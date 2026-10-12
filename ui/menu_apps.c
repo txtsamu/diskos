@@ -47,6 +47,12 @@ void menu_apps_scan(void){
         if(f){char line[512];while(fgets(line,sizeof line,f)){
             char *nl=strpbrk(line,"\r\n");if(nl)*nl=0;
             if(!strncmp(line,"name=",5)&&line[5])snprintf(a->name,sizeof a->name,"%.63s",line+5);
+            else if(!strncmp(line,"tagline=",8))snprintf(a->tagline,sizeof a->tagline,"%.63s",line+8);
+            else if(!strncmp(line,"about=",6)){                   /* "\n" in the file starts a new line */
+                snprintf(a->about,sizeof a->about,"%.159s",line+6);
+                for(char *q=a->about;(q=strstr(q,"\\n"));){*q='\n';memmove(q+1,q+2,strlen(q+2)+1);}
+            }
+            else if(!strncmp(line,"button=",7))snprintf(a->button,sizeof a->button,"%.31s",line+7);
             else if(!strncmp(line,"exec=",5)){
                 if(strlen(line+5)<sizeof a->exec)memcpy(a->exec,line+5,strlen(line+5)+1);
                 else a->exec[0]=0;

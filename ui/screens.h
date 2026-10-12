@@ -73,7 +73,7 @@ void tagfix_current_album(void);      /* NP menu: the same for every track of it
 void tagfix_auto_tick(const track_state_t *st, int playing);   /* Auto-tag (Settings > Playback) */
 void ui_np_tags_changed(void);        /* tags were rewritten: lyrics views reload */
 #include <stdbool.h>
-enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_LASTFM, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_USAGE, SCR_QUEUE, SCR_SCCONFIG, SCR_MODEINFO, SCR_UPNEXT, SCR_DATETIME, SCR_EQ_EDITOR, SCR_MA, SCR_ROULETTE, SCR_COUNT };
+enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_LASTFM, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_USAGE, SCR_QUEUE, SCR_SCCONFIG, SCR_MODEINFO, SCR_UPNEXT, SCR_DATETIME, SCR_EQ_EDITOR, SCR_MA, SCR_ROULETTE, SCR_APPLAND, SCR_COUNT };
 void screens_init(void);
 void screen_show(int which);
 void screen_back(void);
@@ -212,6 +212,9 @@ void apps_create(lv_obj_t *root);
 void apps_reload(void);
 void app_launch(const char *exec);
 void app_launch_direct(const char *exec); /* landing-page confirmation only */
+/* App landing page (roulette.c): Boomshine's, or one made from an installed app's app.conf */
+void applanding_create(lv_obj_t *root);
+void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec);
 #define APP_BUILTIN_BOOMSHINE "builtin:boomshine"   /* app_launch() target for the game built into mq_ui */
 /* settings (master list + drill-in detail) */
 void settings_create(lv_obj_t *root);      /* SCR_SETTINGS: the category list (Playback/Audio/...) */
