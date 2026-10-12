@@ -1,5 +1,7 @@
 # Disco development handoff
 
+Current dev checkpoint: **1.3.2-polish6** (latest details below).
+
 Updated: 2026-10-12. Read `agents/AGENTS.md`, `docs/DEVELOPMENT.md` and `todo.md`.
 
 ## Verified starting point
