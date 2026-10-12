@@ -5,6 +5,15 @@ All notable changes to diskOS Disco! (and the diskOS releases underneath) are do
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
+## [1.3.2-polish6] - 2026-10-12 (dev candidate)
+
+- Restore Current QS list curvature around the bezel/navigation field, with
+  left-aligned bold captions, icon clearance and centred bottom pill.
+- Spread Arc targets onto a larger 128px concentric radius. Fixed Wi-Fi/BT,
+  66px Arc targets and equal Current row spacing remain.
+- Includes previous dev work and matching payload. Native both-side checks pass;
+  physical-device acceptance pending.
+
 ## [1.3.2-polish5] - 2026-10-12 (dev candidate)
 
 - Current Quick Settings uses short bold single-line captions and equally sized,

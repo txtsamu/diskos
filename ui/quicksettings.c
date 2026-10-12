@@ -234,10 +234,10 @@ static void controls_build(lv_obj_t *root){
     if(g_sun){lv_obj_set_style_transform_scale(g_sun,176,0);lv_obj_set_style_transform_pivot_x(g_sun,lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_sun,lv_pct(50),0);
         lv_obj_align(g_sun,LV_ALIGN_CENTER,disco_mirror()?-126:126,-100);}
     if(g_batt_icon){lv_obj_set_style_text_font(g_batt_icon,TF(UI_20),0);lv_obj_align(g_batt_icon,LV_ALIGN_CENTER,disco_mirror()?-126:126,102);}
-    /* Six evenly spaced centres on a 116px arc; radios sit between arc and disc.
+    /* Six evenly spaced centres on a 128px arc; radios sit between arc and disc.
      * Reserve radio positions by action, so reordering cannot hide their status. */
-    static const int arc_x[8]={164,164,180,112,70,70,112,180};
-    static const int arc_y[8]={144,216,64,86,144,216,274,296};
+    static const int arc_x[8]={164,164,180,105,58,58,105,180};
+    static const int arc_y[8]={144,216,52,76,140,220,284,308};
     int positions[QS_MAX_ITEMS],used[QS_MAX_ITEMS]={0};
     for(int i=0;i<g_nitems;i++){
         positions[i]=g_items[i]==T_WIFI?0:g_items[i]==T_BT?1:-1;
@@ -262,7 +262,18 @@ static void controls_build(lv_obj_t *root){
             if(radio){h=38;y=42;x=id==T_WIFI?80:184;w=98;}
             else{h=row_h;y=96+(rows==1?(224-h)/2:row_index*(224-h)/(rows-1));row_index++;
                 int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);
-                x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;w=190-x;}
+                x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;
+                /* Follow both the round bezel and the rounded navigation field.
+                 * Below the field, the final pill returns to the screen centre,
+                 * as the original Settings row did. */
+                int right=360-x;
+                if(y<270 && y+h>90){
+                    int near=y>180?y:y+h<180?y+h:180;
+                    int d=near-180;
+                    int field_left=286-(int)sqrtf((float)(90*90-d*d));
+                    if(right>field_left-8)right=field_left-8;
+                }
+                w=right-x;}
             x=disco_mx(x,w);
         }
         lv_obj_t *r=g_dq_row[slot]=lv_obj_create(g_controls);lv_obj_remove_style_all(r);lv_obj_set_pos(r,x,y);lv_obj_set_size(r,w,h);
@@ -287,14 +298,14 @@ static void controls_build(lv_obj_t *root){
         }else{
             lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,10,0);
             g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],row_caption(id));
-            int text_w=w-44;
+            int text_w=w-56;
             lv_obj_set_style_text_font(g_dq_name[slot],row_font(row_caption(id),text_w,h-4),0);
             lv_obj_set_style_text_letter_space(g_dq_name[slot],0,0);
             lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);
             lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_CLIP);
             lv_obj_set_width(g_dq_name[slot],text_w);
-            lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_CENTER,0);
-            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,38,0);
+            lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_LEFT,0);
+            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,48,0);
         }
     }
     dq_paint();

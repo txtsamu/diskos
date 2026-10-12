@@ -112,3 +112,17 @@ INFO, COVER, FILES, FAVS. Hold still shows the full action name. Arc is unchange
 Native checks exercise every action at the narrow bottom row, equal heights,
 gaps, unwrapped/unclipped text, no-radio eight-item layout, both sides and radio
 state/input/editor persistence. Theme/punctuation checks pass. Device test pending.
+
+## QS curvature follow-up: 1.3.2-polish6
+
+Current rows follow the outer bezel and rounded music/navigation field instead
+of ending at one straight edge. Captions align left along the curve, with extra
+icon/text clearance. Below the field the final pill returns to the screen centre,
+matching the original Settings row. Equal row heights/gaps and bold single-line
+labels remain. Radio positions remain unchanged in both styles.
+
+Arc's six outer target centres move from 116px to 128px radius, concentric with
+the battery/brightness arcs. Targets remain 66px with equal angular spacing;
+Wi-Fi/BT keep their inner positions. Both sides, text fit, circular bounds,
+non-overlap, curve/radius, item editing and radio controls pass native LVGL checks.
+Device performance/acceptance is still pending.

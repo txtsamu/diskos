@@ -289,6 +289,16 @@ static void review_qs(void){
             for(int k=0;k<2;k++)for(int j=0;j<2;j++){int dx=x[k]-180,dy=y[j]-180;assert(dx*dx+dy*dy<180*180);}
             for(int j=0;j<i;j++){lv_area_t b;lv_obj_get_coords(quicksettings_test_button(j),&b);if(style){int dx=a.x1-b.x1,dy=a.y1-b.y1;assert(dx*dx+dy*dy>=66*66);}else assert(a.x2<b.x1 || b.x2<a.x1 || a.y2<b.y1 || b.y2<a.y1);}
         }
+        if(style){
+            for(int i=2;i<8;i++){
+                lv_area_t a;lv_obj_get_coords(quicksettings_test_button(i),&a);
+                int cx=(a.x1+a.x2+1)/2,cy=(a.y1+a.y2+1)/2;
+                int dx=cx-180,dy=cy-180;assert(abs(dx*dx+dy*dy-128*128)<180);
+            }
+        }else{
+            assert(lv_obj_get_width(quicksettings_test_button(7))>lv_obj_get_width(quicksettings_test_button(4)));
+            assert(lv_obj_get_style_text_align(lv_obj_get_child(quicksettings_test_button(2),1),0)==LV_TEXT_ALIGN_LEFT);
+        }
         assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
         lv_obj_t *wifi=quicksettings_test_button(0);lv_area_t hit;lv_obj_get_coords(wifi,&hit);
         nav_pointer.point.x=(hit.x1+hit.x2)/2;nav_pointer.point.y=(hit.y1+hit.y2)/2;

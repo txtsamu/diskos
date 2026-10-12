@@ -49,3 +49,10 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [x] Both-side checks for every caption, including sparse/no-radio layouts.
 - [x] Compile updated device binary and synchronize dev payload/metadata.
 - [ ] Owner device test of Current and unchanged Arc.
+
+## 1.3.2-polish6
+
+- [x] Restore Current list curvature and centred bottom pill.
+- [x] Widen Arc to concentric 128px radius; fixed radios preserved.
+- [x] Both-side native geometry/text/state/editor checks and static MIPS build.
+- [ ] Owner Disc test and acceptance.

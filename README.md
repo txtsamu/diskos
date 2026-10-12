@@ -29,7 +29,7 @@
 </p>
 
 
-**Dev preview:** [1.3.2-polish5](docs/releases/v1.3.2-polish5.md) adds Disco
+**Dev preview:** [1.3.2-polish6](docs/releases/v1.3.2-polish6.md) adds Disco
 Quick Settings with an eight-button Arc layout and a shared item editor,
 alongside the navigation gestures and first-use hints. Device testing is pending;
 the stable release remains 1.3.1.
