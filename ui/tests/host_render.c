@@ -305,6 +305,38 @@ static void review_qs(void){
     assert(find_text(quicksettings_test_button(5),qs_wifi?"On":"Off"));
     lv_obj_send_event(quicksettings_test_button(4),LV_EVENT_SHORT_CLICKED,NULL);assert(qs_bt_taps==1);
     assert_visible_icon_glyphs(screen_get_root(SCR_QUICK));
+    /* Current rows share height, keep a gap, and captions never wrap/clip.
+     * Exercise every catalog entry at the narrow bottom of a full selection. */
+    cfg_set_int("disco_qs_style",0);
+    for(int last=2;last<quicksettings_item_count();last++){
+        int full[8]={0,1},n=2;
+        for(int id=2;n<7;id++)if(id!=last)full[n++]=id;
+        full[7]=last;assert(quicksettings_items_save(full,8)==0);quicksettings_build();nav_wait(60);lv_obj_update_layout(screen_get_root(SCR_QUICK));
+        int height=-1,bottom=-1;
+        for(int i=2;i<8;i++){
+            lv_obj_t *b=quicksettings_test_button(i);lv_area_t area;lv_obj_get_coords(b,&area);
+            if(height<0)height=lv_obj_get_height(b);assert(lv_obj_get_height(b)==height);
+            if(bottom>=0)assert(area.y1-bottom>=4);bottom=area.y2;
+            lv_obj_t *label=lv_obj_get_child(b,1);assert(label);
+            const lv_font_t *font=lv_obj_get_style_text_font(label,0);lv_point_t size;
+            lv_text_get_size(&size,lv_label_get_text(label),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+            if(size.x>lv_obj_get_width(label))fprintf(stderr,"QS caption %s: %d > %d\n",lv_label_get_text(label),size.x,(int)lv_obj_get_width(label));
+            assert(size.x<=lv_obj_get_width(label));assert(size.y<=height-4);
+            assert(lv_obj_get_height(label)<=font->line_height);
+        }
+        lv_area_t wifi,bt;lv_obj_get_coords(quicksettings_test_button(0),&wifi);lv_obj_get_coords(quicksettings_test_button(1),&bt);
+        assert(wifi.y1==42 && bt.y1==42);
+    }
+    int no_radios[8]={2,3,4,5,6,7,10,11};
+    assert(quicksettings_items_save(no_radios,8)==0);quicksettings_build();nav_wait(60);
+    lv_obj_update_layout(screen_get_root(SCR_QUICK));
+    for(int i=0;i<8;i++){
+        lv_obj_t *b=quicksettings_test_button(i),*label=lv_obj_get_child(b,1);
+        const lv_font_t *font=lv_obj_get_style_text_font(label,0);lv_point_t size;
+        lv_text_get_size(&size,lv_label_get_text(label),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+        assert(size.x<=lv_obj_get_width(label));assert(size.y<=lv_obj_get_height(b)-4);
+    }
+    cfg_set_int("disco_qs_style",1);
     /* Every selectable glyph and sparse/empty layouts. */
     for(int id=0;id<quicksettings_item_count();id++){
         assert(quicksettings_items_save(&id,1)==0);quicksettings_build();nav_wait(20);

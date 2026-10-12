@@ -26,6 +26,7 @@
  * A tap on the cover goes Home, the small centre button plays/pauses. A short tap on Wi-Fi / Bluetooth
  * toggles the radio, a long press opens its settings. Background: the album's blurred backdrop, dimmed. */
 
+LV_FONT_DECLARE(font_theme_20)
 LV_FONT_DECLARE(font_theme_24)
 LV_FONT_DECLARE(font_icons_28)          /* FontAwesome 28px */
 #define WI_SUN "\xEF\x86\x85"           /* f185 sun */
@@ -197,7 +198,7 @@ static void dq_paint(void){
                 set_col_if(g_dq_val[i],on?theme_on_color(acc):TC(TEXT_PRIMARY));
             }
         }
-        if(id==T_RESCAN)set_text_if(g_dq_name[i],on?"Scanning":"Rescan");
+        if(id==T_RESCAN)set_text_if(g_dq_name[i],"SCAN");
         if(id==T_MODE)set_text_if(g_dq_ico[i],mode_glyph());
     }
 }
@@ -207,6 +208,19 @@ static void dq_row_cb(lv_event_t *e){
     if(lv_event_get_code(e)==LV_EVENT_LONG_PRESSED){
         if(id==T_WIFI)wifi_open();else if(id==T_BT)bt_open();else ui_toast(CATALOG[id].name);
     }else if(lv_event_get_code(e)==LV_EVENT_SHORT_CLICKED){pick_cb(id);dq_paint();}
+}
+static const char *row_caption(int id){
+    static const char *names[Q_COUNT]={"WI-FI","BT","SONGS","SCAN","MODE","SET",
+        "EQ","FIND","QUEUE","NEXT","SHORT","WEATH","LYRICS","INFO","COVER","FILES","FAVS"};
+    return names[id];
+}
+static const lv_font_t *row_font(const char *text,int width,int height){
+    const lv_font_t *fonts[]={TF(QS_BOLD_22),TF(QS_BOLD_18),TF(QS_BOLD_16)};
+    for(int i=0;i<3;i++){
+        lv_point_t size;lv_text_get_size(&size,text,fonts[i],0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+        if(size.x<=width && size.y<=height)return fonts[i];
+    }
+    return fonts[2];
 }
 static void controls_build(lv_obj_t *root){
     if(g_controls){lv_obj_delete(g_controls);g_controls=NULL;}
@@ -234,13 +248,23 @@ static void controls_build(lv_obj_t *root){
         if(pos==8){pos=0;while(pos<2 && used[pos])pos++;}
         positions[i]=pos;used[pos]=1;
     }
-    static const int row_y[6]={42,42,102,158,214,270};
+    int rows=0,row_index=0;
+    for(int i=0;i<g_nitems;i++)if(g_items[i]!=T_WIFI && g_items[i]!=T_BT)rows++;
+    /* Fixed radio pills; all other rows share the 224px field below equally.
+     * Four pixels minimum between targets, with a 50px cap for sparse menus. */
+    int row_h=rows?(224-4*(rows-1))/rows:0;
+    if(row_h>50)row_h=50;
     for(int slot=0;slot<g_nitems;slot++){
         int id=g_items[slot],radio=id==T_WIFI || id==T_BT;
         int x,y,w,h;
         if(g_style){w=h=66;x=arc_x[positions[slot]]-33;y=arc_y[positions[slot]]-33;x=disco_mx(x,w);}
-        else{h=g_nitems>6?38:50;y=g_nitems>6?(slot<2?42:90+(slot-2)*38):row_y[slot];x=slot==0?80:slot==1?184:slot==5 && g_nitems<=6?86:0;w=slot<2?98:slot==5 && g_nitems<=6?188:0;
-            if(!w){int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;w=190-x;}x=disco_mx(x,w);}
+        else{
+            if(radio){h=38;y=42;x=id==T_WIFI?80:184;w=98;}
+            else{h=row_h;y=96+(rows==1?(224-h)/2:row_index*(224-h)/(rows-1));row_index++;
+                int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);
+                x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;w=190-x;}
+            x=disco_mx(x,w);
+        }
         lv_obj_t *r=g_dq_row[slot]=lv_obj_create(g_controls);lv_obj_remove_style_all(r);lv_obj_set_pos(r,x,y);lv_obj_set_size(r,w,h);
         lv_obj_set_style_radius(r,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(r,TC(SURFACE),0);lv_obj_set_style_bg_opa(r,150,0);
         lv_obj_set_style_bg_color(r,TC(SURFACE_RAISED),LV_STATE_PRESSED);lv_obj_set_style_bg_opa(r,LV_OPA_COVER,LV_STATE_PRESSED);
@@ -249,7 +273,10 @@ static void controls_build(lv_obj_t *root){
         lv_obj_add_flag(r,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_USER_2);if(g_style)lv_obj_add_flag(r,LV_OBJ_FLAG_ADV_HITTEST);lv_obj_clear_flag(r,LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_event_cb(r,dq_row_cb,LV_EVENT_SHORT_CLICKED,(void*)(intptr_t)slot);lv_obj_add_event_cb(r,dq_row_cb,LV_EVENT_LONG_PRESSED,(void*)(intptr_t)slot);
         g_dq_ico[slot]=lv_label_create(r);lv_label_set_text(g_dq_ico[slot],CATALOG[id].icon);
-        lv_obj_set_style_text_font(g_dq_ico[slot],id==Q_SEARCH?&font_theme_24:(id==Q_WEATHER || id==Q_FAVS)?TF(ICON_28):id==Q_EQ?TF(UI_24):g_style?TF(UI_28):TF(UI_24),0);
+        int small=!g_style && h<30;
+        lv_obj_set_style_text_font(g_dq_ico[slot],id==Q_SEARCH?(small?&font_theme_20:&font_theme_24):
+            (id==Q_WEATHER || id==Q_FAVS)?(small?TF(ICON_20):TF(ICON_28)):
+            id==Q_EQ?(g_style?TF(UI_24):TF(UI_20)):g_style?TF(UI_28):small?TF(UI_20):TF(UI_24),0);
         if(g_style){lv_obj_align(g_dq_ico[slot],LV_ALIGN_CENTER,0,radio?-9:0);
             if(radio){g_dq_val[slot]=lv_label_create(r);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_14),0);lv_obj_set_style_text_color(g_dq_val[slot],TC(TEXT_PRIMARY),0);lv_obj_align(g_dq_val[slot],LV_ALIGN_BOTTOM_MID,0,-4);}}
         else if(radio){
@@ -258,11 +285,16 @@ static void controls_build(lv_obj_t *root){
             lv_obj_set_style_radius(badge,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(badge,LV_OPA_COVER,0);lv_obj_clear_flag(badge,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
             g_dq_val[slot]=lv_label_create(badge);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_14),0);lv_obj_center(g_dq_val[slot]);
         }else{
-            int compact=slot<2;lv_obj_align(g_dq_ico[slot],compact?LV_ALIGN_CENTER:LV_ALIGN_LEFT_MID,compact?0:16,compact?-8:0);
-            g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],CATALOG[id].name);lv_obj_set_style_text_font(g_dq_name[slot],compact?TF(UI_12):g_nitems>6?TF(UI_20):TF(UI_24),0);
-            lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_DOT);lv_obj_set_width(g_dq_name[slot],compact?w-12:id==T_RESCAN?w-64:w-82);
-            lv_obj_set_style_text_align(g_dq_name[slot],compact?LV_TEXT_ALIGN_CENTER:LV_TEXT_ALIGN_LEFT,0);lv_obj_align(g_dq_name[slot],compact?LV_ALIGN_BOTTOM_MID:LV_ALIGN_LEFT_MID,compact?0:52,compact?-4:0);
-            if(!compact && id!=T_RESCAN){g_dq_val[slot]=lv_label_create(r);lv_label_set_text(g_dq_val[slot],LV_SYMBOL_RIGHT);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_16),0);lv_obj_set_style_text_color(g_dq_val[slot],TC(TEXT_SECONDARY),0);lv_obj_align(g_dq_val[slot],LV_ALIGN_RIGHT_MID,-16,0);}
+            lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,10,0);
+            g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],row_caption(id));
+            int text_w=w-44;
+            lv_obj_set_style_text_font(g_dq_name[slot],row_font(row_caption(id),text_w,h-4),0);
+            lv_obj_set_style_text_letter_space(g_dq_name[slot],0,0);
+            lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);
+            lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_CLIP);
+            lv_obj_set_width(g_dq_name[slot],text_w);
+            lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_CENTER,0);
+            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,38,0);
         }
     }
     dq_paint();

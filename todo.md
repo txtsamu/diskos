@@ -42,3 +42,10 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [x] Prepare dev bundle and updated handoff/release notes.
 - [ ] Owner uploads dev bundle and tests/accepts candidate on Disc.
 - [ ] Consider stable 1.3.2 release only after device approval.
+
+## 1.3.2-polish5 follow-up
+
+- [x] Current: fixed radio pills, equal action rows, gaps, single-line bold labels.
+- [x] Both-side checks for every caption, including sparse/no-radio layouts.
+- [x] Compile updated device binary and synchronize dev payload/metadata.
+- [ ] Owner device test of Current and unchanged Arc.

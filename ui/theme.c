@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include "lvgl/src/themes/lv_theme_private.h"   /* lv_theme_t layout: our overlay copies the base theme */
 
+LV_FONT_DECLARE(font_inter_bold_16)
+LV_FONT_DECLARE(font_inter_bold_18)
+LV_FONT_DECLARE(font_inter_bold_22)
 LV_FONT_DECLARE(font_icons_20)
 LV_FONT_DECLARE(font_icons_28)
 /* "something" faces (SIL OFL 1.1, texts in licenses/): IBM Plex Mono SemiBold/Bold converted as "diskos_mono"
@@ -841,6 +844,9 @@ const lv_font_t *theme_font(theme_font_role_t role){
         }
     }
     switch(role){
+    case THEME_FONT_QS_BOLD_16: return &font_inter_bold_16;
+    case THEME_FONT_QS_BOLD_18: return &font_inter_bold_18;
+    case THEME_FONT_QS_BOLD_22: return &font_inter_bold_22;
     case THEME_FONT_UI_8: return theme_font_original(8);
     case THEME_FONT_UI_26: return theme_font_original(26);
     case THEME_FONT_UI_30: return theme_font_original(30);

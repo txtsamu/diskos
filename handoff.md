@@ -99,3 +99,16 @@ Test: signed SD update, select Arc if a saved style remains Current, check both
 sides, On/Off and hold-to-settings, selection/reordering, Current with eight,
 and playback/rim controls. Accept the trial before restarting. Do not replace
 mq_ui directly over SSH. See docs/releases/v1.3.2-polish4.md for installation.
+
+## Current QS row polish: 1.3.2-polish5
+
+Current style locks Wi-Fi/BT to their original top pills by identity, independent
+of editor order. Remaining actions share the 224px row field equally, with at
+least 4px between targets and a 50px height cap for sparse selections. Both side
+layouts mirror correctly. Bold Inter captions fit on one line, stepping through
+22/18/16px as needed; icons shrink for an eight-action list without radios.
+Captions: MODE, SCAN, SONGS, EQ, FIND, SET, QUEUE, NEXT, SHORT, WEATH, LYRICS,
+INFO, COVER, FILES, FAVS. Hold still shows the full action name. Arc is unchanged.
+Native checks exercise every action at the narrow bottom row, equal heights,
+gaps, unwrapped/unclipped text, no-radio eight-item layout, both sides and radio
+state/input/editor persistence. Theme/punctuation checks pass. Device test pending.

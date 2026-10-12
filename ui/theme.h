@@ -25,6 +25,7 @@ typedef enum {
     THEME_FONT_ICON_20, THEME_FONT_ICON_28,
     THEME_FONT_HEADER_SM,           /* optional: the header face one size down, a long title's first step to fit */
     THEME_FONT_UI_8, THEME_FONT_UI_26, THEME_FONT_UI_30, THEME_FONT_UI_34, THEME_FONT_UI_38, THEME_FONT_UI_42, THEME_FONT_UI_44, THEME_FONT_UI_46, THEME_FONT_UI_48,
+    THEME_FONT_QS_BOLD_16, THEME_FONT_QS_BOLD_18, THEME_FONT_QS_BOLD_22,
     THEME_FONT_COUNT
 } theme_font_role_t;
 const lv_font_t *theme_font(theme_font_role_t role);
