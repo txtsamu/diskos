@@ -1,25 +1,36 @@
-# diskOS Disco handoff - replacement 1.4.0 (2026-10-12)
+# diskOS Disco handoff - 1.4.1 (2026-10-12)
 
-Source baseline: origin/dev c7545b2 (polish8), plus recovered polish9, restored Battery layout, standalone Disc Shelf 1.0.4, approved list changes and the three stability fixes. The original unpublished 1.4.0 bundle is superseded; do not merge or tag it. The release tag v1.4.0 points to the replacement bundle's final payload commit. No remote push performed.
+Baseline: 1.4.0 (tag v1.4.0, owner device-tested) + docs cleanup 2997e14. 1.4.1 = fixes for GitHub issues #1-#8
+(reporter ingvarr777) + UI polish, built with the GCC 11.2 MIPS toolchain. Release notes: docs/releases/v1.4.1.md.
 
 ## Working agreement
 
-Owner tests on Snowsky Disc V2.57, 360x360, X2000 MIPS32r2 FP64 NaN2008. Provide native LVGL previews before layout approval, then a complete compiled mq_ui and Git bundle. Owner publishes dev/main/tags. Update todo.md. Device SSH root@192.168.178.63; no adb or scp. Install UI only by signed SD update; keep the fail-closed launch verification and rollback.
+Owner tests on Snowsky Disc V2.57 (360x360, X2000 MIPS32r2 FP64 NaN2008). Native LVGL previews before layout
+approval, then a compiled mq_ui and a Git bundle. Owner pushes main/dev and tags. SSH root@192.168.178.63, no adb/scp.
+Install UI by signed SD update; keep fail-closed launch verification and rollback.
 
-## Changes
+## 1.4.1 specifics
 
-Read docs/releases/v1.4.0.md for the exact release scope and validation. EQ profile reads are asynchronous, isolated and bounded; both the profile and editor use ui/eqprofile.c. Worker artwork results carry RGB, so ui.c no longer reads SQLite for album colours. Under low RAM, pixel preparation falls back to proven static-buffer loading. Stale/no-track results are released early. QS and mode controls use ui_on's swipe guard.
+- **Needs a reflash**: payload/S97diskos_install changed (#7: first update after a fresh flash, boot-count write
+  failure rolls back, transient verify failures keep builds (ota_bundle_ok returns 2), log cap, stale mq_ui.rejected
+  removed before install). S97 is only installed by flashing.
+- mq_ui: run record read as 1024 bytes (#8), rejected-build refusal at staging (OTA_E_REJECTED), queue_tick cached
+  ID on a 50 ms read-only connection (#1), LVGL assert -> abort, memory-aware decode budget (#2), popups closed on
+  screen change (#6), rename/move carry MY_LOVE/PLAY_STATS/BOOK_PROGRESS/SONG paths (#5), per-album cover reuse and
+  embedded synced lyrics (#4), streamed Ogg/FLAC comments (#3).
+- UI: QS "List" (was Current) with Library curve; wider Music title/progress (UL 34..310); Library ROW_H 52 and fonts
+  +2 px per Font Size (s_font22 added to the user-font chain); nav Double tap/Hold under Disco Layout with Volume,
+  Screen off, Play/Pause, Next (cfg disco_nav_v=2 migrates old "Nothing" 6 -> 10); restart notice before re-exec;
+  Shortcuts swipe hint (hint_shortcuts); "Number Before Title".
+- payload/diskos-artdec and diskos-bootprobe unchanged from 1.4.0 (the standalone decoder's behaviour is the same).
+- Not done on purpose: separate DB connections for worker threads (#1 item 3), 07:00/20:00 appearance re-exec
+  (#2 item 3), queueing songs with paths over 255 bytes (#5).
 
-Approved layouts: curved free-edge QS List/Modes, consistent 22px text, 4px gutter beyond Back's 64px strip; mirror for Left. Disco first in picker; Progress Shape under Layout. Battery open gauge mirrors the nav side, centred heading, larger estimate, pill backgrounds below gauge. QS Arc and fixed radios retained.
+## Build and checks
 
-Optional apps are in apps/: Disc Shelf 1.0.4 and Album Roulette 1.3.1, with source archives under corresponding-source. Disc Shelf is owner device-tested; it is not embedded in mq_ui. Actual shelf.conf and private keys must never enter Git or packages.
-
-## Build and diagnostics
-
-Use ui/tools/build_device.py with the complete GCC11.2 toolchain, a separate cache, --jobs 1 or 2, --approved and a new output directory. New source files must be git-visible. Preserve mq_ui.debug for address symbolication. Metadata payload/mq_ui.build.json binds binary identity to source. Host: make -C ui CROSS= host-render. Gates: check-theme and checkpunct. Focused tests: eq_profile_async_test.py, art_responsiveness_test.py, music_responsiveness_ui_test.py, stability_test.py, art_transition_test.py; host REVIEW_QS / REVIEW_MODES / REVIEW_DISCO_SETTINGS.
-
-The owner reported freezes and automatic UI restarts into stock in the first 1.4.0 candidate. Four-second SQLite waits were reproduced, but fatal crash/OOM cause remains unconfirmed. Get persistent /usr/data/diskos_boot.log and /usr/data/diskos_install.log after recovery. Do not claim the crash is solved or publish a device-tested status until the owner tests this replacement.
-
-## Next
-
-Owner signs replacement with fresh epoch, tests on Disc, then pushes dev. After acceptance publish main and v1.4.0; the tag workflow packages payload and optional apps, and main updates the website. Windows installer stays shelved in todo-ideas.md.
+ui/tools/build_device.py --toolchain /opt/mipsel-n2008-musl-cross --cache <dir> --out <new dir> --approved.
+Toolchain: musl-cross-make 227df8b + ui/toolchain/mcm-config.mak; sources from archive.ubuntu.com (gcc-11 orig
+contains gcc-11.2.0.tar.xz; binutils/gmp repacked, gmp with a stub doc/Makefile.in), Linux headers cloned from
+sabotage-linux/kernel-headers v4.19.88-2, config.sub from /usr/share/misc; rehash changed tarballs in hashes/.
+Host: make -C ui CROSS= host-render; REVIEW_QS / REVIEW_NAV / REVIEW_HINTS / REVIEW_DISCO_SETTINGS (both sides);
+gates check-theme, checkpunct. Known: render_test immersive (find_sharp_image) fails on the host, as before.

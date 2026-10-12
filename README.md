@@ -67,25 +67,32 @@ replaces only what you see and touch.
 </tr>
 </table>
 
-## New in 1.4.0
+## New in 1.4.1
 
-- **Quicker track changes.** Covers, album colours and the equalizer load in the background, so the screen
-  doesn't stall when you skip.
-- **Quick Settings your way.** Choose **List** (curved rows, like the Library) or the eight-button **Arc**, and pick and order the
-  buttons (Disco Options › Quick Settings).
-- **Safer touches.** A swipe that starts on a button no longer presses it, and buttons stay clear of the back-swipe edge.
-- **Navigation circle shortcuts.** Double-tap or hold the open circle for an action you choose (Disco Options › Layout).
-- **First-use hints** for new users (System › Help), and a new **Battery** gauge.
-- **Disc Shelf**, a new optional app: browse your Navidrome server and download original files to the card.
+> [!IMPORTANT]
+> **1.4.1 needs a reflash.** Its update-safety fixes are in the boot script, which only the installer can
+> replace. Flash once with your existing `--ota-key` ([Install](#install)); your music, settings and keys stay.
+
+- **SD updates you can keep.** Every update after the first one used to roll back by itself; fixed, along with
+  several rarer update and rollback problems.
+- **Steadier.** No more multi-second freezes during library scans or when playback starts; pop-ups close when you
+  swipe back.
+- **Better tags.** Opus/Ogg and FLAC files with large covers show their real title and artist (rescan once);
+  Tags no longer reuses one cover across albums or rewrites lyrics on every play.
+- **Safer file actions.** Rename and move keep favourites, play counts and bookmarks.
+- **Polish.** Quick Settings **List** curves like the Library, a wider Music screen, larger Library text,
+  and Volume, Screen off, Play/Pause and Next track for the navigation circle's Double tap and Hold.
+
+Thanks to **[ingvarr777](https://github.com/ingvarr777)** for the detailed reports behind most of these fixes.
 
 <table><tr>
 <td align="center" width="25%"><img src="docs/disco/quick-current.png" width="190" alt="Quick Settings, List"><br><sub><b>Quick Settings</b>: List</sub></td>
-<td align="center" width="25%"><img src="docs/disco/battery.png" width="190" alt="Battery"><br><sub><b>Battery</b> gauge</sub></td>
-<td align="center" width="25%"><img src="docs/disco/song-info.png" width="190" alt="Song Info album back sleeve"><br><sub><b>Song Info</b>: the album back sleeve</sub></td>
-<td align="center" width="25%"><img src="docs/disco/left-nav.png" width="190" alt="Left-handed mode"><br><sub><b>Left-handed mode</b></sub></td>
+<td align="center" width="25%"><img src="docs/disco/music.png" width="190" alt="Wider Music screen"><br><sub><b>Music</b>: wider title and progress</sub></td>
+<td align="center" width="25%"><img src="docs/disco/library.png" width="190" alt="Library"><br><sub><b>Library</b>: larger text</sub></td>
+<td align="center" width="25%"><img src="docs/disco/battery.png" width="190" alt="Battery"><br><sub><b>Battery</b> gauge (1.4.0)</sub></td>
 </tr></table>
 
-All the details: [release notes](docs/releases/v1.4.0.md) · [changelog](CHANGELOG.md).
+All the details: [1.4.1 release notes](docs/releases/v1.4.1.md) · [1.4.0](docs/releases/v1.4.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
@@ -173,7 +180,7 @@ Download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco
 your keys:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0      # -> ./diskos-update/ (the label is free text)
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.1      # -> ./diskos-update/ (the label is free text)
 ```
 
 Reuse the signing keys whose root public key was installed on this Disc. Copy the complete
@@ -226,7 +233,8 @@ Stock is never far:
   the boot and recovery chain, the signed-update design and the whole UI this project grew from. None of this
   exists without that work. If you enjoy diskOS, [support b0hemia on Ko-fi](https://ko-fi.com/b0hemia).
 - **diskOS contributors**: everyone who reported, tested and patched upstream.
-- **[ingvarr777](https://github.com/ingvarr777)**, for Ogg Opus support (diskOS PR #19).
+- **[ingvarr777](https://github.com/ingvarr777)**, for Ogg Opus support (diskOS PR #19) and the careful bug reports
+  behind 1.4.1 (issues #1–#8).
 - **[LVGL](https://lvgl.io)** for the graphics library, **SQLite**, **jsmn**, **musl**,
   **[musl-cross-make](https://github.com/richfelker/musl-cross-make)**, the **Inter**, **Montserrat** and
   **Font Awesome** fonts, and every project listed in [NOTICE.md](NOTICE.md).

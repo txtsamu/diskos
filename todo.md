@@ -7,6 +7,13 @@ Shelved proposals and their restart notes: `todo-ideas.md` (Windows installer).
 The owner authorized this batch before uploading dev. First-use hints are
 implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 
+## 1.4.1 (2026-10-12)
+
+- [x] Issues #1-#8 fixed (see handoff.md), contributor thanked in README, release notes, changelog, website.
+- [x] QS List, wider Music, Library rows/fonts, nav gestures + 4 actions, restart notice, Shortcuts tip.
+- [ ] Owner reflashes (S97 changed), tests updates/trial keep, scans, Opus tags (rescan), rename/move.
+- [ ] Owner pushes main + dev + tag v1.4.1; close issues #1-#8 with a thank-you comment.
+
 ## First-use hints: implemented in 1.3.2-polish2
 
 - [x] Restore 1.3.1 baseline and owner-supplied 1.3.2-polish1 gesture patch.

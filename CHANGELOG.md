@@ -6,6 +6,29 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [1.4.1] - 2026-10-12
+
+**Needs a reflash** (boot-script fixes). Bug reports by [ingvarr777](https://github.com/ingvarr777), issues #1-#8: thank you.
+
+- Fixed: SD updates after the first one rolled back (the boot record outgrew the UI's 256-byte read) (#8).
+- Fixed (boot script): first SD update after a fresh flash dropped; a trial whose boot count can't be saved now rolls
+  back; a build that can't be checked for a moment is kept, not deleted; capped install log; a stale rejected copy
+  no longer blocks reinstalling (#7).
+- Re-staging a build that was rolled back before is refused with a message (#7). Docs: run-file path, hard-link warning.
+- Fixed: UI freezes in scans and playback starts - the playing song's ID is cached per track and looked up on a short-wait
+  read-only connection (#1).
+- LVGL asserts abort with a crash log line instead of spinning; cover decoding budgets to available memory (#2).
+- Hold menu, file confirm/picker, EQ number pad and "Add lyrics & artwork" close on every screen change; settings rows,
+  mode screen and play-mode index hardened (#6).
+- Rename/move carry favourites, play stats and book progress; long names not truncated; long playing paths guarded;
+  replacing a folder's ancestor refused (#5).
+- Tags: covers reused only within one album folder; unsynced .lrc no longer hides embedded synced lyrics (#4).
+- Ogg/Opus and FLAC comments streamed (large covers no longer break tags); oversized ID3 flagged as a read error (#3).
+- Quick Settings: Current renamed List; List rows curve and sit like the Library's.
+- Music: wider title, artist and progress line. Library: rows 52 px, text one size larger at every Font Size.
+- Navigation circle Double tap / Hold moved to Disco Options > Layout; new Volume, Screen off, Play/Pause, Next track.
+- One "Restarting the screen - your music keeps playing" notice; Shortcuts swipe tip; "Number Before Title".
+
 ## [1.4.0] - 2026-10-12
 
 - Quick Settings (Current style) and Working Modes follow the free edge of the screen, with one font size per list; Left mirrors Right.

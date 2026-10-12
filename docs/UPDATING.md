@@ -6,6 +6,10 @@ Flash once with your own public update key. After that, new **interface builds**
 reflash, no SSH. The Disc checks the signatures, runs the new build as a trial, and goes back to the previous
 build if the trial fails.
 
+> [!IMPORTANT]
+> **Coming from 1.4.0 or older? Reflash once for 1.4.1.** Its update fixes are in the boot script, which an SD
+> update can't replace. Flash with the same `--ota-key` as before (step 1); after that, SD updates work as below.
+
 An SD update changes `mq_ui` (the interface) only. It doesn't touch the stock player, the boot scripts or the
 optional apps ([Album Roulette](ALBUM_ROULETTE_INSTALL.md), [Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
 `mq_ui` is **not** signed with your keys yet; you sign it yourself (step 3).
@@ -59,7 +63,7 @@ use the desktop `host-render` program on the Disc.
 From the repository root, with your keys in `./diskos-keys`:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.1
 ```
 
 With keys elsewhere: `diskos-sign.sh <binary> [label] [keys-folder] [output-folder]`. The label (up to 32 letters,

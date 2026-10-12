@@ -1,7 +1,10 @@
 # Install diskOS Disco!
 
-`mq_ui` is the interface. Sign it with your own keys and install it from the SD card: see
-[docs/UPDATING.md](docs/UPDATING.md). What's new is in [RELEASE-NOTES.md](RELEASE-NOTES.md).
+**1.4.1 needs a reflash** (its boot-script fixes can't arrive by SD card): flash once with the installer from the
+repository or source download, using your existing update key. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+
+After that, `mq_ui` is the interface: sign it with your own keys and install it from the SD card
+([docs/UPDATING.md](docs/UPDATING.md)).
 
 Optional apps, installed separately:
 

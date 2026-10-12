@@ -146,7 +146,7 @@ Rescan Library). A small dot runs around the rim while it scans.
 **Update from the SD card.**
 
 1. On your computer, make a signed update with the signing script:
-   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0` (the last part is just a label for the package).
+   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.1` (the last part is just a label for the package).
 2. Copy the resulting `diskos-update` folder to the root of the SD card.
 3. On the Disc: Settings > System > Maintenance > Update from SD Card > Update, then restart.
 4. The new version starts as a **trial**. Play some music (or tap **Keep** when asked) to keep it. If it

@@ -1,6 +1,6 @@
 # Album Roulette 1.3.1
 
-Standalone user app, shipped alongside Disco 1.4.0. It is not linked into mq_ui.
+Standalone user app, shipped alongside Disco. It is not linked into mq_ui.
 Copy app and app.conf to /usr/data/apps/album-roulette; app must be executable.
 Close Roulette before replacing it. Keep an existing app.conf if customized.
 See docs/ALBUM_ROULETTE_INSTALL.md for commands.
