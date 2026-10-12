@@ -12,7 +12,7 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.1 (test build: checks only)";
+        public const string Version = "0.2 (test build: checks + environment)";
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
@@ -36,9 +36,9 @@ namespace DiskosDisco
 
     class MainForm : Form
     {
-        static readonly Color Ink = Color.FromArgb(28, 28, 32), Muted = Color.FromArgb(96, 96, 104);
-        static readonly Color Good = Color.FromArgb(16, 140, 72), Bad = Color.FromArgb(196, 40, 40), Warn = Color.FromArgb(196, 120, 0);
-        static readonly Color Accent = Color.FromArgb(0, 120, 212);
+        internal static readonly Color Ink = Color.FromArgb(28, 28, 32), Muted = Color.FromArgb(96, 96, 104);
+        internal static readonly Color Good = Color.FromArgb(16, 140, 72), Bad = Color.FromArgb(196, 40, 40), Warn = Color.FromArgb(196, 120, 0);
+        internal static readonly Color Accent = Color.FromArgb(0, 120, 212);
 
         readonly List<Row> rows = new List<Row>();
         readonly Button recheck, next, copy;
@@ -89,9 +89,12 @@ namespace DiskosDisco
 
             var bar = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true };
             next = MakeButton("Next", true);
-            next.Click += (s, e) => MessageBox.Show(this,
-                "This PC is ready.\n\nThis test build only checks your PC. The next one prepares diskOS's own Linux " +
-                "environment, then the install wizard follows.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            next.Click += (s, e) =>
+            {
+                var page = new PrepareForm { StartPosition = FormStartPosition.Manual, Location = Location, Size = Size };
+                page.FormClosed += (s2, e2) => { if (page.WentBack) { Location = page.Location; Size = page.Size; Show(); } else Close(); };
+                Hide(); page.Show();
+            };
             recheck = MakeButton("Check again", false);
             recheck.Click += (s, e) => RunChecks();
             copy = MakeButton("Copy report", false);
@@ -104,7 +107,7 @@ namespace DiskosDisco
             Shown += (s, e) => RunChecks();
         }
 
-        Button MakeButton(string text, bool primary)
+        internal static Button MakeButton(string text, bool primary)
         {
             var b = new Button { Text = text, AutoSize = true, Padding = new Padding(14, 4, 14, 4), Margin = new Padding(8, 4, 0, 0), FlatStyle = FlatStyle.System };
             if (primary)

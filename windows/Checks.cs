@@ -29,7 +29,7 @@ namespace DiskosDisco
 
     static class Sys
     {
-        // Run a program hidden and capture what it prints. wsl.exe prints UTF-16, everything else the console code page.
+        // Run a program hidden and capture what it prints (UTF-8; NULs from an older wsl.exe's UTF-16 are dropped).
         public static int Run(string exe, string args, out string output, bool utf16 = false, int timeoutMs = 20000)
         {
             output = "";
@@ -40,7 +40,9 @@ namespace DiskosDisco
                     UseShellExecute = false, CreateNoWindow = true,
                     RedirectStandardOutput = true, RedirectStandardError = true,
                 };
-                if (utf16) { psi.StandardOutputEncoding = Encoding.Unicode; psi.StandardErrorEncoding = Encoding.Unicode; }
+                psi.EnvironmentVariables["WSL_UTF8"] = "1";   // wsl.exe prints UTF-8 instead of UTF-16 (WSL 0.64+)
+                var enc = utf16 ? Encoding.Unicode : Encoding.UTF8;
+                psi.StandardOutputEncoding = enc; psi.StandardErrorEncoding = enc;
                 using (var p = Process.Start(psi))
                 {
                     var err = p.StandardError.ReadToEndAsync();
@@ -146,7 +148,7 @@ namespace DiskosDisco
         {
             string wsl = Sys.System32("wsl.exe");
             string output = "";
-            int rc = File.Exists(wsl) ? Sys.Run(wsl, "--version", out output, utf16: true) : -1;
+            int rc = File.Exists(wsl) ? Sys.Run(wsl, "--version", out output) : -1;
             if (rc == 0)
             {
                 string first = output.Split('\n')[0].Trim();
