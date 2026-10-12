@@ -46,7 +46,14 @@ chmod 755 "$R/usr/local/bin/diskos"
 : > "$R/etc/resolv.conf"
 rm -rf "$R"/var/cache/apt/archives/*.deb "$R"/var/lib/apt/lists/* "$R"/usr/share/doc/* "$R"/usr/share/man/* \
        "$R"/usr/share/info/* "$R"/usr/share/locale/* "$R"/var/log/*.log "$R/root/.cache"
-find "$R/opt/diskos" -name __pycache__ -prune -exec rm -rf {} +
+find "$R/opt/diskos" -maxdepth 2 -name __pycache__ -prune -exec rm -rf {} +
+SP="$R/opt/diskos/.venv/lib/python3.12/site-packages"           # not needed to run: pip, self-tests, Python's own tests/docs
+rm -rf "$SP"/pip "$SP"/pip-* "$SP/Crypto/SelfTest" "$R"/opt/diskos/.venv/bin/pip* "$R"/var/cache/* \
+       "$R"/usr/lib/python3.12/test "$R"/usr/lib/python3.12/pydoc_data "$R"/usr/lib/python3.12/idlelib \
+       "$R"/usr/lib/python3.12/lib2to3 "$R"/usr/lib/python3.12/turtledemo "$R"/usr/share/python-wheels
 tar --numeric-owner -C "$R" -cpf - . | gzip -9 > "$OUT/diskos-wsl.tar.gz"
+# Also in parts of 25 MB for places with an upload limit; the app joins diskos-wsl.tar.gz.001, .002, ... itself.
+rm -f "$OUT"/diskos-wsl.tar.gz.0*
+split -b 25M -d -a 3 --numeric-suffixes=1 "$OUT/diskos-wsl.tar.gz" "$OUT/diskos-wsl.tar.gz."
 rm -rf "$R"
 ls -l "$OUT/diskos-wsl.tar.gz"; sha256sum "$OUT/diskos-wsl.tar.gz"
