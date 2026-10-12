@@ -189,3 +189,5 @@ keys; these changes are outside a UI-only SD package. See the [README](../README
 ## Replacement 1.4.0 candidate
 
 Sign the new mq_ui as version 1.4.0 with a fresh epoch using the owner's existing keys. Do not reuse the old signed manifest or manually copy mq_ui over SSH. The replay floor compares epochs, so a previously accepted 1.4.0 must receive a newer epoch. About displays 1.4.0 for both candidates; the binary SHA-256 in `payload/mq_ui.build.json` identifies this replacement. The UI update does not install or overwrite either optional app.
+
+Disc Shelf 1.0.4 is also a separate optional add-in; see [its installation guide](DISC_SHELF_INSTALL.md). It is not installed by a signed UI update.

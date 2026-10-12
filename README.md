@@ -77,7 +77,7 @@ replaces only what you see and touch.
 </tr>
 </table>
 
-## New in 1.3.1
+## Interface polish retained from 1.3.1
 
 **A little bigger. A lot nicer to use.** Readable menus, confident buttons and more room for your music.
 
@@ -164,7 +164,7 @@ cable and about 20 quiet minutes. The installer is upstream diskOS's (`./diskos-
 
 **0. Get it.** Download the **[latest release](https://github.com/zmd22/diskos-disco/releases/latest)** (Source
 code, tar.gz) and unpack it, or `git clone https://github.com/zmd22/diskos-disco`. The ready-built interface is
-already in it as `payload/mq_ui` (Disco! 1.3.1); the release also has `mq_ui` on its own, with checksums, for SD-card
+already in it as `payload/mq_ui` (Disco! 1.4.0); the release also has `mq_ui` on its own, with checksums, for SD-card
 updates.
 
 **1. Make your update keys (once, optional but recommended).** They let you install new builds from the SD card
@@ -199,7 +199,7 @@ Download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco
 your keys:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.3.1      # -> ./diskos-update/
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.0      # -> ./diskos-update/
 ```
 
 Reuse the signing keys whose root public key was installed on this Disc. Copy the complete
