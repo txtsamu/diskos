@@ -212,6 +212,7 @@ void apps_create(lv_obj_t *root);
 void apps_reload(void);
 void app_launch(const char *exec);
 void app_launch_direct(const char *exec); /* landing-page confirmation only */
+#define APP_BUILTIN_BOOMSHINE "builtin:boomshine"   /* app_launch() target for the game built into mq_ui */
 /* settings (master list + drill-in detail) */
 void settings_create(lv_obj_t *root);      /* SCR_SETTINGS: the category list (Playback/Audio/...) */
 void settings_refresh_list(void);

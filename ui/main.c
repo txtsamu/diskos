@@ -1531,8 +1531,10 @@ static int volup_held(void){
     return pin ? (((*pin >> 13) & 1u) ? 0 : 1) : 0;
 }
 static void app_run(const char *exec){
+    /* a game built into mq_ui ("builtin:boomshine") runs as this same program with its own flag */
+    int builtin = !strcmp(exec, APP_BUILTIN_BOOMSHINE);
     /* preflight: a missing/non-executable app shouldn't blank the screen for nothing */
-    if(access(exec, X_OK) != 0){
+    if(!builtin && access(exec, X_OK) != 0){
         lv_obj_invalidate(lv_screen_active()); lv_refr_now(NULL);
         ui_toast("Can't launch app");
         return;
@@ -1540,7 +1542,8 @@ static void app_run(const char *exec){
     if(!gpio_gpb_pin()) ui_toast("Note: hold-to-close is unavailable");   /* no silent loss of the escape */
     int failed = 0, killed = 0;
     pid_t pid = -1;
-    char *argv[] = { (char *)exec, NULL };
+    char *argv[] = { (char *)exec, NULL, NULL };
+    if(builtin){ argv[0] = "/proc/self/exe"; argv[1] = "--boomshine"; }   /* the running image, never a path that can change */
     if(command_spawn(&pid, argv) != 0) pid = -1;   /* posix_spawn in its own group (a fork() of the UI can fail for memory) */
     if(pid > 0){
         int status = 0;
@@ -2705,6 +2708,12 @@ int main(int argc, char **argv){
     /* MA Sendspin: this same binary runs the Music Assistant player as a child (ma.c starts it as
      * "ma-sendspin --sendspin ...": a different argv[0], so fiio_init's `pgrep -x mq_ui` never mistakes it for the UI) */
     if(argc > 1 && !strcmp(argv[1], "--sendspin")){ int sendspin_main(int, char **); return sendspin_main(argc - 1, argv + 1); }
+    if(argc > 1 && !strcmp(argv[1], "--boomshine")){        /* the built-in game (Disco menu > Boomshine); log as the app did */
+        int boomshine_main(int, char **);
+        if(!freopen("/tmp/boomshine.log", "w", stdout)) { /* keep going without a log */ }
+        dup2(fileno(stdout), fileno(stderr));
+        return boomshine_main(argc - 1, argv + 1);
+    }
     /* Arm the boot watchdog BEFORE anything else - in particular before the argv dispatch and the
      * stock-UI selection below. Those read /usr/data and /dev/mem, so they can block; until now they
      * ran with no deadline at all, and a hang there took away the user's route to the stock firmware

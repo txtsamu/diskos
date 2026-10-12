@@ -18,6 +18,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"
+#include "menu_apps.h"
 #include "ipc.h"
 int search_landing_active(void);
 #include "folderbrowser.h"
@@ -40,27 +41,49 @@ static void open_artists(void){ library_open_artists(); screen_section(SCR_LIBRA
 static void open_songs(void){ library_open_songs(); screen_section(SCR_LIBRARY, +1); }
 static void open_queue(void){ queue_open(); }
 #define IC_ROULETTE "@vinyl"
-/* Theme-coloured vinyl: vector rings avoid requiring a new font glyph. */
+#define IC_BOOM "@boom"
+/* Theme-coloured vector icons (no new font glyph): Album Roulette's vinyl (three rings) and Boomshine's burst (a
+ * filled dot inside a ring, with three small dots flying off). */
 static void roulette_icon(lv_obj_t *label, const char *icon, int size){
-    if(strcmp(icon, IC_ROULETTE)){
-        if(lv_obj_get_child_count(label)) lv_obj_clean(label);
+    int vinyl = !strcmp(icon, IC_ROULETTE), boom = !strcmp(icon, IC_BOOM);
+    if(lv_obj_get_child_count(label) && (!(vinyl || boom) || (intptr_t)lv_obj_get_user_data(label) != (boom ? 2 : 1))) lv_obj_clean(label);
+    if(!vinyl && !boom){
         lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         return;
     }
+    lv_obj_set_user_data(label, (void *)(intptr_t)(boom ? 2 : 1));
     lv_label_set_text(label, "");
     lv_obj_set_size(label, size, size);
     lv_color_t color = lv_obj_get_style_text_color(label, 0);
-    for(int i = 0; i < 3; i++){
+    int n = boom ? 5 : 3;
+    for(int i = 0; i < n; i++){
         lv_obj_t *ring = lv_obj_get_child(label, i);
         if(!ring){ ring = lv_obj_create(label); lv_obj_remove_style_all(ring);
             lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE); }
-        int d = i == 0 ? size : i == 1 ? size * 3 / 4 : size / 4;
-        lv_obj_set_size(ring, d, d); lv_obj_center(ring);
         lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(ring, i == 0 && size >= 24 ? 2 : 1, 0);
-        lv_obj_set_style_border_color(ring, color, 0);
+        if(!boom){
+            int d = i == 0 ? size : i == 1 ? size * 3 / 4 : size / 4;
+            lv_obj_set_size(ring, d, d); lv_obj_center(ring);
+            lv_obj_set_style_border_width(ring, i == 0 && size >= 24 ? 2 : 1, 0);
+            lv_obj_set_style_border_color(ring, color, 0);
+            continue;
+        }
+        if(i == 0){                                               /* the burst: a ring */
+            int d = size * 3 / 4; lv_obj_set_size(ring, d, d); lv_obj_align(ring, LV_ALIGN_CENTER, -size / 10, size / 10);
+            lv_obj_set_style_border_width(ring, size >= 24 ? 2 : 1, 0); lv_obj_set_style_border_color(ring, color, 0);
+        } else if(i == 1){                                        /* its glowing core */
+            int d = size * 3 / 8; lv_obj_set_size(ring, d, d); lv_obj_align(ring, LV_ALIGN_CENTER, -size / 10, size / 10);
+            lv_obj_set_style_bg_color(ring, color, 0); lv_obj_set_style_bg_opa(ring, LV_OPA_COVER, 0);
+        } else {                                                  /* dots caught up in it */
+            static const signed char POS[3][2] = { { 42, -40 }, { 18, -48 }, { 46, -14 } };   /* % of size from centre */
+            int d = size >= 24 ? size / 6 : 3; lv_obj_set_size(ring, d, d);
+            lv_obj_align(ring, LV_ALIGN_CENTER, POS[i - 2][0] * size / 100, POS[i - 2][1] * size / 100);
+            lv_obj_set_style_bg_color(ring, color, 0); lv_obj_set_style_bg_opa(ring, LV_OPA_COVER, 0);
+        }
     }
 }
+/* Boomshine is built into mq_ui: the menu starts it like an installed app (it owns the screen until you Exit) */
+static void open_boomshine(void){ app_launch(APP_BUILTIN_BOOMSHINE); }
 static const dsec_t SEC[] = {
     { "music",     "Music",     LV_SYMBOL_AUDIO,     SCR_HOME,      NULL,              1 },
     { "library",   "Library",   LV_SYMBOL_LIST,      SCR_LIBRARY,   NULL,              0 },
@@ -79,24 +102,31 @@ static const dsec_t SEC[] = {
     { "weather",   "Weather",   LV_SYMBOL_IMAGE,     SCR_WEATHER,   weather_app_open,  0 },
     { "ma",        "Sendspin",  "MA",               SCR_MA,       NULL,              0 },
     { "roulette",  "Album Roulette", IC_ROULETTE,    SCR_ROULETTE, NULL,              0 },
+    { "boomshine", "Boomshine", IC_BOOM,            -1,            open_boomshine,    0 },   /* screen -1: launches */
 };
 #define NSEC ((int)(sizeof SEC / sizeof SEC[0]))
 #define MAXM 10                                    /* the picker holds at most ten (the dots must fit) */
 static int g_menu[MAXM], g_nmenu, g_cur;           /* active items (indices into SEC), the current one */
 
+static dsec_t menu_section(int id){
+    if(id>=0&&id<NSEC)return SEC[id];
+    const menu_app_t *app=menu_apps_get(id-NSEC);
+    return (dsec_t){app?app->id:"",app?app->name:"App unavailable",LV_SYMBOL_FILE,-1,NULL,0};
+}
 static int sec_find(const char *id, size_t n){ for(int i = 0; i < NSEC; i++) if(strlen(SEC[i].id) == n && !strncmp(SEC[i].id, id, n)) return i; return -1; }
 static int menu_has_screen(int scr);
 static int in_menu(int s){ for(int i = 0; i < g_nmenu; i++) if(g_menu[i] == s) return i; return -1; }
-static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(SEC[g_menu[i]].screen == scr) return 1; return 0; }
+static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == scr) return 1; return 0; }
 /* parse cfg "disco_menu": unknown and duplicate ids are skipped, missing protected ones come back (never locked out) */
-static const char CODE[] = "mlsoceFaudbwrgqMR";                 /* one letter per SEC[] entry, same order */
+static const char CODE[] = "mlsoceFaudbwrgqMRB";                /* one letter per SEC[] entry, same order (digits: apps) */
 static void menu_load(void){
+    menu_apps_scan();
     char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str("disco_menu", "music,library,settings,modes,shortcuts,eq"));
     g_nmenu = 0;
     const char *codes = cfg_get_str("disco_mnu", "");
     if(codes && codes[0]){                                        /* the compact form (since 1.2.5) */
-        for(const char *p = codes; *p && g_nmenu < MAXM; p++){ const char *c = strchr(CODE, *p); int s = c ? (int)(c - CODE) : -1;
-            if(s >= 0 && s < NSEC && in_menu(s) < 0) g_menu[g_nmenu++] = s; }
+        for(const char *p = codes; *p && g_nmenu < MAXM; p++){ int s = menu_apps_decode(*p,CODE);
+            if(s >= 0 && in_menu(s) < 0) g_menu[g_nmenu++] = s; }
         buf[0] = 0;
     }
     for(const char *p = buf; *p && g_nmenu < MAXM; ){
@@ -347,7 +377,7 @@ static int picker_wanted(int which){
 }
 static void picker_paint(void){
     if(!g_pk || g_nmenu <= 0) return;
-    const dsec_t *s = &SEC[g_menu[g_cur]];
+    const dsec_t section=menu_section(g_menu[g_cur]);const dsec_t *s=&section;
     lv_color_t acc = ui_current_accent();
     lv_label_set_text(g_pk_icon, s->icon);
     lv_obj_set_style_text_font(g_pk_icon, (!strcmp(s->icon, "EQ") || !strcmp(s->icon, "MA")) ? TF(UI_28) : !strcmp(s->icon, IC_MIC) ? TF(ICON_28) : (!strcmp(s->icon, TH_IC_SEARCH) ? &font_theme_24 : TF(UI_36)), 0);
@@ -375,8 +405,17 @@ static void picker_paint(void){
 static void go_section(int idx, int dir){
     if(g_nmenu <= 0) return;
     idx = (idx % g_nmenu + g_nmenu) % g_nmenu;
+    int explicit_tap = idx == g_cur;                                  /* a tap on the middle; the arrows move to another */
     g_cur = idx; picker_paint();
-    const dsec_t *s = &SEC[g_menu[idx]];
+    const dsec_t section=menu_section(g_menu[idx]);const dsec_t *s=&section;
+    if(s->screen<0){                                                 /* a game or app: it takes over the whole screen, */
+        if(!explicit_tap) return;                                    /* so browsing past it never starts it - only a tap */
+        if(s->open) s->open();
+        else { const menu_app_t *app=menu_apps_get(g_menu[idx]-NSEC); if(app) app_launch(app->exec); else ui_toast("That app is not installed"); }
+        disco_nav_set_open(0);
+        for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == screen_current()){ g_cur = i; picker_paint(); break; }   /* back on its screen */
+        return;
+    }
     if(s->open){ s->open(); if(screen_current()==s->screen)onboarding_discovered(HINT_NAV); return; }                                  /* screens that need their own refresh */
     screen_section(s->screen, dir);
     if(screen_current()==s->screen)onboarding_discovered(HINT_NAV);
@@ -600,8 +639,8 @@ void disco_screen_entered(int which, lv_obj_t *root){
     if(which == SCR_SETLIST || which == SCR_SETTING_DETAIL) sec_scr = SCR_SETTINGS;
     else if(which == SCR_PLVIEW || ((which == SCR_ALBUMWALL || which == SCR_FOLDER || which == SCR_BOOKS) && !menu_has_screen(which))) sec_scr = SCR_LIBRARY;
     else if(which == SCR_MODEINFO) sec_scr = SCR_WORKMODE;
-    if(!(g_cur < g_nmenu && SEC[g_menu[g_cur]].screen == sec_scr))      /* Library / Artists / Songs share a screen: keep the one picked */
-        for(int i = 0; i < g_nmenu; i++) if(SEC[g_menu[i]].screen == sec_scr){ if(g_cur != i){ g_cur = i; picker_paint(); } break; }
+    if(!(g_cur < g_nmenu && menu_section(g_menu[g_cur]).screen == sec_scr))      /* Library / Artists / Songs share a screen: keep the one picked */
+        for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == sec_scr){ if(g_cur != i){ g_cur = i; picker_paint(); } break; }
     if(root && picker_wanted(which)){ lv_obj_update_layout(root); recurve(root, 0); }
     if(root && !no_backdrop(which)){
         lv_opa_t o = theme_variant() ? 170 : 150;
@@ -641,25 +680,23 @@ static lv_obj_t *g_ed, *g_ed_list;
 static int g_edit[10],g_edit_n,g_edit_qs;
 static void ed_build(void);
 static int ed_in(int id){for(int i=0;i<g_edit_n;i++)if(g_edit[i]==id)return i;return -1;}
-static int ed_catalog_count(void){return g_edit_qs?quicksettings_item_count():NSEC;}
-static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name:SEC[id].name;}
-static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:SEC[id].icon;}
-static int ed_protected(int id){return !g_edit_qs && SEC[id].prot;}
+static int ed_catalog_count(void){return g_edit_qs?quicksettings_item_count():NSEC+menu_apps_count();}
+static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name:menu_section(id).name;}
+static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:menu_section(id).icon;}
+static int ed_protected(int id){return !g_edit_qs && menu_section(id).prot;}
 static void ed_build_async(void *p){(void)p;ed_build();}
 static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();}}
 static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
 static int ed_save(void){
     if(g_edit_qs)return quicksettings_items_save(g_edit,g_edit_n);
-    char codes[MAXM+1],old[48];for(int i=0;i<g_edit_n;i++)codes[i]=CODE[g_edit[i]];codes[g_edit_n]=0;
-    snprintf(old,sizeof old,"%s",cfg_get_str("disco_mnu",""));
-    if(cfg_set_str("disco_mnu",codes)<0){cfg_set_str_deferred("disco_mnu",old);cfg_flush();return -1;}
+    if(menu_apps_save(g_edit,g_edit_n,CODE)<0)return -1;
     memcpy(g_menu,g_edit,sizeof(int)*(size_t)g_edit_n);g_nmenu=g_edit_n;
     if(g_cur>=g_nmenu)g_cur=0;
     return 0;
 }
 static void ed_act_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED)return;
-    intptr_t v=(intptr_t)lv_event_get_user_data(e);int id=(int)(v&0xff),act=(int)(v>>8),i=ed_in(id);
+    intptr_t v=(intptr_t)lv_event_get_user_data(e);int id=(int)(v&0xffff),act=(int)(v>>16),i=ed_in(id);
     if(id<0 || id>=ed_catalog_count())return;
     int old[10],old_n=g_edit_n;memcpy(old,g_edit,sizeof old);
     if(act==1 && i>0){int t=g_edit[i-1];g_edit[i-1]=g_edit[i];g_edit[i]=t;}
@@ -678,7 +715,7 @@ static lv_obj_t *ed_btn(lv_obj_t *row,int x,const char *glyph,int id,int act,int
     lv_obj_set_style_bg_opa(b,dim?LV_OPA_TRANSP:LV_OPA_COVER,0);lv_obj_set_style_bg_color(b,TC(CONTROL_TRACK),LV_STATE_PRESSED);
     lv_obj_t *l=lv_label_create(b);lv_label_set_text(l,glyph);lv_obj_set_style_text_font(l,TF(UI_14),0);
     lv_obj_set_style_text_color(l,dim?TC(TEXT_DISABLED):TC(TEXT_PRIMARY),0);lv_obj_center(l);
-    if(!dim)lv_obj_add_event_cb(b,ed_act_cb,LV_EVENT_CLICKED,(void*)(intptr_t)(id|(act<<8)));else lv_obj_clear_flag(b,LV_OBJ_FLAG_CLICKABLE);
+    if(!dim)lv_obj_add_event_cb(b,ed_act_cb,LV_EVENT_CLICKED,(void*)(intptr_t)(id|(act<<16)));else lv_obj_clear_flag(b,LV_OBJ_FLAG_CLICKABLE);
     return b;
 }
 static void ed_row(int id,int pos){
