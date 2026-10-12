@@ -255,3 +255,18 @@ the battery/brightness arcs. Targets remain 66px with equal angular spacing;
 Wi-Fi/BT keep their inner positions. Both sides, text fit, circular bounds,
 non-overlap, curve/radius, item editing and radio controls pass native LVGL checks.
 Device performance/acceptance is still pending.
+
+## QS spacing follow-up: 1.3.2-polish7
+
+Current pills share a compact width measured from the widest catalog abbreviation
+at the actual bold font size, with 12px trailing padding. Curved positioning is
+retained and the final pill stays centred below the navigation field. The gap
+below fixed Wi-Fi/BT equals all action inter-row gaps: 4px in the full selection.
+Sparse layouts keep equal integer gaps and capped 50px row heights. No wrapping,
+clipping or per-frame measurement is added; text sizing happens on control rebuild.
+
+Arc outer centres move inward from 128px to 122px radius, adding 6px clearance
+from the brightness/battery rim while preserving equal angular spacing, 66px
+buttons and both fixed radio positions. Both-side native geometry, exact gaps,
+uniform widths, all caption fits, radio state/input/editor tests and theme/text
+checks pass. Matching static MIPS candidate supplied; owner device test pending.

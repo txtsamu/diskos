@@ -5,6 +5,15 @@ All notable changes to diskOS Disco! (and the diskOS releases underneath) are do
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
+## [1.3.2-polish7] - 2026-10-12 (dev candidate)
+
+- Compact uniform Current QS pills sized for the longest abbreviation, keeping
+  curved placement and bold single-line labels. Exact equal gaps include the
+  space below Wi-Fi/BT; the full list uses 4px gaps.
+- Arc radius reduced to 122px for more clearance from the brightness/battery arcs.
+- Fixed radios and 66px Arc buttons remain; both-side native checks pass.
+  Matching static MIPS dev payload supplied; device acceptance pending.
+
 ## [1.3.2-polish6] - 2026-10-12 (dev candidate)
 
 - Restore Current QS list curvature around the bezel/navigation field, with

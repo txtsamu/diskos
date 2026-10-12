@@ -56,3 +56,10 @@ implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 - [x] Widen Arc to concentric 128px radius; fixed radios preserved.
 - [x] Both-side native geometry/text/state/editor checks and static MIPS build.
 - [ ] Owner Disc test and acceptance.
+
+## 1.3.2-polish7
+
+- [x] Compact uniform Current pill width, equal gaps including below radios.
+- [x] Inset Arc to 122px radius for more clearance from rim controls.
+- [x] Native both-side checks, rebuilt payload and dev bundle.
+- [ ] Owner Disc test and acceptance.

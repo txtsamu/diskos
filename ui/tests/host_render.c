@@ -293,10 +293,10 @@ static void review_qs(void){
             for(int i=2;i<8;i++){
                 lv_area_t a;lv_obj_get_coords(quicksettings_test_button(i),&a);
                 int cx=(a.x1+a.x2+1)/2,cy=(a.y1+a.y2+1)/2;
-                int dx=cx-180,dy=cy-180;assert(abs(dx*dx+dy*dy-128*128)<180);
+                int dx=cx-180,dy=cy-180;assert(abs(dx*dx+dy*dy-122*122)<180);
             }
         }else{
-            assert(lv_obj_get_width(quicksettings_test_button(7))>lv_obj_get_width(quicksettings_test_button(4)));
+            assert(lv_obj_get_width(quicksettings_test_button(7))==lv_obj_get_width(quicksettings_test_button(4)));
             assert(lv_obj_get_style_text_align(lv_obj_get_child(quicksettings_test_button(2),1),0)==LV_TEXT_ALIGN_LEFT);
         }
         assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
@@ -322,11 +322,13 @@ static void review_qs(void){
         int full[8]={0,1},n=2;
         for(int id=2;n<7;id++)if(id!=last)full[n++]=id;
         full[7]=last;assert(quicksettings_items_save(full,8)==0);quicksettings_build();nav_wait(60);lv_obj_update_layout(screen_get_root(SCR_QUICK));
-        int height=-1,bottom=-1;
+        int height=-1,bottom=79,gap=-1,width=-1;
         for(int i=2;i<8;i++){
             lv_obj_t *b=quicksettings_test_button(i);lv_area_t area;lv_obj_get_coords(b,&area);
             if(height<0)height=lv_obj_get_height(b);assert(lv_obj_get_height(b)==height);
-            if(bottom>=0)assert(area.y1-bottom>=4);bottom=area.y2;
+            if(gap<0)gap=area.y1-bottom-1;
+            assert(area.y1-bottom-1==gap);assert(gap>=4);bottom=area.y2;
+            if(width<0)width=lv_obj_get_width(b);assert(lv_obj_get_width(b)==width);
             lv_obj_t *label=lv_obj_get_child(b,1);assert(label);
             const lv_font_t *font=lv_obj_get_style_text_font(label,0);lv_point_t size;
             lv_text_get_size(&size,lv_label_get_text(label),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
