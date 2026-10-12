@@ -101,7 +101,7 @@ the **arc at the bottom** shows the battery.
 Two styles (Disco Options > Quick Settings > Style):
 
 - **Arc** (the default): up to eight round buttons around the music disc.
-- **Current**: curved pill rows on the left.
+- **List**: rows on the left that curve and sit like the Library's.
 
 **Items** chooses and orders the buttons. The defaults are Wi-Fi, Bluetooth, Modes, Library, Equalizer, Search,
 Rescan and Settings; Queue, Up Next, Shortcuts, Weather, Lyrics, Song Info, Immersive, Folders and Favourites can
@@ -111,7 +111,7 @@ to use it. Hold Wi-Fi or Bluetooth for its settings; hold any other button to se
 <table>
 <tr>
 <td align="center" valign="top" width="33%"><img src="disco/quick.png" width="220" alt="Quick Settings, Arc"><br><sub>Arc</sub></td>
-<td align="center" valign="top" width="33%"><img src="disco/quick-current.png" width="220" alt="Quick Settings, Current"><br><sub>Current</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/quick-current.png" width="220" alt="Quick Settings, List"><br><sub>List</sub></td>
 <td align="center" valign="top" width="33%"><img src="disco/quick-light.png" width="220" alt="Quick Settings light"><br><sub>Light</sub></td>
 </tr>
 </table>
@@ -433,7 +433,7 @@ Display > Disco Options (only shown with the Disco theme):
 | Disco Menu | The sections of the navigation circle: reorder, add, remove. |
 | Music Screen | **Track Font** (Original, Inter Semibold or Nunito Bold; larger alternatives with international/CJK fallbacks), **Show Clock** (clock, status icons and weather; holding the clock does the same), **Track Times**, **Track Number** ("3. Northern Lights", from the tags), **Title Position** (Centred or Left), **Title Hold** (Immersive, Favourite or Nothing). |
 | Colours | **Rim Sheen** (the faint CD rainbow round Music and playlists), **Equalizer** and **Volume** (Disco rainbow or Accent), **Progress Bar** (Disco, Accent or Off). |
-| Quick Settings | **Style** (Arc or Current) and **Items** (choose and order up to eight buttons). |
+| Quick Settings | **Style** (Arc or List) and **Items** (choose and order up to eight buttons). |
 | Layout | **Progress Shape** (Linear under the title, or Arc round the rim), **Side** (Right or Left, then Apply: see [left-handed mode](#left-handed-mode)) and **Scroll**: Classic (rows follow the screen's edge), Straight (flat rows) or Disco (rows swing round the navigation circle like a CD, the times in one straight column). |
 | Immersive | The full-screen cover: Vinyl (grooves and a dark label) or CD (a clear hub, a still rainbow sheen and faint spokes). |
 

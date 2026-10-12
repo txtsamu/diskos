@@ -71,7 +71,7 @@ replaces only what you see and touch.
 
 - **Quicker track changes.** Covers, album colours and the equalizer load in the background, so the screen
   doesn't stall when you skip.
-- **Quick Settings your way.** Choose **Current** (curved rows) or the eight-button **Arc**, and pick and order the
+- **Quick Settings your way.** Choose **List** (curved rows, like the Library) or the eight-button **Arc**, and pick and order the
   buttons (Disco Options › Quick Settings).
 - **Safer touches.** A swipe that starts on a button no longer presses it, and buttons stay clear of the back-swipe edge.
 - **Navigation circle shortcuts.** Double-tap or hold the open circle for an action you choose (System › Controls).
@@ -79,7 +79,7 @@ replaces only what you see and touch.
 - **Disc Shelf**, a new optional app: browse your Navidrome server and download original files to the card.
 
 <table><tr>
-<td align="center" width="25%"><img src="docs/disco/quick-current.png" width="190" alt="Quick Settings list"><br><sub><b>Quick Settings</b>: Current</sub></td>
+<td align="center" width="25%"><img src="docs/disco/quick-current.png" width="190" alt="Quick Settings, List"><br><sub><b>Quick Settings</b>: List</sub></td>
 <td align="center" width="25%"><img src="docs/disco/battery.png" width="190" alt="Battery"><br><sub><b>Battery</b> gauge</sub></td>
 <td align="center" width="25%"><img src="docs/disco/song-info.png" width="190" alt="Song Info album back sleeve"><br><sub><b>Song Info</b>: the album back sleeve</sub></td>
 <td align="center" width="25%"><img src="docs/disco/left-nav.png" width="190" alt="Left-handed mode"><br><sub><b>Left-handed mode</b></sub></td>

@@ -340,7 +340,7 @@ static void apply_grp_discolayout(int v);
 static void apply_grp_discoqs(int v);
 static void apply_disco_qs(int v){(void)v;quicksettings_build();}
 static void apply_disco_qs_items(int v){(void)v;disco_qs_menu_open();}
-static const char *OPT_QS_STYLE[]={"Current","Arc"};
+static const char *OPT_QS_STYLE[]={"List","Arc"};
 static void apply_grp_power(int v);
 static void apply_grp_datetime(int v);
 static void apply_grp_library(int v);

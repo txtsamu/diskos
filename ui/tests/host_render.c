@@ -300,11 +300,12 @@ static void review_qs(void){
                 int dx=cx-180,dy=cy-180;assert(abs(dx*dx+dy*dy-122*122)<180);
             }
         }else{
-            assert(lv_obj_get_width(quicksettings_test_button(7))==lv_obj_get_width(quicksettings_test_button(4)));
+            /* List: rows sit like the Library's (left edge on the curve, at most 268 px wide) and stay clear of the disc */
             assert(lv_obj_get_style_text_align(lv_obj_get_child(quicksettings_test_button(2),1),0)==LV_TEXT_ALIGN_LEFT);
             for(int i=2;i<8;i++){
                 lv_area_t area;lv_obj_get_coords(quicksettings_test_button(i),&area);
-                assert(disco_mirror()?area.x2<292:area.x1>=68);
+                if(area.y2>=disc.y1+8 && area.y1<=disc.y2-8) assert(disco_mirror()?area.x1>disc.x2:area.x2<disc.x1);
+                assert(disco_mirror()?area.x2<=314:area.x1>=46);
             }
         }
         assert(find_text(quicksettings_test_button(0),"Off"));assert(find_text(quicksettings_test_button(1),"Off"));
@@ -330,7 +331,7 @@ static void review_qs(void){
     assert(find_text(quicksettings_test_button(5),qs_wifi?"On":"Off"));
     lv_obj_send_event(quicksettings_test_button(4),LV_EVENT_SHORT_CLICKED,NULL);assert(qs_bt_taps==1);
     assert_visible_icon_glyphs(screen_get_root(SCR_QUICK));
-    /* Current rows share height, keep a gap, and captions never wrap/clip.
+    /* List rows share height, keep a gap, and captions never wrap/clip.
      * Exercise every catalog entry at the narrow bottom of a full selection. */
     cfg_set_int("disco_qs_style",0);
     for(int last=2;last<quicksettings_item_count();last++){
@@ -343,7 +344,7 @@ static void review_qs(void){
             if(height<0)height=lv_obj_get_height(b);assert(lv_obj_get_height(b)==height);
             if(gap<0)gap=area.y1-bottom-1;
             assert(area.y1-bottom-1==gap);assert(gap>=4);bottom=area.y2;
-            if(width<0)width=lv_obj_get_width(b);assert(lv_obj_get_width(b)==width);
+            if(width<0)width=lv_obj_get_width(b);   /* List widths follow the curve; no longer uniform */
             lv_obj_t *label=lv_obj_get_child(b,1);assert(label);
             const lv_font_t *font=lv_obj_get_style_text_font(label,0);lv_point_t size;
             lv_text_get_size(&size,lv_label_get_text(label),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);

@@ -198,7 +198,7 @@ static void dq_paint(void){
                 set_col_if(g_dq_val[i],on?theme_on_color(acc):TC(TEXT_PRIMARY));
             }
         }
-        if(id==T_RESCAN)set_text_if(g_dq_name[i],"SCAN");
+        if(id==T_RESCAN)set_text_if(g_dq_name[i],on?"Scanning":"Rescan");
         if(id==T_MODE)set_text_if(g_dq_ico[i],mode_glyph());
     }
 }
@@ -209,13 +209,8 @@ static void dq_row_cb(lv_event_t *e){
         if(id==T_WIFI)wifi_open();else if(id==T_BT)bt_open();else ui_toast(CATALOG[id].name);
     }else if(lv_event_get_code(e)==LV_EVENT_SHORT_CLICKED){pick_cb(id);dq_paint();}
 }
-static const char *row_caption(int id){
-    static const char *names[Q_COUNT]={"WI-FI","BT","SONGS","SCAN","MODE","SET",
-        "EQ","FIND","QUEUE","NEXT","SHORT","WEATH","LYRICS","INFO","COVER","FILES","FAVS"};
-    return names[id];
-}
-static const lv_font_t *row_font(const char *text,int width,int height){
-    const lv_font_t *fonts[]={TF(QS_BOLD_22),TF(QS_BOLD_18),TF(QS_BOLD_16)};
+static const lv_font_t *row_font_list(const char *text,int width,int height){   /* the Library's row font, smaller only if needed */
+    const lv_font_t *fonts[]={TH_F_LIST,TF(UI_16),TF(UI_14)};
     for(int i=0;i<3;i++){
         lv_point_t size;lv_text_get_size(&size,text,fonts[i],0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
         if(size.x<=width && size.y<=height)return fonts[i];
@@ -252,21 +247,9 @@ static void controls_build(lv_obj_t *root){
     for(int i=0;i<g_nitems;i++)if(g_items[i]!=T_WIFI && g_items[i]!=T_BT)rows++;
     /* The first gap below the fixed radios equals every inter-row gap.
      * Use integer dimensions so no one-pixel remainder gets put into a gap. */
-    int row_h=rows?(240-4*rows)/rows:0;
-    if(row_h>50)row_h=50;
-    int row_gap=rows?(240-row_h*rows)/(rows==1?2:rows):0;
-    /* Uniform compact pills sized for the widest abbreviated action, including
-     * optional choices, with 8px trailing padding. Font measurement is build-only. */
-    const lv_font_t *list_font=row_font("SONGS",82,row_h-4);
-    int row_w=40;
-    if(rows){
-        const lv_font_t *font=list_font;
-        for(int id=2;id<Q_COUNT;id++){
-            lv_point_t size;lv_text_get_size(&size,row_caption(id),font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-            if(size.x+40>row_w)row_w=size.x+40;
-        }
-    }
-    if(row_w>122)row_w=122; /* protected outer edge; text fits beside the music disc */
+    /* List: rows stack from the top like a Library list (4 px apart), never taller than 44 px */
+    int row_gap=4,row_h=rows?(240-row_gap*rows)/rows:0;
+    if(row_h>44)row_h=44;
     for(int slot=0;slot<g_nitems;slot++){
         int id=g_items[slot],radio=id==T_WIFI || id==T_BT;
         int x,y,w,h;
@@ -274,25 +257,20 @@ static void controls_build(lv_obj_t *root){
         else{
             if(radio){h=38;y=42;x=id==T_WIFI?80:184;w=98;}
             else{h=row_h;y=80+row_gap+row_index*(row_h+row_gap);row_index++;
-                int dy=abs(y-180)>abs(y+h-180)?abs(y-180):abs(y+h-180);
-                x=180-(int)sqrtf((float)(176*176-dy*dy))+10;if(x<16)x=16;
-                /* Bow toward the free edge at the middle, with a 4px gutter
-                 * beyond Back's 64px strip. Mirror the whole path for Left. */
-                int cy=y+h/2-180;
-                int curve=(int)lroundf(0.65f*(150.0f-sqrtf((float)(150*150-cy*cy))));
-                int safe_left=68+curve;
-                if(x<safe_left)x=safe_left;
-                /* Follow both the round bezel and the rounded navigation field.
-                 * Lower rows continue the same curve instead of jumping to
-                 * the centre for the final item. */
-                int right=360-x;
-                if(y<270 && y+h>90){
+                /* List: rows sit and curve like the Library's (curvelist Classic): a row is at most 268 px wide,
+                 * centred, and narrows with the round screen; here its right end stops short of the music field. */
+                int dy=abs(y+h/2-180)+h/2;
+                int half=dy<176?(int)sqrtf((float)(180*180-dy*dy))-10:0;
+                if(half>134)half=134;
+                x=180-half;
+                int right=180+half;
+                if(y<270 && y+h>90){                                   /* beside the music field: clear of it */
                     int near=y>180?y:y+h<180?y+h:180;
                     int d=near-180;
                     int field_left=286-(int)sqrtf((float)(90*90-d*d));
-                    if(right>field_left-2)right=field_left-2;
-                }
-                w=right-x;if(w>row_w)w=row_w;
+                    if(right>field_left-6)right=field_left-6;
+                }else if(right>236)right=236;                          /* above / below it: clear of the sun and battery icons */
+                w=right-x;
                 }
             x=disco_mx(x,w);
         }
@@ -318,16 +296,16 @@ static void controls_build(lv_obj_t *root){
             lv_obj_set_style_radius(badge,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(badge,LV_OPA_COVER,0);lv_obj_clear_flag(badge,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
             g_dq_val[slot]=lv_label_create(badge);lv_obj_set_style_text_font(g_dq_val[slot],TF(UI_14),0);lv_obj_center(g_dq_val[slot]);
         }else{
-            lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,8,0);
-            g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],row_caption(id));
-            int text_w=w-40;
-            lv_obj_set_style_text_font(g_dq_name[slot],list_font,0);
+            lv_obj_align(g_dq_ico[slot],LV_ALIGN_LEFT_MID,16,0);
+            g_dq_name[slot]=lv_label_create(r);lv_label_set_text(g_dq_name[slot],CATALOG[id].name);
+            int text_w=w-58;
+            lv_obj_set_style_text_font(g_dq_name[slot],row_font_list(CATALOG[id].name,text_w,h-4),0);
             lv_obj_set_style_text_letter_space(g_dq_name[slot],0,0);
             lv_obj_set_style_text_color(g_dq_name[slot],TC(TEXT_PRIMARY),0);
             lv_label_set_long_mode(g_dq_name[slot],LV_LABEL_LONG_CLIP);
             lv_obj_set_width(g_dq_name[slot],text_w);
             lv_obj_set_style_text_align(g_dq_name[slot],LV_TEXT_ALIGN_LEFT,0);
-            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,34,0);
+            lv_obj_align(g_dq_name[slot],LV_ALIGN_LEFT_MID,50,0);
         }
     }
     dq_paint();

@@ -20,7 +20,7 @@ removed.
 
 **Open Quick Settings.** Pull down from the top edge; swipe up to close.
 
-**Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or Current (rows);
+**Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or List (rows);
 **Items** chooses and orders up to eight buttons.
 
 **Change what a double tap or hold on the open circle does.** Settings > System > Controls > Double tap / Hold.

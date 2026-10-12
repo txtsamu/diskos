@@ -137,7 +137,7 @@ See [UPDATING.md](UPDATING.md).
 larger targets, with simple pressed feedback instead of animations. Heavier Music fonts are optional and
 pre-rendered, so nothing is drawn at runtime.
 
-**Quick Settings, two ways.** *Current* keeps curved rows that bow toward the free edge; *Arc* places eight
+**Quick Settings, two ways.** *List* uses the same rows and curve as the Library, stopping short of the music disc; *Arc* places eight
 round buttons around the music disc. You choose and order the buttons. Wi-Fi and Bluetooth keep fixed places so
 your thumb learns them.
 
