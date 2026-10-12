@@ -1,13 +1,13 @@
 {
-  "version": "1.3.2-polish4",
+  "version": "1.3.2-polish5",
   "status": "development candidate; device testing pending",
-  "source_commit": "f45e88a3e081b3c81b50ee307d5ad2b5b8dc51ea",
-  "ui_source_sha256": "58a8ec732dfe3c9ba75dcb0f3c1e8ffb8674b11999c9009a8273f249a6260d56",
+  "source_commit": "4848be29ab989387f6f98ee44b6ce8ba7e02bde8",
+  "ui_source_sha256": "48c2d6914bcdf2d540825cb2fe50584e44e94025d9ed25a152bc31962c0628a2",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "ade55cf1c5b2cb9b5f178d71b06c3a5d62d6436e0bfbbf92aaa4f344bba2a3b9",
-    "md5": "99f246bf71e6f8770e45e6a8f99c5ace",
-    "bytes": 5177404
+    "sha256": "644c8ad1fa7886d81b0f14c2b5f6f53664bbf836dd259e8fd11740b26ab8b72f",
+    "md5": "9075bc11dd052a12c26770db020add9e",
+    "bytes": 5177844
   }
 }
