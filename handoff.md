@@ -1,7 +1,26 @@
-# diskOS Disco handoff - 1.4.1 (2026-10-12)
+# diskOS Disco handoff - 1.5.0 (2026-10-13)
 
-Baseline: 1.4.0 (tag v1.4.0, owner device-tested) + docs cleanup 2997e14. 1.4.1 = fixes for GitHub issues #1-#8
-(reporter ingvarr777) + UI polish, built with the GCC 11.2 MIPS toolchain. Release notes: docs/releases/v1.4.1.md.
+Baseline: 1.4.1 (tag v1.4.1). 1.5.0 = Boomshine built in + installed apps in the Disco Menu (owner's patch,
+reviewed) + app landing pages. SD update only (S97 unchanged). Release notes: docs/releases/v1.5.0.md.
+
+## 1.5.0 specifics
+
+- Boomshine 1.2.0 source in ui/boomshine (MIT; DejaVu glyphs in fonts.h). Compiled into mq_ui with
+  -DBOOMSHINE_BUILTIN -Dmain=boomshine_main and its own flags (kept out of the theme gates). main() dispatches
+  `--boomshine` (log /tmp/boomshine.log). app_run spawns /proc/self/exe --boomshine for exec "builtin:boomshine".
+  Scores: /usr/data/boomshine/scores.conf, copied once from /usr/data/apps/boomshine. Adds about 300 KB.
+- menu_apps.c (owner's patch): disco_mnu digits 0-9 -> cfg dm_app0..9 = md5(app dir name). Skips dirs without an
+  executable app, and album-roulette/boomshine (built-in entries). SEC[] gained "boomshine" (code B).
+- Landing page SCR_APPLAND (roulette.c: applanding_show / boomshine_landing). Menu entries for Boomshine and apps open
+  it (arrows too); only its button launches. app.conf: tagline=, about= (\n), button=. All apps/Shortcuts list
+  Boomshine first (id md5("boomshine")); app_launch routes it to the landing page like Album Roulette.
+- Disc Shelf app.conf gained landing text; install guide now always copies app.conf.
+- Not device-tested yet: Boomshine inside mq_ui (fb0/touch handover as for external apps), the 1.2.0 game itself.
+
+## 1.4.1 (previous)
+
+Baseline: 1.4.0 + docs cleanup 2997e14. 1.4.1 = fixes for GitHub issues #1-#8 (reporter ingvarr777) + UI polish,
+built with the GCC 11.2 MIPS toolchain. Release notes: docs/releases/v1.4.1.md.
 
 ## Working agreement
 
@@ -9,7 +28,7 @@ Owner tests on Snowsky Disc V2.57 (360x360, X2000 MIPS32r2 FP64 NaN2008). Native
 approval, then a compiled mq_ui and a Git bundle. Owner pushes main/dev and tags. SSH root@192.168.178.63, no adb/scp.
 Install UI by signed SD update; keep fail-closed launch verification and rollback.
 
-## 1.4.1 specifics
+### 1.4.1 specifics
 
 - **Needs a reflash**: payload/S97diskos_install changed (#7: first update after a fresh flash, boot-count write
   failure rolls back, transient verify failures keep builds (ota_bundle_ok returns 2), log cap, stale mq_ui.rejected

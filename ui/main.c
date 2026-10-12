@@ -1507,8 +1507,7 @@ void app_launch(const char *exec){
         return;
     }
     if(!strcmp(exec, APP_BUILTIN_BOOMSHINE)){
-        applanding_show("Boomshine", "One tap. Chain reaction.",
-                        "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
+        boomshine_landing();
         return;
     }
     app_launch_direct(exec);

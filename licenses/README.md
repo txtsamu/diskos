@@ -55,5 +55,6 @@ contributors`. See [`../LICENSE`](../LICENSE). The **diskOS UI source** (`ui/`, 
 `payload/mq_ui`) is licensed **GPL-3.0-or-later** (`GPL-3.0.txt`, `../ui/COPYING`; (c) diskOS
 contributors) - deliberately separate from the MIT tooling so UI forks stay open. Its embedded
 third-party notices - LVGL (MIT), SQLite (public domain), JSMN (MIT), md5 (public domain), and
-Montserrat / Source Han Sans / Font Awesome / IBM Plex Mono / Doto and the theme fonts (Inter, DSEG7 Classic, JetBrains Mono, Space Grotesk, IBM Plex Sans, Nunito, Courier Prime, Rubik Glitch) (OFL-1.1) - ship in this directory and in
+Montserrat / Source Han Sans / Font Awesome / IBM Plex Mono / Doto and the theme fonts (Inter, DSEG7 Classic, JetBrains Mono, Space Grotesk, IBM Plex Sans, Nunito, Courier Prime, Rubik Glitch) (OFL-1.1), and the built-in Boomshine game (MIT, `MIT-Boomshine.txt`) with its
+DejaVu Sans glyphs (`LICENSE-DejaVu.txt`) - ship in this directory and in
 `../ui/licenses/`.

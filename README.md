@@ -67,42 +67,39 @@ replaces only what you see and touch.
 </tr>
 </table>
 
-## New in 1.4.1
+## New in 1.5.0
 
-> [!IMPORTANT]
-> **1.4.1 needs a reflash.** Its update-safety fixes are in the boot script, which only the installer can
-> replace. Flash once with your existing `--ota-key` ([Install](#install)); your music, settings and keys stay.
+- **Boomshine, built in.** A chain-reaction game for the round screen: tap once, set off a blast, catch the dots.
+  Twenty levels, two looks (NeoN and Pop!), and your music keeps playing. Nothing to install.
+  [How to play](docs/DISCO_TOUR.md#boomshine).
+- **Any app in the navigation circle.** Add installed apps like Disc Shelf to the Disco Menu next to the built-in
+  sections. Each gets a **landing page** with one button, so browsing the circle never launches anything by
+  accident. [Apps in the menu](docs/DISCO_TOUR.md#apps-in-the-menu).
+- **Disc Shelf guide, expanded:** what you need, each setting, troubleshooting. [Install it](docs/DISC_SHELF_INSTALL.md).
 
-- **Security fix for MA Sendspin.** A malformed message from another device on your network could overflow memory
-  in the Sendspin helper. Update, or keep MA Sendspin off until you do.
-- **SD updates you can keep.** Every update after the first one used to roll back by itself; fixed, along with
-  several rarer update and rollback problems.
-- **Steadier.** No more multi-second freezes during library scans or when playback starts; pop-ups close when you
-  swipe back.
-- **Better tags.** Opus/Ogg and FLAC files with large covers show their real title and artist (rescan once);
-  Tags no longer reuses one cover across albums or rewrites lyrics on every play.
-- **Safer file actions.** Rename and move keep favourites, play counts and bookmarks.
-- **Polish.** Quick Settings **List** curves like the Library, a wider Music screen, larger Library text,
-  and Volume, Screen off, Play/Pause and Next track for the navigation circle's Double tap and Hold.
-
-Thanks to **[ingvarr777](https://github.com/ingvarr777)** for the detailed reports behind most of these fixes.
+An SD update from 1.4.1. Coming from 1.4.0 or older? Reflash once first, as for 1.4.1 (its update fixes are in the
+boot script). 1.4.1 brought a Sendspin security fix, SD updates you can keep, steadier scans and better tags,
+thanks to **[ingvarr777](https://github.com/ingvarr777)**'s reports.
 
 <table><tr>
-<td align="center" width="25%"><img src="docs/disco/quick-current.png" width="190" alt="Quick Settings, List"><br><sub><b>Quick Settings</b>: List</sub></td>
-<td align="center" width="25%"><img src="docs/disco/music.png" width="190" alt="Wider Music screen"><br><sub><b>Music</b>: wider title and progress</sub></td>
-<td align="center" width="25%"><img src="docs/disco/library.png" width="190" alt="Library"><br><sub><b>Library</b>: larger text</sub></td>
-<td align="center" width="25%"><img src="docs/disco/battery.png" width="190" alt="Battery"><br><sub><b>Battery</b> gauge (1.4.0)</sub></td>
+<td align="center" width="25%"><img src="docs/disco/boomshine-neon.png" width="190" alt="Boomshine, NeoN"><br><sub><b>Boomshine</b>: NeoN</sub></td>
+<td align="center" width="25%"><img src="docs/disco/boomshine-pop.png" width="190" alt="Boomshine, Pop!"><br><sub><b>Boomshine</b>: Pop!</sub></td>
+<td align="center" width="25%"><img src="docs/disco/menu-boomshine.png" width="190" alt="Boomshine in the navigation circle"><br><sub><b>In the circle</b></sub></td>
+<td align="center" width="25%"><img src="docs/disco/disc-shelf-launch.png" width="190" alt="Disc Shelf landing page"><br><sub><b>Landing page</b> for any app</sub></td>
 </tr></table>
 
-All the details: [1.4.1 release notes](docs/releases/v1.4.1.md) · [1.4.0](docs/releases/v1.4.0.md) · [changelog](CHANGELOG.md).
+All the details: [1.5.0 release notes](docs/releases/v1.5.0.md) · [1.4.1](docs/releases/v1.4.1.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
+- **Boomshine.** A built-in chain-reaction game: one tap, one blast, as many dots as you can catch.
+  [How to play](docs/DISCO_TOUR.md#boomshine).
 - **Album Roulette.** Too much music, nothing to play? Spin your collection: covers fly past, slow down and
   land on an album. Tap **Play!** to listen, long-press to spin again. A separate app in the release package:
   [install it](docs/ALBUM_ROULETTE_INSTALL.md), [how it works](docs/DISCO_TOUR.md#album-roulette).
 - **Disc Shelf.** Browse your Navidrome server's artists and download original files to the card. Also a separate
-  app: [install it](docs/DISC_SHELF_INSTALL.md).
+  app: [install it](docs/DISC_SHELF_INSTALL.md), [what it does](docs/DISCO_TOUR.md#disc-shelf).
+- **Your apps in the menu.** Any installed app can sit in the navigation circle, with its own landing page.
 - **Music is home.** Big title and artist (centred or from the left), the play mode one tap away, transport on an
   arc. Progress as a rainbow **line** under the title or an **arc** around the rim. Drag either to seek.
 - **Tap the title** for Favourite, Album, Artist, Queue, Lyrics and Info. **Hold it** to go straight to the
@@ -182,7 +179,7 @@ Download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco
 your keys:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.4.1      # -> ./diskos-update/ (the label is free text)
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.5.0      # -> ./diskos-update/ (the label is free text)
 ```
 
 Reuse the signing keys whose root public key was installed on this Disc. Copy the complete

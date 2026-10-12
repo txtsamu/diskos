@@ -108,7 +108,8 @@ void applanding_create(lv_obj_t *root){
     g_land_tag = text(root, "", 215, 260, TF(UI_16), TC(ACCENT_PRIMARY));
     lv_label_set_long_mode(g_land_tag, LV_LABEL_LONG_DOT);
     g_land_about = text(root, "", 243, 258, TF(UI_16), TC(TEXT_SECONDARY));
-    lv_label_set_long_mode(g_land_about, LV_LABEL_LONG_WRAP);   /* two lines fit above the button */
+    lv_label_set_long_mode(g_land_about, LV_LABEL_LONG_DOT);    /* at most two lines: they fit above the button */
+    lv_obj_set_height(g_land_about, 2 * lv_font_get_line_height(TF(UI_16)) + lv_obj_get_style_text_line_space(g_land_about, 0));
     lv_obj_t *button = lv_button_create(root); lv_obj_remove_style_all(button);
     lv_obj_set_size(button, 174, 42); lv_obj_align(button, LV_ALIGN_TOP_MID, 0, 296);
     lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
@@ -129,4 +130,8 @@ void applanding_show(const char *name, const char *tagline, const char *about, c
     lv_label_set_text(g_land_btn_l, button && button[0] ? button : "Launch");
     lv_obj_center(g_land_btn_l);
     screen_show(SCR_APPLAND);
+}
+void boomshine_landing(void){
+    applanding_show("Boomshine", "One tap. A chain reaction.",
+                    "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
 }

@@ -82,10 +82,9 @@ static void roulette_icon(lv_obj_t *label, const char *icon, int size){
         }
     }
 }
-/* Boomshine is built into mq_ui: the menu starts it like an installed app (it owns the screen until you Exit) */
+/* Boomshine is built into mq_ui: the menu opens its landing page; Play starts it (it owns the screen until you Exit) */
 static void open_boomshine(void){
-    applanding_show("Boomshine", "One tap. Chain reaction.",
-                    "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
+    boomshine_landing();
 }
 static const dsec_t SEC[] = {
     { "music",     "Music",     LV_SYMBOL_AUDIO,     SCR_HOME,      NULL,              1 },

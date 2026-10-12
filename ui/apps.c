@@ -34,11 +34,16 @@ static int g_napps;
 
 static void scan_apps(void){
     g_napps = 0;
+    {   /* Boomshine is built in: always listed, under the id an installed copy used, so old shortcuts keep working */
+        app_t *a = &g_apps[g_napps++];
+        md5_hex("boomshine", 9, a->id);
+        snprintf(a->name, sizeof a->name, "Boomshine"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_BOOMSHINE);
+    }
     DIR *d = opendir(APPS_DIR);
     if(!d) return;
     struct dirent *de;
     while((de = readdir(d)) && g_napps < MAX_APPS){
-        if(de->d_name[0] == '.') continue;
+        if(de->d_name[0] == '.' || !strcmp(de->d_name, "boomshine")) continue;   /* an old separate install: the built-in one wins */
         app_t *a = &g_apps[g_napps];
         /* Stable identity is the installation directory, never the display name.
          * A compact digest also fits the 47-byte configuration value limit. */

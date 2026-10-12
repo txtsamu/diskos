@@ -215,6 +215,7 @@ void app_launch_direct(const char *exec); /* landing-page confirmation only */
 /* App landing page (roulette.c): Boomshine's, or one made from an installed app's app.conf */
 void applanding_create(lv_obj_t *root);
 void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec);
+void boomshine_landing(void);
 #define APP_BUILTIN_BOOMSHINE "builtin:boomshine"   /* app_launch() target for the game built into mq_ui */
 /* settings (master list + drill-in detail) */
 void settings_create(lv_obj_t *root);      /* SCR_SETTINGS: the category list (Playback/Audio/...) */

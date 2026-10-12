@@ -148,6 +148,8 @@ rebuild and relink `usbboot` against a modified libusb using the included source
   | **Courier Prime** (converted as `diskos_zine`) | SIL OFL 1.1 | `licenses/OFL-1.1-CourierPrime.txt` |
   | **Rubik Glitch** (converted as `diskos_zine_glitch`) | SIL OFL 1.1 | `licenses/OFL-1.1-RubikGlitch.txt` |
   | **Font Awesome Free** glyphs (via LVGL `LV_SYMBOL_*`) | OFL 1.1 (fonts) + CC-BY 4.0 (icons) | `licenses/OFL-1.1-FontAwesome.txt`, `licenses/CC-BY-4.0.txt` |
+  | **Boomshine** game (built in since 1.5.0, `ui/boomshine/`) | MIT | `licenses/MIT-Boomshine.txt`, `ui/boomshine/NOTICE.md` |
+  | **DejaVu Sans** glyphs (Boomshine's text) | Bitstream Vera / DejaVu licence | `licenses/LICENSE-DejaVu.txt` |
 
 ## NOT distributed by this installer
 

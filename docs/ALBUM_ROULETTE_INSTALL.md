@@ -1,4 +1,4 @@
-# Install Disco 1.2.2 and Album Roulette
+# Install Album Roulette
 
 The release includes two separate executables: `mq_ui` (the firmware UI) and
 `apps/album-roulette/app` (Album Roulette 1.3.1 with the memory fix). Roulette is
@@ -8,11 +8,13 @@ The menu entry, shortcuts and themed landing page remain in the firmware.
 ## Install or update the app
 
 Close Album Roulette. Extract the complete release ZIP and open a terminal in
-the extracted folder. Run these commands from that folder (or the repo root):
+the extracted folder. Turn on **Settings > System > Maintenance > Debug Mode** on the Disc and use the address it
+shows. Run these commands from that folder (or the repo root):
 
 ```sh
-ssh root@192.168.178.63 'mkdir -p /usr/data/apps/album-roulette && cat > /usr/data/apps/album-roulette/.app-new && chmod 755 /usr/data/apps/album-roulette/.app-new && mv -f /usr/data/apps/album-roulette/.app-new /usr/data/apps/album-roulette/app' < apps/album-roulette/app
-ssh root@192.168.178.63 'if [ ! -f /usr/data/apps/album-roulette/app.conf ]; then printf "name=Album Roulette\nexec=/usr/data/apps/album-roulette/app\n" > /usr/data/apps/album-roulette/app.conf; fi'
+DISKOS_IP=192.168.1.50   # the address shown in Debug Mode
+ssh "root@$DISKOS_IP" 'mkdir -p /usr/data/apps/album-roulette && cat > /usr/data/apps/album-roulette/.app-new && chmod 755 /usr/data/apps/album-roulette/.app-new && mv -f /usr/data/apps/album-roulette/.app-new /usr/data/apps/album-roulette/app' < apps/album-roulette/app
+ssh "root@$DISKOS_IP" 'if [ ! -f /usr/data/apps/album-roulette/app.conf ]; then printf "name=Album Roulette\nexec=/usr/data/apps/album-roulette/app\n" > /usr/data/apps/album-roulette/app.conf; fi'
 ```
 
 The executable is replaced only after transfer finishes. Existing configuration

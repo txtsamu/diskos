@@ -16,6 +16,7 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).
 - **Listening:** [Music](#music), [The title menu](#the-title-menu), [Queue and Up Next](#queue-and-up-next), [Equalizer](#equalizer), [Working mode](#working-mode), [MA Sendspin](#ma-sendspin-experimental), [Album Roulette](#album-roulette).
+- **Play:** [Boomshine](#boomshine), [Apps in the menu](#apps-in-the-menu).
 - **Your library:** [Library](#library), [Hold menus](#hold-menus), [Search](#search), [Shortcuts](#shortcuts).
 - **Make it yours:** [Settings](#settings), [Disco Options](#disco-options), [Themes](#themes).
 - **More:** [Weather](#weather), [Battery](#battery), [Updates and safety](#updates-and-safety), [Limits](#limits).
@@ -41,8 +42,9 @@ edge of the screen (on the left in [left-handed mode](#left-handed-mode)).
 - **Close it** with a tap anywhere outside it, or on the small › at its right end.
 
 The sections are yours to choose under [Disco Options](#disco-options) > Disco Menu: Music, Library, Artists,
-Songs, Albums, Search, Queue, Up Next, Folders, Books, Settings, Working mode, Shortcuts, EQ and Weather.
-Music and Settings can be moved but never removed, so you can't lock yourself out.
+Songs, Albums, Search, Queue, Up Next, Folders, Books, Settings, Working mode, Shortcuts, EQ, Weather, Sendspin,
+Album Roulette, [Boomshine](#boomshine) and [any app installed on the Disc](#apps-in-the-menu). The circle holds
+up to ten. Music and Settings can be moved but never removed, so you can't lock yourself out.
 
 ### Left-handed mode
 
@@ -383,7 +385,7 @@ straight to its results.
 
 Swipe left on Music (or pick Shortcuts in the navigation circle) for five shortcuts of your choice. Choose them
 under Display > Online & Extras > Shortcuts from: Weather, Immersive, Equalizer, Folders, Lyrics, Queue, Audiobooks, Search,
-Battery, Song Info, Last.fm, All apps, and any app installed on the Disc (such as Disc Shelf or Album Roulette).
+Battery, Song Info, Last.fm, All apps, Boomshine, and any app installed on the Disc (such as Disc Shelf or Album Roulette).
 **All apps** lists the apps five at a time; tap its title for the next page.
 
 <table>
@@ -560,6 +562,62 @@ half an hour on battery. Without a set clock the figures show "-".
 - Bluetooth output, Last.fm and AirPlay are still experimental.
 - This is a hobby project, provided as-is, for testing. Not affiliated with FiiO or Snowsky.
 
+## Boomshine
+
+**One tap, one chain reaction.** Dots drift around the round screen. Tap once to set off a blast: every dot it
+catches bursts too, and so on down the chain. Catch enough dots to clear the level; twenty levels, each one
+busier than the last. Built in since 1.5.0, so there is nothing to install.
+
+1. Add **Boomshine** to the menu (Disco Options > Disco Menu), or open it from All apps or a Shortcut.
+2. Its landing page shows the game's name and a **Play** button. Moving past it in the navigation circle only
+   shows this page; the game starts when you tap **Play**.
+3. Pick a look: **NeoN** (bright rings on black) or **Pop!** (soft pastels on deep blue). Same levels, same score.
+4. Tap anywhere to fire your one shot. The top shows caught / needed, the bottom the level.
+5. Hold a still finger for about a second to return to the game's start page; **Exit** there takes you back to
+   Disco. Your music keeps playing (the game is silent), and your best score and level are saved.
+
+If the game ever stops responding, hold **Volume Up** for 3 seconds to close it.
+
+<table>
+<tr>
+<td align="center" valign="top" width="25%"><img src="disco/boomshine-landing.png" width="200" alt="Boomshine landing page"><br><sub>Landing page</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/boomshine-home.png" width="200" alt="Boomshine start"><br><sub>NeoN or Pop!</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/boomshine-neon.png" width="200" alt="Boomshine NeoN"><br><sub>NeoN</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/boomshine-pop.png" width="200" alt="Boomshine Pop!"><br><sub>Pop!</sub></td>
+</tr>
+</table>
+
+## Apps in the menu
+
+Since 1.5.0, **every app installed on the Disc** can sit in the navigation circle next to the built-in sections.
+
+- **Add one:** Disco Options > Disco Menu lists installed apps after the built-in entries. Add, reorder or remove
+  them like any section. They keep their place even when you install more apps later; if you remove an app, its
+  entry quietly disappears.
+- **Open one:** choosing an app in the circle shows its **landing page**: a picture, the name, a short line and
+  one button. Nothing starts until you tap that button, so browsing through the circle never launches anything.
+- **Leave one:** use the app's own Exit; you come back to Disco. Holding **Volume Up** for 3 seconds closes an app
+  that stopped responding.
+
+Apps that don't describe themselves get a plain page: their first letter, "Installed app" and **Launch**. App
+makers can set the rest in the app's `app.conf` (next to `name=` and `exec=`):
+
+```ini
+tagline=Your Navidrome, on the card.
+about=Browse your server and save\noriginal files to the card.
+button=Open Disc Shelf
+```
+
+`about` shows up to two lines; `\n` starts the second. Album Roulette keeps its own vinyl page.
+
+<table>
+<tr>
+<td align="center" valign="top" width="33%"><img src="disco/menu-boomshine.png" width="220" alt="Boomshine in the navigation circle"><br><sub>In the circle</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/disc-shelf-launch.png" width="220" alt="Disc Shelf landing page"><br><sub>An app that describes itself</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/app-launch.png" width="220" alt="Default app landing page"><br><sub>The default page</sub></td>
+</tr>
+</table>
+
 ## Album Roulette
 
 **A little record-shop serendipity, using the music you already own.** Album Roulette picks an album from your
@@ -598,9 +656,31 @@ and app shortcuts open the same landing page. **I feel lucky!** starts the app, 
 
 ## Disc Shelf
 
-A separate app for your [Navidrome](https://www.navidrome.org/) server: browse its artists and download the
-original files straight to the card. Set your server and login in `shelf.conf` on the Disc, then open it from
-All apps or add it to Shortcuts. [Install and configure it](DISC_SHELF_INSTALL.md). Like Album Roulette, it is not
-installed or changed by SD updates of the interface.
+**Your [Navidrome](https://www.navidrome.org/) server, one tap from the card.** Disc Shelf is a separate app that
+browses your server's artists and albums and downloads the **original files** (no transcoding) straight to the
+SD card, so they play offline like the rest of your library.
 
-<img src="disco/disc-shelf.png" width="240" alt="Disc Shelf">
+- **Browse:** Browse collection opens your artists. The A-Z picker jumps to a letter (numbers and symbols
+  included); an artist shows all of their albums in one list.
+- **Pick:** tap the round selectors next to artists or albums, then **Download**. A lime outline means some of
+  that music is already on the card (not necessarily all of it).
+- **Download:** files already on the card are skipped, nothing is overwritten, and you can cancel at any time.
+  The copy page shows progress and what it is doing.
+- **Afterwards:** rescan (Settings > System > Library > Rescan, or the Quick Settings button) so the new music shows up.
+- **Getting around:** Back goes up one level; Exit is on Disc Shelf's own start page. It follows your theme and
+  light or dark appearance.
+
+**Setting it up** takes one small text file, `shelf.conf`, with your server address, username, password and the
+card folder to download into. The [install guide](DISC_SHELF_INSTALL.md) walks through it. Add Disc Shelf to the
+navigation circle (Disco Options > Disco Menu), to Shortcuts, or open it from All apps. Like Album Roulette, it is
+installed separately: SD updates of the interface don't install or change it.
+
+**Good to know:** your password is stored as plain text on the Disc (readable only by the system), so use a
+Navidrome account meant for this. Disc Shelf needs Wi-Fi and a server the Disc can reach.
+
+<table>
+<tr>
+<td align="center" valign="top" width="33%"><img src="disco/disc-shelf-launch.png" width="220" alt="Disc Shelf in the menu"><br><sub>From the menu</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/disc-shelf.png" width="220" alt="Disc Shelf"><br><sub>Disc Shelf's start page</sub></td>
+</tr>
+</table>

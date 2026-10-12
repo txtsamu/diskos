@@ -15,8 +15,10 @@
 
 ## Optional apps
 
-- [Disc Shelf](DISC_SHELF_INSTALL.md) - Navidrome browser and original-file downloader.
+- [Disc Shelf](DISC_SHELF_INSTALL.md) - Navidrome browser and original-file downloader ([what it does](DISCO_TOUR.md#disc-shelf)).
 - [Album Roulette](ALBUM_ROULETTE_INSTALL.md) - spin your collection for an album to play.
+- [Boomshine](DISCO_TOUR.md#boomshine) - a chain-reaction game, built in since 1.5.0 (nothing to install).
+- [Apps in the menu](DISCO_TOUR.md#apps-in-the-menu) - put any installed app in the navigation circle, and give it a landing page.
 
 ## Develop
 

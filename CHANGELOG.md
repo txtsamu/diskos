@@ -6,6 +6,19 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [1.5.0] - 2026-10-13
+
+SD update from 1.4.1 (no reflash).
+
+- Added: Boomshine 1.2.0, a chain-reaction game, built into `mq_ui` (`--boomshine`, launched like MA Sendspin's helper).
+  In the Disco Menu, All apps and Shortcuts; scores in /usr/data/boomshine (copied once from the old app folder).
+- Added: installed apps in the Disco Menu (`disco_mnu` digits mapped to app folders via `dm_app0..9`), stable across
+  installs and removals. Folders without an executable `app`, and old `album-roulette`/`boomshine` folders, are skipped.
+- Added: app landing page for Boomshine and installed apps; `app.conf` may set `tagline=`, `about=` (`\n` for a second
+  line) and `button=`. Choosing an app in the circle shows its page; only its button launches.
+- Disc Shelf: `app.conf` with landing text (always refreshed on install); install guide rewritten with more detail.
+- Docs: Boomshine and Apps in the menu in the tour; install guides use the address from Debug Mode.
+
 ## [1.4.1] - 2026-10-12
 
 **Needs a reflash** (boot-script fixes). Bug reports by [ingvarr777](https://github.com/ingvarr777), issues #1-#8: thank you.

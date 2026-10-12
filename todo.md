@@ -7,6 +7,12 @@ Shelved proposals and their restart notes: `todo-ideas.md` (Windows installer).
 The owner authorized this batch before uploading dev. First-use hints are
 implemented in candidate 1.3.2-polish2; device acceptance remains pending.
 
+## 1.5.0 (2026-10-13)
+
+- [x] Boomshine built in; installed apps in the Disco Menu; app landing pages; Disc Shelf docs.
+- [ ] Owner: SD update, play Boomshine (both modes, Exit, Vol-Up escape), add Disc Shelf to the menu, check scores carry over.
+- [ ] Owner pushes main + dev + tag v1.5.0.
+
 ## 1.4.1 (2026-10-12)
 
 - [x] Issues #1-#8 fixed (see handoff.md), contributor thanked in README, release notes, changelog, website.
