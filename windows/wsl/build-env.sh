@@ -55,5 +55,6 @@ tar --numeric-owner -C "$R" -cpf - . | gzip -9 > "$OUT/diskos-wsl.tar.gz"
 # Also in parts of 25 MB for places with an upload limit; the app joins diskos-wsl.tar.gz.001, .002, ... itself.
 rm -f "$OUT"/diskos-wsl.tar.gz.0*
 split -b 25M -d -a 3 --numeric-suffixes=1 "$OUT/diskos-wsl.tar.gz" "$OUT/diskos-wsl.tar.gz."
+(cd "$OUT" && sha256sum diskos-wsl.tar.gz > diskos-wsl.tar.gz.sha256)
 rm -rf "$R"
 ls -l "$OUT/diskos-wsl.tar.gz"; sha256sum "$OUT/diskos-wsl.tar.gz"

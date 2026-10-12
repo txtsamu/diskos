@@ -47,6 +47,16 @@ namespace DiskosDisco
                     if (!File.Exists(p)) break;
                     using (var inp = File.OpenRead(p)) inp.CopyTo(outp);
                 }
+            // All parts present? The .sha256 file that comes with them says what the whole should be.
+            string sumFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Package + ".sha256");
+            if (File.Exists(sumFile))
+            {
+                string want = File.ReadAllText(sumFile).Trim().Split(' ')[0].ToLowerInvariant(), got;
+                using (var sha = System.Security.Cryptography.SHA256.Create())
+                using (var f = File.OpenRead(part))
+                    got = BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant();
+                if (got != want) { File.Delete(part); return null; }
+            }
             if (File.Exists(joined)) File.Delete(joined);
             File.Move(part, joined);
             return joined;

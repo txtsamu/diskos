@@ -144,7 +144,7 @@ namespace DiskosDisco
                     else
                     {
                         status.Text = "✖  Package missing"; status.ForeColor = MainForm.Bad;
-                        detail.Text = "Put " + Env.Package + " in the same folder as this app (it comes in the same ZIP), then come back to this page.";
+                        detail.Text = "Put " + Env.Package + " (or all of its parts: .001, .002, ...) in the same folder as this app, then click Back and Next to look again.";
                     }
                 }));
             }) { IsBackground = true }.Start();
