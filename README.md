@@ -74,7 +74,7 @@ replaces only what you see and touch.
 - **Quick Settings your way.** Choose **List** (curved rows, like the Library) or the eight-button **Arc**, and pick and order the
   buttons (Disco Options › Quick Settings).
 - **Safer touches.** A swipe that starts on a button no longer presses it, and buttons stay clear of the back-swipe edge.
-- **Navigation circle shortcuts.** Double-tap or hold the open circle for an action you choose (System › Controls).
+- **Navigation circle shortcuts.** Double-tap or hold the open circle for an action you choose (Disco Options › Layout).
 - **First-use hints** for new users (System › Help), and a new **Battery** gauge.
 - **Disc Shelf**, a new optional app: browse your Navidrome server and download original files to the card.
 

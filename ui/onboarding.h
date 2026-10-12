@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef ONBOARDING_H
 #define ONBOARDING_H
-enum { HINT_MENU, HINT_NAV, HINT_LIBRARY, HINT_MUSIC, HINT_COUNT };
+enum { HINT_MENU, HINT_NAV, HINT_LIBRARY, HINT_MUSIC, HINT_SHORTCUTS, HINT_COUNT };
 void onboarding_start(void);
 void onboarding_screen(int screen, int nav_open);
 void onboarding_library(int actionable);

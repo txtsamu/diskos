@@ -5,9 +5,9 @@
 #include "theme.h"
 #include "config.h"
 
-static const char *keys[HINT_COUNT] = {"hint_menu", "hint_nav", "hint_library", "hint_music"};
-static const int limits[HINT_COUNT] = {2, 2, 1, 1};
-static const char *text[HINT_COUNT] = {NULL, "Arrows: sections\nTap icon: open", "Hold a song or album\nfor actions", "Tap title for more"};
+static const char *keys[HINT_COUNT] = {"hint_menu", "hint_nav", "hint_library", "hint_music", "hint_shortcuts"};
+static const int limits[HINT_COUNT] = {2, 2, 1, 1, 1};
+static const char *text[HINT_COUNT] = {NULL, "Arrows: sections\nTap icon: open", "Hold a song or album\nfor actions", "Tap title for more", NULL};
 static lv_obj_t *pill;
 static lv_timer_t *offer_timer, *hide_timer, *startup_timer;
 static unsigned shown;
@@ -41,6 +41,7 @@ static void offer(lv_timer_t *t){
         else if(current==SCR_HOME && eligible(HINT_MUSIC)){
             track_state_t st;ipc_get_state(&st);if(st.have_track)id=HINT_MUSIC;
         }
+        else if(current==SCR_HOME && eligible(HINT_SHORTCUTS))id=HINT_SHORTCUTS;   /* after the title tip has been used */
     }
     if(id<0)return;
     pill=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(pill);
@@ -53,6 +54,7 @@ static void offer(lv_timer_t *t){
     const char *message=text[id];
     if(id==HINT_MENU){w=158;h=42;y=159;x=disco_mirror()?54:148;message=disco_mirror()?LV_SYMBOL_LEFT " Tap for menu":"Tap for menu " LV_SYMBOL_RIGHT;}
     if(id==HINT_MUSIC){y=110;x=92;w=176;h=24;}
+    if(id==HINT_SHORTCUTS){y=110;x=82;w=196;h=24;message=disco_mirror()?"Swipe right for shortcuts":"Swipe left for shortcuts";}
     if(id==HINT_MENU){lv_obj_add_flag(pill,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(pill,menu_hint_cb,LV_EVENT_CLICKED,NULL);}
     lv_obj_set_pos(pill,x,y);lv_obj_set_size(pill,w,h);
     lv_obj_t *label=lv_label_create(pill);lv_label_set_text(label,message);

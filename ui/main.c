@@ -3291,6 +3291,7 @@ int main(int argc, char **argv){
                         }
                     } else if(cur==SCR_HOME && horiz && SIDE_DX(dx)<0 && adx>=g_swipe_thresh && dt<700 && !seek_touch){
                         apps_reload();
+                        onboarding_discovered(HINT_SHORTCUTS);
                         screen_show(SCR_APPS);    /* slide in the Apps panel */
                     } else if(cur==SCR_ALBUMWALL && s_press_scr==SCR_ALBUMWALL){
                         /* gated on s_press_scr so the very tap that OPENED the cover flow (a click on the

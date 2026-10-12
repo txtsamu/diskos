@@ -247,7 +247,7 @@ Send audio to the digital SPDIF output instead of the internal DAC. Playback pau
 Screen backlight level. While Outdoor Mode is on the screen stays at full brightness.										
 Colour theme for the whole interface. Each has dark and light screens (see Appearance).										
 Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.										
-Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen redraws in a moment.										
+Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen restarts; your music keeps playing.										
 Turn the picture and touch clockwise: Normal, 90, 180 or 270 degrees. Stored by the player, as in the stock menu.										
 Light screens at full brightness, easier to read in sunlight. Uses more battery. Turning it off returns your own brightness.										
 Show each song's track number in album lists.										

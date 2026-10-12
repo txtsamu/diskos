@@ -96,8 +96,9 @@ static void transport_cb(lv_event_t *e){
 static void disco_progress_arc_create(lv_obj_t *root);
 static void pa_set(int f);
 /* ---- the progress underline: a rainbow (the CD's sheen) that fills from left to right; drag or tap it to seek ---- */
-#define UL_W 240
-#define UL_X ((360 - UL_W) / 2)
+/* 1.4.1: wider now that a swipe can't press - from near the free edge to just short of the closed shard */
+#define UL_W 276
+#define UL_X (disco_mirror() ? 360 - 34 - UL_W : 34)
 #define UL_Y 214
 static lv_obj_t *g_ul_fill, *g_ul_knob, *g_ul_tr, *g_ul_hit, *g_ul_solid;
 static int g_frac = -1, g_scrub;
@@ -530,11 +531,11 @@ void dhome_create(lv_obj_t *root){
     if(!cfg_get_int("disco_clock", 1)) lv_obj_add_flag(g_pill, LV_OBJ_FLAG_HIDDEN);
     /* title + artist across the wide middle; a tap opens the track overlay */
     g_trk = lv_obj_create(root); lv_obj_remove_style_all(g_trk);
-    lv_obj_set_pos(g_trk, 30, 136); lv_obj_set_size(g_trk, 300, 66);
+    lv_obj_set_pos(g_trk, disco_mirror() ? 42 : 18, 136); lv_obj_set_size(g_trk, 300, 66);   /* clear of the shard, wider on the free side */
     lv_obj_add_flag(g_trk, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(g_trk, title_cb, LV_EVENT_ALL, NULL);
-    g_title = dl_make(g_trk, &L_TITLE, ui_np_font(28), 272, 40, LV_ALIGN_TOP_MID, 0, 0, 0);
+    g_title = dl_make(g_trk, &L_TITLE, ui_np_font(28), 296, 40, LV_ALIGN_TOP_MID, 0, 0, 0);
     dl_text(&L_TITLE, "Not Playing");
-    g_artist = dl_make(g_trk, &L_ARTIST, ui_np_font(20), 252, 32, LV_ALIGN_TOP_MID, 0, 42, 1);
+    g_artist = dl_make(g_trk, &L_ARTIST, ui_np_font(20), 284, 32, LV_ALIGN_TOP_MID, 0, 42, 1);
     dl_scroll5(&L_TITLE); dl_scroll5(&L_ARTIST);
     dhome_title_apply();
     underline_create(root);

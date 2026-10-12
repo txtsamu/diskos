@@ -156,10 +156,22 @@ static void apply_np_style(int v){ ui_set_np_style(v); }
  * view is rebuilt after this event finishes (it cannot be deleted from inside its own switch/button callback). */
 static int g_set_prev;                                  /* the value set_val replaced */
 static void detail_refresh_async(void *u){ (void)u; setting_detail_refresh(); }
-static void theme_reload_or_revert(const char *key){
+/* Settings that re-launch the interface say so first (the same words everywhere), then restart a moment later so the
+ * message is seen. Several quick taps on one row restart once, with the last choice. */
+static lv_timer_t *g_reload_tm; static char g_reload_key[32]; static int g_reload_prev;
+static void reload_go(lv_timer_t *t){
+    (void)t; g_reload_tm = NULL;
     if(ui_theme_reload("settings") == 0) return;        /* not reached on success: the exec replaced us */
-    cfg_set_int(key, g_set_prev);
+    cfg_set_int(g_reload_key, g_reload_prev);
     lv_async_call(detail_refresh_async, NULL);
+}
+static void theme_reload_or_revert(const char *key){
+    if(g_reload_tm && !strcmp(g_reload_key, key)){ lv_timer_reset(g_reload_tm); return; }
+    if(g_reload_tm){ lv_timer_delete(g_reload_tm); g_reload_tm = NULL; }
+    snprintf(g_reload_key, sizeof g_reload_key, "%s", key); g_reload_prev = g_set_prev;
+    ui_toast("Restarting the screen - your music keeps playing");
+    g_reload_tm = lv_timer_create(reload_go, 900, NULL);
+    if(g_reload_tm) lv_timer_set_repeat_count(g_reload_tm, 1); else reload_go(NULL);
 }
 static void apply_appearance(int v){ (void)v; theme_reload_or_revert("theme_variant"); }
 static void apply_theme_auto(int v){ (void)v; theme_reload_or_revert("theme_auto"); }
@@ -740,7 +752,7 @@ static const setting_t TABLE[] = {
     { "Display", "Online & Extras", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_onlineextras, 0,
       "Online album art and lyrics, the art cache, weather on Home, Shortcuts and the album view.", NULL },
     { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_BRAUN,
-      "Colour theme for the whole interface. Each has dark and light screens (see Appearance).", NULL },
+      "Colour theme for the whole interface. Each has dark and light screens (see Appearance). The screen restarts; your music keeps playing.", NULL },
     { "Theme Colours",  "Appearance",  ST_CYCLER, "theme_variant", 0,0,0, OPT_APPEARANCE, 2, NULL, apply_appearance, 1,
       "Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.", NULL },
     { "Theme Colours",  "Automatic Appearance", ST_TOGGLE, "theme_auto", 0,1,1, NULL,0,NULL,apply_theme_auto,0,
@@ -750,7 +762,7 @@ static const setting_t TABLE[] = {
     { "Theme Colours",  "Accent Colour", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_colorpick, 0,
       "Now Playing accent: derived from album art, or any fixed colour you pick.", NULL },
     { "Text & Layout",  "Font Size",   ST_CYCLER, "font_size", 0,0,0, OPT_FONTSIZE, 3, NULL, apply_font_size, 1,
-      "Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen redraws in a moment.", NULL },
+      "Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen restarts; your music keeps playing.", NULL },
     { "Text & Layout",  "Screen Rotation", ST_CYCLER, CTL_CFG_ROT, 0,0,0, OPT_ROTATION, CTL_ROT_N, NULL, apply_screen_rot, 0,
       "Turn the picture and touch clockwise: Normal, 90, 180 or 270 degrees. Stored by the player, as in the stock menu.", NULL },
     { "Text & Layout",  "24-Hour Time", ST_TOGGLE, "time_24h",  0,1,1, NULL, 0, NULL, apply_time, 1,
@@ -803,10 +815,10 @@ static const setting_t TABLE[] = {
       "Show the clock, weather and temperature over the cover on Music.", NULL },
     { "Music Screen", "Track Times", ST_TOGGLE, "disco_times", 0,1,1, NULL,0, NULL, apply_disco_times, 1,
       "Small elapsed and remaining times under the ends of the progress line on Music.", NULL },
-    { "Music Screen", "Track Number", ST_TOGGLE, "disco_trackno", 0,1,1, NULL,0, NULL, NULL, 0,
+    { "Music Screen", "Number Before Title", ST_TOGGLE, "disco_trackno", 0,1,1, NULL,0, NULL, NULL, 0,
       "Show the song's track number before its title on Music, as in \"3. Northern Lights\" (from the song's tags).", NULL },
     { "Music Screen", "Track Font", ST_CYCLER, "np_font", 0,0,0, OPT_NPFONT, 3, NULL, apply_np_font, 0,
-      "Original, Inter Semibold or Nunito Bold for title and artist. Alternatives use larger, heavier text. Applying redraws the interface.", NULL },
+      "Original, Inter Semibold or Nunito Bold for title and artist. Alternatives use larger, heavier text. The screen restarts; your music keeps playing.", NULL },
     { "Music Screen", "Title Position", ST_CYCLER, "disco_title_al", 0,0,0, OPT_DTAL, 2, NULL, apply_disco_title, 0,
       "Where the title and artist sit on Music: centred, or from the left.", NULL },
     { "Music Screen", "Title Hold", ST_CYCLER, "disco_title_hold", 0,0,0, OPT_DHOLD, 3, NULL, apply_disco_hold, 0,
@@ -822,9 +834,13 @@ static const setting_t TABLE[] = {
     { "Disco Layout", "Progress Shape", ST_CYCLER, "disco_prog_shape", 0,0,0, OPT_DSHAPE, 2, NULL, apply_disco_progress, 0,
       "Linear is the line under the title. Arc runs the progress round the edge of Music instead, from just below the menu, clockwise, to just above it. Drag or tap either to seek.", NULL },
     { "Disco Layout", "Side", ST_CYCLER, "disco_side_pick", 0,0,0, OPT_DSIDE, 2, NULL, NULL, 0,
-      "Pick a side, then Apply. The interface restarts.", NULL },
+      "Pick a side, then Apply. The screen restarts; your music keeps playing.", NULL },
     { "Disco Layout", "Scroll", ST_CYCLER, "disco_scroll", 0,0,0, OPT_DSCROLL, 3, NULL, NULL, 0,
       "How list rows move as they scroll: Classic follows the screen's edge, Straight keeps them flat, Disco swings them round the navigation circle like spokes of a CD.", NULL },
+    { "Disco Layout", "Double tap", ST_CYCLER, "disco_nav_double", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_SEARCH,
+      "Double-tap the icon in the open navigation circle.", NULL },
+    { "Disco Layout", "Hold", ST_CYCLER, "disco_nav_hold", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_MUSIC,
+      "Hold the icon in the open navigation circle.", NULL },
     { "System", "Power", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_power, 0,
       "Sleep timer, idle power-off, the charging limit and shutting down.", NULL },
     { "System", "Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_datetime, 0,
@@ -863,10 +879,6 @@ static const setting_t TABLE[] = {
       "Re-scan the SD card for new or removed music.", NULL },
     { "Library",   "Import Playlists", ST_ACTION, NULL, 0,0,0, NULL,0, "Import", apply_import_m3u, 0,
       "Import .m3u / .m3u8 playlists found on the SD card.", NULL },
-    { "Controls", "Double tap", ST_CYCLER, "disco_nav_double", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_SEARCH,
-      "Double-tap the icon in the open Disco menu.", NULL },
-    { "Controls", "Hold", ST_CYCLER, "disco_nav_hold", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_MUSIC,
-      "Hold the icon in the open Disco menu.", NULL },
     { "Controls",   "Volume Keys", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_volkeys_group, 0,
       "What the volume keys do on a press, a double press and when held: adjust the volume or switch track.", NULL },
     { "Controls",   "Default UI",  ST_CYCLER, "boot_default", 0,0,0, OPT_BOOTDEF, 2, NULL, apply_boot_default, 0,

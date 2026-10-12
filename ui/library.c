@@ -26,7 +26,7 @@ enum { VIEW_MENU, VIEW_SONGS, VIEW_ALBUMS, VIEW_ARTISTS, VIEW_PLAYLISTS, VIEW_FA
 #define CAT_FOLDERS 1000   /* menu sentinel: opens the folder browser (a screen, not a library view) */
 #define CAT_BOOKS   1001   /* menu sentinel: opens the Books (audiobook) screen */
 
-#define ROW_H 58                     /* a size up: 18 px titles, 16 px details */
+#define ROW_H 52                     /* 1.4.1: packed tighter, with larger text (see lib_font) */
 #define LIST_Y 70
 #define LIST_H 252
 
@@ -238,25 +238,32 @@ static lv_obj_t *base_row(void){
     lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
     return r;
 }
+/* Library text by Settings > Display > Font Size: titles 18 / 20 / 22 px, second lines 16 / 18 / 20 (one step up from
+ * 1.4.0 at every size). Montserrat -> Inter -> international -> CJK, like all user text. */
+static const lv_font_t *lib_font(int small_px){ return ui_font_cjk(small_px + 2 * theme_font_size()); }
 static void row_two(lv_obj_t *r, const char *top, const char *sub, const char *right){
+    const lv_font_t *ft = lib_font(18), *fs = lib_font(16);
+    int h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs), two = sub && sub[0];
+    int y1 = (ROW_H - (two ? h1 + h2 : h1)) / 2; if(y1 < 0) y1 = 0;
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, top); lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-    lv_obj_set_pos(t, 12, sub&&sub[0]?6:17); lv_obj_set_size(t, right&&right[0]?186:242, 24);
-    lv_obj_set_style_text_font(t, ui_font_user(18), 0);   /* CJK titles render via Source Han Sans fallback */
+    lv_obj_set_pos(t, 12, y1); lv_obj_set_size(t, right&&right[0]?186:242, h1);
+    lv_obj_set_style_text_font(t, ft, 0);   /* CJK titles render via Source Han Sans fallback */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
-    if(sub && sub[0]){
+    if(two){
         lv_obj_t *s = lv_label_create(r);
         lv_label_set_text(s, sub); lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
-        lv_obj_set_pos(s, 12, 31); lv_obj_set_size(s, right&&right[0]?186:242, 20);   /* clear of the duration */
-        lv_obj_set_style_text_font(s, ui_font_user(16), 0);
+        lv_obj_set_pos(s, 12, y1 + h1); lv_obj_set_size(s, right&&right[0]?186:242, h2);   /* clear of the duration */
+        lv_obj_set_style_text_font(s, fs, 0);
         lv_obj_set_style_text_color(s, TC(TEXT_LYRICS), 0);
     }
     if(right && right[0]){
         lv_obj_t *rl = lv_label_create(r);
         lv_label_set_text(rl, right);
-        lv_obj_set_pos(rl, 200, 19); lv_obj_set_size(rl, 56, 20);
+        const lv_font_t *fr = TF(UI_18); int hr = lv_font_get_line_height(fr);
+        lv_obj_set_pos(rl, 196, (ROW_H - hr) / 2); lv_obj_set_size(rl, 60, hr);
         lv_obj_set_style_text_align(rl, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_style_text_font(rl, TF(UI_16), 0);
+        lv_obj_set_style_text_font(rl, fr, 0);
         lv_obj_set_style_text_color(rl, TC(TEXT_MUTED), 0);
     }
 }
@@ -1029,7 +1036,7 @@ static void library_reload_inner(void){
             row_two(r, tr(CATS[i]), NULL, NULL);
             lv_obj_t *ch = lv_label_create(r);
             lv_label_set_text(ch, LV_SYMBOL_RIGHT);
-            lv_obj_set_pos(ch, 240, 17);
+            lv_obj_set_pos(ch, 240, (ROW_H - 18) / 2);
             lv_obj_set_style_text_color(ch, TC(TEXT_DISABLED), 0);
         }
         return;
@@ -1043,7 +1050,7 @@ static void library_reload_inner(void){
             row_two(r, tr(HCATS[i]), NULL, NULL);
             lv_obj_t *ch = lv_label_create(r);
             lv_label_set_text(ch, LV_SYMBOL_RIGHT);
-            lv_obj_set_pos(ch, 240, 17);
+            lv_obj_set_pos(ch, 240, (ROW_H - 18) / 2);
             lv_obj_set_style_text_color(ch, TC(TEXT_DISABLED), 0);
         }
         return;

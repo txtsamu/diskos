@@ -2542,7 +2542,7 @@ const char *ui_current_backdrop_src(void)
  * each intl line-height (20/23/28) fits within Montserrat's (20/24/28) so nothing clips.
  * We keep mutable copies because .fallback must be set on non-const fonts. */
 static lv_font_t s_cjk; /* upstream music-metadata supplement */
-static lv_font_t s_font28, s_font24, s_font20, s_font18, s_font16, s_font14;      /* Montserrat, chain heads */
+static lv_font_t s_font28, s_font24, s_font22, s_font20, s_font18, s_font16, s_font14;      /* Montserrat, chain heads */
 static lv_font_t s_intl20, s_intl18, s_intl16, s_intl14;      /* intl link (fallback -> Source Han) */
 extern const lv_font_t font_inter_medium_14, font_inter_medium_16, font_inter_bold_18, font_inter_bold_22;
 static void ui_fonts_init(void)
@@ -2562,6 +2562,7 @@ static void ui_fonts_init(void)
     p14 = font_inter_medium_14; p14.fallback = &s_intl14;
     s_font28 = *theme_font_original(28); s_font28.fallback = &p22;   /* poster title */
     s_font24 = *theme_font_original(24); s_font24.fallback = &p22;   /* ring title */
+    s_font22 = *theme_font_original(22); s_font22.fallback = &p22;   /* Library rows at Large */
     s_font20 = *theme_font_original(20); s_font20.fallback = &p22;
     s_font18 = *theme_font_original(18); s_font18.fallback = &p18;
     s_font16 = *theme_font_original(16); s_font16.fallback = &p16;
@@ -2582,6 +2583,7 @@ const lv_font_t *ui_font_cjk(int size)
     ui_fonts_init();
     if(size >= 28) return &s_font28;                   /* 24/28 carry the same non-Latin fallback */
     if(size >= 24) return &s_font24;
+    if(size >= 22) return &s_font22;
     if(size >= 20) return &s_font20;
     if(size >= 18) return &s_font18;
     if(size >= 16) return &s_font16;

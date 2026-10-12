@@ -23,7 +23,7 @@ removed.
 **Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or List (rows);
 **Items** chooses and orders up to eight buttons.
 
-**Change what a double tap or hold on the open circle does.** Settings > System > Controls > Double tap / Hold.
+**Change what a double tap or hold on the open circle does.** Settings > Display > Disco Options > Layout > Double tap / Hold.
 
 **Bring the first-use tips back.** Settings > System > Help > Show hints again (or turn them Off there).
 

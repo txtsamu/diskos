@@ -188,8 +188,10 @@ static void review_nav(void){
     assert(screen_current()==SCR_LIBRARY); /* returning inside cannot revive a cancelled hold */
     /* Apply is the only persistence point; Back discards an unconfirmed choice. */
     for(int attempt=0;attempt<2;attempt++){
-        setlist_open("System");nav_wait(100);
-        lv_obj_t *controls=find_text(screen_get_root(SCR_SETLIST),"Controls");assert(controls);
+        setlist_open("Display");nav_wait(100);   /* 1.4.1: Display > Disco Options > Layout */
+        lv_obj_t *opts=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(opts);
+        lv_obj_send_event(lv_obj_get_parent(opts),LV_EVENT_CLICKED,NULL);nav_wait(100);
+        lv_obj_t *controls=find_text(screen_get_root(SCR_SETLIST),"Layout");assert(controls);
         lv_obj_send_event(lv_obj_get_parent(controls),LV_EVENT_CLICKED,NULL);nav_wait(100);
         lv_obj_t *label=find_visible_text(screen_get_root(SCR_SETLIST),"Double tap");assert(label);
         lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
