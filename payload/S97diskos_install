@@ -102,6 +102,10 @@ for s in $SIGS; do trap "$_qtrap" "$s" 2>/dev/null || true; done
 n=32; while [ "$n" -le 127 ]; do trap "$_qtrap" "$n" 2>/dev/null || true; SIGS="$SIGS $n"; n=$((n+1)); done
 
 LOG=/usr/data/diskos_install.log
+# keep the log small (it is appended to on every boot): past 64 KiB keep its newest 32 KiB
+if [ -f "$LOG" ] && [ ! -L "$LOG" ] && [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt 65536 ]; then
+    tail -c 32768 "$LOG" > "$LOG.tmp" 2>/dev/null && mv -f "$LOG.tmp" "$LOG" 2>/dev/null || rm -f "$LOG.tmp" 2>/dev/null
+fi
 log() { echo "$(date 2>/dev/null || true) S97: $*" >> "$LOG" 2>/dev/null; }
 
 # override_on: true iff the boot hook would launch our UI (it needs BOTH regular files present).
@@ -225,7 +229,7 @@ verify_ui() {
 OTA_RO=/etc/diskos-ota
 UPD=/usr/data/updates
 OTA_MAXBOOTS=2              # a trial build gets this many boots to write its health marker; the next boot rolls back
-OTA_SRC=; BUILD=flashed; B_EPOCH=0; B_VER=flashed; G_SHA=; G_SIZE=; G_EPOCH=; G_VER=; P_SHA=; P_SIZE=; P_EPOCH=; P_VER=
+KEEP_ACTIVE=; SKIP_GOOD=; OTA_SRC=; BUILD=flashed; B_EPOCH=0; B_VER=flashed; G_SHA=; G_SIZE=; G_EPOCH=; G_VER=; P_SHA=; P_SIZE=; P_EPOCH=; P_VER=
 FL_MSHA=$MSHA; FL_MSIZE=$MSIZE
 
 kv() { grep "^$2=" "$1" 2>/dev/null | head -n 1 | cut -d= -f2; }
@@ -243,18 +247,20 @@ ota_enabled() {
 # ota_bundle_ok <dir> <ui_epoch_floor>: the RO verifier over a PRIVATE tmpfs copy of the five small signed
 # files (so a /usr/data writer cannot swap them between the check and the read of the values), plus the
 # binary in place (its size + sha256 are checked by the verifier and AGAIN by verify_ui on install).
-# Sets O_SHA O_SIZE O_EPOCH O_VER on success.
+# Sets O_SHA O_SIZE O_EPOCH O_VER on success. Returns 0 = verified, 1 = bad (missing/unsigned/tampered: callers may
+# delete it), 2 = could not be checked THIS boot (tmpfs, a slow read, the verifier killed): callers keep it.
 ota_bundle_ok() {
     _od="$1"; _ofl="$2"; _ot=/tmp/.diskos_ota.$$
     rm -rf "$_ot" 2>/dev/null
-    mkdir "$_ot" 2>/dev/null && chmod 700 "$_ot" 2>/dev/null || return 1
+    mkdir "$_ot" 2>/dev/null && chmod 700 "$_ot" 2>/dev/null || { log "ota: $_od: no private temp dir (not checked this boot)"; return 2; }
     for _of in keyauthz keyauthz.sig leafpub.pem update.manifest update.manifest.sig mq_ui; do
         if [ -L "$_od/$_of" ] || [ ! -f "$_od/$_of" ]; then rm -rf "$_ot"; log "ota: $_od: $_of missing or a symlink"; return 1; fi
     done
     for _of in keyauthz keyauthz.sig leafpub.pem update.manifest update.manifest.sig; do
-        TO cp "$_od/$_of" "$_ot/$_of" 2>/dev/null || { rm -rf "$_ot"; log "ota: $_od: cannot read $_of"; return 1; }
+        TO cp "$_od/$_of" "$_ot/$_of" 2>/dev/null || { rm -rf "$_ot"; log "ota: $_od: cannot read $_of (not checked this boot)"; return 2; }
     done
-    if _oout=$(TO /bin/sh "$OTA_RO/diskos-verify.sh" "$OTA_RO/root.pub.pem" "$OTA_MINKEY" "$_ofl" "$_ot" "$_od/mq_ui" 2>&1); then
+    _oout=$(TO /bin/sh "$OTA_RO/diskos-verify.sh" "$OTA_RO/root.pub.pem" "$OTA_MINKEY" "$_ofl" "$_ot" "$_od/mq_ui" 2>&1); _orc=$?
+    if [ "$_orc" = 0 ]; then
         O_DIR=$_od; O_SHA=$(kv "$_ot/update.manifest" sha256); O_SIZE=$(kv "$_ot/update.manifest" size)
         O_EPOCH=$(kv "$_ot/update.manifest" epoch); O_VER=$(clean_ver "$(kv "$_ot/update.manifest" version)")
         rm -rf "$_ot"
@@ -263,7 +269,9 @@ ota_bundle_ok() {
     fi
     rm -rf "$_ot"
     log "ota: $_od: $(printf '%s' "$_oout" | tr -cd '\040-\176' | cut -c1-160)"
-    return 1
+    [ "$_orc" = 1 ] && return 1                           # the verifier's own verdict: rejected
+    log "ota: $_od: verifier did not finish (exit $_orc; not checked this boot)"
+    return 2
 }
 
 # ota_write_accepted <version> <epoch>: the anti-rollback floor, written DURABLY: tmp + mv + sync, then read back.
@@ -308,6 +316,9 @@ ota_new_flash() {
         || log "ota: could not record the flashed build"
 }
 ota_select() {
+    # a fresh install has no staging directory yet: create it now (when update keys are installed), so the flashed build
+    # is recorded THIS boot and the first SD update staged later is not mistaken for a leftover from an older flash
+    if [ ! -e "$UPD" ] && [ -f "$OTA_RO/root.pub.pem" ]; then mkdir -p "$UPD" 2>/dev/null && chmod 700 "$UPD" 2>/dev/null; fi
     ota_enabled || return 0
     ota_new_flash
     CH_DIR=; CH_KIND=; O_DIR=
@@ -328,7 +339,9 @@ ota_select() {
         if [ -e "$UPD/trial.crashed" ]; then
             # the launcher refused to start the trial again after repeated starts in ONE boot: no more boots for it
             if ota_bundle_ok "$UPD/active" "$OTA_MINUI"; then ota_rollback crashloop "$O_VER" "$O_SHA"; else ota_rollback crashloop "" ""; fi
-        elif ota_bundle_ok "$UPD/active" "$OTA_MINUI"; then
+        else
+          ota_bundle_ok "$UPD/active" "$OTA_MINUI"; _vr=$?
+          if [ "$_vr" = 0 ]; then
             _tsha=$(kv "$UPD/trial" sha256); _tb=$(kv "$UPD/trial" boots)
             _h=; [ -f "$UPD/healthy" ] && [ ! -L "$UPD/healthy" ] && _h=$(head -n 1 "$UPD/healthy" 2>/dev/null)
             # the user's "Go back" (UI-written revert = exactly SHA256=<this trial>) beats everything, healthy included
@@ -351,15 +364,25 @@ ota_select() {
                     CH_DIR=$UPD/active; CH_KIND=trial
                 fi
             elif [ "$_tsha" = "$O_SHA" ] && is_uint "$_tb" && [ "$_tb" -lt "$OTA_MAXBOOTS" ]; then
-                printf 'boots=%s\nsha256=%s\n' "$((_tb + 1))" "$O_SHA" > "$UPD/trial.tmp" 2>/dev/null \
-                    && mv -f "$UPD/trial.tmp" "$UPD/trial" 2>/dev/null
-                log "ota: trial $O_VER has not proven health yet (boot $((_tb + 1)) of $OTA_MAXBOOTS)"
-                CH_DIR=$UPD/active; CH_KIND=trial
+                # the boot count MUST be stored: a trial whose count can't be written (data partition full) would
+                # otherwise stay on boot 1 for ever and never roll back
+                if printf 'boots=%s\nsha256=%s\n' "$((_tb + 1))" "$O_SHA" > "$UPD/trial.tmp" 2>/dev/null \
+                    && mv -f "$UPD/trial.tmp" "$UPD/trial" 2>/dev/null && [ "$(kv "$UPD/trial" boots)" = "$((_tb + 1))" ]; then
+                    log "ota: trial $O_VER has not proven health yet (boot $((_tb + 1)) of $OTA_MAXBOOTS)"
+                    CH_DIR=$UPD/active; CH_KIND=trial
+                else
+                    rm -f "$UPD/trial.tmp" 2>/dev/null
+                    log "ota: could not record trial boot $((_tb + 1)) (data partition full?)"
+                    ota_rollback unhealthy "$O_VER" "$O_SHA"
+                fi
             else
                 ota_rollback unhealthy "$O_VER" "$O_SHA"
             fi
-        else
+          elif [ "$_vr" = 2 ]; then
+            KEEP_ACTIVE=1; log "ota: trial build kept unchecked this boot; the last good or flashed build runs"
+          else
             ota_rollback verify "" ""
+          fi
         fi
     fi
 
@@ -368,10 +391,13 @@ ota_select() {
     rm -f "$UPD/revert" 2>/dev/null
 
     # 2. a newly staged bundle: verify it again, then start its trial
-    if [ -z "$CH_DIR" ] && [ -d "$UPD/pending" ]; then
+    if [ -z "$CH_DIR" ] && [ -z "$KEEP_ACTIVE" ] && [ -d "$UPD/pending" ]; then
         _fl=$OTA_MINUI; [ "$((_acc + 1))" -gt "$_fl" ] && _fl=$((_acc + 1))
-        if [ -f "$UPD/pending/ready" ] && ota_bundle_ok "$UPD/pending" "$_fl" \
-           && ! { [ -f "$UPD/rejected" ] && grep -qx "$O_SHA" "$UPD/rejected"; }; then
+        _vr=1; [ -f "$UPD/pending/ready" ] && { ota_bundle_ok "$UPD/pending" "$_fl"; _vr=$?; }
+        _rej=; [ "$_vr" = 0 ] && [ -f "$UPD/rejected" ] && grep -qx "$O_SHA" "$UPD/rejected" && _rej=1
+        if [ "$_vr" = 2 ]; then
+            log "ota: staged bundle not checked this boot; kept for the next one"
+        elif [ "$_vr" = 0 ] && [ -z "$_rej" ]; then
             printf 'boots=1\nsha256=%s\n' "$O_SHA" > "$UPD/trial.tmp" 2>/dev/null \
                 && mv -f "$UPD/trial.tmp" "$UPD/trial" 2>/dev/null
             rm -f "$UPD/healthy" "$UPD/trial.crashed" "$UPD/trial.launched" 2>/dev/null
@@ -382,14 +408,18 @@ ota_select() {
                 rm -f "$UPD/trial" 2>/dev/null; log "ota: could not start trial for staged bundle"
             fi
         else
-            log "ota: staged bundle rejected/ignored (floor $_fl); removing it"
+            if [ -n "$_rej" ]; then log "ota: staged $O_VER (sha256 $O_SHA) was rolled back before (listed in rejected); removing it"
+            else log "ota: staged bundle rejected/ignored (floor $_fl); removing it"; fi
             rm -rf "$UPD/pending" 2>/dev/null
         fi
     fi
 
     # 3. otherwise the last good bundle, re-verified this boot (falling back to the one it replaced)
     if [ -z "$CH_DIR" ] && [ -d "$UPD/good" ]; then
-        if ! ota_bundle_ok "$UPD/good" "$OTA_MINUI"; then
+        ota_bundle_ok "$UPD/good" "$OTA_MINUI"; _vr=$?
+        if [ "$_vr" = 2 ]; then
+            SKIP_GOOD=1; log "ota: good bundle kept unchecked this boot; the flashed build runs"
+        elif [ "$_vr" != 0 ]; then
             log "ota: good bundle no longer verifies"
             rm -rf "$UPD/good" 2>/dev/null
             if [ -d "$UPD/good.prev" ] && mv "$UPD/good.prev" "$UPD/good" 2>/dev/null && ota_bundle_ok "$UPD/good" "$OTA_MINUI"; then
@@ -398,7 +428,7 @@ ota_select() {
                 rm -rf "$UPD/good" 2>/dev/null
             fi
         fi
-        if [ -d "$UPD/good" ]; then
+        if [ -d "$UPD/good" ] && [ -z "$SKIP_GOOD" ]; then
             CH_DIR=$UPD/good; CH_KIND=good
             rm -rf "$UPD/good.prev" 2>/dev/null            # the promoted build has now been re-verified on a later boot
             # the floor follows the good build: rebuild `accepted` if a power cut (or a wipe) left it behind
@@ -451,6 +481,7 @@ fi
 # the ONLY source in v1.1.3. It is staged to a local temp and must pass verify_ui; it is re-verified and
 # published below. If it is absent or fails verification, nothing is installed and stock boots.
 copied=0; src=
+rm -f /usr/data/mq_ui.rejected 2>/dev/null   # an earlier quarantined copy: never let it eat the space the install needs
 stage_tmp() { { [ -n "$OTA_SRC" ] && ln "$EMBED" /usr/data/.mq_ui.tmp 2>/dev/null; } || TO cp "$EMBED" /usr/data/.mq_ui.tmp 2>/dev/null; }
 EMBED=${OTA_SRC:-/opt/diskos/mq_ui}     # OTA_SRC: the chosen signed bundle's mq_ui (already verified above)
 if [ -f "$EMBED" ]; then

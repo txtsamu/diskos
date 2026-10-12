@@ -119,6 +119,7 @@ static void transition_core(int from, int to, int dir)
     /* Any screen change dismisses transient lv_layer_top popups (e.g. the duplicate-add
      * confirm dialog) so they can't survive onto another screen and act on stale state. */
     npmenu_close_transients();
+    songmenu_close(); fileops_close(); eqcustom_pad_close();   /* hold menu, its confirms and the EQ number pad too */
     ui_np_close_overlays();   /* dismiss the sleep-timer popover so it can't float onto another screen */
 
     /* Re-sync screens built once, on EVERY entry incl. back-navigation (screen_back also

@@ -3488,7 +3488,8 @@ void ui_np_fav_toggle(void){                       /* as the Now Playing heart *
     ui_toast(g_np_fav ? "Added to Favourites" : "Removed from Favourites");
 }
 int ui_np_mode_next(void){                          /* as the Now Playing play-mode button; returns the new mode */
-    int wm = (cfg_get_int("work_mode", 0) + 1) % WORKMODE_COUNT;
+    int cur = cfg_get_int("work_mode", 0); if(cur < 0 || cur >= WORKMODE_COUNT) cur = 0;   /* a bad stored value never indexes out of range */
+    int wm = (cur + 1) % WORKMODE_COUNT;
     cfg_set_int("work_mode", wm);
     ui_set_workmode(wm);
     mode_refresh(wm);

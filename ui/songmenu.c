@@ -28,6 +28,7 @@ static char g_gcol[8], g_gval[256];          /* group menu: SONG column + value 
 static void (*g_gplay)(int shuffle);         /* group menu: the list's own play action */
 
 static void close_ov(void){ if(g_ov){ lv_obj_delete(g_ov); g_ov = NULL; } }
+void songmenu_close(void){ if(g_ov){ lv_obj_delete_async(g_ov); g_ov = NULL; } }   /* a screen change: never act on the old row */
 static int is_current(const char *path){ track_state_t st; ipc_get_state(&st); return st.have_track && !strcmp(st.path, path); }
 static void pick(int i){
     if(i < 0 || i >= g_nact) return;

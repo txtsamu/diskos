@@ -236,7 +236,19 @@ void queue_tick(const track_state_t *st, int playing){
     (void)playing;
     if(!st || !st->have_track || !ui_local_playback_allowed() || modes_output_busy()) return;
     load();
-    int current=mdb_queue_current_id(st->path,st->pos_id,st->title);
+    /* The song's ID only changes with the track: look it up once per (path, list position, title), not every frame.
+     * A busy database is retried at most twice a second and never waited on for long (it froze the UI in scans). */
+    static char k_path[sizeof st->path], k_title[sizeof st->title]; static int k_pos = -1, k_id; static uint32_t k_retry, k_at;
+    int same = k_pos == st->pos_id && !strcmp(k_path, st->path) && !strcmp(k_title, st->title);
+    if(!same || (!k_id && lv_tick_elaps(k_at) >= 1000)){   /* not resolved yet (the player may still be writing its list) */
+        if(k_retry && lv_tick_elaps(k_retry) < 500) return;
+        int id = mdb_queue_current_id_quick(st->path, st->pos_id, st->title);
+        k_at = lv_tick_get();
+        if(id < 0){ k_retry = k_at | 1; return; }
+        k_retry = 0; k_id = id; k_pos = st->pos_id;
+        snprintf(k_path, sizeof k_path, "%s", st->path); snprintf(k_title, sizeof k_title, "%s", st->title);
+    }
+    int current = k_id;
     if(!current) return;  /* unverified subtrack metadata never advances the editable queue */
     if(current != g_last_id){                        /* a new song began */
         int prev=g_last_id;

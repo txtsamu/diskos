@@ -131,10 +131,14 @@ SSH is optional; it is not required to install an update. These commands only re
 ```sh
 DISKOS_IP=192.168.1.50  # replace with the address shown in Debug Mode
 ssh "root@$DISKOS_IP" 'cat /usr/data/updates/last_result'
-ssh "root@$DISKOS_IP" 'cat /usr/data/updates/run; cat /usr/data/updates/accepted'
+ssh "root@$DISKOS_IP" 'cat /tmp/.diskos_run; cat /usr/data/updates/accepted; cat /usr/data/updates/rejected'
+ssh "root@$DISKOS_IP" 'tail -n 30 /usr/data/diskos_install.log'
 ssh "root@$DISKOS_IP" 'sha256sum /etc/diskos-ota/root.pub.pem'
 ssh "root@$DISKOS_IP" 'md5sum /usr/data/mq_ui'
 ```
+
+Never copy or edit `/usr/data/mq_ui` over SSH: after an SD update it is a hard link to the kept build in
+`/usr/data/updates/good/`, so writing to it damages that copy too and the next boot discards it.
 
 Some files will be absent before a first update. `last_result` can be absent or reflect an older
 attempt if the new attempt failed before staging could open its state directory. Compare the

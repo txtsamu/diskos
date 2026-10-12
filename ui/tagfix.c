@@ -540,8 +540,15 @@ static int g_last_done = -1;
 static void *worker(void *arg){
     (void)arg;
     uint8_t *art = NULL; size_t alen = 0; int art_tried = 0;
+    char art_key[sizeof S.items[0].path + sizeof S.items[0].album + 2] = "";   /* the album (folder + name) the cover belongs to */
     for(int i = 0; i < S.n; i++){
         tf_item_t *it = &S.items[i];
+        /* a cover is reused only within one album: same folder AND same album name. A folder of several albums, or
+         * two different albums that share a name ("Greatest Hits"), each get their own lookup. */
+        char key[sizeof art_key]; snprintf(key, sizeof key, "%s", it->path);
+        char *sl = strrchr(key, '/'); if(sl) *sl = 0;
+        size_t kl = strlen(key); snprintf(key + kl, sizeof key - kl, "\n%s", it->album);
+        if(strcmp(key, art_key)){ free(art); art = NULL; alen = 0; art_tried = 0; snprintf(art_key, sizeof art_key, "%s", key); }
         if(!sd_io_begin()){
             pthread_mutex_lock(&S.mu); S.failed += S.n-i; S.done=S.n; pthread_mutex_unlock(&S.mu);
             break;
@@ -550,7 +557,7 @@ static void *worker(void *arg){
         if(fmt == FMT_FLAC || fmt == FMT_MP3) need_art = !file_has_picture(it->path, fmt);
         sd_io_end();
         char *lrc = need_lyr ? fetch_lyrics(it->title, it->artist, it->album, it->dur_ms) : NULL;
-        if(need_art && !art_tried){ art = fetch_art(it->title, it->artist, it->album, &alen); art_tried = 1; }   /* once (per album) */
+        if(need_art && !art_tried){ art = fetch_art(it->title, it->artist, it->album, &alen); art_tried = 1; }   /* once per album */
         int r = (lrc || (need_art && art)) ? tagfix_apply(it->path, lrc, need_art ? art : NULL, alen) : 0;
         pthread_mutex_lock(&S.mu);
         if(r > 0){ if(r & 1) S.lyr++; if(r & 2) S.art++; }
@@ -559,7 +566,7 @@ static void *worker(void *arg){
         S.done = i + 1;
         pthread_mutex_unlock(&S.mu);
         free(lrc);
-        if(!S.album){ free(art); art = NULL; art_tried = 0; }
+        if(!S.album){ free(art); art = NULL; art_tried = 0; art_key[0] = 0; }
     }
     free(art);
     pthread_mutex_lock(&S.mu); S.finished = 1; pthread_mutex_unlock(&S.mu);
@@ -578,7 +585,7 @@ static void poll_cb(lv_timer_t *t){
     pthread_mutex_lock(&S.mu); int autom = S.autom; pthread_mutex_unlock(&S.mu);
     if(autom){                                               /* Auto-tag: quiet unless something was added */
         if(lyr || art){ snprintf(b, sizeof b, "Auto-tag: added %s%s%s", lyr ? "lyrics" : "", lyr && art ? " & " : "", art ? "artwork" : ""); ui_toast(b); ui_np_tags_changed(); }
-        else if(nf || fail) at_log_attempt(S.items[0].path);  /* try again on a later play, at most daily */
+        at_log_attempt(S.items[0].path);                     /* done or not: look at this track again at most daily */
         lv_timer_delete(g_poll); g_poll = NULL;
         free(S.items); S.items = NULL;
         pthread_mutex_lock(&S.mu); S.busy = 0; pthread_mutex_unlock(&S.mu);

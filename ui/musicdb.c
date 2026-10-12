@@ -3623,15 +3623,33 @@ int mdb_reserved_slot_set_paths(char (*paths)[256], int n, int *have_first){
     sd_io_end();
     return result;
 }
-static int mdb_playlist_paths_moved_leased(const char *oldp, const char *newp){
-    sqlite3 *d = db(); if(!d || !oldp || !newp || !oldp[0]) return 0;
+/* A file or folder was renamed/moved on the card: carry everything that remembers it by PATH along, so the songs keep
+ * their IDs (favourites, resume, accent) and their play counts, book bookmarks and playlist places after the rescan.
+ * One transaction; returns the playlist rows changed (as before), or 0 if nothing could be updated. */
+#define MOVED_WHERE(col) " WHERE (" col " = ?1 OR substr(" col ", 1, length(?1) + 1) = ?1 || '/')"
+#define MOVED_SET(col) col " = ?2 || substr(" col ", length(?1) + 1)"
+static int moved_exec(sqlite3 *d, const char *sql, const char *oldp, const char *newp, int *changes){
     sqlite3_stmt *st;
-    if(sqlite3_prepare_v2(d, "UPDATE CUSTOM_PLAYLIST SET PATH = ?2 || substr(PATH, length(?1) + 1) "
-                             "WHERE PLAYLIST_ID<>" XSTR(DISKOS_RSV_LISTID) " AND (PATH = ?1 OR substr(PATH, 1, length(?1) + 1) = ?1 || '/');",
-                          -1, &st, NULL) != SQLITE_OK) return 0;
+    if(sqlite3_prepare_v2(d, sql, -1, &st, NULL) != SQLITE_OK) return 1;   /* a table this database doesn't have: nothing to move */
     sqlite3_bind_text(st, 1, oldp, -1, SQLITE_TRANSIENT); sqlite3_bind_text(st, 2, newp, -1, SQLITE_TRANSIENT);
     int rc = sqlite3_step(st); sqlite3_finalize(st);
-    return rc == SQLITE_DONE ? sqlite3_changes(d) : 0;
+    if(rc != SQLITE_DONE) return 0;
+    if(changes) *changes = sqlite3_changes(d);
+    return 1;
+}
+static int mdb_playlist_paths_moved_leased(const char *oldp, const char *newp){
+    sqlite3 *d = db(); if(!d || !oldp || !newp || !oldp[0]) return 0;
+    int pl = 0, ok = sqlite3_exec(d, "BEGIN IMMEDIATE;", 0, 0, 0) == SQLITE_OK;
+    if(!ok) return 0;
+    ok = moved_exec(d, "UPDATE CUSTOM_PLAYLIST SET " MOVED_SET("PATH") MOVED_WHERE("PATH") " AND PLAYLIST_ID<>" XSTR(DISKOS_RSV_LISTID) ";", oldp, newp, &pl)
+      && moved_exec(d, "UPDATE SONG SET " MOVED_SET("PATH") MOVED_WHERE("PATH") ";", oldp, newp, NULL)
+      && moved_exec(d, "UPDATE MY_LOVE SET " MOVED_SET("PATH") MOVED_WHERE("PATH") ";", oldp, newp, NULL)
+      && moved_exec(d, "UPDATE OR REPLACE PLAY_STATS SET " MOVED_SET("PATH") MOVED_WHERE("PATH") ";", oldp, newp, NULL)
+      && moved_exec(d, "UPDATE OR IGNORE BOOKS SET " MOVED_SET("PATH") MOVED_WHERE("PATH") ";", oldp, newp, NULL)
+      && moved_exec(d, "UPDATE OR REPLACE BOOK_PROGRESS SET " MOVED_SET("BOOK_KEY") MOVED_WHERE("BOOK_KEY") ";", oldp, newp, NULL)
+      && moved_exec(d, "UPDATE BOOK_PROGRESS SET " MOVED_SET("MEMBER_PATH") MOVED_WHERE("MEMBER_PATH") ";", oldp, newp, NULL);
+    if(!ok || sqlite3_exec(d, "COMMIT;", 0, 0, 0) != SQLITE_OK){ sqlite3_exec(d, "ROLLBACK;", 0, 0, 0); return 0; }
+    return pl;
 }
 int mdb_playlist_paths_moved(const char *oldp, const char *newp){
     if(!sd_io_begin()) return 0;
@@ -3698,23 +3716,42 @@ int mdb_queue_live_ids(int *out, int cap){
     }
     if(map) sqlite3_finalize(map); if(rows) sqlite3_finalize(rows); sd_io_end(); return ok?n:-1;
 }
-int mdb_queue_current_id(const char *path, int pos, const char *title){
-    if(!path || !sd_io_begin()) return 0;
-    sqlite3 *d=db(); sqlite3_stmt *st=NULL; int id=0,hits=0;
+/* The playing song's SONG.ID on connection d; *busy = the database was locked (the answer is unknown, not "none"). */
+static int queue_current_id_on(sqlite3 *d, const char *path, int pos, const char *title, int *busy){
+    sqlite3_stmt *st=NULL; int id=0,hits=0,rc;
     if(d && pos>0 && sqlite3_prepare_v2(d,
         "SELECT S.ID FROM SONG S JOIN LIST_SONG_0 L ON S.PATH=L.PATH AND S.TRACK IS L.TRACK AND S.IS_CUE IS L.IS_CUE AND S.IS_ISO IS L.IS_ISO WHERE L.ID=?1 AND L.PATH=?2 AND IFNULL(L.TITLE,'')=?3;",-1,&st,NULL)==SQLITE_OK){
         sqlite3_bind_int(st,1,pos); sqlite3_bind_text(st,2,path,-1,SQLITE_TRANSIENT); sqlite3_bind_text(st,3,title?title:"",-1,SQLITE_TRANSIENT);
-        int rc; while((rc=sqlite3_step(st))==SQLITE_ROW){ id=sqlite3_column_int(st,0); hits++; }
-        if(rc!=SQLITE_DONE) hits=0;
+        while((rc=sqlite3_step(st))==SQLITE_ROW){ id=sqlite3_column_int(st,0); hits++; }
+        if(rc!=SQLITE_DONE){ hits=0; if(busy && (rc==SQLITE_BUSY || rc==SQLITE_LOCKED)) *busy=1; }
         sqlite3_finalize(st); st=NULL;
     }
     /* A plain file can be resolved without pos_id; an ambiguous subtrack cannot. */
     if(hits!=1 && d && sqlite3_prepare_v2(d,"SELECT ID FROM SONG WHERE PATH=?;",-1,&st,NULL)==SQLITE_OK){
         hits=0; sqlite3_bind_text(st,1,path,-1,SQLITE_TRANSIENT);
-        int rc; while((rc=sqlite3_step(st))==SQLITE_ROW){ id=sqlite3_column_int(st,0); hits++; }
-        if(rc!=SQLITE_DONE) hits=0;
+        while((rc=sqlite3_step(st))==SQLITE_ROW){ id=sqlite3_column_int(st,0); hits++; }
+        if(rc!=SQLITE_DONE){ hits=0; if(busy && (rc==SQLITE_BUSY || rc==SQLITE_LOCKED)) *busy=1; }
     }
-    if(st) sqlite3_finalize(st); sd_io_end(); return hits==1?id:0;
+    if(st) sqlite3_finalize(st);
+    return hits==1?id:0;
+}
+int mdb_queue_current_id(const char *path, int pos, const char *title){
+    if(!path || !sd_io_begin()) return 0;
+    int id=queue_current_id_on(db(),path,pos,title,NULL);
+    sd_io_end(); return id;
+}
+/* For the UI loop: its own short-lived read-only connection with a 50 ms lock wait (never the shared one, whose
+ * 4 s wait and mutex a scan or a worker can hold). Returns -1 when the database was busy: keep the last answer. */
+int mdb_queue_current_id_quick(const char *path, int pos, const char *title){
+    if(!path || !sd_io_begin()) return -1;
+    sqlite3 *c=NULL; int id=-1, busy=0;
+    if(sqlite3_open_v2(DB_PATH,&c,SQLITE_OPEN_READONLY,NULL)==SQLITE_OK){
+        sqlite3_busy_timeout(c,50);
+        id=queue_current_id_on(c,path,pos,title,&busy);
+        if(busy) id=-1;
+    }
+    if(c) sqlite3_close(c);
+    sd_io_end(); return id;
 }
 int mdb_queue_slot_set(int *ids, int n, int first){
     if(!ids || n<=0 || !sd_io_begin()) return 0;

@@ -142,6 +142,9 @@ int ui_local_playback_allowed(void);
 int  ui_detect_source_mode(void);          /* M17: the ACTUAL mode from the USB gadget state (0/1/3; BT reads as 0) */
 void npmenu_set(const track_state_t *st, int playing, const void *thumb_src);
 void npmenu_close_transients(void);   /* dismiss lv_layer_top popups on navigation */
+void songmenu_close(void);            /* hold menu (songmenu.c) */
+void fileops_close(void);             /* file confirm / destination picker (fileops.c) */
+void eqcustom_pad_close(void);        /* EQ number pad (eqcustom.c) */
 void ui_set_favorite(int on);   /* love/unlove the current song (0104) */
 /* add-to-playlist picker (npmenus.c) */
 void plpick_create(lv_obj_t *root);

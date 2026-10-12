@@ -1449,6 +1449,7 @@ void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 void setlist_refresh(void){
     if(!g_setlist_root || !g_active_group) return;
     lv_obj_clean(g_setlist_root);
+    memset(g_list_rows, 0, sizeof g_list_rows);   /* the old rows are gone: never write to their freed labels */
     lv_obj_set_style_bg_color(g_setlist_root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(g_setlist_root, LV_OPA_COVER, 0);
     ui_header_cb(g_setlist_root, g_active_group, list_back_cb);   /* title = category; back pops to categories */

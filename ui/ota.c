@@ -286,6 +286,7 @@ static int read_at(int dfd, const char *name, char *buf, size_t n){   /* same, r
     buf[r] = 0;
     return (int)r;
 }
+static int hex64(const char *s);
 static int all_digits(const char *s, size_t max){ size_t l = strlen(s); if(!l || l > max) return 0; for(; *s; s++) if(!isdigit((unsigned char)*s)) return 0; return 1; }
 static void rm_at(int dfd, const char *name, int depth){                /* unlinkat; recurse into real directories only (never follows links) */
     struct stat st;
@@ -644,6 +645,13 @@ int ota_stage_dir(const ota_paths_t *p, const char *src, ota_prog_t *pg){
                             return fin(ufd, ifd, vrc < 0 ? OTA_E_RUN : (vrc == 1 && !capped) ? reject_class(out) : OTA_E_BAD); }   /* couldn't run != damaged */
     char ver[40], ep[16];
     if(strncmp(out, "OK ", 3) != 0 || tok(out, "version", ver, sizeof ver) != 0 || tok(out, "epoch", ep, sizeof ep) != 0 || !all_digits(ep, 18)) return fin(ufd, ifd, OTA_E_BAD);
+    /* boot drops a binary it once rolled back (updates/rejected), however freshly it is signed: say so now */
+    { char mt[8192 + 1], msha[80], rj[1024];
+      if(read_at(ifd, OTA_FILES[OTA_MANIFEST_IDX].local, mt, sizeof mt) > 0 && sys_kv(mt, "sha256", msha, sizeof msha) == 0 && hex64(msha)
+         && read_at(ufd, "rejected", rj, sizeof rj) > 0){
+          for(char *l = strtok(rj, "\n"); l; l = strtok(NULL, "\n"))
+              if(!strcmp(l, msha)){ snprintf(g_why, sizeof g_why, "sha256 %.16s... was rolled back before (updates/rejected)", msha); return fin(ufd, ifd, OTA_E_REJECTED); }
+      } }
 
     if(atomic_load(&pg->cancel)) return fin(ufd, ifd, OTA_E_CANCEL);
     atomic_store(&pg->phase, 3);
@@ -697,11 +705,13 @@ int ota_pending(const ota_paths_t *p, char *ver, size_t n){
     return 1;
 }
 
+/* The boot run record (S97 write_run) grows with GOOD_* and PREV_* fields to ~480 bytes: read it whole. */
+#define RUN_REC_MAX 1024
 static int hex64(const char *s){ if(strlen(s) != 64) return 0; for(int i = 0; i < 64; i++) if(!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f'))) return 0; return 1; }
 /* Trial boot = the launcher's intent (/tmp/.diskos_run) AND its statement of what it really started (/tmp/.diskos_launched)
  * both say BUILD=trial with the same 64-hex SHA256. No hashing here (cheap enough for the UI thread). */
 int ota_trial_version(const ota_paths_t *p, char *ver, size_t n){
-    char t[256], u[256], b1[16], b2[16], s1[80], s2[80];
+    char t[RUN_REC_MAX], u[RUN_REC_MAX], b1[16], b2[16], s1[80], s2[80];
     if(read_file(p->run_file, t, sizeof t) <= 0 || read_file(p->launched_file, u, sizeof u) <= 0) return 0;
     if(sys_kv(t, "BUILD", b1, sizeof b1) != 0 || strcmp(b1, "trial") != 0) return 0;
     if(sys_kv(u, "BUILD", b2, sizeof b2) != 0 || strcmp(b2, "trial") != 0) return 0;
@@ -713,7 +723,7 @@ int ota_trial_version(const ota_paths_t *p, char *ver, size_t n){
 /* the strict form: as above, and the executable that is RUNNING hashes to that SHA256 (a fallback/flashed UI never vouches
  * for a trial it did not run, even with identical-looking run files). Fills sha. */
 static int trial_is_me(const ota_paths_t *p, char sha[80]){
-    char t[256], self[65];
+    char t[RUN_REC_MAX], self[65];
     if(!ota_trial_version(p, NULL, 0)) return 0;
     if(read_file(p->run_file, t, sizeof t) <= 0 || sys_kv(t, "SHA256", sha, 80) != 0) return 0;
     if(sha256_file(p->self_exe, self) != 0 || strcmp(self, sha) != 0) return 0;
@@ -775,6 +785,7 @@ const char *ota_err_text(int code){
     case OTA_E_OLDER: return "Update refused - older than what you have";
     case OTA_E_BAD: return "Update rejected - the download is damaged";
     case OTA_E_RUN: return "Couldn't check the update. Restart the player and try again.";
+    case OTA_E_REJECTED: return "Update refused - this exact build was rolled back before. Use a new build.";
     default: return "Couldn't save the update. Try again.";
     }
 }

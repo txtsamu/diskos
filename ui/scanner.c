@@ -199,7 +199,8 @@ static int id3v2_read(FILE *f, char *title,char *artist,char *album,char *genre,
     int ver=h[3];
     int unsync=(h[5]&0x80)!=0, exthdr=(h[5]&0x40)!=0;
     long tagsize = synch32(h+6);
-    if(tagsize<=0 || tagsize>20*1024*1024) return 1;
+    if(tagsize<=0) return 1;
+    if(tagsize>20*1024*1024){ if(rerr)*rerr=1; return 1; }    /* beyond our bound: keep the stored tags, don't fall back to the filename */
     unsigned char *buf=malloc((size_t)tagsize);
     if(!buf){ if(rerr)*rerr=1; return 1; }                                     /* OOM: signal a real read failure (ferror won't catch it) */
     if(fread(buf,1,(size_t)tagsize,f)!=(size_t)tagsize){ free(buf); return 1; }   /* short read: ferror() in tags_from_file catches a real IO error */
@@ -255,38 +256,44 @@ static void id3v1_read(FILE *f, char *title,char *artist,char *album, int *rerr)
 
 static uint32_t le32(const unsigned char *p){ return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24); }
 
-/* A Vorbis comment body (vendor length + vendor + count + "KEY=value" items, little-endian lengths), as in a FLAC
- * VORBIS_COMMENT block and an Ogg Vorbis comment packet after its 7-byte "\x03vorbis" id. Fills only empty fields. */
-static void vorbis_comments(const unsigned char *b, uint32_t len, char *title,char *artist,char *album,char *genre,
-                            char *album_artist, int *track, int *disc){
-    /* overflow-safe bounds: need 4(vendor-len field) + vlen(vendor) + 4(comment count) <= len, i.e. vlen <= len-8.
-     * Use subtraction so a hostile vlen like 0xFFFFFFFA can't wrap an addition past the guard. */
-    if(len<8) return;
-    uint32_t vlen=le32(b);
-    if(vlen > len-8) return;
-    uint32_t off=4+vlen;                          /* off <= len-4, so le32(b+off) is in-bounds */
-    uint32_t cnt=le32(b+off); off+=4;
-    for(uint32_t i=0;i<cnt && off+4<=len;i++){
-        uint32_t clen=le32(b+off); off+=4;
-        if(clen>len-off) break;                  /* overflow-safe (len-off >= 0) */
-        char kv[1088];
-        if(clen < sizeof kv){
-            memcpy(kv,b+off,clen); kv[clen]=0;
-            char *eq=strchr(kv,'=');
-            if(eq){ *eq=0; const char *k=kv, *v=eq+1;
-                if(!strcasecmp(k,"TITLE")  && !title[0])  snprintf(title, TAGLEN,"%s",v);
-                else if(!strcasecmp(k,"ARTIST") && !artist[0]) snprintf(artist,TAGLEN,"%s",v);
-                else if(!strcasecmp(k,"ALBUM")  && !album[0])  snprintf(album, TAGLEN,"%s",v);
-                else if(!strcasecmp(k,"GENRE")  && !genre[0])  snprintf(genre, TAGLEN,"%s",v);
-                else if(!strcasecmp(k,"TRACKNUMBER") && !*track) *track = tag_int(v);
-                else if(!strcasecmp(k,"DISCNUMBER")  && !*disc)  *disc  = tag_int(v);
-                else if((!strcasecmp(k,"ALBUMARTIST")||!strcasecmp(k,"ALBUM ARTIST")) && !album_artist[0])
-                    snprintf(album_artist,TAGLEN,"%s",v);
-            }
-        }
-        off+=clen;
-    }
+/* One "KEY=value" Vorbis comment: fills only empty fields. */
+static void vc_apply(char *kv, char *title,char *artist,char *album,char *genre, char *album_artist, int *track, int *disc){
+    char *eq=strchr(kv,'=');
+    if(!eq) return;
+    *eq=0; const char *k=kv, *v=eq+1;
+    if(!strcasecmp(k,"TITLE")  && !title[0])  snprintf(title, TAGLEN,"%s",v);
+    else if(!strcasecmp(k,"ARTIST") && !artist[0]) snprintf(artist,TAGLEN,"%s",v);
+    else if(!strcasecmp(k,"ALBUM")  && !album[0])  snprintf(album, TAGLEN,"%s",v);
+    else if(!strcasecmp(k,"GENRE")  && !genre[0])  snprintf(genre, TAGLEN,"%s",v);
+    else if(!strcasecmp(k,"TRACKNUMBER") && !*track) *track = tag_int(v);
+    else if(!strcasecmp(k,"DISCNUMBER")  && !*disc)  *disc  = tag_int(v);
+    else if((!strcasecmp(k,"ALBUMARTIST")||!strcasecmp(k,"ALBUM ARTIST")) && !album_artist[0])
+        snprintf(album_artist,TAGLEN,"%s",v);
 }
+/* A byte source for a Vorbis comment body that may be far larger than memory should hold (an embedded cover in
+ * METADATA_BLOCK_PICTURE can be several MB): rd() reads exactly n bytes, sk() skips n; both return 1 on success. */
+typedef struct vc_src { int (*rd)(struct vc_src *, unsigned char *, uint32_t); int (*sk)(struct vc_src *, uint32_t); } vc_src;
+/* Vendor length + vendor + count + "KEY=value" items (little-endian lengths). Short items are read, long ones (the
+ * picture) skipped, so memory stays tiny whatever the cover size. Returns 1 when the whole body was walked. */
+static int vc_stream(vc_src *s, char *title,char *artist,char *album,char *genre, char *album_artist, int *track, int *disc){
+    unsigned char b4[4]; char kv[1088];
+    if(!s->rd(s,b4,4) || !s->sk(s,le32(b4)) || !s->rd(s,b4,4)) return 0;
+    uint32_t cnt=le32(b4);
+    if(cnt > 65536) return 0;
+    for(uint32_t i=0;i<cnt;i++){
+        if(!s->rd(s,b4,4)) return 0;
+        uint32_t clen=le32(b4);
+        if(clen < sizeof kv){
+            if(!s->rd(s,(unsigned char *)kv,clen)) return 0;
+            kv[clen]=0; vc_apply(kv,title,artist,album,genre,album_artist,track,disc);
+        } else if(!s->sk(s,clen)) return 0;
+    }
+    return 1;
+}
+/* FLAC block source: bounded by the block length. */
+typedef struct { vc_src s; FILE *f; uint32_t left; } flac_src;
+static int flac_rd(vc_src *v, unsigned char *b, uint32_t n){ flac_src *x=(flac_src *)v; if(n > x->left || (n && fread(b,1,n,x->f)!=n)) return 0; x->left-=n; return 1; }
+static int flac_sk(vc_src *v, uint32_t n){ flac_src *x=(flac_src *)v; if(n > x->left || (n && fseek(x->f,(long)n,SEEK_CUR)!=0)) return 0; x->left-=n; return 1; }
 
 /* FLAC: "fLaC" magic + metadata blocks; parse the VORBIS_COMMENT block (type 4) for
  * TITLE/ARTIST/ALBUM/GENRE (UTF-8, little-endian lengths). Bounded like the ID3 path. */
@@ -299,12 +306,9 @@ static void flac_read(FILE *f, char *title,char *artist,char *album,char *genre,
         if(fread(h,1,4,f)!=4) return;
         int last = h[0]&0x80, type = h[0]&0x7f;
         uint32_t len = ((uint32_t)h[1]<<16)|((uint32_t)h[2]<<8)|h[3];
-        if(type==4){                                    /* VORBIS_COMMENT */
-            if(len<8 || len>1024*1024) return;
-            unsigned char *b=malloc(len); if(!b){ if(rerr)*rerr=1; return; }   /* OOM: signal a real read failure (ferror won't catch it) */
-            if(fread(b,1,len,f)!=len){ free(b); return; }                      /* short read: ferror() in tags_from_file distinguishes IO error from EOF */
-            vorbis_comments(b,len,title,artist,album,genre,album_artist,track,disc);
-            free(b);
+        if(type==4){                                    /* VORBIS_COMMENT, streamed (no size limit, tiny memory) */
+            flac_src x={ { flac_rd, flac_sk }, f, len };
+            if(!vc_stream(&x.s,title,artist,album,genre,album_artist,track,disc) && rerr && len >= 8) *rerr=1;   /* cut short: keep the stored tags */
             return;                                      /* got the comment block */
         }
         if(last) return;
@@ -521,46 +525,62 @@ static int scan_read_narrator_leased(const char *path, char *out, int cap){
 
 /* ---- Ogg Vorbis / Ogg Opus ----
  * Pages ("OggS", 27-byte header + segment table). The comment header is the stream's SECOND packet
- * ("\x03vorbis" or "OpusTags" + a Vorbis comment body); it may span pages, so packets are reassembled from the
- * lacing values. Bounded: at most 64 pages and 1 MiB of packet data; only the first logical stream is read. */
-static void ogg_read(FILE *f, char *title,char *artist,char *album,char *genre,
-                     char *album_artist, int *track, int *disc, int *rerr){
-    enum { OGG_MAX = 1024*1024 };
-    unsigned char *pkt = malloc(OGG_MAX);
-    if(!pkt){ if(rerr)*rerr=1; return; }
-    uint32_t plen = 0, serial = 0; int npkt = 0, have_serial = 0;
-    for(int page = 0; page < 64 && npkt < 2; page++){
-        unsigned char h[27], seg[255];
-        if(fread(h,1,27,f)!=27 || memcmp(h,"OggS",4)!=0 || h[4]!=0) break;
+ * ("\x03vorbis" or "OpusTags" + a Vorbis comment body); it may span hundreds of pages when a cover is embedded, so it
+ * is read as a stream across pages (long items skipped by seeking) instead of being collected in memory. Only the
+ * first logical stream is read. Bounded at 16384 pages; running out of pages or file mid-packet is a read failure
+ * (the stored tags are kept), never "this file has no tags". */
+typedef struct { vc_src s; FILE *f; uint32_t serial; int have_serial, nseg, si, ended, pages, ioerr; uint32_t left; unsigned char seg[255]; } ogg_src;
+static int ogg_page(ogg_src *o){
+    for(;;){
+        unsigned char h[27];
+        if(++o->pages > 16384) return 0;
+        if(fread(h,1,27,o->f)!=27 || memcmp(h,"OggS",4)!=0 || h[4]!=0) return 0;
         uint32_t ser = le32(h+14);
-        if(!have_serial){ serial = ser; have_serial = 1; }
+        if(!o->have_serial){ o->serial = ser; o->have_serial = 1; }
         int nseg = h[26];
-        if(fread(seg,1,(size_t)nseg,f)!=(size_t)nseg) break;
-        if(ser != serial){                                    /* another logical stream: skip its page body */
-            long body = 0; for(int i=0;i<nseg;i++) body += seg[i];
-            if(fseek(f,body,SEEK_CUR)!=0){ if(rerr && errno==EIO) *rerr=1; break; }
+        if(fread(o->seg,1,(size_t)nseg,o->f)!=(size_t)nseg) return 0;
+        if(ser != o->serial){                                 /* another logical stream: skip its page body */
+            long body = 0; for(int i=0;i<nseg;i++) body += o->seg[i];
+            if(fseek(o->f,body,SEEK_CUR)!=0){ if(errno==EIO) o->ioerr=1; return 0; }
             continue;
         }
-        for(int i = 0; i < nseg && npkt < 2; i++){
-            uint32_t n = seg[i];
-            if(n > OGG_MAX - plen){ npkt = 99; break; }      /* packet too large for the bound: give up */
-            if(n && fread(pkt+plen,1,n,f)!=n){ npkt = 99; break; }
-            plen += n;
-            if(seg[i] < 255){                                 /* a lacing value < 255 ends the packet */
-                npkt++;
-                if(npkt == 2){
-                    if(plen > 7 && pkt[0]==3 && !memcmp(pkt+1,"vorbis",6))
-                        vorbis_comments(pkt+7, plen-7, title,artist,album,genre,album_artist,track,disc);
-                    else if(plen > 8 && !memcmp(pkt,"OpusTags",8))
-                        vorbis_comments(pkt+8, plen-8, title,artist,album,genre,album_artist,track,disc);
-                    break;
-                }
-                plen = 0;                                     /* packet 1 (identification) done: start packet 2 */
-            }
-        }
-        if(npkt >= 2) break;
+        o->nseg = nseg; o->si = 0; return 1;
     }
-    free(pkt);
+}
+static int ogg_seg(ogg_src *o){                               /* the next segment of the CURRENT packet */
+    if(o->ended) return 0;
+    while(o->si >= o->nseg) if(!ogg_page(o)) return 0;
+    o->left = o->seg[o->si]; o->ended = o->seg[o->si] < 255; o->si++;   /* a lacing value < 255 ends the packet */
+    return 1;
+}
+static int ogg_move(ogg_src *o, unsigned char *b, uint32_t n){
+    while(n){
+        if(!o->left){ if(!ogg_seg(o)) return 0; continue; }
+        uint32_t k = n < o->left ? n : o->left;
+        if(b){ if(fread(b,1,k,o->f)!=k) return 0; b += k; }
+        else if(fseek(o->f,(long)k,SEEK_CUR)!=0){ if(errno==EIO) o->ioerr=1; return 0; }
+        o->left -= k; n -= k;
+    }
+    return 1;
+}
+static int ogg_rd(vc_src *v, unsigned char *b, uint32_t n){ return ogg_move((ogg_src *)v, b, n); }
+static int ogg_sk(vc_src *v, uint32_t n){ return ogg_move((ogg_src *)v, NULL, n); }
+static void ogg_read(FILE *f, char *title,char *artist,char *album,char *genre,
+                     char *album_artist, int *track, int *disc, int *rerr){
+    ogg_src o; memset(&o,0,sizeof o); o.s.rd = ogg_rd; o.s.sk = ogg_sk; o.f = f;
+    while(!(o.ended && !o.left)){                             /* packet 1 (identification): skip it */
+        if(o.left){ if(!ogg_sk(&o.s,o.left)) goto fail; }
+        else if(!ogg_seg(&o)) goto fail;
+    }
+    o.ended = 0; o.left = 0;                                  /* packet 2: the comment header */
+    unsigned char id[8];
+    if(!ogg_rd(&o.s,id,7)) goto fail;
+    if(!(id[0]==3 && !memcmp(id+1,"vorbis",6))){
+        if(!ogg_rd(&o.s,id+7,1) || memcmp(id,"OpusTags",8)) return;   /* not Vorbis/Opus comments: nothing to read */
+    }
+    if(vc_stream(&o.s,title,artist,album,genre,album_artist,track,disc)) return;
+fail:
+    if(rerr && (o.pages > 0 || o.ioerr)) *rerr=1;             /* an Ogg file whose tags couldn't be read to the end */
 }
 
 /* ---- APE (APEv2 tag) ----

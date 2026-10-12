@@ -111,8 +111,10 @@ static void finish(const char *result){
     if(cb) cb(result);
 }
 static void do_save(void){
-    static char buf[160];
-    snprintf(buf, sizeof buf, "%s", g_ta ? lv_textarea_get_text(g_ta) : "");
+    static char buf[256];                                     /* a whole file name (255 bytes) fits */
+    const char *txt = g_ta ? lv_textarea_get_text(g_ta) : "";
+    if(strlen(txt) >= sizeof buf){ ui_toast("That's too long"); return; }   /* never save a silently cut text */
+    snprintf(buf, sizeof buf, "%s", txt);
     int n = (int)strlen(buf);
     while(!g_keep_spaces && n > 0 && buf[n-1]==' ') buf[--n] = 0;
     finish(buf); /* saved empty string is distinct from NULL (cancel) */

@@ -349,7 +349,10 @@ static void dup_close(void){ if(g_dup_dlg){ lv_obj_del(g_dup_dlg); g_dup_dlg=NUL
 /* Public: dismiss transient popups on any screen navigation, so the duplicate-add
  * confirm dialog (on lv_layer_top, no scrim) can't float onto a later screen and act
  * on a stale g_dup_pid/g_pick_path. Called from the screen-manager transition. */
-void npmenu_close_transients(void){ dup_close(); }
+void npmenu_close_transients(void){
+    dup_close();
+    if(g_tags_ov){ lv_obj_delete_async(g_tags_ov); g_tags_ov = NULL; }   /* "Add lyrics & artwork" belongs to the screen it opened on */
+}
 static void dup_add_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     dup_close();

@@ -106,6 +106,7 @@ repeatedly before the trial is accepted.
 | Update folder not found | `diskos-update` at the card's top level, all six files present. |
 | Update refused / damaged | Verify on the computer, compare the root key hash (below), recopy the whole folder, check the epoch. |
 | Same or older epoch | Sign again a minute later with a correct clock and replace the whole folder. |
+| "This exact build was rolled back before" | A build that rolled back is remembered (`updates/rejected`). Signing the same `mq_ui` again won't help: use a new build. |
 | Not enough space | The Disc's own data partition is full; free space on the SD card doesn't help. |
 | Old build after a trial | The trial was rolled back or never accepted; check About. |
 | Old build after flashing | Check which file you passed with `--ui`. A new flash clears old SD builds. |
@@ -115,11 +116,12 @@ For details, turn on **Settings > System > Maintenance > Debug Mode** and use th
 ```sh
 DISKOS_IP=192.168.1.50  # the address shown in Debug Mode
 ssh "root@$DISKOS_IP" 'cat /usr/data/updates/last_result'
-ssh "root@$DISKOS_IP" 'cat /usr/data/updates/run; cat /usr/data/updates/accepted'
+ssh "root@$DISKOS_IP" 'cat /tmp/.diskos_run; cat /usr/data/updates/accepted; cat /usr/data/updates/rejected'
+ssh "root@$DISKOS_IP" 'tail -n 30 /usr/data/diskos_install.log'
 ssh "root@$DISKOS_IP" 'sha256sum /etc/diskos-ota/root.pub.pem'
 ```
 
-The root hash must match `sha256sum diskos-keys/diskos-root.pub.pem` on your computer. Some files only exist after
+`/tmp/.diskos_run` describes the build running now; `rejected` lists builds that rolled back. The root hash must match `sha256sum diskos-keys/diskos-root.pub.pem` on your computer. Some files only exist after
 a first update. Note the message shown on the Disc too. Never copy `mq_ui` over SSH or edit the boot manifest:
 the Disc would reject it and fall back to stock.
 

@@ -70,8 +70,9 @@ typedef union { size_t n; max_align_t a; } bhdr;
 #define BH_N(h) ((h)->n)
 #endif
 /* Every live allocation counts against the budget, including its bookkeeping header. */
+static size_t g_budget = BUDGET_BYTES;   /* in mq_ui: lowered to what the system can spare right now */
 static void *bmalloc(size_t n){
-    if(n > BUDGET_BYTES - sizeof(bhdr) || g_live + sizeof(bhdr) + n > BUDGET_BYTES){ g_over_budget = 1; return NULL; }
+    if(n > g_budget - sizeof(bhdr) || g_live + sizeof(bhdr) + n > g_budget){ g_over_budget = 1; return NULL; }
     bhdr *h = malloc(sizeof(bhdr) + n);
     if(!h){ g_over_budget = 1; return NULL; }
     BH_N(h) = n; g_live += sizeof(bhdr) + n; if(g_live > g_peak) g_peak = g_live;
@@ -845,9 +846,25 @@ int main(int argc, char **argv){
 /* The helper's whole job as one call inside mq_ui: same modes, outputs and exit codes as the standalone
  * `diskos-artdec <mode> <input> <out>`. Serialised (the decoder keeps file-scope state); every run starts from
  * a clean state and releases its file and memory afterwards, whatever path it returned by. */
+/* Inside mq_ui a decode must never push the system into the OOM killer (it kills mq_ui without a log line): the
+ * budget is what MemAvailable leaves after an 8 MiB reserve, at most the usual 32 MiB; under 4 MiB the run is skipped
+ * as "too large" (the cover simply isn't shown this time; the next request tries again). */
+static size_t artdec_mem_budget(void){
+    FILE *f = fopen("/proc/meminfo", "r"); if(!f) return BUDGET_BYTES;
+    char line[128]; unsigned long long kb = 0; int found = 0;
+    while(fgets(line, sizeof line, f)) if(sscanf(line, "MemAvailable: %llu kB", &kb) == 1){ found = 1; break; }
+    fclose(f);
+    if(!found) return BUDGET_BYTES;
+    unsigned long long avail = kb * 1024ULL, reserve = 8ULL << 20;
+    if(avail <= reserve) return 0;
+    avail -= reserve;
+    return avail < BUDGET_BYTES ? (size_t)avail : BUDGET_BYTES;
+}
 int artdec_inproc(const char *mode, const char *input, const char *out){
     static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mu);
+    g_budget = artdec_mem_budget();
+    if(g_budget < (4u << 20)){ g_budget = BUDGET_BYTES; pthread_mutex_unlock(&mu); return ST_LIMIT; }
     g_fd = -1; g_fsize = 0; g_ioerr = 0; g_ncand = g_saw_picture = g_malformed = g_limited = 0;
     g_ntags = 0; g_atoms = 0; g_live = g_peak = 0; g_over_budget = 0; g_blocks = NULL;
     memset(g_cand, 0, sizeof g_cand);
@@ -855,7 +872,7 @@ int artdec_inproc(const char *mode, const char *input, const char *out){
     int rc = artdec_main(4, argv);
     if(g_fd >= 0){ close(g_fd); g_fd = -1; }
     while(g_blocks){ bhdr *h = g_blocks; g_blocks = h->s.next; free(h); }
-    g_live = 0; g_ntags = 0;
+    g_live = 0; g_ntags = 0; g_budget = BUDGET_BYTES;
     pthread_mutex_unlock(&mu);
     return rc;
 }

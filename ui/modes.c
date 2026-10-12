@@ -466,9 +466,10 @@ static void mi_set_wait(int wait){                           /* Ring: a turning 
 static void mi_text(lv_obj_t *l, const char *t){ if(l && strcmp(lv_label_get_text(l), t)) lv_label_set_text(l, t); }
 
 static void modeinfo_fill(int m);
+static void mi_back_async(void *u){ (void)u; if(screen_current() == SCR_MODEINFO) screen_back(); }
 void modeinfo_refresh(void){
     int m = cur_mode();
-    if(m == 0){ screen_back(); return; }                     /* nothing active: nothing to show */
+    if(m == 0){ lv_async_call(mi_back_async, NULL); return; }   /* nothing active: leave, after the screen change in progress */
     modeinfo_fill(m);
 }
 void modes_test_pending(int m){ mark_pending(m); }           /* host renders */

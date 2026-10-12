@@ -36,6 +36,7 @@ static orbit_t g_orb;
 
 /* ---------------------------------------------------------------- helpers */
 static void close_ov(void){ if(g_ov){ lv_obj_delete(g_ov); g_ov = NULL; } }
+void fileops_close(void){ if(g_ov){ lv_obj_delete_async(g_ov); g_ov = NULL; } }   /* a screen change: confirm / destination picker go too */
 static lv_obj_t *overlay(void){
     close_ov();
     g_ov = lv_obj_create(lv_layer_top());
@@ -53,7 +54,10 @@ static int path_join(char *out, size_t cap, const char *a, const char *b){
 static int is_playing_inside(const char *p, int dir){      /* the playing track is p, or inside folder p */
     track_state_t st; ipc_get_state(&st);
     if(!st.have_track || !st.path[0]) return 0;
-    size_t n = strlen(p);
+    size_t n = strlen(p), sl = strlen(st.path);
+    /* the player reports at most sizeof st.path - 1 bytes: a longer playing path is only known by its start, so
+     * anything that could be it (or contain it) counts as playing */
+    if(sl >= sizeof st.path - 1 && n >= sl && !strncmp(p, st.path, sl)) return 1;
     if(!dir) return !strcmp(st.path, p);
     return !strncmp(st.path, p, n) && st.path[n] == '/';
 }
@@ -293,6 +297,8 @@ static void pick_here_cb(lv_event_t *e){
     if(!strcmp(src, dst)){ close_ov(); ui_toast("It's already here"); return; }
     size_t sl = strlen(src);
     if(g_is_dir && !strncmp(g_pick, src, sl) && (g_pick[sl] == '/' || g_pick[sl] == 0)){ close_ov(); ui_toast("Can't put a folder inside itself"); return; }
+    size_t dl = strlen(dst);
+    if(!strncmp(src, dst, dl) && src[dl] == '/'){ close_ov(); ui_toast("Can't replace a folder with something inside it"); return; }
     if(lstat(dst, &st) == 0){
         if(is_playing_inside(dst, S_ISDIR(st.st_mode))){ close_ov(); ui_toast("The destination contains the playing track"); return; }
         char t[320]; snprintf(t, sizeof t, "Replace \"%s\"?", g_name);

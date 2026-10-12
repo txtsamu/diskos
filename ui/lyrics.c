@@ -516,10 +516,12 @@ int lyrics_timed_load(const char *path,lyr_line_t *out,int cap){
     char raw[16384]="", sidecar[600]; derive_lrc(path,sidecar,sizeof sidecar);
     FILE *f=fopen(sidecar,"rb");
     if(f){ read_lrc(f,raw,sizeof raw); fclose(f); }
-    if(!raw[0]){
-        f=fopen(path,"rb");
+    int n=raw[0]?timed_parse(raw,out,cap):0;
+    if(!n){                                       /* no sidecar, or an unsynced one: the song's own synced lyrics */
+        raw[0]=0; f=fopen(path,"rb");
         if(f){ int synced=0; lyr_embedded_read(f,raw,sizeof raw,&synced); fclose(f); }
+        n=timed_parse(raw,out,cap);
     }
     sd_io_end();
-    return timed_parse(raw,out,cap);
+    return n;
 }

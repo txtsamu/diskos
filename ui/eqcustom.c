@@ -483,6 +483,7 @@ static lv_obj_t *g_pad, *g_pad_disp, *g_unit_hz, *g_unit_khz, *g_sign;
 static char g_pad_txt[12];
 static int g_pad_khz, g_pad_neg;
 static void pad_close(void){ if(g_pad){ lv_obj_delete(g_pad); g_pad = NULL; } }
+void eqcustom_pad_close(void){ if(g_pad){ lv_obj_delete_async(g_pad); g_pad = NULL; } }   /* a screen change closes the number pad */
 static void pad_show(void){
     if(!g_pad) return;
     lv_label_set_text(g_pad_disp, g_pad_txt[0] ? g_pad_txt : "0");
