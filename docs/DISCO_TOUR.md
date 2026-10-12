@@ -36,8 +36,8 @@ edge of the screen (on the left in [left-handed mode](#left-handed-mode)).
   swipe up) for the next one. The screen behind changes as you go.
 - **Tap the middle** to open the section at its top level.
 - **Hold** the open circle to go straight back to Music, and **double-tap** it to open Search. Both are yours to
-  change under Disco Options > Layout > Hold / Double tap (Music, Search, Queue, Up Next, Shortcuts, Quick Settings or
-  Nothing).
+  change under Disco Options > Layout > Hold / Double tap (Music, Search, Queue, Up Next, Shortcuts, Quick Settings, Volume, Screen off,
+  Play/Pause, Next track or Nothing).
 - **Close it** with a tap anywhere outside it, or on the small › at its right end.
 
 The sections are yours to choose under [Disco Options](#disco-options) > Disco Menu: Music, Library, Artists,

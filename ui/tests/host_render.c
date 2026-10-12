@@ -150,7 +150,8 @@ static void review_nav(void){
     lv_point_t icon,tab;disco_test_nav_points(&icon,&tab);
     lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(in,nav_read);lv_indev_set_long_press_time(in,400);
-    int destinations[]={SCR_HOME,SCR_SEARCH,SCR_QUEUE,SCR_UPNEXT,SCR_APPS,SCR_QUICK,SCR_LIBRARY};
+    int destinations[]={SCR_HOME,SCR_SEARCH,SCR_QUEUE,SCR_UPNEXT,SCR_APPS,SCR_QUICK,SCR_LIBRARY,SCR_LIBRARY,SCR_LIBRARY,SCR_LIBRARY,SCR_LIBRARY};   /* Volume, Screen off, Play/Pause, Next track and Nothing stay put */
+    _Static_assert(sizeof destinations/sizeof destinations[0]==DISCO_NAV_COUNT,"one destination per action");
     for(int action=0;action<DISCO_NAV_COUNT;action++){
         cfg_set_int_deferred("disco_nav_double",action);cfg_set_int_deferred("disco_nav_hold",action);
         screen_show(SCR_LIBRARY);disco_nav_set_open(0);nav_wait(300);
@@ -159,10 +160,13 @@ static void review_nav(void){
         assert(disco_test_nav_open());
         nav_touch(icon,650);nav_wait(350);assert(screen_current()==destinations[action]);
         assert(disco_test_nav_open()==(action==DISCO_NAV_NONE));
+        if(action==DISCO_NAV_VOLUME)nav_wait(2100);   /* the volume arc it opened hides by itself (a tap would only close it) */
         screen_show(SCR_LIBRARY);disco_nav_set_open(1);nav_wait(300);
         nav_touch(icon,70);nav_wait(50);assert(screen_current()==SCR_LIBRARY);
-        nav_touch(icon,70);nav_wait(350);assert(screen_current()==destinations[action]);
+        nav_touch(icon,70);nav_wait(350);
+        assert(screen_current()==destinations[action]);
         assert(disco_test_nav_open()==(action==DISCO_NAV_NONE));
+        if(action==DISCO_NAV_VOLUME)nav_wait(2100);
     }
     cfg_set_int_deferred("disco_nav_double",DISCO_NAV_SEARCH);
     screen_show(SCR_LIBRARY);disco_nav_set_open(1);nav_wait(300);
@@ -203,7 +207,7 @@ static void review_nav(void){
         else screen_back();
     }
     lv_indev_delete(in);
-    puts("PASS: open-only nav gestures, seven actions, hold-release suppression, cancellation, Apply/Back");
+    puts("PASS: open-only nav gestures, every action, hold-release suppression, cancellation, Apply/Back");
 }
 
 

@@ -385,7 +385,7 @@ static void apply_disco_side_ok(int v){
     theme_reload_or_revert("disco_side");
 }
 static void side_apply_cb(lv_event_t *e){ (void)e; apply_disco_side_ok(0); }
-static const char *OPT_NAV_ACTION[] = { "Music screen", "Search", "Queue", "Up Next", "Shortcuts", "Quick Settings", "Nothing" };
+static const char *OPT_NAV_ACTION[] = { "Music screen", "Search", "Queue", "Up Next", "Shortcuts", "Quick Settings", "Volume", "Screen off", "Play/Pause", "Next track", "Nothing" };
 static const char *OPT_DHOLD[] = { "Immersive", "Favourite", "Nothing" };
 void dhome_title_apply(void);
 static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }

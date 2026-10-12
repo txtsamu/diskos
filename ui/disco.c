@@ -18,6 +18,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"
+#include "ipc.h"
 int search_landing_active(void);
 #include "folderbrowser.h"
 #include "books.h"
@@ -307,7 +308,15 @@ static void nav_cancel_tap(void){
     if(g_single_tap){lv_timer_delete(g_single_tap);g_single_tap=NULL;}
     g_second_tap=0;
 }
+/* 1.4.1 inserted Volume, Screen off, Play/Pause and Next track before Nothing: a saved 6 meant Nothing then */
+void disco_nav_migrate(void){
+    if(cfg_get_int("disco_nav_v",1)>=2)return;
+    const char *keys[2]={"disco_nav_double","disco_nav_hold"};
+    for(int i=0;i<2;i++)if(cfg_get_int(keys[i],-1)==6)cfg_set_int(keys[i],DISCO_NAV_NONE);
+    cfg_set_int("disco_nav_v",2);
+}
 static int nav_action(const char *key,int fallback){
+    disco_nav_migrate();
     int action=cfg_get_int(key,fallback);
     return action>=0 && action<DISCO_NAV_COUNT?action:fallback;
 }
@@ -321,6 +330,10 @@ static void nav_run(int action){
         case DISCO_NAV_UPNEXT:upnext_open();break;
         case DISCO_NAV_SHORTCUTS:apps_reload();screen_show(SCR_APPS);break;
         case DISCO_NAV_QUICK:screen_show(SCR_QUICK);break;
+        case DISCO_NAV_VOLUME:{track_state_t st;ipc_get_state(&st);ui_show_volume(st.volume);}break;   /* the rim arc, ready to drag */
+        case DISCO_NAV_SCREENOFF:ui_request_sleep();break;                   /* as the old Screen off tile: dims, then off */
+        case DISCO_NAV_PLAYPAUSE:ui_transport_command("0201000C0000");break;
+        case DISCO_NAV_NEXT:ui_transport_command("0201000C0001");break;
     }
 }
 static int picker_wanted(int which){
@@ -550,6 +563,7 @@ void disco_open_np_immersive(void){
 }
 
 void disco_init(lv_obj_t *parent){
+    disco_nav_migrate();                                           /* before Settings reads the gesture choices */
     g_parent = parent;
     menu_load();
     backdrop_bake(); backdrop_apply();
