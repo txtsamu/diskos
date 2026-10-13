@@ -7,7 +7,7 @@
 - [A tour of Disco!](DISCO_TOUR.md) - every screen, gesture and setting, with screenshots.
 - [How-to](HOWTO.md) - short answers for everyday tasks.
 - [Updating from the SD card](UPDATING.md) - keys, signing, flashing once, troubleshooting.
-- [Flashing from Windows with WSL](WINDOWS.md) - highly experimental, untested and unsupported.
+- [diskOS Disco! for Windows](WINDOWS.md) - install and update from a Windows PC, no terminal needed.
 - [UI choices](UI_CHOICES.md) - why things look and work the way they do.
 - [Privacy and network use](PRIVACY.md).
 - [Release notes](releases/) and the [changelog](../CHANGELOG.md).

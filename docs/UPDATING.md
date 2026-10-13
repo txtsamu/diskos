@@ -2,6 +2,9 @@
 
 [Back to the README](../README.md) · [Developer workflow](DEV_WORKFLOW.md)
 
+**On Windows?** The [Windows app](WINDOWS.md) makes your keys, flashes once and makes signed SD updates for you (its
+Update page does steps 2 to 4 below). This guide is the Linux way, and explains what happens underneath.
+
 Flash once with your own public update key. After that, new **interface builds** install from the SD card: no
 reflash, no SSH. The Disc checks the signatures, runs the new build as a trial, and goes back to the previous
 build if the trial fails.
@@ -9,7 +12,7 @@ build if the trial fails.
 > [!IMPORTANT]
 > **Coming from 1.4.0 or older? Reflash once.** The update fixes from 1.4.1 are in the boot script, which an SD
 > update can't replace. Flash with the same `--ota-key` as before (step 1); after that, SD updates work as below.
-> Already on 1.4.1? 1.5.0 is an ordinary SD update.
+> Already on 1.4.1 or later? 2.0 is an ordinary SD update.
 
 An SD update changes `mq_ui` (the interface) only. It doesn't touch the stock player, the boot scripts or the
 optional apps ([Album Roulette](ALBUM_ROULETTE_INSTALL.md), [Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
@@ -64,7 +67,7 @@ use the desktop `host-render` program on the Disc.
 From the repository root, with your keys in `./diskos-keys`:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.5.0
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 2.0.0
 ```
 
 With keys elsewhere: `diskos-sign.sh <binary> [label] [keys-folder] [output-folder]`. The label (up to 32 letters,

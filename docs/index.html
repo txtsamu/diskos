@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>diskOS Disco!</title>
-<meta name="description" content="diskOS Disco! 1.5.0 - Boomshine, a built-in chain-reaction game, and any app in the navigation circle. A touch interface for the round screen of the FiiO Snowsky Disc, where the album cover is the interface. Built on b0hemia's diskOS.">
-<meta property="og:title" content="diskOS Disco! 1.5.0">
+<meta name="description" content="diskOS Disco! 2.0 - now installs from Windows in four clicks. Your own Now Playing, endless customisation, apps and games, fast search and a Music Assistant speaker for the FiiO Snowsky Disc. A touch interface for the round screen of the FiiO Snowsky Disc, where the album cover is the interface. Built on b0hemia's diskOS.">
+<meta property="og:title" content="diskOS Disco! 2.0">
 <meta property="og:description" content="The album cover is the interface. A touch UI for the FiiO Snowsky Disc, built on diskOS.">
 <meta property="og:image" content="https://zmd22.github.io/diskos-disco/disco/hero.png">
 <link rel="icon" href="disco/music.png">
@@ -147,6 +147,34 @@ code{font:0.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background
 @media (max-width:560px){.step{padding:64px 18px 18px}.step::before{left:18px;top:18px}}
 .note{margin-top:22px;padding:16px 20px;border-radius:16px;border:1px solid rgba(255,180,90,.35);background:rgba(255,180,90,.07);color:#f5d9b8;font-size:15px}
 
+/* hero: what it does, in six chips */
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:820px;margin:26px auto 0}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--text);text-decoration:none}
+.chip:hover{border-color:rgba(255,255,255,.25)}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--iri);flex:none}
+.btn.rainbow{background:linear-gradient(90deg,var(--pink),var(--orange) 35%,var(--cyan) 70%,var(--violet));color:#0b0b10}
+.btn.rainbow:hover{filter:brightness(1.08)}
+
+/* killer features: a round screen per feature */
+.kf{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:44px}
+.kf .card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 24px}
+.kf .dev{width:min(220px,60vw);height:auto;aspect-ratio:1;padding:7px;margin-bottom:18px}
+.kf .card h4{font-size:20px;margin:4px 0 8px}
+.kf .card a{color:var(--text)}
+.kf .win{width:100%;border-radius:12px;border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.5);margin:12px 0 26px}
+@media (max-width:900px){.kf{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.kf{grid-template-columns:1fr}}
+
+/* the Windows app: real window screenshots */
+.winshots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-top:40px}
+.winshots figure{margin:0}
+.winshots img{width:100%;border-radius:14px;border:1px solid var(--line);box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.winshots figcaption{margin-top:12px;color:var(--muted);font-size:15px}
+.winshots figcaption b{color:var(--text)}
+@media (max-width:760px){.winshots{grid-template-columns:1fr}}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}
+@media (max-width:860px){.facts{grid-template-columns:1fr}}
+
 /* footer */
 footer{padding:60px 0 70px;border-top:1px solid var(--line);color:var(--faint);font-size:14px}
 footer .cols{display:grid;grid-template-columns:2fr 1fr 1fr;gap:30px}
@@ -166,7 +194,7 @@ footer a:hover{color:var(--text)}
   <div class="wrap">
     <a class="logo" href="#top"><span class="disc" aria-hidden="true"></span>diskOS Disco!</a>
     <nav aria-label="Sections">
-      <a href="#updates">What's new</a><a href="#boomshine">Boomshine</a><a href="#music">Music</a><a href="#roulette">Roulette</a><a href="#tour">Screens</a><a href="#options">Options</a><a href="#themes">Themes</a><a href="#install">Install</a>
+      <a href="#features">Features</a><a href="#windows">Windows</a><a href="#boomshine">Boomshine</a><a href="#music">Music</a><a href="#roulette">Roulette</a><a href="#tour">Screens</a><a href="#options">Options</a><a href="#themes">Themes</a><a href="#install">Install</a>
     </nav>
     <a class="gh" href="https://github.com/zmd22/diskos-disco">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.2.26 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -179,58 +207,106 @@ footer a:hover{color:var(--text)}
   <!-- hero -->
   <div class="hero">
     <div class="wrap">
-      <span class="eyebrow"><b>1.5.0</b> · for the FiiO Snowsky Disc · firmware V2.57</span>
+      <span class="eyebrow"><b>2.0</b> · for the FiiO Snowsky Disc · now installs from Windows</span>
       <h1>diskOS Disco<span class="bang">!</span></h1>
-      <p class="lede"><strong>The album cover is the interface.</strong> A touch UI made for the Disc's round
-        360&nbsp;px screen, built on b0hemia's diskOS: the playing album fills the screen, a faint CD rainbow runs
-        around the rim, and everything else sits on glass around it.</p>
-      <p class="small"><strong>New in 1.5.0:</strong> <strong>Boomshine</strong>, a chain-reaction game built right in, and any app in the navigation circle, each with its own landing page. <a href="#boomshine">Play Boomshine</a> · <a href="#updates">See what's new</a>.</p>
+      <p class="lede"><strong>Your Disc, your way.</strong> A new interface for the Snowsky Disc's round screen: the
+        album you're playing fills it, and everything else is yours to arrange, recolour and fill with apps.</p>
+      <div class="chips" aria-label="Highlights">
+        <a class="chip" href="#music"><i></i>Now Playing, your way</a>
+        <a class="chip" href="#options"><i></i>Make it yours</a>
+        <a class="chip" href="#boomshine"><i></i>Apps and games</a>
+        <a class="chip" href="#features"><i></i>Fast search</a>
+        <a class="chip" href="#features"><i></i>A Music Assistant speaker</a>
+        <a class="chip" href="#windows"><i></i>Installs from Windows</a>
+      </div>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/zmd22/diskos-disco/releases/latest">Download the latest release</a>
-        <a class="btn ghost" href="#install">Install</a>
+        <a class="btn rainbow" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
+        <a class="btn ghost" href="#install">Linux and SD updates</a>
         <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Take the tour</a>
       </div>
-      <p class="small">Free and open source · testing release, as-is · not affiliated with FiiO or Snowsky</p>
+      <p class="small">Free and open source · testing release, as-is · built on b0hemia's diskOS · not affiliated with FiiO or Snowsky</p>
 
       <div class="stage" aria-label="Screenshots">
-        <div class="dev sm"><img src="disco/music-light.png" alt="Music, light appearance" width="360" height="360"></div>
-        <div class="dev md"><img src="disco/menu-boomshine.png" alt="Boomshine in the navigation circle" width="360" height="360"></div>
-        <div class="dev lg"><img src="disco/boomshine-neon.png" alt="Boomshine, NeoN: a chain reaction of glowing rings" width="360" height="360"></div>
-        <div class="dev md"><img src="disco/boomshine-pop.png" alt="Boomshine, Pop!: soft pastel bursts" width="360" height="360"></div>
-        <div class="dev sm"><img src="disco/music-inter.png" alt="Music, Inter Semibold" width="360" height="360"></div>
+        <div class="dev sm"><img src="disco/search-results.png" alt="Search results" width="360" height="360"></div>
+        <div class="dev md"><img src="disco/music-arc.png" alt="Music with the progress arc around the rim" width="360" height="360"></div>
+        <div class="dev lg"><img src="disco/music.png" alt="Music: the album cover fills the screen" width="360" height="360"></div>
+        <div class="dev md"><img src="disco/boomshine-neon.png" alt="Boomshine, a built-in game" width="360" height="360"></div>
+        <div class="dev sm"><img src="disco/eq.png" alt="Equalizer" width="360" height="360"></div>
       </div>
     </div>
   </div>
 
-  <!-- what's new -->
-  <section id="updates">
-    <div class="wrap">
-      <div class="feature reveal" style="padding-top:0">
-        <div>
-          <span class="kicker">New in 1.5.0</span>
-          <h2>Your apps,<br>one circle away.</h2>
-          <p>Every app on the Disc can now join the navigation circle, right next to Music and Library. Pick one and
-            its landing page appears: a picture, a line about it and one button. Browse as much as you like; nothing
-            launches until you tap.</p>
-          <ul>
-            <li><b>Boomshine, built in:</b> a chain-reaction game, no install needed. <a href="#boomshine">More below</a>.</li>
-            <li><b>Any installed app in the menu:</b> add Disc Shelf and future apps in Disco Options › Disco Menu.
-              They keep their place as you add or remove others.</li>
-            <li><b>Landing pages for every app:</b> apps can describe themselves; the rest get a tidy
-              <i>Launch</i> page.</li>
-            <li><b>Disc Shelf:</b> its own landing page and a much fuller install guide.</li>
-          </ul>
-          <p class="small">An SD update from 1.4.1. Coming from 1.4.0 or older? Reflash once first, as for 1.4.1.</p>
-          <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/releases/v1.5.0.md">Release notes</a>
-          <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md#apps-in-the-menu">Apps in the menu</a>
-        </div>
-        <div class="shots">
-          <div class="dev"><img src="disco/menu-boomshine.png" alt="Boomshine in the navigation circle" width="360" height="360" loading="lazy"></div>
-          <div class="dev"><img src="disco/boomshine-landing.png" alt="Boomshine landing page with a Play button" width="360" height="360" loading="lazy"></div>
-          <div class="dev"><img src="disco/disc-shelf-launch.png" alt="Disc Shelf landing page" width="360" height="360" loading="lazy"></div>
-          <div class="dev"><img src="disco/app-launch.png" alt="Default landing page for any installed app" width="360" height="360" loading="lazy"></div>
-        </div>
+  <!-- the killer features -->
+  <section id="features">
+    <div class="wrap center">
+      <span class="kicker">Why Disco!</span>
+      <h2>Everything you touch, made for a round screen.</h2>
+      <p class="sub">The stock interface, rethought: bigger covers, fewer taps, and settings for nearly everything.</p>
+      <div class="kf">
+        <div class="card"><div class="dev"><img src="disco/music-inter.png" alt="Now Playing with Inter Semibold" width="360" height="360" loading="lazy"></div>
+          <h4>Now Playing, your way</h4>
+          <p>The album cover fills the screen. Pick the track font, where the title sits, a rainbow progress line or an arc
+            around the rim, the clock and the track times. Tap the title for lyrics, album and artist.</p></div>
+        <div class="card"><div class="dev"><img src="disco/disco-options.png" alt="Disco Options" width="360" height="360" loading="lazy"></div>
+          <h4>Make it yours</h4>
+          <p>Choose your menu sections and their order, accent colours that follow the cover, light or dark, three
+            themes, left-handed mode, gestures and Quick Settings. <a href="#options">All the options</a></p></div>
+        <div class="card"><div class="dev"><img src="disco/boomshine-neon.png" alt="Boomshine" width="360" height="360" loading="lazy"></div>
+          <h4>Apps and games</h4>
+          <p>Boomshine is built in, Album Roulette picks your next album, Disc Shelf brings your Navidrome server. Any app
+            can sit in the navigation circle. <a href="#boomshine">Play Boomshine</a></p></div>
+        <div class="card"><div class="dev"><img src="disco/search-results.png" alt="Search" width="360" height="360" loading="lazy"></div>
+          <h4>Find it fast</h4>
+          <p>Search shows artists first, then songs, as you type. Lists curve with the screen, an A-Z jump gets you
+            anywhere, and holding anything shows what you can do with it.</p></div>
+        <div class="card"><div class="dev"><img src="disco/sendspin.png" alt="MA Sendspin" width="360" height="360" loading="lazy"></div>
+          <h4>A Music Assistant speaker</h4>
+          <p>With MA Sendspin the Disc joins <a href="https://www.music-assistant.io/">Music Assistant</a> as a speaker:
+            play your whole home library to it, in sync with your other rooms. <i>(Experimental)</i></p></div>
+        <div class="card"><img class="win" src="windows/check.png" alt="diskOS Disco! for Windows" loading="lazy">
+          <h4>Installs from Windows</h4>
+          <p>New in 2.0: a Windows app checks your PC, sets everything up, flashes the Disc and makes your SD updates.
+            <a href="#windows">How it works</a></p></div>
       </div>
+    </div>
+  </section>
+
+  <!-- Windows -->
+  <section id="windows" style="background:linear-gradient(180deg,var(--bg),var(--bg2),var(--bg))">
+    <div class="wrap">
+      <span class="kicker">New in 2.0 · diskOS Disco! for Windows</span>
+      <h2>From Windows to your Disc,<br>in four clicks.</h2>
+      <p class="sub">Installing used to mean a Linux computer and a terminal. Now there's an app. It checks your PC, sets
+        up everything it needs, flashes the Disc and, later, puts new versions on your SD card, signed with your own keys.
+        You click; it does the rest.</p>
+      <div class="winshots">
+        <figure><img src="windows/check.png" alt="Step 1: Check this PC" loading="lazy">
+          <figcaption><b>1. Check.</b> Windows 11, virtualization, WSL, the USB bridge, disk space. Anything missing gets
+            a plain explanation and a button that fixes it.</figcaption></figure>
+        <figure><img src="windows/prepare.png" alt="Step 2: Prepare" loading="lazy">
+          <figcaption><b>2. Prepare.</b> One click sets up diskOS's own small Linux environment, with the installer
+            already inside. It's private, separate from anything else on your PC, and removable in one click.</figcaption></figure>
+        <figure><img src="windows/install.png" alt="Step 3: Install" loading="lazy">
+          <figcaption><b>3. Install.</b> Pick FiiO's firmware file, let the app make your update keys, plug in the Disc
+            with Volume Down held. It finds the Disc, flashes it and keeps the PC awake until it's done.</figcaption></figure>
+        <figure><img src="windows/update.png" alt="Step 4: Update" loading="lazy">
+          <figcaption><b>4. Update.</b> New version out? The app downloads it, checks it, signs it with your keys and
+            writes it to the SD card. Install it on the Disc from Settings, no cable needed.</figcaption></figure>
+      </div>
+      <div class="facts">
+        <div class="card"><h4>The real installer</h4><p>The same diskOS installer and safety checks as on Linux, with a
+          backup of your Disc's original system kept in a normal Windows folder.</p></div>
+        <div class="card"><h4>Your keys, your Disc</h4><p>Update keys are made on your PC and stay there. Only updates you
+          sign install on your Disc. Back them up and you're set.</p></div>
+        <div class="card"><h4>Free tools underneath</h4><p>Microsoft's WSL and the open-source usbipd-win do the heavy
+          lifting. The app tells you when Windows will ask for permission, and why.</p></div>
+      </div>
+      <div class="cta" style="justify-content:flex-start">
+        <a class="btn rainbow" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
+        <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/WINDOWS.md">Read the full guide</a>
+      </div>
+      <p class="small">Windows 11, 64-bit (Intel or AMD) · about 10 GB free · FiiO firmware V2.57 · the app isn't
+        code-signed yet: if Windows says "protected your PC", click More info › Run anyway.</p>
     </div>
   </section>
 
@@ -466,15 +542,21 @@ footer a:hover{color:var(--text)}
     <div class="wrap">
       <span class="kicker">Install</span>
       <h2>Twenty quiet minutes.</h2>
-      <p class="sub">You need a Snowsky Disc on FiiO firmware V2.57, the official V2.57 firmware ZIP, a Linux
-        computer and a good USB cable. The installer is diskOS's; the interface is ready-built in
-        <code>payload/mq_ui</code>.</p>
+      <p class="sub">You need a Snowsky Disc on FiiO firmware V2.57, FiiO's official V2.57 firmware ZIP and a good USB
+        data cable. On Windows, the app does it all; on Linux, it's a few commands.</p>
       <div class="steps">
+        <div class="step">
+          <h4>On Windows: the app</h4>
+          <p>Download <a href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">diskOS-Disco-for-Windows.zip</a>,
+            extract it and run <code>diskOS-Disco.exe</code>. Follow its four pages: Check, Prepare, Install, and later
+            Update for SD updates. <a href="https://github.com/zmd22/diskos-disco/blob/main/docs/WINDOWS.md">Full Windows guide</a>.
+            The steps below are for Linux.</p>
+        </div>
         <div class="step">
           <h4>Download</h4>
           <p>Get the <a href="https://github.com/zmd22/diskos-disco/releases/latest">latest release</a> or clone the repository
             for the installer and signing tools. The repository includes the ready-built interface as
-            <code>payload/mq_ui</code>. Already installed with an update key but older than 1.4.1? Flash once more with that same key
+            <code>payload/mq_ui</code>. Already installed with an update key but on a version before 1.4.1? Flash once more with that same key
             (its boot-script fixes need it); later updates use the SD steps below.</p>
 <pre>git clone https://github.com/zmd22/diskos-disco.git
 cd diskos-disco
@@ -508,7 +590,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre>
           <p style="margin-top:14px">Expect <code>mq_ui: OK</code>. From the repository root, sign with the keys
             matching the public root key already installed on your Disc:</p>
 <pre>sh ui/tools/owner-keys/diskos-sign.sh \
-  /path/to/mq_ui 1.5.0 \
+  /path/to/mq_ui 2.0.0 \
   /absolute/path/to/your/diskos-keys ./diskos-update</pre>
           <p style="margin-top:14px">The output contains six files: <code>mq_ui</code>, <code>update.manifest</code>,
             <code>update.manifest.sig</code>, <code>leafpub.pem</code>, <code>keyauthz</code> and <code>keyauthz.sig</code>.
@@ -525,7 +607,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre>
         </div>
         <div class="step">
           <h4>Test and keep the trial</h4>
-          <p>Check <b>Settings › System › About</b> for the new version (Disco! 1.5.0). Keep the trial running for
+          <p>Check <b>Settings › System › About</b> for the new version (Disco! 2.0.0). Keep the trial running for
             at least three minutes and test playback. A confirmed playback start with running audio can
             accept it automatically after the minimum time; otherwise choose <b>Keep</b> when asked.
             Choose <b>Go back</b> and restart to revert.</p>

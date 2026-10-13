@@ -12,6 +12,9 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 
 [Home](../README.md) | [How-to](HOWTO.md) | [Docs](README.md)
 
+**Getting it on your Disc:** from Windows with the [diskOS Disco! for Windows](WINDOWS.md) app, or from Linux with the
+[installer](../README.md#install).
+
 ## On this page
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).

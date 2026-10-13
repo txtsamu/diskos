@@ -146,7 +146,7 @@ Rescan Library). A small dot runs around the rim while it scans.
 **Update from the SD card.**
 
 1. On your computer, make a signed update with the signing script:
-   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.5.0` (the last part is just a label for the package).
+   `sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 2.0.0` (the last part is just a label for the package).
 2. Copy the resulting `diskos-update` folder to the root of the SD card.
 3. On the Disc: Settings > System > Maintenance > Update from SD Card > Update, then restart.
 4. The new version starts as a **trial**. Play some music (or tap **Keep** when asked) to keep it. If it
@@ -172,6 +172,8 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 **When nothing is playing.** Music shows a CD and **Go to Library**; tap it to choose some music.
 
 ## Optional apps
+
+**Install from Windows.** Use the [Windows app](WINDOWS.md): Check, Prepare, Install, and later Update for SD updates.
 
 **Install Album Roulette or Disc Shelf.** They're separate from the interface: follow
 [Album Roulette](ALBUM_ROULETTE_INSTALL.md) or [Disc Shelf](DISC_SHELF_INSTALL.md). Open them from the navigation circle

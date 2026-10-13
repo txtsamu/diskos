@@ -22,6 +22,7 @@
   <a href="docs/HOWTO.md"><b>How-to</b></a> ·
   <a href="https://github.com/zmd22/diskos-disco/releases/latest"><b>Download</b></a> ·
   <a href="#install">Install</a> ·
+  <a href="docs/WINDOWS.md"><b>Windows</b></a> ·
   <a href="#updates-from-the-sd-card">SD updates</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://zmd22.github.io/diskos-disco/">Website</a> ·
@@ -67,28 +68,24 @@ replaces only what you see and touch.
 </tr>
 </table>
 
-## New in 1.5.0
+## New in 2.0: install from Windows
 
-- **Boomshine, built in.** A chain-reaction game for the round screen: tap once, set off a blast, catch the dots.
-  Twenty levels, two looks (NeoN and Pop!), and your music keeps playing. Nothing to install.
-  [How to play](docs/DISCO_TOUR.md#boomshine).
-- **Any app in the navigation circle.** Add installed apps like Disc Shelf to the Disco Menu next to the built-in
-  sections. Each gets a **landing page** with one button, so browsing the circle never launches anything by
-  accident. [Apps in the menu](docs/DISCO_TOUR.md#apps-in-the-menu).
-- **Disc Shelf guide, expanded:** what you need, each setting, troubleshooting. [Install it](docs/DISC_SHELF_INSTALL.md).
-
-An SD update from 1.4.1. Coming from 1.4.0 or older? Reflash once first, as for 1.4.1 (its update fixes are in the
-boot script). 1.4.1 brought a Sendspin security fix, SD updates you can keep, steadier scans and better tags,
-thanks to **[ingvarr777](https://github.com/ingvarr777)**'s reports.
+**diskOS Disco! for Windows** installs Disco! on your Disc by clicking through four pages: it checks your PC, sets up
+everything it needs, flashes the Disc and later makes your SD updates. No terminal, no Linux.
+[What it does and how to use it](docs/WINDOWS.md) ·
+**[Download it](https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip)**
 
 <table><tr>
-<td align="center" width="25%"><img src="docs/disco/boomshine-neon.png" width="190" alt="Boomshine, NeoN"><br><sub><b>Boomshine</b>: NeoN</sub></td>
-<td align="center" width="25%"><img src="docs/disco/boomshine-pop.png" width="190" alt="Boomshine, Pop!"><br><sub><b>Boomshine</b>: Pop!</sub></td>
-<td align="center" width="25%"><img src="docs/disco/menu-boomshine.png" width="190" alt="Boomshine in the navigation circle"><br><sub><b>In the circle</b></sub></td>
-<td align="center" width="25%"><img src="docs/disco/disc-shelf-launch.png" width="190" alt="Disc Shelf landing page"><br><sub><b>Landing page</b> for any app</sub></td>
+<td align="center" width="25%"><img src="docs/windows/check.png" width="190" alt="Check this PC"><br><sub><b>1. Check</b> this PC</sub></td>
+<td align="center" width="25%"><img src="docs/windows/prepare.png" width="190" alt="Prepare"><br><sub><b>2. Prepare</b> diskOS's environment</sub></td>
+<td align="center" width="25%"><img src="docs/windows/install.png" width="190" alt="Install"><br><sub><b>3. Install</b> on the Disc</sub></td>
+<td align="center" width="25%"><img src="docs/windows/update.png" width="190" alt="Update"><br><sub><b>4. Update</b> from the SD card</sub></td>
 </tr></table>
 
-All the details: [1.5.0 release notes](docs/releases/v1.5.0.md) · [1.4.1](docs/releases/v1.4.1.md) · [changelog](CHANGELOG.md).
+Also in 2.0: no more false "Couldn't start playback" when a big playlist takes a moment to load. Everything from
+1.5.0 is here too: [Boomshine](docs/DISCO_TOUR.md#boomshine), any app in the navigation circle, and landing pages.
+
+All the details: [2.0 release notes](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
@@ -139,8 +136,18 @@ Upstream's **Stone** theme is kept as well.
 
 ## Install
 
-You need a Snowsky Disc on **FiiO firmware V2.57**, the official V2.57 firmware ZIP, a Linux computer, a good USB
-cable and about 20 quiet minutes. The installer is upstream diskOS's (`./diskos-installer --help`).
+You need a Snowsky Disc on **FiiO firmware V2.57**, FiiO's official V2.57 firmware ZIP, a good USB data cable and
+about 30 quiet minutes.
+
+### From Windows
+
+Download **[diskOS-Disco-for-Windows.zip](https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip)**,
+extract it and run `diskOS-Disco.exe`. It walks you through everything, including your update keys and later SD
+updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
+
+### From Linux
+
+The installer is upstream diskOS's (`./diskos-installer --help`).
 
 **0. Get it.** Download the **[latest release](https://github.com/zmd22/diskos-disco/releases/latest)** (Source
 code, tar.gz) and unpack it, or `git clone https://github.com/zmd22/diskos-disco`. The ready-built interface is
@@ -175,11 +182,12 @@ summary line `ota: ON … key sha256 xxxx` before you answer `y`. It must match 
 
 ## Updates from the SD card
 
-Download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco/releases/latest) (or build it), then sign it with
+**On Windows:** the app's **Update** page downloads the latest version, signs it with your keys and writes it to the
+SD card ([how](docs/WINDOWS.md#step-4--update-from-the-sd-card)). **On Linux:** download `mq_ui` from the [latest release](https://github.com/zmd22/diskos-disco/releases/latest) (or build it), then sign it with
 your keys:
 
 ```sh
-sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 1.5.0      # -> ./diskos-update/ (the label is free text)
+sh ui/tools/owner-keys/diskos-sign.sh path/to/mq_ui 2.0.0      # -> ./diskos-update/ (the label is free text)
 ```
 
 Reuse the signing keys whose root public key was installed on this Disc. Copy the complete
@@ -212,7 +220,8 @@ Stock is never far:
 
 - **Settings › System › Controls › Default UI › Stock** makes FiiO's interface the normal choice.
 - Hold **Volume Up** from power-on to boot the other interface once.
-- `./diskos-installer restore-stock` removes diskOS completely.
+- `./diskos-installer restore-stock` (Linux) removes diskOS completely, using the backup made at install. The
+  Windows app keeps that backup in `%LOCALAPPDATA%\diskOS-Disco\backup`.
 
 ## Documentation
 
@@ -221,7 +230,7 @@ Stock is never far:
 | [Tour](docs/DISCO_TOUR.md) | Every screen, gesture and setting, with screenshots |
 | [How-to](docs/HOWTO.md) | Short answers for everyday tasks |
 | [Updating](docs/UPDATING.md) | Keys, signing, flashing once, troubleshooting |
-| [Windows (WSL)](docs/WINDOWS.md) | Flashing from Windows: highly experimental, untested and unsupported |
+| [Windows](docs/WINDOWS.md) | diskOS Disco! for Windows: install and update from a Windows PC |
 | [UI choices](docs/UI_CHOICES.md) | Why things look and work the way they do |
 | [Changelog](CHANGELOG.md) | Every Disco! release, newest first |
 | [All docs](docs/README.md) | Optional apps, hardware notes, developer workflow, legal |

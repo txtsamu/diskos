@@ -6,6 +6,24 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.0.0] - unreleased
+
+SD update from 1.4.1 or later; the Windows app can also flash.
+
+- Added: diskOS Disco! for Windows (`windows/`): a .NET Framework app (one small EXE) with four pages. Check (Windows 11
+  x64, virtualization, WSL, usbipd-win, space, pending restart, each with a fix button); Prepare (imports the app's own
+  WSL distribution `diskOS-Disco` from `diskos-wsl.tar.gz`, built by `windows/wsl/build-env.sh`: minimal Ubuntu 24.04,
+  installer, Python deps, static usbboot, kmod, signing tools; runs as root, so no udev rule); Install (firmware, new or
+  existing keys, usbipd bind/attach --auto-attach, `diskos install --yes`, keep-awake, stock backup copied to
+  `%LOCALAPPDATA%\diskOS-Disco\backup`); Update (latest release download checked against SHA256SUMS, `diskos-sign.sh`,
+  written to the SD card). Start-up disclaimer, About with thanks, Copy report.
+- Release workflow builds the Windows app and its environment; new asset `diskOS-Disco-for-Windows.zip` (fixed name, so
+  `releases/latest/download/` links always work).
+- Fixed: false "Couldn't start playback" after starting a big list: the start timeout is 12 s and only toasts if
+  nothing plays.
+- Docs: WINDOWS.md rewritten as the app's guide; README, website (new hero and features, Windows section), install
+  pages and tour point Windows users to the app.
+
 ## [1.5.0] - 2026-10-13
 
 SD update from 1.4.1 (no reflash).
