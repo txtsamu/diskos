@@ -12,8 +12,8 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.6 (test build: checks, environment, install)";
-        public static string ShortVersion { get { return "test build " + Version.Split(' ')[0]; } }
+        public const string Version = "2.0.0";
+        public static string ShortVersion { get { return "version " + Version; } }
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
@@ -33,6 +33,7 @@ namespace DiskosDisco
             Form first = new MainForm();
             if (Array.IndexOf(args, "--prepare-page") >= 0) first = new PrepareForm { Size = first.Size };
             else if (Array.IndexOf(args, "--install-page") >= 0) first = new InstallForm { Size = first.Size };
+            else if (Array.IndexOf(args, "--update-page") >= 0) first = new UpdateForm { Size = first.Size };
             else if (Array.IndexOf(args, "--about") >= 0) first = new AboutForm();
             Application.Run(first);
         }
@@ -167,7 +168,7 @@ namespace DiskosDisco
                 new Thread(() =>
                 {
                     CheckResult res;
-                    try { res = row.Check.Run(); }
+                    try { res = Demo.On ? Demo.For(row.Check) : row.Check.Run(); }
                     catch (Exception e) { res = new CheckResult(State.Warning, "Couldn't check this: " + e.Message); }
                     BeginInvoke(new Action(() => { row.Result = res; Show(row, res); if (--running == 0) Done(); }));
                 }) { IsBackground = true }.Start();

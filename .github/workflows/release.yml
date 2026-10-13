@@ -1,5 +1,5 @@
 # Publishes a GitHub Release for every version tag (v1.0, v1.1, ...): the ready-built interface (payload/mq_ui)
-# plus the standalone apps, complete ZIP and checksums as downloads, with the notes from docs/releases/<tag>.md. Push a tag and the release appears.
+# plus the standalone apps, the Windows app, complete ZIP and checksums as downloads, with the notes from docs/releases/<tag>.md. Push a tag and the release appears.
 name: Release
 
 on:
@@ -14,6 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Build the Windows app and its Linux environment
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y mono-devel debootstrap
+          sh windows/build.sh
+          sudo sh windows/wsl/build-env.sh
+          sudo chown -R "$(id -u):$(id -g)" windows/out vendor
 
       - name: Collect the release files
         run: |

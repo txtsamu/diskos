@@ -111,9 +111,9 @@ namespace DiskosDisco
             busy = true;
             new Thread(() =>
             {
-                bool exists = Env.Exists();
-                string version = exists ? Env.Version() : null;
-                string package = Env.FindPackage();
+                bool exists = Demo.On || Env.Exists();
+                string version = Demo.On ? Env.Generation + " 2026-10-13 ui-2.0.0" : exists ? Env.Version() : null;
+                string package = Demo.On ? "demo" : Env.FindPackage();
                 BeginInvoke(new Action(() =>
                 {
                     busy = false;

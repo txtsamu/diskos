@@ -31,6 +31,17 @@ for name,appver,archive,mode in apps:
     shutil.copy2(source,out/source.name);outputs.extend([out/archive,out/source.name]);entries.extend(files)
 for name in ['mq_ui','mq_ui.build.json']:
     shutil.copy2(root/'payload'/name,out/name);outputs.append(out/name)
+# Windows app (built by the release workflow: windows/build.sh and windows/wsl/build-env.sh). The name has no version, so
+# https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip always gets the newest.
+win=root/'windows'/'out'
+if (win/'diskOS-Disco.exe').is_file() and (win/'diskos-wsl.tar.gz').is_file():
+    wz=out/'diskOS-Disco-for-Windows.zip'
+    with zipfile.ZipFile(wz,'w',zipfile.ZIP_DEFLATED) as z:
+        z.write(win/'diskOS-Disco.exe','diskOS-Disco.exe')
+        z.write(win/'diskos-wsl.tar.gz','diskos-wsl.tar.gz',compress_type=zipfile.ZIP_STORED)   # already compressed
+        z.write(root/'docs'/'WINDOWS.md','README.md')
+        for name in ['LICENSE','NOTICE.md']:z.write(root/name,name)
+    outputs.append(wz)
 complete=out/f'diskos-disco-{version}-complete.zip'
 with zipfile.ZipFile(complete,'w',zipfile.ZIP_DEFLATED) as z:
     z.write(out/'mq_ui','mq_ui');z.write(out/'mq_ui.build.json','mq_ui.build.json')

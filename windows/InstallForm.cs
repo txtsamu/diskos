@@ -19,7 +19,7 @@ namespace DiskosDisco
 
         readonly Label fwLabel, keysLabel, discLabel, status;
         readonly RadioButton keysNew, keysOld;
-        readonly Button fwButton, keysButton, findButton, installButton, back, openKeys;
+        readonly Button fwButton, keysButton, findButton, installButton, back, openKeys, next;
         readonly ProgressBar progress;
         readonly TextBox log;
         string firmware, keysDir, busid;
@@ -92,13 +92,30 @@ namespace DiskosDisco
             copy.Click += (s, e) => { try { Clipboard.SetText("diskOS Disco! for Windows " + Program.Version + "\r\n" + status.Text + "\r\n\r\n" + log.Text); } catch { } };
             openKeys = MainForm.MakeButton("Open keys folder", false);
             openKeys.Click += (s, e) => { if (keysDir != null && Directory.Exists(keysDir)) Sys.Open(keysDir); };
-            bar.Controls.Add(back); bar.Controls.Add(copy); bar.Controls.Add(openKeys);
+            next = MainForm.MakeButton("Next", true);
+            next.Click += (s, e) =>
+            {
+                var page = new UpdateForm { StartPosition = FormStartPosition.Manual, Location = Location, Size = Size };
+                page.FormClosed += (s2, e2) => { if (page.WentBack) { Location = page.Location; Size = page.Size; Show(); } else { WentBack = false; Close(); } };
+                Hide(); page.Show();
+            };
+            bar.Controls.Add(next); bar.Controls.Add(back); bar.Controls.Add(copy); bar.Controls.Add(openKeys);
             root.Controls.Add(bar, 0, 6);
 
             // Keys made by an earlier run are found again.
             if (File.Exists(Path.Combine(DefaultKeys, "diskos-root.pub.pem"))) { keysOld.Checked = true; keysDir = DefaultKeys; }
             UpdateKeys();
             UpdateButtons();
+            if (Demo.On) Load += (s, e) =>
+            {
+                firmware = @"C:\Users\you\Downloads\SNOWSKY_DISC_update_20260909_v257.zip";
+                fwLabel.Text = "✔  " + Path.GetFileName(firmware); fwLabel.ForeColor = MainForm.Good;
+                keysDir = DefaultKeys; keysOld.Checked = true; keysLabel.Text = "✔  " + @"C:\Users\you\Documents\diskOS Keys"; keysLabel.ForeColor = MainForm.Good;
+                discReady = true; discLabel.Text = "✔  Disc connected and ready."; discLabel.ForeColor = MainForm.Good;
+                busy = true; UpdateButtons(); Say("Installing… about 20 minutes. Keep the Disc connected.", MainForm.Ink);
+                foreach (string l in new[] { "Disc found on USB 2-1 (shared).", "usbipd: Using WSL distribution 'diskOS-Disco' to attach.",
+                                             "Disc attached to diskOS's environment." }) Append(l);
+            };
 
             FormClosing += (s, e) =>
             {
@@ -142,7 +159,7 @@ namespace DiskosDisco
         {
             bool keysOk = keysNew.Checked || (keysDir != null && File.Exists(Path.Combine(keysDir, "diskos-root.pub.pem")));
             fwButton.Enabled = keysButton.Enabled = findButton.Enabled = keysNew.Enabled = keysOld.Enabled = !busy;
-            back.Enabled = !busy;
+            back.Enabled = next.Enabled = !busy;
             installButton.Enabled = !busy && firmware != null && keysOk && discReady;
             openKeys.Visible = keysDir != null && Directory.Exists(keysDir);
             progress.Visible = busy;
