@@ -12,7 +12,7 @@ namespace DiskosDisco
     {
         public const string Name = "diskOS-Disco";
         public const string Package = "diskos-wsl.tar.gz";
-        public const string Generation = "diskos-disco-wsl 2";   // must match wsl/build-env.sh; older ones get set up again
+        public const string Generation = "diskos-disco-wsl 3";   // must match wsl/build-env.sh; older ones get set up again
 
         static string Wsl { get { return Sys.System32("wsl.exe"); } }
 
@@ -110,6 +110,7 @@ namespace DiskosDisco
         }
 
         // A hidden "sleep" inside the environment keeps it running while the USB bridge attaches the Disc to it.
+        // (The bridge loads the vhci_hcd kernel module through this environment, hence kmod in the package.)
         public static System.Diagnostics.Process KeepAlive()
         {
             return Sys.Background(Wsl, "-d " + Name + " -- sleep 86400");

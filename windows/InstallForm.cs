@@ -250,7 +250,7 @@ namespace DiskosDisco
                 return false;
             }
             busid = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)[0];
-            Append("Disc found on USB " + busid + ": " + line);
+            Append("Disc found on USB " + busid + " (" + (line.Contains("Not shared") ? "not shared yet" : line.Contains("Attached") ? "attached" : "shared") + ").");
             if (line.Contains("Not shared"))
             {
                 Say("Windows will ask for permission to share the Disc with diskOS…", MainForm.Ink);
@@ -261,7 +261,8 @@ namespace DiskosDisco
             }
             if (keepAlive == null || keepAlive.HasExited) keepAlive = Env.KeepAlive();
             Thread.Sleep(1500);
-            if (attach == null || attach.HasExited) attach = Sys.Background(usbipd, "attach --wsl --busid " + busid + " --auto-attach");
+            if (attach == null || attach.HasExited)
+                attach = Sys.BackgroundLines(usbipd, "attach --wsl --busid " + busid + " --auto-attach", l => Append("usbipd: " + l.Replace("usbipd: ", "")));
             Say("Connecting the Disc to diskOS…", MainForm.Ink);
             for (int i = 0; i < 20; i++)
             {
@@ -273,7 +274,8 @@ namespace DiskosDisco
                     return true;
                 }
             }
-            msg = "The Disc was found but didn't reach diskOS. Unplug it, turn it off, hold Volume Down, plug it in again and click Find my Disc.";
+            msg = "The Disc was found but didn't reach diskOS (the log below says why). Unplug it, turn it off, hold Volume Down, " +
+                  "plug it in again and click Find my Disc.";
             return false;
         }
 

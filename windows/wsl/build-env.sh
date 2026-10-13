@@ -9,7 +9,7 @@ OUT="$REPO/windows/out"; R=${WORK:-/var/tmp/diskos-wslroot}
 mkdir -p "$OUT"; rm -rf "$R"
 
 debootstrap --variant=minbase --components=main,universe \
-  --include=python3,python3-venv,squashfs-tools,libusb-1.0-0,ca-certificates,xz-utils,unzip \
+  --include=python3,python3-venv,squashfs-tools,libusb-1.0-0,ca-certificates,xz-utils,unzip,kmod \
   noble "$R" http://archive.ubuntu.com/ubuntu
 
 [ -x "$REPO/vendor/linux-x86_64/usbboot" ] || bash "$REPO/build/build-usbboot-static.sh"
@@ -41,7 +41,7 @@ appendWindowsPath=false
 hostname=diskos-disco
 E
 UI=$(sed -n 's/.*"version": "\(.*\)".*/\1/p' "$REPO/payload/mq_ui.build.json" | head -1)
-echo "diskos-disco-wsl 2 $(date -u +%Y-%m-%d) ui-$UI" > "$R/opt/diskos/WSL_ENV_VERSION"
+echo "diskos-disco-wsl 3 $(date -u +%Y-%m-%d) ui-$UI" > "$R/opt/diskos/WSL_ENV_VERSION"
 printf '#!/bin/sh\n# Run the diskOS installer from anywhere inside this environment.\nexec /opt/diskos/diskos-installer "$@"\n' > "$R/usr/local/bin/diskos"
 chmod 755 "$R/usr/local/bin/diskos"
 

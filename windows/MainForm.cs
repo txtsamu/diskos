@@ -12,7 +12,7 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.3 (test build: checks, environment, install)";
+        public const string Version = "0.4 (test build: checks, environment, install)";
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 

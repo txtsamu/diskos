@@ -80,6 +80,25 @@ namespace DiskosDisco
             catch (Exception e) { onLine(e.Message); return -1; }
         }
 
+        // Start a hidden helper that keeps running in the background, passing on what it prints (stopped with Kill).
+        public static Process BackgroundLines(string exe, string args, Action<string> onLine)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(exe, args)
+                {
+                    UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+                };
+                var p = new Process { StartInfo = psi };
+                DataReceivedEventHandler h = (s, e) => { if (e.Data != null && e.Data.Trim().Length > 0) onLine(e.Data); };
+                p.OutputDataReceived += h; p.ErrorDataReceived += h;
+                p.Start(); p.BeginOutputReadLine(); p.BeginErrorReadLine();
+                return p;
+            }
+            catch (Exception e) { onLine(e.Message); return null; }
+        }
+
         // Start a hidden helper that keeps running in the background (stopped with Kill).
         public static Process Background(string exe, string args)
         {
