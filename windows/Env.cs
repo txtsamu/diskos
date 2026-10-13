@@ -12,6 +12,7 @@ namespace DiskosDisco
     {
         public const string Name = "diskOS-Disco";
         public const string Package = "diskos-wsl.tar.gz";
+        public const string Generation = "diskos-disco-wsl 2";   // must match wsl/build-env.sh; older ones get set up again
 
         static string Wsl { get { return Sys.System32("wsl.exe"); } }
 
@@ -78,6 +79,65 @@ namespace DiskosDisco
         public static int Run(string command, out string output, int timeoutMs = 5 * 60 * 1000)
         {
             return Sys.Run(Wsl, "-d " + Name + " --cd /root -- " + command, out output, timeoutMs: timeoutMs);
+        }
+
+        // C:\Users\me\x.zip -> /mnt/c/Users/me/x.zip (null for network paths, which WSL can't reach this way)
+        public static string ToLinux(string win)
+        {
+            win = Path.GetFullPath(win);
+            if (win.Length < 3 || win[1] != ':' || !char.IsLetter(win[0])) return null;
+            return "/mnt/" + char.ToLowerInvariant(win[0]) + win.Substring(2).Replace('\\', '/');
+        }
+
+        // Quote for the Linux shell: 'it'\''s'
+        public static string Q(string s) { return "'" + s.Replace("'", "'\\''") + "'"; }
+
+        // Run a shell script inside the environment, line by line. The script is written to the app's folder and
+        // started from there, so no quoting passes through the Windows command line.
+        public static int Script(string body, Action<string> onLine)
+        {
+            Directory.CreateDirectory(Home);
+            File.WriteAllText(Path.Combine(Home, "run.sh"), "set -eu\n" + body.Replace("\r\n", "\n") + "\n", new System.Text.UTF8Encoding(false));
+            return Sys.RunLines(Wsl, "-d " + Name + " --cd \"" + Home + "\" -- sh ./run.sh", onLine);
+        }
+
+        public static int Script(string body, out string output)
+        {
+            var sb = new System.Text.StringBuilder();
+            int rc = Script(body, l => { lock (sb) sb.AppendLine(l); });
+            output = sb.ToString().Trim();
+            return rc;
+        }
+
+        // A hidden "sleep" inside the environment keeps it running while the USB bridge attaches the Disc to it.
+        public static System.Diagnostics.Process KeepAlive()
+        {
+            return Sys.Background(Wsl, "-d " + Name + " -- sleep 86400");
+        }
+
+        // The installer's state (including the backup of the Disc's original system) lives inside the environment.
+        // A copy is kept in a normal Windows folder, so removing or replacing the environment never loses it.
+        public const string StateDir = "/root/.local/share/diskos-installer";
+        public static string BackupDir { get { return Path.Combine(Home, "backup"); } }
+
+        public static int SaveBackup(out string output)
+        {
+            string win = ToLinux(BackupDir);
+            return Script("S=" + StateDir + "\n[ -d \"$S/stock\" ] || { echo 'nothing to back up yet'; exit 0; }\n" +
+                          "mkdir -p " + Q(win) + "\nrm -rf " + Q(win + "/stock.new") + "\n" +
+                          "cp -r \"$S/stock\" " + Q(win + "/stock.new") + "\n[ -f \"$S/state.json\" ] && cp \"$S/state.json\" " + Q(win + "/state.json") + "\n" +
+                          "rm -rf " + Q(win + "/stock") + "\nmv " + Q(win + "/stock.new") + " " + Q(win + "/stock") + "\necho 'backup copied to Windows'", out output);
+        }
+
+        public static int RestoreBackup(out string output)
+        {
+            output = "";
+            if (!Directory.Exists(Path.Combine(BackupDir, "stock"))) return 0;
+            string win = ToLinux(BackupDir);
+            return Script("S=" + StateDir + "\n[ -d \"$S/stock\" ] && { echo 'environment already has a backup'; exit 0; }\n" +
+                          "mkdir -p \"$S\"\ncp -r " + Q(win + "/stock") + " \"$S/stock\"\n" +
+                          "[ -f " + Q(win + "/state.json") + " ] && cp " + Q(win + "/state.json") + " \"$S/state.json\"\n" +
+                          "echo 'backup of the original Disc system restored into the environment'", out output);
         }
 
         public static string Version()

@@ -55,6 +55,51 @@ namespace DiskosDisco
             catch (Exception e) { output = e.Message; return -1; }
         }
 
+        // Run a program hidden and hand each line it prints to onLine (from a background thread). Returns the exit code.
+        public static int RunLines(string exe, string args, Action<string> onLine)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(exe, args)
+                {
+                    UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+                };
+                psi.EnvironmentVariables["WSL_UTF8"] = "1";
+                psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+                using (var p = new Process { StartInfo = psi })
+                {
+                    DataReceivedEventHandler h = (s, e) => { if (e.Data != null) onLine(e.Data.Replace("\0", "")); };
+                    p.OutputDataReceived += h; p.ErrorDataReceived += h;
+                    p.Start(); p.BeginOutputReadLine(); p.BeginErrorReadLine();
+                    p.WaitForExit();
+                    return p.ExitCode;
+                }
+            }
+            catch (Exception e) { onLine(e.Message); return -1; }
+        }
+
+        // Start a hidden helper that keeps running in the background (stopped with Kill).
+        public static Process Background(string exe, string args)
+        {
+            try { return Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true }); }
+            catch { return null; }
+        }
+
+        // Run something as administrator (Windows asks first) and wait for it. False if the user said No.
+        public static bool RunAdmin(string exe, string args, out int exitCode)
+        {
+            exitCode = -1;
+            try
+            {
+                var psi = new ProcessStartInfo(exe, args) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
+                using (var p = Process.Start(psi)) { p.WaitForExit(); exitCode = p.ExitCode; }
+                return true;
+            }
+            catch (System.ComponentModel.Win32Exception) { return false; }
+        }
+
         public static string System32(string exe)
         {
             // A 32-bit process would be redirected to SysWOW64, where wsl.exe doesn't exist: use Sysnative then.

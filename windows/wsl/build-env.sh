@@ -17,6 +17,8 @@ mkdir -p "$R/opt/diskos"
 git -C "$REPO" archive HEAD diskos-installer diskos_installer payload vendor requirements.txt LICENSE NOTICE.md licenses \
   | tar -x -C "$R/opt/diskos"
 cp "$REPO/vendor/linux-x86_64/usbboot" "$R/opt/diskos/vendor/linux-x86_64/usbboot"
+mkdir -p "$R/opt/diskos/tools"                                   # key making and update signing, used by the app
+cp "$REPO/ui/tools/owner-keys/diskos-keys.sh" "$REPO/ui/tools/owner-keys/diskos-sign.sh" "$R/opt/diskos/tools/"
 
 cp /etc/resolv.conf "$R/etc/resolv.conf"
 CA=${PIP_CERT:-${REQUESTS_CA_BUNDLE:-}}
@@ -39,7 +41,7 @@ appendWindowsPath=false
 hostname=diskos-disco
 E
 UI=$(sed -n 's/.*"version": "\(.*\)".*/\1/p' "$REPO/payload/mq_ui.build.json" | head -1)
-echo "diskos-disco-wsl 1 $(date -u +%Y-%m-%d) ui-$UI" > "$R/opt/diskos/WSL_ENV_VERSION"
+echo "diskos-disco-wsl 2 $(date -u +%Y-%m-%d) ui-$UI" > "$R/opt/diskos/WSL_ENV_VERSION"
 printf '#!/bin/sh\n# Run the diskOS installer from anywhere inside this environment.\nexec /opt/diskos/diskos-installer "$@"\n' > "$R/usr/local/bin/diskos"
 chmod 755 "$R/usr/local/bin/diskos"
 

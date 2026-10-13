@@ -40,7 +40,8 @@ namespace DiskosDisco
             {
                 Text = "diskOS builds the Disc's new firmware in a small, private Linux environment inside WSL. Setting it " +
                        "up takes a minute or two and about 150 MB. It is separate from anything else in WSL on this PC, " +
-                       "and can be removed again here.",
+                       "and can be removed again here. The backup of your Disc's original system is always kept in a normal " +
+                       "Windows folder too.",
                 ForeColor = MainForm.Muted, MaximumSize = new Size(690, 0), AutoSize = true, Margin = new Padding(0, 0, 0, 14)
             });
             root.Controls.Add(head, 0, 0);
@@ -72,9 +73,12 @@ namespace DiskosDisco
 
             var bar = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 12, 0, 0) };
             next = MainForm.MakeButton("Next", true);
-            next.Click += (s, e) => MessageBox.Show(this,
-                "diskOS's environment is ready.\n\nThis test build stops here. The next one adds the install wizard: " +
-                "firmware, your update keys, connecting the Disc and flashing.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            next.Click += (s, e) =>
+            {
+                var page = new InstallForm { StartPosition = FormStartPosition.Manual, Location = Location, Size = Size };
+                page.FormClosed += (s2, e2) => { if (page.WentBack) { Location = page.Location; Size = page.Size; Show(); } else { WentBack = false; Close(); } };
+                Hide(); page.Show();
+            };
             back = MainForm.MakeButton("Back", false);
             back.Click += (s, e) => { WentBack = true; Close(); };
             var copy = MainForm.MakeButton("Copy report", false);
@@ -122,7 +126,13 @@ namespace DiskosDisco
                 BeginInvoke(new Action(() =>
                 {
                     busy = false;
-                    if (exists && version != null)
+                    if (exists && version != null && !version.StartsWith(Env.Generation))
+                    {
+                        status.Text = "Needs updating"; status.ForeColor = MainForm.Warn;
+                        detail.Text = "This environment (" + version + ") is from an older version of this app. Click Set up again.";
+                        prepare.Text = "Set up again"; prepare.Enabled = package != null; remove.Enabled = true;
+                    }
+                    else if (exists && version != null)
                     {
                         status.Text = "✔  Ready"; status.ForeColor = MainForm.Good;
                         detail.Text = "diskOS's environment is set up (" + version + "). Test it if you like, then click Next.";
@@ -159,9 +169,14 @@ namespace DiskosDisco
             Work("Setting up… (a minute or two)", () =>
             {
                 string o, text = "";
-                if (again) { Env.Remove(out o); text += "Removed the old environment.\n"; }
+                if (again)
+                {
+                    Env.SaveBackup(out o); text += o + "\n";
+                    Env.Remove(out o); text += "Removed the old environment.\n";
+                }
                 int rc = Env.Import(package, out o);
                 if (rc != 0) return text + "Setting up failed (code " + rc + "):\n" + o;
+                if (Env.RestoreBackup(out o) == 0 && o.Length > 0) text += o + "\n";
                 rc = Env.Run("diskos doctor", out o);
                 return text + "Set up.\n\n" + o + (rc == 0 ? "" : "\n\nThe test reported a problem (code " + rc + ").");
             });
@@ -183,9 +198,10 @@ namespace DiskosDisco
                                 Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
             Work("Removing…", () =>
             {
-                string o;
+                string o, saved;
+                Env.SaveBackup(out saved);   // the backup of the Disc's original system stays in a Windows folder
                 int rc = Env.Remove(out o);
-                return rc == 0 ? "Removed." : "Removing failed (code " + rc + "):\n" + o;
+                return (saved.Length > 0 ? saved + "\n" : "") + (rc == 0 ? "Removed." : "Removing failed (code " + rc + "):\n" + o);
             });
         }
     }

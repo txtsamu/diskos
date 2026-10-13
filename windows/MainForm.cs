@@ -12,17 +12,18 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.2 (test build: checks + environment)";
+        public const string Version = "0.3 (test build: checks, environment, install)";
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
             try { SetProcessDPIAware(); } catch { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            // --install-page: straight to step 3 (for testing and screenshots)
+            Application.Run(Array.IndexOf(args, "--install-page") >= 0 ? (Form)new InstallForm { Size = new Size(796, 720) } : new MainForm());
         }
     }
 
