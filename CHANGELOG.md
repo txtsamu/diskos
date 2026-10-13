@@ -6,7 +6,7 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
-## [2.0.0] - unreleased
+## [2.0.0] - 2026-10-13
 
 SD update from 1.4.1 or later; the Windows app can also flash.
 

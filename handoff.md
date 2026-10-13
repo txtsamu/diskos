@@ -1,4 +1,17 @@
-# diskOS Disco handoff - 1.5.0 (2026-10-13)
+# diskOS Disco handoff - 2.0.0 (2026-10-13)
+
+## 2.0.0 specifics
+
+- diskOS Disco! for Windows (windows/): C# .NET Framework 4 WinForms, built on Linux with mono (`sh windows/build.sh`).
+  Pages: Disclaimer, Check, Prepare (own WSL distro "diskOS-Disco" from diskos-wsl.tar.gz, `sudo sh windows/wsl/build-env.sh`),
+  Install (usbipd bind + attach --wsl --auto-attach, `diskos install --variant public --yes`), Update (latest release +
+  SHA256SUMS, diskos-sign.sh, SD card), About. Owner flashed a Disc with it successfully (2026-10-13).
+- Environment: minimal Ubuntu 24.04 (debootstrap), root user, no systemd/udev; kmod is required (usbipd loads vhci_hcd
+  through the distro). Bump Env.Generation and build-env's marker together when its contents change.
+- Release workflow builds the Windows zip (diskOS-Disco-for-Windows.zip). Stock backup copied to %LOCALAPPDATA%\diskOS-Disco\backup.
+- mq_ui: playback-start timeout 12 s, silent while music plays.
+
+## 1.5.0 (previous)
 
 Baseline: 1.4.1 (tag v1.4.1). 1.5.0 = Boomshine built in + installed apps in the Disco Menu (owner's patch,
 reviewed) + app landing pages. SD update only (S97 unchanged). Release notes: docs/releases/v1.5.0.md.
