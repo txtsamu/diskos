@@ -28,39 +28,39 @@ namespace DiskosDisco
             return o.Split('\n').Any(l => l.Trim().Equals(Name, StringComparison.OrdinalIgnoreCase));
         }
 
-        // The package next to the app, or in the app's own folder. A package split into parts (.001, .002, ...)
-        // next to the app is joined into the app's folder first.
+        // The package next to the app, or its parts (.001, .002, ... plus .sha256) joined into the app's folder.
+        // Parts next to the app win over a copy joined earlier, unless that copy is the same package.
         public static string FindPackage()
         {
-            foreach (string dir in new[] { AppDomain.CurrentDomain.BaseDirectory, Home })
-            {
-                string f = Path.Combine(dir, Package);
-                if (File.Exists(f)) return f;
-            }
-            string first = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Package + ".001");
-            if (!File.Exists(first)) return null;
+            string here = AppDomain.CurrentDomain.BaseDirectory;
+            string whole = Path.Combine(here, Package);
+            if (File.Exists(whole)) return whole;
             Directory.CreateDirectory(Home);
-            string joined = Path.Combine(Home, Package), part = joined + ".part";
+            string joined = Path.Combine(Home, Package);
+            string sumFile = Path.Combine(here, Package + ".sha256");
+            if (!File.Exists(Path.Combine(here, Package + ".001")) || !File.Exists(sumFile))
+                return File.Exists(joined) ? joined : null;
+            string want = File.ReadAllText(sumFile).Trim().Split(' ')[0].ToLowerInvariant();
+            if (File.Exists(joined) && Sha256(joined) == want) return joined;
+            string part = joined + ".part";
             using (var outp = File.Create(part))
                 for (int i = 1; ; i++)
                 {
-                    string p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Package + "." + i.ToString("000"));
+                    string p = Path.Combine(here, Package + "." + i.ToString("000"));
                     if (!File.Exists(p)) break;
                     using (var inp = File.OpenRead(p)) inp.CopyTo(outp);
                 }
-            // All parts present? The .sha256 file that comes with them says what the whole should be.
-            string sumFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Package + ".sha256");
-            if (File.Exists(sumFile))
-            {
-                string want = File.ReadAllText(sumFile).Trim().Split(' ')[0].ToLowerInvariant(), got;
-                using (var sha = System.Security.Cryptography.SHA256.Create())
-                using (var f = File.OpenRead(part))
-                    got = BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant();
-                if (got != want) { File.Delete(part); return null; }
-            }
+            if (Sha256(part) != want) { File.Delete(part); return null; }   // a part is missing or damaged
             if (File.Exists(joined)) File.Delete(joined);
             File.Move(part, joined);
             return joined;
+        }
+
+        static string Sha256(string file)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            using (var f = File.OpenRead(file))
+                return BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant();
         }
 
         public static int Import(string package, out string output)
