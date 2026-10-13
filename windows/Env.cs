@@ -70,6 +70,13 @@ namespace DiskosDisco
             return Sys.Run(Wsl, "--import " + Name + " \"" + dir + "\" \"" + package + "\" --version 2", out output, timeoutMs: 15 * 60 * 1000);
         }
 
+        // Stop the environment (it starts again by itself when next used).
+        public static void Stop()
+        {
+            string o;
+            Sys.Run(Wsl, "--terminate " + Name, out o, timeoutMs: 60000);
+        }
+
         public static int Remove(out string output)
         {
             return Sys.Run(Wsl, "--unregister " + Name, out output, timeoutMs: 5 * 60 * 1000);
@@ -113,7 +120,7 @@ namespace DiskosDisco
         // (The bridge loads the vhci_hcd kernel module through this environment, hence kmod in the package.)
         public static System.Diagnostics.Process KeepAlive()
         {
-            return Sys.Background(Wsl, "-d " + Name + " -- sleep 86400");
+            return Sys.Background(Wsl, "-d " + Name + " -- sleep 14400");
         }
 
         // The installer's state (including the backup of the Disc's original system) lives inside the environment.

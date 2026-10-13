@@ -12,7 +12,7 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.5 (test build: checks, environment, install)";
+        public const string Version = "0.6 (test build: checks, environment, install)";
         public static string ShortVersion { get { return "test build " + Version.Split(' ')[0]; } }
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
@@ -24,6 +24,12 @@ namespace DiskosDisco
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             // --prepare-page, --install-page, --about: straight there (for testing and screenshots)
+            if (Array.IndexOf(args, "--disclaimer") >= 0) { Application.Run(new Disclaimer()); return; }
+            if (args.Length == 0)
+            {
+                using (var d = new Disclaimer())
+                    if (d.ShowDialog() != DialogResult.OK) return;
+            }
             Form first = new MainForm();
             if (Array.IndexOf(args, "--prepare-page") >= 0) first = new PrepareForm { Size = first.Size };
             else if (Array.IndexOf(args, "--install-page") >= 0) first = new InstallForm { Size = first.Size };

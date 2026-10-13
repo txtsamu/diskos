@@ -102,7 +102,7 @@ namespace DiskosDisco
 
             FormClosing += (s, e) =>
             {
-                if (busy) { e.Cancel = true; MessageBox.Show(this, "Please wait: the Disc is being installed. Don't unplug it.", Text); return; }
+                if (busy) { e.Cancel = true; MessageBox.Show(this, "Please wait until this step finishes. Don't unplug the Disc.", Text); return; }
                 Release();
             };
         }
@@ -276,6 +276,7 @@ namespace DiskosDisco
             try { if (keepAlive != null && !keepAlive.HasExited) keepAlive.Kill(); } catch { }
             string usbipd = UsbBridgeCheck.Find(), o;
             if (usbipd != null && busid != null) Sys.Run(usbipd, "detach --busid " + busid, out o);
+            if (keepAlive != null) Env.Stop();                 // ends the background "sleep" and frees the memory
         }
 
         void Install()

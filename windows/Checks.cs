@@ -45,10 +45,16 @@ namespace DiskosDisco
                 psi.StandardOutputEncoding = enc; psi.StandardErrorEncoding = enc;
                 using (var p = Process.Start(psi))
                 {
+                    var o = p.StandardOutput.ReadToEndAsync();
                     var err = p.StandardError.ReadToEndAsync();
-                    string o = p.StandardOutput.ReadToEnd();
-                    if (!p.WaitForExit(timeoutMs)) { try { p.Kill(); } catch { } output = o; return -2; }
-                    output = (o + err.Result).Replace("\0", "").Trim();
+                    if (!p.WaitForExit(timeoutMs))                         // hung: stop it rather than wait forever
+                    {
+                        try { p.Kill(); } catch { }
+                        output = "(no answer after " + timeoutMs / 1000 + " s)";
+                        return -2;
+                    }
+                    p.WaitForExit();                                       // let the output readers finish
+                    output = (o.Result + err.Result).Replace("\0", "").Trim();
                     return p.ExitCode;
                 }
             }
