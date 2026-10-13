@@ -1,16 +1,16 @@
 {
-  "version": "1.5.0",
-  "status": "release candidate; device acceptance pending (SD update from 1.4.1)",
-  "source_commit": "baf7686951a39f476cdc9030fac119a90e823923",
-  "base_commit": "92b570a2338cdb4efc6b8cd760403b1ec6e744cf",
+  "version": "2.0.0",
+  "status": "release; the Windows app flashed the owner's Disc (with 1.5.0); SD update from 1.4.1",
+  "source_commit": "dea97febd8ec58023325b35b0e17d50a0f661e1a",
+  "base_commit": "d1cfbf6ba704cc2eb1efeb17072f480f0db00c22",
   "working_changes": false,
-  "ui_source_sha256": "8765daaf3267336aa586925f3bef49eb07b4b06273347c47eaae7c7710766880",
+  "ui_source_sha256": "b48458c4d4467243bdf6ebf1f740ce0a2eb1405deeb4db9b91e96264d036a343",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "4c665393fa0c2ea2da336f4fcfd1728e675266ddf5ff15670a2bb4cd7962c0ad",
-    "md5": "6debafa9f48b5e4ef8522248a8e55908",
-    "bytes": 5506172
+    "sha256": "e22c11417924171242c24ae4bba6b7bc5cfe16fcb32026465d4ee34d0077459c",
+    "md5": "ae869fda5b4f28fb7c222bd695422c3c",
+    "bytes": 5506188
   },
-  "replaces_binary_sha256": "5a73c32d87118afdbcdf54ac9520841c174fe8c4713ec9ec9678d94df06d7226"
+  "replaces_binary_sha256": "4c665393fa0c2ea2da336f4fcfd1728e675266ddf5ff15670a2bb4cd7962c0ad"
 }
