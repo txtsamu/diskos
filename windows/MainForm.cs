@@ -12,7 +12,8 @@ namespace DiskosDisco
 {
     static class Program
     {
-        public const string Version = "0.4 (test build: checks, environment, install)";
+        public const string Version = "0.5 (test build: checks, environment, install)";
+        public static string ShortVersion { get { return "test build " + Version.Split(' ')[0]; } }
 
         [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
@@ -22,8 +23,12 @@ namespace DiskosDisco
             try { SetProcessDPIAware(); } catch { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            // --install-page: straight to step 3 (for testing and screenshots)
-            Application.Run(Array.IndexOf(args, "--install-page") >= 0 ? (Form)new InstallForm { Size = new Size(796, 720) } : new MainForm());
+            // --prepare-page, --install-page, --about: straight there (for testing and screenshots)
+            Form first = new MainForm();
+            if (Array.IndexOf(args, "--prepare-page") >= 0) first = new PrepareForm { Size = first.Size };
+            else if (Array.IndexOf(args, "--install-page") >= 0) first = new InstallForm { Size = first.Size };
+            else if (Array.IndexOf(args, "--about") >= 0) first = new AboutForm();
+            Application.Run(first);
         }
     }
 
@@ -37,9 +42,8 @@ namespace DiskosDisco
 
     class MainForm : Form
     {
-        internal static readonly Color Ink = Color.FromArgb(28, 28, 32), Muted = Color.FromArgb(96, 96, 104);
-        internal static readonly Color Good = Color.FromArgb(16, 140, 72), Bad = Color.FromArgb(196, 40, 40), Warn = Color.FromArgb(196, 120, 0);
-        internal static readonly Color Accent = Color.FromArgb(0, 120, 212);
+        internal static readonly Color Ink = Theme.Text, Muted = Theme.Muted;
+        internal static readonly Color Good = Theme.Green, Bad = Theme.Red, Warn = Theme.Orange, Accent = Theme.Cyan;
 
         readonly List<Row> rows = new List<Row>();
         readonly Button recheck, next, copy;
@@ -49,24 +53,20 @@ namespace DiskosDisco
 
         public MainForm()
         {
-            Text = "diskOS Disco! for Windows";
-            Font = new Font("Segoe UI", 10f);
-            BackColor = Color.White;
+            Theme.Style(this);
             StartPosition = FormStartPosition.CenterScreen;
-            AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(780, 680);
-            MinimumSize = new Size(640, 520);
+            ClientSize = new Size(800, 760);
+            MinimumSize = new Size(700, 600);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 22, 28, 18), ColumnCount = 1, RowCount = 4 };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            Controls.Add(root);
+            Controls.Add(new Header(1, "Can this PC install diskOS?"));
+            Controls.Add(root); root.BringToFront();
 
             var head = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Dock = DockStyle.Fill };
-            head.Controls.Add(new Label { Text = "Step 1 of 4 · Check this PC", ForeColor = Accent, AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
-            head.Controls.Add(new Label { Text = "Can this PC install diskOS Disco!?", ForeColor = Ink, AutoSize = true, Font = new Font("Segoe UI Semibold", 16f), Margin = new Padding(0, 4, 0, 6) });
             head.Controls.Add(new Label
             {
                 Text = "diskOS needs a few free Microsoft and open-source tools. This page checks for them and shows what to click " +
@@ -110,6 +110,11 @@ namespace DiskosDisco
 
         internal static Button MakeButton(string text, bool primary)
         {
+            return new PillButton(text, primary);
+        }
+
+        static Button OldButton(string text, bool primary)
+        {
             var b = new Button { Text = text, AutoSize = true, Padding = new Padding(14, 4, 14, 4), Margin = new Padding(8, 4, 0, 0), FlatStyle = FlatStyle.System };
             if (primary)
             {
@@ -123,7 +128,7 @@ namespace DiskosDisco
         void AddRow(Check c)
         {
             var r = new Row { Check = c };
-            r.Icon = new Label { Text = "…", AutoSize = false, Size = new Size(30, 30), Font = new Font("Segoe UI Symbol", 14f), TextAlign = ContentAlignment.TopCenter, Margin = new Padding(0, 6, 0, 0) };
+            r.Icon = new Label { Text = "…", AutoSize = false, Size = new Size(30, 30), Font = new Font("Segoe UI Symbol", 13f), TextAlign = ContentAlignment.TopCenter, Margin = new Padding(0, 6, 0, 0) };
             var text = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(4, 6, 8, 10) };
             r.Title = new Label { Text = c.Title, AutoSize = true, ForeColor = Ink, Font = new Font(Font, FontStyle.Bold) };
             r.Detail = new Label { Text = "Checking…", AutoSize = true, ForeColor = Muted, MaximumSize = new Size(470, 0) };

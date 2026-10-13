@@ -19,10 +19,7 @@ namespace DiskosDisco
 
         public PrepareForm()
         {
-            Text = "diskOS Disco! for Windows";
-            Font = new Font("Segoe UI", 10f);
-            BackColor = Color.White;
-            AutoScaleMode = AutoScaleMode.Dpi;
+            Theme.Style(this);
             MinimumSize = new Size(640, 520);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 22, 28, 18), ColumnCount = 1, RowCount = 5 };
@@ -31,11 +28,10 @@ namespace DiskosDisco
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            Controls.Add(root);
+            Controls.Add(new Header(2, "diskOS's own Linux environment"));
+            Controls.Add(root); root.BringToFront();
 
             var head = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Dock = DockStyle.Fill };
-            head.Controls.Add(new Label { Text = "Step 2 of 4 · Prepare", ForeColor = MainForm.Accent, AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
-            head.Controls.Add(new Label { Text = "diskOS's own Linux environment", ForeColor = MainForm.Ink, AutoSize = true, Font = new Font("Segoe UI Semibold", 16f), Margin = new Padding(0, 4, 0, 6) });
             head.Controls.Add(new Label
             {
                 Text = "diskOS builds the Disc's new firmware in a small, private Linux environment inside WSL. Setting it " +
@@ -63,12 +59,7 @@ namespace DiskosDisco
             actions.Controls.Add(prepare); actions.Controls.Add(test); actions.Controls.Add(remove); actions.Controls.Add(progress);
             root.Controls.Add(actions, 0, 2);
 
-            log = new TextBox
-            {
-                Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, WordWrap = false,
-                Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(246, 246, 248), BorderStyle = BorderStyle.None,
-                Margin = new Padding(0, 14, 0, 0)
-            };
+            log = Theme.Log();
             root.Controls.Add(log, 0, 3);
 
             var bar = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 12, 0, 0) };

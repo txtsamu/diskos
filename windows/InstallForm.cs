@@ -33,21 +33,17 @@ namespace DiskosDisco
 
         public InstallForm()
         {
-            Text = "diskOS Disco! for Windows";
-            Font = new Font("Segoe UI", 10f);
-            BackColor = Color.White;
-            AutoScaleMode = AutoScaleMode.Dpi;
+            Theme.Style(this);
             MinimumSize = new Size(680, 600);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 22, 28, 18), ColumnCount = 1, RowCount = 7 };
             for (int i = 0; i < 5; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            Controls.Add(root);
+            Controls.Add(new Header(3, "Install on your Disc"));
+            Controls.Add(root); root.BringToFront();
 
             var head = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
-            head.Controls.Add(new Label { Text = "Step 3 of 4 · Install", ForeColor = MainForm.Accent, AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
-            head.Controls.Add(new Label { Text = "Install diskOS Disco! on your Disc", ForeColor = MainForm.Ink, AutoSize = true, Font = new Font("Segoe UI Semibold", 16f), Margin = new Padding(0, 4, 0, 10) });
             root.Controls.Add(head, 0, 0);
 
             // 1. Firmware
@@ -86,12 +82,7 @@ namespace DiskosDisco
             go.Controls.Add(installButton); go.Controls.Add(progress); go.Controls.Add(status);
             root.Controls.Add(go, 0, 4);
 
-            log = new TextBox
-            {
-                Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, WordWrap = false,
-                Font = new Font("Consolas", 9f), BackColor = Color.FromArgb(246, 246, 248), BorderStyle = BorderStyle.None,
-                Margin = new Padding(0, 12, 0, 0)
-            };
+            log = Theme.Log();
             root.Controls.Add(log, 0, 5);
 
             var bar = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 12, 0, 0) };
@@ -323,7 +314,7 @@ namespace DiskosDisco
                         MessageBox.Show(this,
                             "Done! Unplug the Disc and turn it on. diskOS Disco! installs itself on the first start.\n\n" +
                             "Important: copy the \"diskOS Keys\" folder (in Documents) to a USB stick or another safe place. " +
-                            "Your Disc only accepts updates signed with these keys.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            "Your Disc only accepts updates signed with these keys.\n\nHappy listening!", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }));
             }) { IsBackground = true }.Start();
         }
