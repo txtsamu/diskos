@@ -1,16 +1,17 @@
 {
-  "version": "2.0.0",
-  "status": "release; the Windows app flashed the owner's Disc (with 1.5.0); SD update from 1.4.1",
-  "source_commit": "dea97febd8ec58023325b35b0e17d50a0f661e1a",
-  "base_commit": "d1cfbf6ba704cc2eb1efeb17072f480f0db00c22",
+  "version": "2.1.0",
+  "status": "release candidate; host-tested (renders, sanitizers, unit and flow tests); SD update from 1.4.1",
+  "source_commit": "c1e0fb1e8cb4d2c8eaa944071b4470be1fa0ee0b",
+  "base_commit": "c76027879bad7cabb891f4396719212130b8705c",
   "working_changes": false,
-  "ui_source_sha256": "b48458c4d4467243bdf6ebf1f740ce0a2eb1405deeb4db9b91e96264d036a343",
+  "ui_source_sha256": "a0dad9cd8bc9cb01c241170b0d1a9843c1959844b37f8f643c2833f47dd466c7",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "e22c11417924171242c24ae4bba6b7bc5cfe16fcb32026465d4ee34d0077459c",
-    "md5": "ae869fda5b4f28fb7c222bd695422c3c",
-    "bytes": 5506188
+    "sha256": "479761630324119974958fe69df4ee6d9ffb87a74f2ff3f265bd7f6a483e8c7f",
+    "md5": "49130c79fa5ef8406aaf5d1569f8ad0e",
+    "bytes": 5536580
   },
-  "replaces_binary_sha256": "4c665393fa0c2ea2da336f4fcfd1728e675266ddf5ff15670a2bb4cd7962c0ad"
+  "replaces_binary_sha256": "e22c11417924171242c24ae4bba6b7bc5cfe16fcb32026465d4ee34d0077459c",
+  "toolchain_check": "rebuilt toolchain reproduces payload/diskos-artdec and diskos-bootprobe byte for byte"
 }
