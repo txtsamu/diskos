@@ -1291,7 +1291,7 @@ int ui_play_book(const char *path, long resume_ms){
     if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }   /* Single play-mode is REQUIRED for clean EOF isolation; if it can't be set, don't start the book unguarded */
     g_book_single_mode = 1;                                 /* remember to restore the music mode on the next music play */
     if(!ui_play_list(5, "", 1)) return 0;                   /* frame 0100001000000005 -> reserved slot (seq 0): an isolated 1-item queue; not sent -> no session */
-    g_play_pending = 0;                                     /* a book owns its own load-confirmation via the book session (book_tick's deadline), not the music-scope 6s "Couldn't start playback" timeout - which false-fires when re-tapping the already-current book (path unchanged) */
+    g_play_pending = 0;                                     /* a book owns its own load-confirmation via the book session (book_tick's deadline), not the music-scope 12 s "Couldn't start playback" timeout - which false-fires when re-tapping the already-current book (path unchanged) */
     /* Arm the session AFTER the play call: ui_play_list clears the session, so setting it here makes
      * THIS book the active context. */
     snprintf(g_book_sess, sizeof g_book_sess, "%s", path);
@@ -3084,7 +3084,7 @@ int main(int argc, char **argv){
          * the SAME track (position jumped backwards >1.5s - covers replaying the current
          * track, which keeps the same path). NOT on st.seq, which a1 frames from the old
          * still-streaming track also bump (would clear prematurely). */
-        /* Confirm: the pending-clear acknowledges playback so "Starting..." / the 6s "Couldn't start" timeout stop.
+        /* Confirm: the pending-clear acknowledges playback so "Starting..." / the 12 s "Couldn't start" timeout stop.
          * Tracks of one CUE/ISO file share a path, so a title or a2 pos_id change also counts. */
         if(g_play_pending && st.have_track &&
            (strcmp(st.path, g_play_initpath) != 0 ||
@@ -3140,12 +3140,15 @@ int main(int argc, char **argv){
                 info_active = 1;
             } else info_active = 0;
         }
-        /* playback-start timeout: no track update within 6s of a rebuild-play. The 6 s count from when the play
+        /* playback-start timeout: no track update within 12 s of a rebuild-play. The time counts from when the play
          * actually reached the player: while it is still waiting in our outbound line (a busy player) the clock waits. */
         if(g_play_pending && ipc_tx_waiting()){ g_play_pending = lv_tick_get(); if(!g_play_pending) g_play_pending = 1; }
-        if(g_play_pending && lv_tick_elaps(g_play_pending) > 6000){
+        /* A big list can take the player longer than 6 s to rebuild (the toast then came a moment before the music did),
+         * and a list that starts on the song already loaded never shows a "change". So: wait 12 s, and stay quiet if
+         * music is playing by then - only a play that produced no sound at all is reported. */
+        if(g_play_pending && lv_tick_elaps(g_play_pending) > 12000){
             g_play_pending = 0;
-            ui_toast("Couldn't start playback");   /* early confirm covers path/title/pos_id changes; a rare false toast (equal titles, no row change) is cosmetic since nothing is sent to the player */
+            if(!playing) ui_toast("Couldn't start playback");
             /* No automatic 0666/0657 here: g_playing is only inferred from position updates, so it is not proof
              * that output stopped, and 0666 into a live stream releases the local output (release_local, then
              * NO_WORK_MODE, seen live). The next tap's preamble above re-asserts local init while stopped. */
