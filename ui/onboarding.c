@@ -4,10 +4,12 @@
 #include "screens.h"
 #include "theme.h"
 #include "config.h"
+#include <math.h>
 
-static const char *keys[HINT_COUNT] = {"hint_menu", "hint_nav", "hint_library", "hint_music", "hint_shortcuts"};
-static const int limits[HINT_COUNT] = {2, 2, 1, 1, 1};
-static const char *text[HINT_COUNT] = {NULL, "Arrows: sections\nTap icon: open", "Hold a song or album\nfor actions", "Tap title for more", NULL};
+static const char *keys[HINT_COUNT] = {"hint_menu", "hint_nav", "hint_library", "hint_music", "hint_shortcuts", "hint_lock"};
+static const int limits[HINT_COUNT] = {2, 2, 1, 1, 1, 1};
+static const char *text[HINT_COUNT] = {NULL, "Arrows: sections\nTap icon: open", "Hold a song or album\nfor actions", "Tap title for more", NULL,
+                                       "Tip: the power button locks\nthe screen in a pocket"};
 static lv_obj_t *pill;
 static lv_timer_t *offer_timer, *hide_timer, *startup_timer;
 static unsigned shown;
@@ -22,10 +24,13 @@ static int eligible(int id){
     int mode=cfg_get_int("disco_hints",0);
     if(!started || !th_disco() || mode==2 || (shown & (1u<<id)))return 0;
     if(mode==1)return 1; /* explicitly On: once per context per session, even after learning */
-    if(cfg_get_int("hint_starts",0)>=5)return 0;
+    if(id!=HINT_LOCK && cfg_get_int("hint_starts",0)>=5)return 0;   /* the lock tip is new in 2.1.0: also for settled users */
     int fallback=id==HINT_MENU && cfg_get_int("disco_nav_hint",0)?2:0;
     return cfg_get_int(keys[id],fallback)<limits[id];
 }
+static void show_pill(int id);
+static void onboarding_discovered_quiet(int id);
+static void onboarding_dismiss_pill_only(void){ cancel(&hide_timer); if(pill){ lv_obj_delete(pill); pill=NULL; } }
 static void timeout(lv_timer_t *t){hide_timer=NULL;lv_timer_delete(t);if(pill){lv_obj_delete(pill);pill=NULL;}}
 static void menu_hint_cb(lv_event_t *e){
     (void)e;onboarding_discovered(HINT_MENU);disco_nav_set_open(1);
@@ -44,6 +49,12 @@ static void offer(lv_timer_t *t){
         else if(current==SCR_HOME && eligible(HINT_SHORTCUTS))id=HINT_SHORTCUTS;   /* after the title tip has been used */
     }
     if(id<0)return;
+    show_pill(id);
+}
+/* The pill: sized to its text (one or two lines, at the user's font size), centred where its hint belongs and kept
+ * inside the round screen. The menu hint keeps its fixed size: it sits on, and is tapped like, the navigation tab. */
+static void show_pill(int id){
+    if(pill)return;
     pill=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(pill);
     lv_obj_clear_flag(pill,LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(pill,18,0);
@@ -53,14 +64,29 @@ static void offer(lv_timer_t *t){
     int x=84,y=35,w=192,h=48;
     const char *message=text[id];
     if(id==HINT_MENU){w=158;h=42;y=159;x=disco_mirror()?54:148;message=disco_mirror()?LV_SYMBOL_LEFT " Tap for menu":"Tap for menu " LV_SYMBOL_RIGHT;}
-    if(id==HINT_MUSIC){y=110;x=92;w=176;h=24;}
-    if(id==HINT_SHORTCUTS){y=110;x=82;w=196;h=24;message=disco_mirror()?"Swipe right for shortcuts":"Swipe left for shortcuts";}
+    if(id==HINT_MUSIC){y=104;x=82;w=196;
+        if(cfg_get_int("disco_title_hold",0)==0)message="Tap title for more\nHold it for full screen";}   /* Title Hold: Immersive */
+    if(id==HINT_SHORTCUTS){y=104;x=82;w=196;message=disco_mirror()?"Swipe right for shortcuts":"Swipe left for shortcuts";}
+    if(id==HINT_LOCK){y=262;x=60;w=240;}
     if(id==HINT_MENU){lv_obj_add_flag(pill,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(pill,menu_hint_cb,LV_EVENT_CLICKED,NULL);}
-    lv_obj_set_pos(pill,x,y);lv_obj_set_size(pill,w,h);
     lv_obj_t *label=lv_label_create(pill);lv_label_set_text(label,message);
     lv_obj_set_style_text_font(label,TF(UI_16),0);lv_obj_set_style_text_color(label,TC(FIXED_MEDIA_WHITE),0);
-    lv_obj_set_width(label,w-12);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(label);
-    hide_timer=lv_timer_create(timeout,4000,NULL);
+    lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+    if(id==HINT_MENU){ lv_obj_set_pos(pill,x,y);lv_obj_set_size(pill,w,h);lv_obj_set_width(label,w-12);lv_obj_center(label); }
+    else {
+        lv_obj_set_style_pad_hor(pill,14,0);lv_obj_set_style_pad_ver(pill,5,0);
+        lv_obj_set_size(pill,LV_SIZE_CONTENT,LV_SIZE_CONTENT);
+        lv_obj_set_width(label,LV_SIZE_CONTENT);lv_obj_set_style_max_width(label,250,0);   /* longer lines wrap */
+        lv_obj_update_layout(pill);
+        int pw=lv_obj_get_width(pill),ph=lv_obj_get_height(pill),cx=x+w/2;
+        int px=cx-pw/2,py=y;
+        if(id==HINT_MUSIC || id==HINT_SHORTCUTS)py=y+28-ph;            /* above the title, whatever its height */
+        int mid=py+ph/2-180,half=(int)sqrtf((float)(178*178-mid*mid))-6;     /* inside the circle at that height */
+        if(px<180-half)px=180-half;
+        if(px+pw>180+half)px=180+half-pw;
+        lv_obj_set_pos(pill,px,py);
+    }
+    hide_timer=lv_timer_create(timeout,id==HINT_LOCK?5000:4000,NULL);
     if(!hide_timer){lv_obj_delete(pill);pill=NULL;return;}
     shown|=1u<<id;
 }
@@ -74,6 +100,11 @@ void onboarding_screen(int screen,int nav_open){
     schedule();
 }
 void onboarding_library(int actionable){library_actions=actionable;if(current==SCR_LIBRARY && !menu_open){onboarding_dismiss();schedule();}}
+static void onboarding_discovered_quiet(int id){     /* count it as seen without taking the pill away */
+    int count=cfg_get_int(keys[id],0);if(count>=limits[id])return;
+    cfg_begin();cfg_set_int_deferred(keys[id],count+1);
+    if(cfg_commit()<0){cfg_set_int_deferred(keys[id],count);cfg_flush();}
+}
 void onboarding_discovered(int id){
     if(!started || !th_disco() || id<0 || id>=HINT_COUNT)return;
     onboarding_dismiss();
@@ -81,6 +112,12 @@ void onboarding_discovered(int id){
     int count=cfg_get_int(keys[id],fallback);if(count>=limits[id])return;
     cfg_begin();cfg_set_int_deferred(keys[id],count+1);
     if(cfg_commit()<0){cfg_set_int_deferred(keys[id],count);cfg_flush();}
+}
+static void lock_offer(lv_timer_t *t){ offer_timer=NULL; lv_timer_delete(t); if(!pill && eligible(HINT_LOCK)){ show_pill(HINT_LOCK); onboarding_discovered_quiet(HINT_LOCK); } }
+void onboarding_woke_by_touch(void){
+    if(!eligible(HINT_LOCK))return;
+    cancel(&offer_timer);onboarding_dismiss_pill_only();
+    offer_timer=lv_timer_create(lock_offer,700,NULL);              /* once the finger is off and the screen settled */
 }
 static void input_cb(lv_event_t *e){if(!pill || lv_event_get_param(e)!=pill)onboarding_dismiss();}
 static void healthy_start(lv_timer_t *t){

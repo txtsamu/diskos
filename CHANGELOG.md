@@ -6,6 +6,39 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.1.0] - 2026-10-13
+
+SD update from 1.4.1 or later (no reflash). SongSphere is a separate app, installed over SSH.
+
+- Added: Listening Stats, built in (landing page; Disco Menu "Stats", All apps, Shortcuts). Week, Month or Year with
+  back arrows; listening time and how it compares (a running period with the same stretch of the one before); plays,
+  songs and best day streak; top artists, top albums, on repeat and top songs (tap to play); a 24-hour listening clock
+  round the rim. One list that curves like the Library. A play counts after 30 s (or almost all of a short song); time
+  is how far the song really played (pause and seeks don't count; music during an app does); audiobooks are left out.
+  New diskOS table PLAY_LOG in the library database; stats start with this version.
+- Added: SongSphere, a separate app (`apps/songsphere`): place albums and artists on a mood sphere (Energetic/Calm,
+  Dark/Bright) by dragging a marker, then pick a mood and play up to 40 nearby songs in Shuffle, optionally kept as a
+  playlist. Its own small database in its folder; the library is only read.
+- Added: app hand-over for installed apps: mq_ui writes `/tmp/diskos-app-env` (theme colours, light/dark, rotation)
+  before an app starts and plays or saves the songs an app leaves in `/tmp/diskos-app-request` when it exits.
+- Added: Display > Text & Layout > **Immersive** (Vinyl, CD or None: the plain cover, standing still) and
+  **Immersive Lyrics** (on/off: lyrics and their shade), in every theme. Replaces Disco Options > Immersive (a CD
+  choice carries over).
+- Added: first-use tip (Disco) "the power button locks the screen in a pocket", once, after a touch wakes a timed-out
+  screen. The Music tip now also says that holding the title opens the full-screen cover.
+- Fixed: a touch on a dark screen (timed out or dimmed) pressed what was under it: now it only wakes the screen and
+  the buttons listen again once the finger is lifted. Locking stays with the power button.
+- Fixed: By Artist, Play All/Shuffle and tapping a song played the player's exact-tag list (collaborations and
+  spelling variants left out; a collaboration continued through the whole library). Now exactly what the list shows
+  plays, as By Album Artist already did. An artist's All Songs row in Album Artist mode used the wrong name.
+- Changed: album rows (Library, Album Wall) show the album artist, or Various Artists for mixed albums.
+- Changed: installed apps open their landing page from All apps and Shortcuts too; All apps hides folders without a
+  working app and lists up to 38 apps.
+- Fixed: first-use hint boxes size to their text (the Shortcuts hint was cut off; the Library hint overflowed at Large).
+- Fixed: signing twice within a minute: `diskos-sign.sh` keeps the last update number with the keys and always uses a
+  later one; without a version it labels the update `custom-<number>`.
+- Docs: tour (Listening Stats, Standby locking, Immersive settings), how-to, SongSphere install guide, website.
+
 ## [2.0.0] - 2026-10-13
 
 SD update from 1.4.1 or later; the Windows app can also flash.

@@ -40,6 +40,8 @@
 #include "lastfm.h"
 #include "scanner.h"
 #include "playstate.h"
+#include "stats.h"
+#include "menu_apps.h"
 #include "sdio.h"
 #include "art.h"
 #include "command_spawn.h"
@@ -1159,7 +1161,7 @@ static int on_song_play(int id){
     if(!library_drill_context(&lt, name, sizeof name)){
         lt = 1; name[0] = 0;                       /* all songs (full library) */
     }
-    if(lt == 2 && mdb_artist_mode()){              /* Artists by album artist: the player's queue only if it matches */
+    if(lt == 2){                                   /* an artist (either grouping): the player's queue only if it matches */
         mdb_plan_t plan; int ok = 0;
         if(mdb_artist_plan(name, &plan)){ ok = ui_play_plan(&plan, id); mdb_plan_free(&plan); }   /* ui_play_plan toasts its own failures */
         else ui_toast("Couldn't play that song");   /* never another scope: next/prev must stay in the group */
@@ -1510,6 +1512,15 @@ void app_launch(const char *exec){
         boomshine_landing();
         return;
     }
+    if(!strcmp(exec, APP_BUILTIN_STATS)){
+        stats_landing();
+        return;
+    }
+    if(!menu_apps_count()) menu_apps_scan();        /* an installed app: its landing page, wherever it's opened from */
+    for(int i = 0; i < menu_apps_count(); i++){
+        const menu_app_t *a = menu_apps_get(i);
+        if(a && !strcmp(a->exec, exec)){ applanding_show(a->name, a->tagline, a->about, a->button, a->exec); return; }
+    }
     app_launch_direct(exec);
 }
 /* Live Vol-Up pin level; 1 = held. Same register map as the boot override (x2000 pinctrl, GPB PxPIN,
@@ -1534,6 +1545,61 @@ static int volup_held(void){
     volatile uint32_t *pin = gpio_gpb_pin();
     return pin ? (((*pin >> 13) & 1u) ? 0 : 1) : 0;
 }
+/* ---- add-on app API (2.1.0) ----
+ * Before an installed app starts, /tmp/diskos-app-env gets the look it should use (the theme's own colours, dark or
+ * light, the text size and the screen rotation), so an app matches the theme without carrying the theme engine.
+ * When it exits it may leave /tmp/diskos-app-request to have the music played or kept as a playlist:
+ *   diskos-app-request-v1 / action=play|save|playsave / shuffle=0|1 / name=<playlist name> / id=<SONG.ID> (one per line)
+ * Unknown lines are ignored; IDs not in the library are dropped; nothing happens on a malformed file. */
+#define APP_ENV_PATH "/tmp/diskos-app-env"
+#define APP_REQ_PATH "/tmp/diskos-app-request"
+static void app_env_write(void){
+    FILE *f = fopen(APP_ENV_PATH ".tmp", "w"); if(!f) return;
+    static const struct { const char *k; theme_color_role_t r; } C[] = {
+        { "canvas", THEME_CLR_CANVAS }, { "surface", THEME_CLR_SURFACE }, { "surface_raised", THEME_CLR_SURFACE_RAISED },
+        { "surface_pressed", THEME_CLR_SURFACE_PRESSED }, { "border", THEME_CLR_BORDER }, { "text", THEME_CLR_TEXT_PRIMARY },
+        { "text_secondary", THEME_CLR_TEXT_SECONDARY }, { "text_muted", THEME_CLR_TEXT_MUTED }, { "accent", THEME_CLR_ACCENT_PRIMARY },
+        { "on_accent", THEME_CLR_ON_ACCENT } };
+    fprintf(f, "diskos-app-env-v1\nvariant=%d\nfont_size=%d\nrotation=%d\n", theme_variant(), theme_font_size(), ctl_rot_get());
+    for(size_t i = 0; i < sizeof C / sizeof C[0]; i++) fprintf(f, "%s=%06X\n", C[i].k, (unsigned)(lv_color_to_u32(theme_color(C[i].r)) & 0xFFFFFF));
+    fclose(f);
+    rename(APP_ENV_PATH ".tmp", APP_ENV_PATH);
+}
+static void app_request_take(void){
+    FILE *f = fopen(APP_REQ_PATH, "r"); if(!f) return;
+    char line[256], name[96] = "", action[16] = ""; int shuffle = 1, n = 0, cap = 0, ok = 0, *ids = NULL;
+    if(fgets(line, sizeof line, f) && !strncmp(line, "diskos-app-request-v1", 21)) ok = 1;
+    while(ok && fgets(line, sizeof line, f)){
+        line[strcspn(line, "\r\n")] = 0;
+        if(!strncmp(line, "action=", 7)) snprintf(action, sizeof action, "%.15s", line + 7);
+        else if(!strncmp(line, "shuffle=", 8)) shuffle = atoi(line + 8) != 0;
+        else if(!strncmp(line, "name=", 5)) snprintf(name, sizeof name, "%.95s", line + 5);
+        else if(!strncmp(line, "id=", 3) && n < 2000){
+            int id = atoi(line + 3); if(id <= 0) continue;
+            if(n == cap){ int nc = cap ? cap * 2 : 64; int *ni = realloc(ids, (size_t)nc * sizeof *ids); if(!ni) break; ids = ni; cap = nc; }
+            ids[n++] = id;
+        }
+    }
+    fclose(f); unlink(APP_REQ_PATH);
+    if(ok && n > 0) n = mdb_keep_song_ids(ids, n);
+    if(!ok || n <= 0){ free(ids); if(ok) ui_toast("Nothing to play"); return; }
+    int play = !strcmp(action, "play") || !strcmp(action, "playsave"), save = !strcmp(action, "save") || !strcmp(action, "playsave");
+    if(save && name[0]){
+        long pid = mdb_playlist_create(name);
+        int added = pid > 0 ? mdb_playlist_add_ids(pid, ids, n) : -1;
+        ui_toast(added > 0 ? "Playlist saved" : "Couldn't save the playlist");
+    }
+    if(play){
+        mdb_plan_t plan; memset(&plan, 0, sizeof plan);
+        plan.list_type = 5; plan.ids = ids; plan.count = n; ids = NULL;            /* the plan owns them now */
+        if(shuffle){ cfg_set_int("work_mode", 1); ui_set_workmode(1); }         /* start in Shuffle, as asked */
+        int start = plan.ids[shuffle ? rand() % plan.count : 0];
+        if(ui_play_plan(&plan, start)) screen_show(SCR_NOWPLAYING);   /* it toasts its own failures */
+        mdb_plan_free(&plan);
+    }
+    free(ids);
+}
+
 static void app_run(const char *exec){
     /* a game built into mq_ui ("builtin:boomshine") runs as this same program with its own flag */
     int builtin = !strcmp(exec, APP_BUILTIN_BOOMSHINE);
@@ -1544,6 +1610,8 @@ static void app_run(const char *exec){
         return;
     }
     if(!gpio_gpb_pin()) ui_toast("Note: hold-to-close is unavailable");   /* no silent loss of the escape */
+    unlink(APP_REQ_PATH);                            /* only what this run asks for */
+    app_env_write();
     int failed = 0, killed = 0;
     pid_t pid = -1;
     char *argv[] = { (char *)exec, NULL, NULL };
@@ -1586,6 +1654,7 @@ static void app_run(const char *exec){
     lv_refr_now(NULL);
     if(killed)      ui_toast("App force-closed");
     else if(failed) ui_toast("Launch failed");
+    else app_request_take();                         /* play / keep what the app picked */
 }
 
 /* one-shot: re-request the player's current-track metadata shortly after launch,
@@ -2978,6 +3047,8 @@ int main(int argc, char **argv){
     uint32_t last_activity = lv_tick_get();
     int woke = 0;   /* a press that only wakes the saver is swallowed */
     int bl_state = 0;   /* 0 = normal, 1 = saver-dim, 2 = off */
+    int touch_gate_on = 0;          /* LVGL touch switched off while the screen is dark */
+    uint32_t touch_gate_wake = 0;   /* a waking touch still down: keep it off until the lift (tick | 1, 0 = none) */
     uint32_t last_blpoll = 0;   /* PW-10 backlight-rail poll cadence */
     int player_blanked = 0;     /* PW-10: we forced bl_power=4 because the player blanked via brightness=0 */
     unsigned last_vol_seq = 0;
@@ -3074,6 +3145,7 @@ int main(int argc, char **argv){
         int playing = playstate_playing(&g_ps, st.have_track, st.position_ms, lv_tick_get(), 1600, 0);
         if(playing) g_play_sent_gen = ipc_generation();   /* playback observed this generation (any start, incl. hardware keys): its one-shot is moot */
         queue_tick(&st, playing);
+        stats_tick(&st, playing);   /* Listening Stats: log songs that really play */
         tagfix_auto_tick(&st, playing);
         usage_tick(!g_screen_off, playing);
         g_playing = playing;   /* publish for ui_route_bt/ui_route_analog (raw st.state is unreliable) */
@@ -3447,14 +3519,22 @@ int main(int argc, char **argv){
          * a dark panel needed many taps to wake). Drained every loop (even awake) so it never backs
          * up; only acts when the panel is dimmed/off (bl_state != 0). */
         if(g_touch_raw >= 0){
-            char rb[512]; int any = 0;
-            while(read(g_touch_raw, rb, sizeof rb) > 0) any = 1;
+            struct input_event ev[32]; ssize_t n; int any = 0, lifted = 0;
+            while((n = read(g_touch_raw, ev, sizeof ev)) > 0){                /* evdev hands out whole events */
+                any = 1;
+                for(int k = 0; k < (int)(n / (ssize_t)sizeof ev[0]); k++){
+                    if(ev[k].type == EV_KEY && ev[k].code == BTN_TOUCH) lifted = ev[k].value == 0;
+                    else if(ev[k].type == EV_ABS && ev[k].code == ABS_MT_TRACKING_ID) lifted = ev[k].value < 0;
+                }
+            }
             if(any && bl_state){
                 last_activity = lv_tick_get();
                 ui_backlight(ui_effective_brightness()); bl_state = 0;
                 player_blanked = 0;   /* touch woke it; don't let the PW-10 poll re-restore */
                 if(screen_current() == SCR_SAVER) screen_back();
-            }
+                if(touch_gate_on) touch_gate_wake = lifted ? 0 : lv_tick_get() | 1;   /* the waking touch never acts: wait for the lift */
+                onboarding_woke_by_touch();                  /* once: the power button is the pocket lock */
+            } else if(touch_gate_wake && lifted) touch_gate_wake = 0;
         }
         if(kbinput_active()) last_activity = lv_tick_get();
         power_tick(last_activity, playing || ma_playing());   /* Sendspin: AirPlay playback the player may not report */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
@@ -3515,6 +3595,19 @@ int main(int argc, char **argv){
         /* screen fully off (pocket playback): pause the frequent polls + idle longer
          * so the loop wakes ~5x/s (touch poll) instead of ~33x/s. Derived from
          * bl_state each iteration so every wake path is covered. */
+        /* A dark screen never acts on a touch: while it's off, or dimmed on anything but the screensaver (which
+         * swallows its own waking tap), LVGL gets no touch at all; a touch only wakes it (the raw path above), and
+         * the buttons listen again once that finger has lifted (or after 3 s, so touch can never stay dead). */
+        if(g_touch){
+            int gate = bl_state == 2 || (bl_state == 1 && screen_current() != SCR_SAVER);
+            if(touch_gate_wake && lv_tick_elaps(touch_gate_wake) > 3000) touch_gate_wake = 0;
+            int want_off = gate || touch_gate_wake;
+            if(want_off != touch_gate_on){
+                touch_gate_on = want_off;
+                if(!want_off) lv_indev_reset(g_touch, NULL);                   /* start clean: no half press left over */
+                lv_indev_enable(g_touch, !want_off);
+            }
+        }
         polls_set_paused(bl_state == 2);
         g_screen_off = (bl_state == 2);   /* publish for the slow polls (skip the hcitool spawn while off) */
         /* A's day/night appearance switches at an idle boundary, preserving the user's manual variant. */

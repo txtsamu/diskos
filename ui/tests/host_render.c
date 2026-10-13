@@ -14,6 +14,7 @@
 #include "sdio.h"
 #include "musicdb.h"
 #include "battery.h"
+#include "sqlite3.h"
 #include <assert.h>
 #include <dirent.h>
 #include <math.h>
@@ -234,12 +235,19 @@ static void review_hints(void){
     assert(!find_visible_text(lv_layer_top(),"Hold a song or album\nfor actions"));
     lv_point_t hub={180,180};nav_touch(hub,70);
     screen_show(SCR_HOME);nav_wait(900);
-    assert(find_visible_text(lv_layer_top(),"Tap title for more"));
+    assert(find_visible_text(lv_layer_top(),"Tap title for more\nHold it for full screen"));   /* Title Hold: Immersive */
     lv_point_t title={180,155};nav_touch(title,70);assert(cfg_get_int("hint_music",0)==1);
     dhome_overlay_close();nav_wait(100);
     /* All four contexts learned: no automatic hints. */
     onboarding_screen(SCR_HOME,0);nav_wait(900);assert(!find_visible_text(lv_layer_top(),menu));
-    assert(!find_visible_text(lv_layer_top(),"Tap title for more"));
+    assert(!find_visible_text(lv_layer_top(),"Tap title for more\nHold it for full screen"));
+    /* the power-button tip: after a touch woke a timed-out screen, once - even for settled users - never when Off */
+    { const char *lock="Tip: the power button locks\nthe screen in a pocket";
+      cfg_set_int("hint_starts",5); onboarding_woke_by_touch(); nav_wait(900); assert(find_visible_text(lv_layer_top(),lock));
+      nav_wait(5200); assert(!find_visible_text(lv_layer_top(),lock)); assert(cfg_get_int("hint_lock",0)==1);
+      onboarding_mode_changed(); onboarding_woke_by_touch(); nav_wait(900); assert(!find_visible_text(lv_layer_top(),lock));
+      cfg_set_int("hint_lock",0); cfg_set_int("disco_hints",2); onboarding_woke_by_touch(); nav_wait(900);
+      assert(!find_visible_text(lv_layer_top(),lock)); cfg_set_int("disco_hints",0); cfg_set_int("hint_starts",0); }
     cfg_set_int("disco_hints",1);onboarding_mode_changed();nav_wait(900);
     assert(find_visible_text(lv_layer_top(),menu)); /* On ignores discovery */
     cfg_set_int("disco_hints",2);onboarding_mode_changed();nav_wait(900);assert(!find_visible_text(lv_layer_top(),menu));
@@ -404,6 +412,50 @@ static void review_qs(void){
     puts("PASS: QS both styles, round bounds/non-overlap, disc preserved, radio state/action mapping, all glyphs, editor/persistence/failure, submenu");
 }
 
+
+/* ---- Listening Stats demo: a seeded PLAY_LOG and placeholder covers (STATS_ART_DIR/a<n>_t.bmp, a<n>_c.bmp) ---- */
+int __real_artcache_get_thumb(const char*,const char*); int __real_artcache_get_cover(const char*,const char*);
+static int demo_art(const char *track,const char *out,int big){
+    const char *dir=getenv("STATS_ART_DIR"); if(!dir||strncmp(track,"/demo/a",7)) return -1;
+    char src[256]; snprintf(src,sizeof src,"%s/a%d_%c.bmp",dir,atoi(track+7),big?'c':'t');
+    FILE *i=fopen(src,"rb"),*o=i?fopen(out,"wb"):NULL; if(!i||!o){ if(i)fclose(i); return -1; }
+    char b[8192]; size_t n; while((n=fread(b,1,sizeof b,i))>0) fwrite(b,1,n,o); fclose(i); fclose(o); return 0;
+}
+int __wrap_artcache_get_thumb(const char *t,const char *o){ return getenv("STATS_ART_DIR")?demo_art(t,o,0):__real_artcache_get_thumb(t,o); }
+int __wrap_artcache_get_cover(const char *t,const char *o){ return getenv("STATS_ART_DIR")?demo_art(t,o,1):__real_artcache_get_cover(t,o); }
+static void stats_seed_demo(void){
+    static const char *AL[8][3]={{"Endless Summer","The Midnight","Sunset|Vampires|Jason|Gloria|Endless Summer"},
+        {"OutRun","Kavinsky","Nightcall|Odd Look|Roadgame|Protovision"},{"Night Drive","Timecop1983","Neon Lights|On the Run|Back to You"},
+        {"Atlas","FM-84","Running in the Night|Wild Ones|Never Stop"},{"Monsters","The Midnight","Fire in Bloom|Brooklyn|Deep Blue"},
+        {"Turbo Kid","Le Matos","No Tomorrow|Chasing Yesterday"},{"Dreamwave","Gunship, Carpenter Brut","Tech Noir|Dark All Day"},
+        {"Kids","The Midnight","Lost Boy|America 2|Kids"}};
+    static const int W[8]={30,18,12,9,11,4,5,8};
+    static const int HW[24]={2,1,0,0,0,0,1,6,14,8,3,4,6,7,5,4,7,13,15,11,17,20,13,6};
+    system("mkdir -p /usr/data/fiio/db && rm -f /usr/data/fiio/db/song.db");
+    sqlite3 *d=NULL; assert(sqlite3_open("/usr/data/fiio/db/song.db",&d)==SQLITE_OK);
+    sqlite3_exec(d,"CREATE TABLE PLAY_LOG(ID INTEGER PRIMARY KEY, AT INTEGER NOT NULL, MS INTEGER NOT NULL, PATH TEXT, TITLE TEXT, ARTIST TEXT, ALBUM TEXT, AARTIST TEXT);"
+                   "CREATE INDEX PLAY_LOG_AT ON PLAY_LOG(AT);BEGIN;",0,0,0);
+    if(getenv("STATS_EMPTY")){ sqlite3_close(d); return; }
+    sqlite3_stmt *st; sqlite3_prepare_v2(d,"INSERT INTO PLAY_LOG(AT,MS,PATH,TITLE,ARTIST,ALBUM,AARTIST) VALUES(?,?,?,?,?,?,?);",-1,&st,NULL);
+    unsigned rnd=12345; long long now=(long long)time(NULL); now-=now%86400;
+    for(int day=75;day>=0;day--){
+        if(day%9==4) continue;                                         /* a few days off */
+        int n=8+(int)((rnd=rnd*1103515245u+12345u)>>16)%16; if(day<14) n+=3;
+        for(int k=0;k<n;k++){
+            rnd=rnd*1103515245u+12345u; int r=(int)(rnd>>16)%102, a=0; while(a<7 && r>=W[a]){ r-=W[a]; a++; }
+            char songs[128]; snprintf(songs,sizeof songs,"%s",AL[a][2]); char *tok[6]; int ns=0;
+            for(char *p=strtok(songs,"|");p&&ns<6;p=strtok(NULL,"|")) tok[ns++]=p;
+            rnd=rnd*1103515245u+12345u; int s2=(int)(rnd>>16)%(ns*2); s2=s2>=ns?0:s2;        /* the first song of an album twice as often */
+            rnd=rnd*1103515245u+12345u; int hr=(int)(rnd>>16)%160, h=0; while(h<23 && hr>=HW[h]){ hr-=HW[h]; h++; }
+            char path[64]; snprintf(path,sizeof path,"/demo/a%d/t%d.flac",a,s2);
+            sqlite3_bind_int64(st,1,now-day*86400LL+h*3600+(k*7)%60*60); sqlite3_bind_int(st,2,180000+(int)(rnd>>20)%90000);
+            sqlite3_bind_text(st,3,path,-1,SQLITE_TRANSIENT); sqlite3_bind_text(st,4,tok[s2],-1,SQLITE_TRANSIENT);
+            sqlite3_bind_text(st,5,AL[a][1],-1,SQLITE_STATIC); sqlite3_bind_text(st,6,AL[a][0],-1,SQLITE_STATIC); sqlite3_bind_null(st,7);
+            sqlite3_step(st); sqlite3_reset(st);
+        }
+    }
+    sqlite3_finalize(st); sqlite3_exec(d,"COMMIT;",0,0,0); sqlite3_close(d);
+}
 int main(int argc, char **argv){
     if(argc != 6){ fprintf(stderr,"usage: host-render PRESET VARIANT home|np|actions UP_NEXT OUT.ppm\n"); return 2; }
     setenv("TZ","UTC",1); tzset();
@@ -615,6 +667,64 @@ int main(int argc, char **argv){
         for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
+    if(!strncmp(argv[3],"statsapp",8)){           /* Listening Stats (stats.c) on a seeded PLAY_LOG; statsapp-land = its landing page */
+        stats_seed_demo();
+        screen_set_anim(0);screens_init();
+        if(!strcmp(argv[3],"statsapp-land")) stats_landing();
+        else{
+            if(getenv("STATS_PERIOD")){ /* tap Week / Year */
+                stats_open(); lv_obj_t *l=find_text(screen_get_root(SCR_STATS),getenv("STATS_PERIOD")); assert(l);
+                lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);
+            } else stats_open();
+            if(getenv("STATS_BACK")){ for(int k=0;k<atoi(getenv("STATS_BACK"));k++){ lv_obj_t *l=find_text(screen_get_root(SCR_STATS),LV_SYMBOL_LEFT); assert(l);
+                lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);} }
+            for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();}
+            if(getenv("STATS_SCROLL")){ lv_obj_t *list=stats_scroller();
+                lv_obj_scroll_to_y(list,atoi(getenv("STATS_SCROLL")),LV_ANIM_OFF); lv_obj_send_event(list,LV_EVENT_SCROLL,NULL); }
+        }
+        for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strncmp(argv[3],"sphere-",7)){             /* SongSphere concept mockups (tests/sphere_mock.c) */
+        void sphere_mock(lv_obj_t *root,int which);
+        lv_obj_t *r=lv_obj_create(lv_screen_active()); lv_obj_remove_style_all(r); lv_obj_set_size(r,360,360);
+        lv_obj_set_style_radius(r,LV_RADIUS_CIRCLE,0); lv_obj_set_style_clip_corner(r,true,0);
+        lv_obj_remove_flag(r,LV_OBJ_FLAG_SCROLLABLE);
+        sphere_mock(r,atoi(argv[3]+7));
+        for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strncmp(argv[3],"hint-",5)){              /* one first-use hint, shown (disco_hints On); HINT_SIDE=1 mirrors */
+        int id=atoi(argv[3]+5);
+        if(getenv("HINT_SIDE"))cfg_set_int("disco_side",atoi(getenv("HINT_SIDE")));
+        if(getenv("HINT_FONT"))cfg_set_int("font_size",atoi(getenv("HINT_FONT")));
+        screen_set_anim(0);screens_init();
+        onboarding_reset();cfg_set_int("disco_hints",0);
+        onboarding_start();
+        for(int k=0;k<HINT_COUNT;k++) if(k!=id){ onboarding_discovered(k); onboarding_discovered(k); }
+        { track_state_t st; memset(&st,0,sizeof st); snprintf(st.title,sizeof st.title,"Northern Lights"); snprintf(st.artist,sizeof st.artist,"The Midnight");
+          snprintf(st.path,sizeof st.path,"/fixture/hint.flac"); st.have_track=1; st.state=2; st.duration_ms=240000; st.position_ms=92000; ipc_seed_state(&st); ui_update(&st); }
+        if(id==HINT_NAV){ void disco_nav_set_open(int); disco_nav_set_open(1); onboarding_screen(SCR_HOME,1); }
+        else if(id==HINT_LIBRARY){ screen_show(SCR_LIBRARY); onboarding_screen(SCR_LIBRARY,0); onboarding_library(1); }
+        else if(id==HINT_LOCK){ onboarding_screen(SCR_HOME,0); onboarding_woke_by_touch(); }
+        else onboarding_screen(SCR_HOME,0);
+        for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strncmp(argv[3],"stats-",6)){              /* Listening Stats concept mockups (tests/stats_mock.c) */
+        void stats_mock(lv_obj_t *root,int which);
+        lv_obj_t *r=lv_obj_create(lv_screen_active()); lv_obj_remove_style_all(r); lv_obj_set_size(r,360,360);
+        lv_obj_set_style_radius(r,LV_RADIUS_CIRCLE,0); lv_obj_set_style_clip_corner(r,true,0);
+        lv_obj_remove_flag(r,LV_OBJ_FLAG_SCROLLABLE);
+        stats_mock(r,atoi(argv[3]+6));
+        for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strcmp(argv[3],"appland-boom")){           /* the Boomshine landing page, for comparison */
+        screen_set_anim(0);screens_init();boomshine_landing();
+        for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
     if(!strncmp(argv[3],"disco-",6)){              /* "Disco" theme concept mockups (tests/disco_mock.c) */
         void disco_mock(lv_obj_t *root,int which);
         lv_obj_t *r=lv_obj_create(lv_screen_active()); lv_obj_remove_style_all(r); lv_obj_set_size(r,360,360);
@@ -676,6 +786,8 @@ int main(int argc, char **argv){
         if(getenv("DISCO_QS"))cfg_set_int_deferred("disco_qs_style",atoi(getenv("DISCO_QS")));
         if(getenv("DISCO_PROG"))cfg_set_int_deferred("disco_progress",atoi(getenv("DISCO_PROG")));
         if(getenv("DISCO_IMMSTYLE"))cfg_set_int_deferred("disco_imm",atoi(getenv("DISCO_IMMSTYLE")));
+        if(getenv("IMM_STYLE"))cfg_set_int_deferred("imm_style",atoi(getenv("IMM_STYLE")));
+        if(getenv("IMM_LYRICS"))cfg_set_int_deferred("imm_lyrics",atoi(getenv("IMM_LYRICS")));
         if(getenv("DISCO_SCROLL"))cfg_set_int_deferred("disco_scroll",atoi(getenv("DISCO_SCROLL")));if(getenv("DISCO_SIDE"))cfg_set_int_deferred("disco_side",atoi(getenv("DISCO_SIDE")));
         if(getenv("DISCO_SHAPE"))cfg_set_int_deferred("disco_prog_shape",atoi(getenv("DISCO_SHAPE")));
         if(getenv("DISCO_TAL"))cfg_set_int_deferred("disco_title_al",atoi(getenv("DISCO_TAL")));
@@ -1187,3 +1299,5 @@ render:
     return 0;
 }
 #include "disco_mock.c"
+#include "stats_mock.c"
+#include "sphere_mock.c"

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* Power settings and the SD-safe shutdown (see power.h for the stock facts this is built on). */
+#include "stats.h"
 #include "command_spawn.h"
 #include "power.h"
 #include <stdio.h>
@@ -261,6 +262,7 @@ int power_shutdown_request(void){
     /* Manual, idle and sleep-timer shutdown all enter here. Flush the themed screen
      * to the panel before saving usage or stopping card work. */
     ui_shutdown_screen();
+    stats_flush();   /* the song playing now still counts */
     usage_save();
     int result = power_shutdown_begin(&o);
     if(result != 0) ui_shutdown_hide();

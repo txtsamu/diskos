@@ -95,6 +95,11 @@ static sqlite3 *db(void){
              * ignored by the stock player). Drives Most-Played / Recently-Played. */
             sqlite3_exec(tmp, "CREATE TABLE IF NOT EXISTS PLAY_STATS(PATH TEXT PRIMARY KEY, "
                               "PLAYS INTEGER DEFAULT 0, LAST_PLAYED INTEGER DEFAULT 0);", 0, 0, 0);
+            /* diskOS-owned listening log for Listening Stats: one row per song that really played (when, for how long,
+             * and what it was as the library had it then, so a rescan or a renamed file keeps its history). */
+            sqlite3_exec(tmp, "CREATE TABLE IF NOT EXISTS PLAY_LOG(ID INTEGER PRIMARY KEY, AT INTEGER NOT NULL, "
+                              "MS INTEGER NOT NULL, PATH TEXT, TITLE TEXT, ARTIST TEXT, ALBUM TEXT, AARTIST TEXT);", 0, 0, 0);
+            sqlite3_exec(tmp, "CREATE INDEX IF NOT EXISTS PLAY_LOG_AT ON PLAY_LOG(AT);", 0, 0, 0);
             /* diskOS-owned audiobook progress (separate table, path-keyed like PLAY_STATS, survives
              * rescans + the stock DB rebuild). One bookmark per book; MEMBER_PATH is the file that was
              * playing (a multipart book has several), POSITION_MS the spot within it. */
@@ -825,7 +830,7 @@ static int mdb_nc_code(const mdb_nc_t *t, int n, const char *name){
     return hit ? hit->code : mdb_code4(name);
 }
 
-typedef struct { const char *al; const char *ar; int idx; int cnt; int first; int code; unsigned h; } mdb_ai_t;   /* an album row: name, its artist, first song index, song count, lowest song index, sort code */
+typedef struct { const char *al; const char *ar; int idx; int cnt; int first; int code; unsigned h; int various; } mdb_ai_t;   /* an album row: name, its artist (album artist first), first song index, song count, lowest song index, sort code, mixed artists */
 static int mdb_ai_cmp(const void *a, const void *b){
     const mdb_ai_t *x = a, *y = b;                            /* case-insensitive then exact then song index: a total order */
     int c = strcasecmp(x->al, y->al);
@@ -843,7 +848,7 @@ int mdb_albums(char names[][MDB_STR], char artists[][MDB_STR], int *counts, int 
         if(!tmp) return 0;                                   /* transient OOM: don't cache, retry later */
         int m = 0;
         for(int i=0;i<g_n;i++) if(g_songs[i].album[0]){
-            tmp[m].al=g_songs[i].album; tmp[m].ar=g_songs[i].artist; tmp[m].idx=i; tmp[m].cnt=1; tmp[m].first=i; tmp[m].code=g_songs[i].code_album; tmp[m].h=g_songs[i].album_h; m++; }
+            tmp[m].al=g_songs[i].album; tmp[m].ar=g_songs[i].artist_group[0]?g_songs[i].artist_group:g_songs[i].artist; tmp[m].various=0; tmp[m].idx=i; tmp[m].cnt=1; tmp[m].first=i; tmp[m].code=g_songs[i].code_album; tmp[m].h=g_songs[i].album_h; m++; }
         qsort(tmp, (size_t)m, sizeof *tmp, mdb_ai_cmp);      /* sort by album, then group exact-equal names (adjacent) */
         /* dedup IN PLACE with NO cap, so a capped caller (e.g. the cover flow) can't truncate the shared
          * album cache and starve the full List view. */
@@ -851,6 +856,7 @@ int mdb_albums(char names[][MDB_STR], char artists[][MDB_STR], int *counts, int 
         for(int i=0;i<m;i++){
             if(n>0 && !strcmp(tmp[i].al, tmp[n-1].al) && tmp[i].h == tmp[n-1].h){          /* exact ALBUM value, like stock's GROUP BY ALBUM: "Blue" and "blue" stay two albums */
                 tmp[n-1].cnt++;
+                if(strcmp(tmp[i].ar, tmp[n-1].ar)) tmp[n-1].various = 1;   /* no shared album artist: a compilation */
                 if(tmp[i].idx < tmp[n-1].first) tmp[n-1].first = tmp[i].idx;
                 if(tmp[i].code < tmp[n-1].code) tmp[n-1].code = tmp[i].code;   /* one row per merged name: its lowest code */
             } else tmp[n++] = tmp[i];
@@ -859,7 +865,7 @@ int mdb_albums(char names[][MDB_STR], char artists[][MDB_STR], int *counts, int 
         g_calb=malloc((size_t)(n>0?n:1)*MDB_STR); g_calb_ar=malloc((size_t)(n>0?n:1)*MDB_STR); g_calb_ct=malloc((size_t)(n>0?n:1)*sizeof(int));
         g_calb_rep=malloc((size_t)(n>0?n:1)*sizeof(int));
         if(g_calb && g_calb_ar && g_calb_ct && g_calb_rep){
-            for(int i=0;i<n;i++){ snprintf(g_calb[i],MDB_STR,"%s",tmp[i].al); snprintf(g_calb_ar[i],MDB_STR,"%s",tmp[i].ar); g_calb_ct[i]=tmp[i].cnt;
+            for(int i=0;i<n;i++){ snprintf(g_calb[i],MDB_STR,"%s",tmp[i].al); snprintf(g_calb_ar[i],MDB_STR,"%s",tmp[i].various?"Various Artists":tmp[i].ar); g_calb_ct[i]=tmp[i].cnt;
                                   g_calb_rep[i]=g_songs[tmp[i].first].id; }
             g_calb_n=n;
         } else { free(g_calb); free(g_calb_ar); free(g_calb_ct); free(g_calb_rep); g_calb=NULL; g_calb_ar=NULL; g_calb_ct=NULL; g_calb_rep=NULL; free(tmp); return 0; }
@@ -1099,25 +1105,35 @@ int mdb_artist_songs(const char *artist, const mdb_song_t **out, int cap){
             out[n++] = &g_songs[i];
     return n;
 }
-/* The play plan for one Artists-view key under "Album Artist" (mdb_artist_mode 1): the player's own artist queue
- * (type 2, COALESCE(ALBUM_ARTIST,ARTIST)=key in its title order - the same ORDER BY as mdb_play_pos) when it holds
- * exactly the songs the view shows; else an exact reserved-slot queue (type 5) of the view's songs. plan->ids is the
- * queue in the order it will play, so mdb_plan_pos is a position in the queue the player really builds. */
+/* The play plan for one Artists-view key, in either grouping: the player's own artist queue (type 2: ARTIST=key, or
+ * COALESCE(ALBUM_ARTIST,ARTIST)=key by Album Artist, in its title order - the same ORDER BY as mdb_play_pos) when it
+ * holds exactly the songs the view shows; else an exact reserved-slot queue (type 5) of the view's songs. By Artist
+ * the view splits credits ("A, B" under both) and ignores case, which the player's queue can't, so a collaboration
+ * plays from the artist's own songs instead of the whole library. plan->ids is the queue in the order it will play,
+ * so mdb_plan_pos is a position in the queue the player really builds. */
 int mdb_artist_plan(const char *key, mdb_plan_t *plan){
     if(!key || !key[0] || !plan) return 0;
     memset(plan, 0, sizeof *plan);
-    int n = 0;
-    for(int i = 0; i < g_n; i++) if(!strcmp(g_songs[i].artist_group, key)) n++;
+    int mode = g_artist_mode, n = 0;
+#define IN_VIEW(s) (mode ? !strcmp((s)->artist_group, key) : artist_credited((s)->artist, key))   /* = mdb_artist_songs */
+    for(int i = 0; i < g_n; i++) if(IN_VIEW(&g_songs[i])) n++;
     if(n <= 0) return 0;
     int *a = malloc((size_t)n * sizeof *a), *b = malloc((size_t)(n + 1) * sizeof *b);
     if(!a || !b){ free(a); free(b); return 0; }
     int k = 0;
-    for(int i = 0; i < g_n && k < n; i++) if(!strcmp(g_songs[i].artist_group, key)) a[k++] = g_songs[i].id;
+    for(int i = 0; i < g_n && k < n; i++) if(IN_VIEW(&g_songs[i])) a[k++] = g_songs[i].id;
+#undef IN_VIEW
     int m = -1;
     sqlite3 *d = db();
     sqlite3_stmt *st;
     /* the player's artist-queue order: the same title-code ORDER BY as mdb_play_pos's ORDER_TAIL / MDB_FAV_ORDER */
-    if(d && sqlite3_prepare_v2(d, "SELECT ID FROM SONG WHERE COALESCE(ALBUM_ARTIST,ARTIST)=?1 ORDER BY "
+    if(d && sqlite3_prepare_v2(d, mode ? "SELECT ID FROM SONG WHERE COALESCE(ALBUM_ARTIST,ARTIST)=?1 ORDER BY "
+        "CASE WHEN IS_CUE=0 AND IS_ISO=0 THEN 1 WHEN IS_CUE=1 OR IS_ISO=1 THEN 2 END,"
+        "CASE WHEN (IS_CUE=0 AND IS_ISO=0) THEN CASE WHEN TITLE IS NOT NULL THEN TITLE_CODE ELSE NAME_CODE END END,"
+        "CASE WHEN (IS_CUE=1 OR IS_ISO=1) THEN NAME_CODE END,"
+        "CASE WHEN (IS_CUE=1 OR IS_ISO=1) THEN ID END,"
+        "CASE WHEN (IS_CUE=1 OR IS_ISO=1) THEN TRACK END;"
+        : "SELECT ID FROM SONG WHERE ARTIST=?1 ORDER BY "
         "CASE WHEN IS_CUE=0 AND IS_ISO=0 THEN 1 WHEN IS_CUE=1 OR IS_ISO=1 THEN 2 END,"
         "CASE WHEN (IS_CUE=0 AND IS_ISO=0) THEN CASE WHEN TITLE IS NOT NULL THEN TITLE_CODE ELSE NAME_CODE END END,"
         "CASE WHEN (IS_CUE=1 OR IS_ISO=1) THEN NAME_CODE END,"
@@ -1137,7 +1153,7 @@ int mdb_artist_plan(const char *key, mdb_plan_t *plan){
         same = hit;
     }
     /* a key that filled MDB_STR may be a truncated name: never the player's queue (always exact) */
-    if(same && mdb_artist_class_type() == 1 && strlen(key) < MDB_STR - 1 && strlen(key) < sizeof plan->name){
+    if(same && mdb_artist_class_type() == mode && strlen(key) < MDB_STR - 1 && strlen(key) < sizeof plan->name){   /* the player groups the same way */
         plan->list_type = 2; snprintf(plan->name, sizeof plan->name, "%s", key);
         memcpy(a, b, (size_t)n * sizeof *a);             /* the player's order */
     } else {
@@ -1337,12 +1353,41 @@ int mdb_love_path(int love_id, char *out, int cap){
  * One bounded FIFO, one dedicated connection, and a condition-variable sleep
  * when idle. No background polling or shared-connection transactions. */
 #define HISTORY_CAP 32
-typedef struct { char path[512]; sqlite3_int64 stamp; } history_job_t;
+typedef struct { char path[512]; sqlite3_int64 stamp; int log_ms; char title[160], artist[160], album[160]; } history_job_t;   /* log_ms > 0: a PLAY_LOG row */
 static history_job_t history_jobs[HISTORY_CAP];
 static unsigned history_head, history_count;
 static int history_started;
 static pthread_mutex_t history_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t history_cv = PTHREAD_COND_INITIALIZER;
+/* One PLAY_LOG row. Title / artist / album / album artist come from the library row for the file when it has them (the
+ * player's live metadata otherwise); an older SONG without ALBUM_ARTIST is written without it. */
+static void history_log_row(sqlite3 *d, const history_job_t *job){
+    static const char *SQL[2] = {
+        "INSERT INTO PLAY_LOG(AT,MS,PATH,TITLE,ARTIST,ALBUM,AARTIST) VALUES(?1,?2,?3,"
+        "COALESCE((SELECT NULLIF(TITLE,'') FROM SONG WHERE PATH=?3 LIMIT 1),NULLIF(?4,'')),"
+        "COALESCE((SELECT NULLIF(ARTIST,'') FROM SONG WHERE PATH=?3 LIMIT 1),?5),"
+        "COALESCE((SELECT NULLIF(ALBUM,'') FROM SONG WHERE PATH=?3 LIMIT 1),?6),"
+        "(SELECT NULLIF(ALBUM_ARTIST,'') FROM SONG WHERE PATH=?3 LIMIT 1));",
+        "INSERT INTO PLAY_LOG(AT,MS,PATH,TITLE,ARTIST,ALBUM) VALUES(?1,?2,?3,"
+        "COALESCE((SELECT NULLIF(TITLE,'') FROM SONG WHERE PATH=?3 LIMIT 1),NULLIF(?4,'')),"
+        "COALESCE((SELECT NULLIF(ARTIST,'') FROM SONG WHERE PATH=?3 LIMIT 1),?5),"
+        "COALESCE((SELECT NULLIF(ALBUM,'') FROM SONG WHERE PATH=?3 LIMIT 1),?6));" };
+    for(int attempt = 0; attempt < 40; attempt++){
+        sqlite3_stmt *st = NULL;
+        int rc = sqlite3_prepare_v2(d, SQL[0], -1, &st, NULL);
+        if(rc == SQLITE_ERROR){ if(st) sqlite3_finalize(st); st = NULL; rc = sqlite3_prepare_v2(d, SQL[1], -1, &st, NULL); }
+        if(rc == SQLITE_OK){
+            sqlite3_bind_int64(st, 1, job->stamp); sqlite3_bind_int(st, 2, job->log_ms);
+            sqlite3_bind_text(st, 3, job->path, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 4, job->title, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 5, job->artist, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 6, job->album, -1, SQLITE_TRANSIENT);
+            rc = sqlite3_step(st);
+        }
+        if(st) sqlite3_finalize(st);
+        if(rc != SQLITE_BUSY && rc != SQLITE_LOCKED) break;
+    }
+}
 static void *history_worker(void *unused){
     (void)unused;
     sqlite3 *d = NULL;
@@ -1358,6 +1403,7 @@ static void *history_worker(void *unused){
             }
             sqlite3_busy_timeout(d, 100);
         }
+        if(job.log_ms > 0){ history_log_row(d, &job); continue; }
         for(int attempt = 0; attempt < 40; attempt++){
             sqlite3_stmt *st = NULL;
             int rc = sqlite3_prepare_v2(d,
@@ -1389,7 +1435,44 @@ void mdb_record_play(const char *path){
     if(history_count < HISTORY_CAP){
         history_job_t *job = &history_jobs[(history_head + history_count) % HISTORY_CAP];
         snprintf(job->path, sizeof job->path, "%s", path);
-        job->stamp = (sqlite3_int64)time(NULL); history_count++;
+        job->stamp = (sqlite3_int64)time(NULL); job->log_ms = 0; history_count++;
+        pthread_cond_signal(&history_cv);
+    }
+    pthread_mutex_unlock(&history_mu);
+}
+/* Keep only the IDs that are songs in the library now, each once (an add-on app's list; the play slot can't take a
+ * song twice): in place, order kept; returns the count. */
+int mdb_keep_song_ids(int *ids, int n){
+    sqlite3 *d = db(); sqlite3_stmt *st; int k = 0;
+    if(!d || !ids || n <= 0 || sqlite3_prepare_v2(d, "SELECT 1 FROM SONG WHERE ID=?1 AND PATH NOT LIKE '%.m4b';", -1, &st, NULL) != SQLITE_OK) return 0;
+    for(int i = 0; i < n; i++){
+        int dup = 0; for(int j = 0; j < k && !dup; j++) dup = ids[j] == ids[i];
+        if(dup) continue;
+        sqlite3_reset(st); sqlite3_bind_int(st, 1, ids[i]);
+        if(sqlite3_step(st) == SQLITE_ROW) ids[k++] = ids[i];
+    }
+    sqlite3_finalize(st);
+    return k;
+}
+/* Listening Stats: queue one PLAY_LOG row (a song that really played: started at `at`, played for `ms`). Same worker. */
+void mdb_log_play(const char *path, const char *title, const char *artist, const char *album, long long at, int ms){
+    if(!path || !path[0] || ms <= 0 || strlen(path) >= sizeof history_jobs[0].path) return;
+    pthread_mutex_lock(&history_mu);
+    if(!history_started){
+        pthread_attr_t attr; pthread_t worker;
+        pthread_attr_init(&attr); pthread_attr_setstacksize(&attr, 256 * 1024);
+        int rc = pthread_create(&worker, &attr, history_worker, NULL);
+        pthread_attr_destroy(&attr);
+        if(rc){ pthread_mutex_unlock(&history_mu); return; }
+        pthread_detach(worker); history_started = 1;
+    }
+    if(history_count < HISTORY_CAP){
+        history_job_t *job = &history_jobs[(history_head + history_count) % HISTORY_CAP];
+        snprintf(job->path, sizeof job->path, "%s", path);
+        snprintf(job->title, sizeof job->title, "%s", title ? title : "");
+        snprintf(job->artist, sizeof job->artist, "%s", artist ? artist : "");
+        snprintf(job->album, sizeof job->album, "%s", album ? album : "");
+        job->stamp = (sqlite3_int64)at; job->log_ms = ms; history_count++;
         pthread_cond_signal(&history_cv);
     }
     pthread_mutex_unlock(&history_mu);

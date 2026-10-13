@@ -62,6 +62,7 @@ static lv_obj_t *g_land_root, *g_land_art, *g_land_title, *g_land_tag, *g_land_a
 static char g_land_exec[256];
 static void land_cb(lv_event_t *e){
     (void)e;
+    if(!strcmp(g_land_exec, APP_BUILTIN_STATS)){ stats_open(); return; }   /* built into mq_ui: a screen, not a program */
     if(strncmp(g_land_exec, "builtin:", 8) && access(g_land_exec, X_OK)){ ui_toast("That app is not installed"); return; }
     app_launch_direct(g_land_exec);
 }
@@ -73,6 +74,21 @@ static lv_obj_t *dot(lv_obj_t *parent, int d){
 }
 static void land_art(const char *name, int boom){
     lv_obj_clean(g_land_art);
+    if(boom == 2){                                               /* Listening Stats: a little rising bar chart */
+        static const signed char H[5] = { 22, 38, 30, 52, 64 };
+        for(int i = 0; i < 5; i++){
+            lv_obj_t *b = lv_obj_create(g_land_art); lv_obj_remove_style_all(b);
+            lv_obj_set_size(b, 10, H[i]); lv_obj_set_pos(b, 26 + i * 15, 92 - H[i]);
+            lv_obj_set_style_radius(b, 3, 0); lv_obj_set_style_bg_color(b, TC(ACCENT_PRIMARY), 0);
+            lv_obj_set_style_bg_opa(b, i == 4 ? LV_OPA_COVER : (lv_opa_t)(110 + i * 30), 0);
+            lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        }
+        lv_obj_t *base = lv_obj_create(g_land_art); lv_obj_remove_style_all(base);
+        lv_obj_set_size(base, 80, 2); lv_obj_set_pos(base, 22, 96); lv_obj_set_style_radius(base, 1, 0);
+        lv_obj_set_style_bg_color(base, TC(TEXT_SECONDARY), 0); lv_obj_set_style_bg_opa(base, LV_OPA_60, 0);
+        lv_obj_remove_flag(base, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        return;
+    }
     if(boom){                                                    /* a blast ring, its core, dots caught in it */
         lv_obj_t *ring = dot(g_land_art, 86); lv_obj_align(ring, LV_ALIGN_CENTER, -10, 10);
         lv_obj_set_style_border_width(ring, 3, 0); lv_obj_set_style_border_color(ring, TC(ACCENT_PRIMARY), 0);
@@ -123,7 +139,7 @@ void applanding_create(lv_obj_t *root){
 void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec){
     if(!g_land_root) return;
     snprintf(g_land_exec, sizeof g_land_exec, "%s", exec ? exec : "");
-    land_art(name, !strcmp(g_land_exec, APP_BUILTIN_BOOMSHINE));
+    land_art(name, !strcmp(g_land_exec, APP_BUILTIN_BOOMSHINE) ? 1 : !strcmp(g_land_exec, APP_BUILTIN_STATS) ? 2 : 0);
     lv_label_set_text(g_land_title, name && name[0] ? name : "App");
     lv_label_set_text(g_land_tag, tagline && tagline[0] ? tagline : "Installed app");
     lv_label_set_text(g_land_about, about && about[0] ? about : "Opens full screen. Your music\nkeeps playing.");

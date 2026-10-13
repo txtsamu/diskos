@@ -390,9 +390,9 @@ static const char *OPT_DHOLD[] = { "Immersive", "Favourite", "Nothing" };
 void dhome_title_apply(void);
 static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }
 static void apply_disco_hold(int v){ (void)v; }
-static const char *OPT_DIMM[] = { "Vinyl", "CD" };
+static const char *OPT_DIMM[] = { "Vinyl", "CD", "None" };
 void ui_imm_style_apply(void);
-static void apply_disco_imm(int v){ (void)v; ui_imm_style_apply(); }                       /* read on each hold; marks the row as Disco's */
+static void apply_imm(int v){ (void)v; ui_imm_style_apply(); }                       /* Immersive look and lyrics: applied at once */
 void eqcustom_style_apply(void);
 static void apply_disco_eq(int v){ (void)v; eqcustom_style_apply(); }
 static void apply_shortcuts(int v){ (void)v; screen_show(SCR_SCCONFIG); }  /* opens the Shortcuts picker */
@@ -775,6 +775,10 @@ static const setting_t TABLE[] = {
       "Swipe distance needed to go back. Lower is more sensitive.", NULL },
     { "Text & Layout",  "Now Playing", ST_CYCLER, "np_style",   0,0,0, OPT_NPSTYLE, 4, NULL, apply_np_style, 0,
       "Album art style on the Now Playing screen.", D_NPSTYLE },
+    { "Text & Layout",  "Immersive", ST_CYCLER, "imm_style", 0,0,0, OPT_DIMM, 3, NULL, apply_imm, 0,
+      "The full-screen cover: Vinyl (it spins, with grooves and a dark label), CD (it spins, with a clear hub, a still rainbow sheen and faint spokes) or None (the plain cover, standing still).", NULL },
+    { "Text & Layout",  "Immersive Lyrics", ST_TOGGLE, "imm_lyrics", 0,1,1, NULL, 0, NULL, apply_imm, 1,
+      "Synced lyrics over the full-screen cover, on a darker shade at the bottom. Off shows the cover alone.", NULL },
     { "Text & Layout",  "Disc Colour", ST_CYCLER, "disc_colour", 0,0,0, OPT_DISCCOLOUR, 3, NULL, NULL, 0,
       "The colour of the Disc drawn on the startup screen. Set it to match yours.", NULL },
     { "Standby",  "Screensaver", ST_CYCLER, "saver_idx",  0,0,0, OPT_POWER, 5, NULL, NULL, 2,
@@ -809,8 +813,6 @@ static const setting_t TABLE[] = {
       "Current keeps the rows. Arc uses up to eight round buttons. The music disc stays.", NULL },
     { "Quick Settings", "Items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
       "Add, remove and reorder quick actions with the Disco Menu editor.", NULL },
-    { "Disco Options", "Immersive", ST_CYCLER, "disco_imm", 0,0,0, OPT_DIMM, 2, NULL, apply_disco_imm, 0,
-      "The full-screen spinning cover: Vinyl (grooves and a dark label) or CD (a clear hub, a still rainbow sheen and faint spokes, like light on a spinning disc). The lyrics shade stays the same.", NULL },
     { "Music Screen", "Show Clock", ST_TOGGLE, "disco_clock", 0,1,1, NULL,0, NULL, apply_disco_clock, 1,
       "Show the clock, weather and temperature over the cover on Music.", NULL },
     { "Music Screen", "Track Times", ST_TOGGLE, "disco_times", 0,1,1, NULL,0, NULL, apply_disco_times, 1,
@@ -1474,7 +1476,7 @@ void setlist_refresh(void){
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;
-        if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_imm)) continue;   /* fork: Disco rows */
+        if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold)) continue;   /* fork: Disco rows */
 
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);

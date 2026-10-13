@@ -125,6 +125,8 @@ choose **Inter Semibold** or **Nunito Bold**, or keep Original. Applying restart
 
 **Choose your shortcuts.** Settings > Display > Online & Extras > Shortcuts. Tap one of the five slots and pick what it opens.
 
+**Change the full-screen cover.** Settings > Display > Text & Layout > Immersive: Vinyl or CD (it spins) or None (the plain cover, standing still). Immersive Lyrics turns the lyrics and their dark shade on or off.
+
 **Make the back swipe easier or harder.** Settings > Display > Text & Layout > Back-swipe (how far you have to swipe).
 
 ## Library upkeep

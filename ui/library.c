@@ -408,10 +408,11 @@ static void group_play(int gi, int shuffle){
     int kind = (g_view==VIEW_ALBUMS || (g_view==VIEW_ARTIST_ALBUMS && !all))?1:(g_view==VIEW_GENRES)?3:2;
     int lt   = (kind==1)?3:(kind==3)?10:2;   /* 3=album, 10=genre, 2=artist */
     ui_set_workmode(shuffle ? 1 : 0);          /* sequential, or shuffle from the menu */
-    if(lt == 2 && mdb_artist_mode()){          /* Artists by album artist: through the artist plan, or nothing */
+    if(lt == 2){                               /* an artist: through the artist plan (exactly what the view shows), or nothing */
         mdb_plan_t plan; int ok = 0;
-        if(!mdb_artist_plan(g_gnames[gi], &plan)){ ui_toast("Couldn't play that list"); return; }
-        ok = ui_play_plan(&plan, plan.ids[0]); mdb_plan_free(&plan);
+        if(!mdb_artist_plan(all ? g_artist : g_gnames[gi], &plan)){ ui_toast("Couldn't play that list"); return; }   /* "All Songs" = the artist */
+        int i = (shuffle && plan.count > 1) ? rand() % plan.count : 0;   /* shuffle starts anywhere, as Play All's does */
+        ok = ui_play_plan(&plan, plan.ids[i]); mdb_plan_free(&plan);
         if(!ok) return;                        /* refused or not sent: ui_play_plan already said why; stay on the list */
     } else if(!ui_play_list(lt, all ? g_artist : g_gnames[gi], 1)) return;
     screen_show(SCR_NOWPLAYING);
@@ -845,7 +846,7 @@ static void play_list_mode(int mode){
     if(mode == 1 && g_count > 1 && lt != 2) pos = 1 + (rand() % g_count);
     /* V2.57 favourites start from a MY_LOVE.ID, not a position (index 0 is refused) */
     if(lt == 6 && fw_fav_play_by_love_id()){ if(pos > g_count || !ui_play_favorite(g_favs[pos-1].love_id, pos)) return; }
-    else if(lt == 2 && mdb_artist_mode()){          /* Artists by album artist: through the artist plan, or nothing */
+    else if(lt == 2){                              /* an artist: through the artist plan (exactly what the view shows), or nothing */
         mdb_plan_t plan; int ok = 0;
         if(!mdb_artist_plan(nm, &plan)){ ui_toast("Couldn't play that list"); return; }
         int i = (mode == 1 && plan.count > 1) ? rand() % plan.count : 0;

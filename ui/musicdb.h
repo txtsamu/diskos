@@ -123,6 +123,8 @@ int mdb_queue_row_valid(int base_id, int ord, const char *path);   /* re-check a
 int mdb_sysconfig_play_mode(void);                                 /* the player's saved PLAY_MODE 0..4, -1 unreadable */
 int  ui_play_plan(mdb_plan_t *plan, int song_id);   /* main.c: play song_id through the plan (1 = sent) */
 int  mdb_artist_class_type(void);                          /* player Artist grouping: 0 ARTIST, 1 album artist, -1 unknown */
+int  mdb_keep_song_ids(int *ids, int n);   /* add-on apps: keep library song IDs only (in place), count kept */
+void mdb_log_play(const char *path, const char *title, const char *artist, const char *album, long long at, int ms);   /* Listening Stats */
 void mdb_set_artist_mode(int album_artist);                 /* Artists view: 0 = by ARTIST (collabs split), 1 = by album artist */
 int  mdb_artist_mode(void);
 int  mdb_album_rep_ids(int *out, int cap);                    /* per album (mdb_albums order): its first song's ID */

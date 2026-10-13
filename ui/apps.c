@@ -16,13 +16,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
+#include <unistd.h>
 
 /* Homebrew app launcher. Lists /usr/data/apps/<name>/ entries; each may carry an
  * app.conf ("name=...", "exec=..."), else defaults to dir name + .../app. Tapping
  * a row asks main.c to fork/exec it (app owns fb0 + touch while running). */
 
 #define APPS_DIR "/usr/data/apps"
-#define MAX_APPS 24
+#define MAX_APPS 40
 
 LV_FONT_DECLARE(font_icons_28)          /* FontAwesome 28px: play-mode + app-tile glyphs */
 #define LFM_ICON "\xEF\x88\x82"         /* f202 lastfm    -> Last.fm */
@@ -38,6 +39,11 @@ static void scan_apps(void){
         app_t *a = &g_apps[g_napps++];
         md5_hex("boomshine", 9, a->id);
         snprintf(a->name, sizeof a->name, "Boomshine"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_BOOMSHINE);
+    }
+    {   /* Listening Stats is built in too */
+        app_t *a = &g_apps[g_napps++];
+        md5_hex("builtin:stats", 13, a->id);
+        snprintf(a->name, sizeof a->name, "Listening Stats"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_STATS);
     }
     DIR *d = opendir(APPS_DIR);
     if(!d) return;
@@ -61,6 +67,7 @@ static void scan_apps(void){
             }
             fclose(f);
         }
+        if(access(a->exec, X_OK)) continue;          /* nothing to start (a half-copied install): not listed, as in the Disco menu */
         g_napps++;
     }
     closedir(d);

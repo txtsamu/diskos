@@ -19,11 +19,11 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).
 - **Listening:** [Music](#music), [The title menu](#the-title-menu), [Queue and Up Next](#queue-and-up-next), [Equalizer](#equalizer), [Working mode](#working-mode), [MA Sendspin](#ma-sendspin-experimental), [Album Roulette](#album-roulette).
-- **Play:** [Boomshine](#boomshine), [Apps in the menu](#apps-in-the-menu).
+- **Play:** [Boomshine](#boomshine), [Listening Stats](#listening-stats), [Apps in the menu](#apps-in-the-menu).
 - **Your library:** [Library](#library), [Hold menus](#hold-menus), [Search](#search), [Shortcuts](#shortcuts).
 - **Make it yours:** [Settings](#settings), [Disco Options](#disco-options), [Themes](#themes).
 - **More:** [Weather](#weather), [Battery](#battery), [Updates and safety](#updates-and-safety), [Limits](#limits).
-- **Optional apps:** [Album Roulette](#album-roulette), [Disc Shelf](#disc-shelf).
+- **Optional apps:** [SongSphere](#songsphere), [Album Roulette](#album-roulette), [Disc Shelf](#disc-shelf).
 
 ## Getting around
 
@@ -139,7 +139,9 @@ in your accent colour (Disco Options > Colours > Volume). Audio > Max Volume cap
 After the Screensaver delay (Display > Standby > Screensaver) the screen dims to Disco's standby: the album cover,
 darkened, with the weather, a large clock, the song and the artist, and the song's progress as a thin line
 around the rim. It redraws only once a minute. A later Screen Off delay can switch the panel off completely.
-Touch to wake.
+Touch to wake: a touch on a dark screen only wakes it and never presses anything underneath.
+
+For a pocket or a bag, lock the screen with the **power button**: touch stays off until you press it again.
 
 <table>
 <tr>
@@ -411,7 +413,7 @@ hidden while Disco is on.
 |---|---|
 | Playback | Play Mode, Equalizer, Up Next, Auto-tag, Custom EQ, Resume Playback (Off / Song / Position), Artists by artist or album artist, Play Through Folders. |
 | Audio | Working Mode, Gain, DAC Filter, ReplayGain, DRE, Gapless, Max Volume, Balance. |
-| Display | **Brightness**; **Theme** (Theme, Appearance, Automatic Appearance, Outdoor Mode, Accent Colour); **Disco Options**; **Text & Layout** (Font Size, Screen Rotation, 24-Hour Time, Track Numbers, Animations, Back-swipe); **Standby** (Screensaver, Screen Off); **Online & Extras** (Online Album Art, Online Lyrics, Album Art Cache, Weather on Home, Shortcuts, Album View). |
+| Display | **Brightness**; **Theme** (Theme, Appearance, Automatic Appearance, Outdoor Mode, Accent Colour); **Disco Options**; **Text & Layout** (Font Size, Screen Rotation, 24-Hour Time, Track Numbers, Animations, Back-swipe, **Immersive**: Vinyl, CD or None, **Immersive Lyrics**: on or off); **Standby** (Screensaver, Screen Off); **Online & Extras** (Online Album Art, Online Lyrics, Album Art Cache, Weather on Home, Shortcuts, Album View). |
 | Network | Wi-Fi, MA Sendspin, Bluetooth, Bluetooth Codec (SBC, AAC, LDAC levels). |
 | System | **Power** (Sleep Timer, When Sleep Ends, Idle Power-off, Charging Limit, Shut down player); **Date & Time**; **Library** (Rescan, Import Playlists); **Controls** (Volume Keys, Default UI, Language); **Maintenance** (Update from SD Card, Restart, Reset diskOS Settings, Debug Mode); **Help** (First-use hints, Show hints again); **About** (About, Device Info, Temperature). |
 | Battery | The [battery](#battery) page. |
@@ -440,7 +442,6 @@ Display > Disco Options (only shown with the Disco theme):
 | Colours | **Rim Sheen** (the faint CD rainbow round Music and playlists), **Equalizer** and **Volume** (Disco rainbow or Accent), **Progress Bar** (Disco, Accent or Off). |
 | Quick Settings | **Style** (Arc or List) and **Items** (choose and order up to eight buttons). |
 | Layout | **Double tap** and **Hold** on the open navigation circle, **Progress Shape** (Linear under the title, or Arc round the rim), **Side** (Right or Left, then Apply: see [left-handed mode](#left-handed-mode)) and **Scroll**: Classic (rows follow the screen's edge), Straight (flat rows) or Disco (rows swing round the navigation circle like a CD, the times in one straight column). |
-| Immersive | The full-screen cover: Vinyl (grooves and a dark label) or CD (a clear hub, a still rainbow sheen and faint spokes). |
 
 <table>
 <tr>
@@ -590,6 +591,31 @@ If the game ever stops responding, hold **Volume Up** for 3 seconds to close it.
 </tr>
 </table>
 
+## Listening Stats
+
+**Your music, in numbers.** Built in: add **Stats** to the menu (Disco Options > Disco Menu), or open
+**Listening Stats** from All apps or a Shortcut. Its landing page reads nothing until you tap **Show me**.
+
+- **Week, Month or Year** at the top; the arrows step back through earlier ones.
+- **The overview:** how long you listened, how that compares (while a period is running, with the same stretch of the
+  one before), and your plays, songs and best run of days in a row.
+- **Top artists, top albums, on repeat:** your favourites with their covers, ten of each. Tap a song to play it.
+  Artists follow Settings > Playback > Artists (by artist or by album artist).
+- **When you listen:** your listening by the hour, round the rim, with your busiest hour in the middle.
+
+Scroll it like the Library. A song counts once it has played for 30 seconds (or almost all of a shorter one), and
+only the time it really played adds up: pauses and skipping ahead don't. Audiobooks are left out. Stats start when
+you install this version, so the first weeks look thin; nothing leaves the Disc.
+
+<table>
+<tr>
+<td align="center" valign="top" width="25%"><img src="disco/stats-landing.png" width="200" alt="Listening Stats landing page"><br><sub>Landing page</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/stats-overview.png" width="200" alt="The month at a glance"><br><sub>The month</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/stats-artists.png" width="200" alt="Top artists"><br><sub>Top artists</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/stats-clock.png" width="200" alt="When you listen"><br><sub>When you listen</sub></td>
+</tr>
+</table>
+
 ## Apps in the menu
 
 Since 1.5.0, **every app installed on the Disc** can sit in the navigation circle next to the built-in sections.
@@ -618,6 +644,21 @@ button=Open Disc Shelf
 <td align="center" valign="top" width="33%"><img src="disco/menu-boomshine.png" width="220" alt="Boomshine in the navigation circle"><br><sub>In the circle</sub></td>
 <td align="center" valign="top" width="33%"><img src="disco/disc-shelf-launch.png" width="220" alt="Disc Shelf landing page"><br><sub>An app that describes itself</sub></td>
 <td align="center" valign="top" width="33%"><img src="disco/app-launch.png" width="220" alt="Default app landing page"><br><sub>The default page</sub></td>
+</tr>
+</table>
+
+## SongSphere
+
+**Play by mood** (a separate app: [install it](SONGSPHERE_INSTALL.md)). Place albums and artists on a sphere, from
+Calm to Energetic and from Dark to Bright, by dragging the marker. Then drag to the mood you're in and play: up to 40
+songs from near that spot, a few per album and artist, recent plays less likely, in Shuffle, kept as a playlist if
+you like.
+
+<table>
+<tr>
+<td align="center" valign="top" width="33%"><img src="disco/songsphere-landing.png" width="200" alt="SongSphere first page"><br><sub>First page</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/songsphere-place.png" width="200" alt="Placing an album"><br><sub>Place an album</sub></td>
+<td align="center" valign="top" width="33%"><img src="disco/songsphere.png" width="200" alt="Play a mood"><br><sub>Play a mood</sub></td>
 </tr>
 </table>
 

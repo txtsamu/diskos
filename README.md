@@ -68,6 +68,20 @@ replaces only what you see and touch.
 </tr>
 </table>
 
+## New in 2.1: Listening Stats and SongSphere
+
+**Listening Stats** shows your week, month or year in music: time, top artists, albums and songs, and when you
+listen. **SongSphere**, a separate app, plays by mood: place your albums on a sphere, then drag to a mood and play.
+Immersive gets Vinyl, CD or None and an option to hide the lyrics, in every theme. A touch on a dark screen now only
+wakes it. [2.1 release notes](docs/releases/v2.1.0.md)
+
+<table><tr>
+<td align="center" width="25%"><img src="docs/disco/stats-overview.png" width="190" alt="Listening Stats"><br><sub><b>Stats</b>: your month at a glance</sub></td>
+<td align="center" width="25%"><img src="docs/disco/stats-artists.png" width="190" alt="Top artists"><br><sub><b>Top artists</b>, albums and songs</sub></td>
+<td align="center" width="25%"><img src="docs/disco/stats-clock.png" width="190" alt="When you listen"><br><sub><b>When you listen</b></sub></td>
+<td align="center" width="25%"><img src="docs/disco/songsphere.png" width="190" alt="SongSphere"><br><sub><b>SongSphere</b>: play by mood</sub></td>
+</tr></table>
+
 ## New in 2.0: install from Windows
 
 **diskOS Disco! for Windows** installs Disco! on your Disc by clicking through four pages: it checks your PC, sets up
@@ -85,10 +99,13 @@ everything it needs, flashes the Disc and later makes your SD updates. No termin
 Also in 2.0: no more false "Couldn't start playback" when a big playlist takes a moment to load. Everything from
 1.5.0 is here too: [Boomshine](docs/DISCO_TOUR.md#boomshine), any app in the navigation circle, and landing pages.
 
-All the details: [2.0 release notes](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
+All the details: [2.1 release notes](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
+- **Listening Stats.** Your week, month or year in music, built in. [What it shows](docs/DISCO_TOUR.md#listening-stats).
+- **SongSphere.** Play by mood: place albums and artists on a sphere, then pick a mood. A separate app:
+  [install it](docs/SONGSPHERE_INSTALL.md).
 - **Boomshine.** A built-in chain-reaction game: one tap, one blast, as many dots as you can catch.
   [How to play](docs/DISCO_TOUR.md#boomshine).
 - **Album Roulette.** Too much music, nothing to play? Spin your collection: covers fly past, slow down and

@@ -73,7 +73,7 @@ void tagfix_current_album(void);      /* NP menu: the same for every track of it
 void tagfix_auto_tick(const track_state_t *st, int playing);   /* Auto-tag (Settings > Playback) */
 void ui_np_tags_changed(void);        /* tags were rewritten: lyrics views reload */
 #include <stdbool.h>
-enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_LASTFM, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_USAGE, SCR_QUEUE, SCR_SCCONFIG, SCR_MODEINFO, SCR_UPNEXT, SCR_DATETIME, SCR_EQ_EDITOR, SCR_MA, SCR_ROULETTE, SCR_APPLAND, SCR_COUNT };
+enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_LASTFM, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_USAGE, SCR_QUEUE, SCR_SCCONFIG, SCR_MODEINFO, SCR_UPNEXT, SCR_DATETIME, SCR_EQ_EDITOR, SCR_MA, SCR_ROULETTE, SCR_APPLAND, SCR_STATS, SCR_COUNT };
 void screens_init(void);
 void screen_show(int which);
 void screen_back(void);
@@ -217,6 +217,11 @@ void applanding_create(lv_obj_t *root);
 void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec);
 void boomshine_landing(void);
 #define APP_BUILTIN_BOOMSHINE "builtin:boomshine"   /* app_launch() target for the game built into mq_ui */
+#define APP_BUILTIN_STATS "builtin:stats"           /* Listening Stats: a screen of mq_ui, opened from its landing page */
+void stats_create(lv_obj_t *root);
+void stats_open(void);                              /* read the numbers, then show them (the landing page's button) */
+void stats_landing(void);                           /* its landing page */
+lv_obj_t *stats_scroller(void);
 /* settings (master list + drill-in detail) */
 void settings_create(lv_obj_t *root);      /* SCR_SETTINGS: the category list (Playback/Audio/...) */
 void settings_refresh_list(void);

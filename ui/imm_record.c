@@ -119,11 +119,11 @@ void imm_record_render(const uint32_t *src,int w,int h,uint32_t *out,int angle,i
         }
         ready=1;
     }
-    if(fade_height<170)fade_height=170;
+    if(fade_height>0 && fade_height<170)fade_height=170;     /* 0: no lyric shade (Immersive Lyrics off) */
     if(cached_height!=fade_height){
         int top=360-fade_height;
         for(int y=0;y<360;y++){
-            int alpha=y<=top?0:(y-top)*205*255/(fade_height*140);
+            int alpha=(fade_height<=0||y<=top)?0:(y-top)*205*255/(fade_height*140);
             if(alpha>205)alpha=205;
             keep[y]=(255-alpha)*256/255;
         }

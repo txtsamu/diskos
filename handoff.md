@@ -1,4 +1,21 @@
-# diskOS Disco handoff - 2.0.0 (2026-10-13)
+# diskOS Disco handoff - 2.1.0 (2026-10-13)
+
+## 2.1.0 specifics
+
+- Listening Stats (stats.c): recorder stats_tick (main loop) / stats_flush (power off) -> mdb_log_play -> PLAY_LOG
+  (AT, MS, PATH, TITLE, ARTIST, ALBUM, AARTIST; history worker). Counts at 30 s or 90 % of a short song; time = position
+  progress while playing, capped by real time. Screen SCR_STATS (curvelist), landing via builtin:stats; Disco Menu code S.
+  Host: statsapp / statsapp-land, STATS_SCROLL/PERIOD/BACK/EMPTY/ART_DIR. Recorder test: compile stats.c with
+  -DSTATS_RECORDER_ONLY (see the 2.1.0 review). Year view at 55k plays ~0.2 s on a PC: watch it on the device.
+- App API (main.c): app_env_write -> /tmp/diskos-app-env before app_run; app_request_take reads
+  /tmp/diskos-app-request after (action=play|save|playsave, shuffle, name, id=); IDs filtered/deduped (mdb_keep_song_ids).
+- SongSphere (ui/songsphere, make songsphere): own program, LVGL + SQLite + fb_pan + Inter; sphere.db in its folder;
+  SS_SHOT / SS_BENCH / SS_TEST on a PC. Installed to /usr/data/apps/songsphere (app + app.conf).
+- Immersive: cfg imm_style (0 Vinyl, 1 CD, 2 None = still) migrated from disco_imm; imm_lyrics (fade 0 = no shade).
+- Dark-screen touch: LVGL touch off while bl_state 2 (or 1 off the saver); the waking touch held until lift (3 s cap).
+- mdb_artist_plan in both groupings (By Artist: artist_credited view vs ARTIST=key queue, else type-5 exact queue).
+- Hints: pills size to text; HINT_LOCK (hint_lock) after a touch wake, not limited by hint_starts.
+- Sign script: keys/last-epoch, default label custom-<epoch>.
 
 ## 2.0.0 specifics
 

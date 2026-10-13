@@ -633,6 +633,7 @@ static void imm_ring_update(int permille){
     uint32_t ind = lv_color_to_u32(np_col()) & 0xFFFFFFu;
     imm_record_set_ring(1, permille, theme_rgb(THEME_CLR_FIXED_MEDIA_TRACK) & 0xFFFFFFu, ind);
 }
+static int imm_lyrics_on(void);
 static void imm_bind_record(void){
     imm_fast=0;
     if(!imm_spin || !g_spin_ok) return;
@@ -656,15 +657,28 @@ static void imm_bind_record(void){
         lv_image_set_rotation(imm_spin,imm_angle);lv_image_set_scale(imm_spin,256);
         lv_obj_center(imm_spin);
     }
-    if(imm_scrim){if(imm_fast)lv_obj_add_flag(imm_scrim,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(imm_scrim,LV_OBJ_FLAG_HIDDEN);}
+    if(imm_scrim){if(imm_fast || !imm_lyrics_on())lv_obj_add_flag(imm_scrim,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(imm_scrim,LV_OBJ_FLAG_HIDDEN);}
 }
-/* Disco Options > Immersive: 0 Vinyl (grooves + label), 1 CD (clear hub, still rainbow sheen + spokes). Disco only. */
-static int imm_cd_mode(void){ return th_disco() && cfg_get_int("disco_imm", 0) == 1; }
+/* Display > Text & Layout > Immersive (every theme): 0 Vinyl (grooves + label), 1 CD (clear hub, still rainbow sheen +
+ * spokes), 2 None (the plain cover, standing still). Taken over once from Disco's own older setting. */
+static int imm_style(void){
+    int s = cfg_get_int("imm_style", -1);
+    if(s < 0){ s = cfg_get_int("disco_imm", 0) == 1 ? 1 : 0; cfg_set_int("imm_style", s); }
+    return s >= 0 && s <= 2 ? s : 0;
+}
+static int imm_cd_mode(void){ return imm_style() == 1; }
+static int imm_still(void){ return imm_style() == 2; }
+static int imm_lyrics_on(void){ return cfg_get_int("imm_lyrics", 1) != 0; }   /* Immersive Lyrics: the lines and their shade */
 static void spin_from_poster(void);
+static uint32_t imm_spin_ms;                              /* (defined with the immersive state below) */
+static void imm_lyrics_reload(void);
 void ui_imm_style_apply(void){                             /* re-bake the record (the cover itself is unchanged) */
+    if(imm_still()){ imm_angle = 0; imm_spin_ms = 0; }
+    if(imm_timer) lv_timer_set_period(imm_timer, imm_playing && !imm_still() ? imm_frame_period : 250);
+    g_lyr_n = -1; if(fsart_on) imm_lyrics_reload();          /* Immersive Lyrics may have changed too */
     if(!g_posterdsc.data) return;
     spin_from_poster();
-    if(imm_fast) imm_render_frame();
+    if(imm_fast){ imm_bind_record(); imm_render_frame(); }
 }
 static void spin_from_poster(void){                       /* RGB888 -> the display's native XRGB8888, once */
     g_spin_ok = 0;
@@ -683,7 +697,8 @@ static void spin_from_poster(void){                       /* RGB888 -> the displ
     static const float groove[4] = { 170.f, 148.f, 126.f, 104.f };
     const float cx = w / 2.0f - 0.5f, cy = h / 2.0f - 0.5f;
     int cdm = imm_cd_mode();
-    imm_record_set_cd(cdm);                                  /* Disco Options > Immersive: CD (the still sheen + spokes) */
+    imm_record_set_cd(cdm);                                  /* Immersive: CD (the still sheen + spokes) */
+    if(imm_still()){ g_spin_ok = 1; return; }                /* None: the cover as it is */
     if(cdm){                                                 /* the CD's clear hub instead of the label: round, so baked */
         for(int y = 0; y < h; y++){
             float dy = y - cy;
@@ -775,6 +790,18 @@ static void fsart_refresh_text(void){
 static void imm_lyrics_reload(void){
     static unsigned revision;
     unsigned now;
+    if(!imm_lyrics_on()){                                   /* Immersive Lyrics off: just the cover, no shade */
+        if(g_lyr_n == 0 && imm_fade_height == 0) return;
+        g_lyr_n = 0; revision = 0;
+        if(imm_hint) lv_obj_add_flag(imm_hint, LV_OBJ_FLAG_HIDDEN);
+        for(int i = 0; i < 3; i++) if(imm_lyr[i]) lv_label_set_text(imm_lyr[i], "");
+        imm_fade_height = 0;
+        if(imm_scrim) lv_obj_add_flag(imm_scrim, LV_OBJ_FLAG_HIDDEN);
+        imm_overlays_refresh();
+        if(imm_fast) imm_render_frame();
+        return;
+    }
+    if(imm_fade_height == 0){ imm_fade_height = 170; if(imm_scrim){ lv_obj_set_height(imm_scrim, 170); if(!imm_fast) lv_obj_remove_flag(imm_scrim, LV_OBJ_FLAG_HIDDEN); } }
     int n=lyrics_immersive_load(g_lyr,(int)(sizeof g_lyr/sizeof g_lyr[0]),&now);
     if(revision==now && g_lyr_n>=0) return;
     revision=now; g_lyr_n=n>0 ? n : 0;
@@ -782,6 +809,7 @@ static void imm_lyrics_reload(void){
     if(imm_hint){ if(g_lyr_n>0) lv_obj_add_flag(imm_hint,LV_OBJ_FLAG_HIDDEN); else lv_obj_remove_flag(imm_hint,LV_OBJ_FLAG_HIDDEN); }
     for(int i=0;i<3;i++) if(imm_lyr[i]) lv_label_set_text(imm_lyr[i],"");
     imm_overlays_refresh();                                    /* fork perf: re-bake the hint / cleared lines */
+    if(imm_fast && imm_still()) imm_render_frame();            /* None stands still: no next frame would show it */
 }
 static uint32_t imm_last_spin, imm_last_lyr, imm_el_avg, imm_spin_ms;
 static int imm_playing = 1;
@@ -798,7 +826,7 @@ static void imm_tick(lv_timer_t *t){
       if(ui_main_is_idle()){ imm_last_spin = lv_tick_get(); if(!was_idle){ was_idle = 1; if(imm_timer) lv_timer_set_period(imm_timer, 500); } return; }
       if(was_idle){ was_idle = 0; if(imm_timer) lv_timer_set_period(imm_timer, imm_playing ? imm_frame_period : 250); } }
     uint32_t el = lv_tick_elaps(imm_last_spin);
-    if(!imm_playing) imm_last_spin = lv_tick_get();      /* paused: the record stands still (and costs nothing) */
+    if(!imm_playing || imm_still()) imm_last_spin = lv_tick_get();   /* paused, or None: it stands still (and costs nothing) */
     else if(imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN) && el >= 38){
         imm_last_spin = lv_tick_get();
         imm_spin_ms = (imm_spin_ms + el % 20000) % 20000;
@@ -815,10 +843,11 @@ static void imm_tick(lv_timer_t *t){
     imm_last_lyr = lv_tick_get();
     track_state_t st; ipc_get_state(&st);
     int pl = g_np_is_playing;                             /* never the raw ipc state: it reports 0 while playing */
-    if(pl != imm_playing){ imm_playing = pl; if(imm_timer) lv_timer_set_period(imm_timer, pl ? imm_frame_period : 250); }
+    if(pl != imm_playing){ imm_playing = pl; if(imm_timer) lv_timer_set_period(imm_timer, pl && !imm_still() ? imm_frame_period : 250); }
     imm_lyrics_reload();
     if(imm_prog && st.duration_ms > 0) lv_arc_set_value(imm_prog, (int32_t)((long long)st.position_ms * 1000 / st.duration_ms));
     if(st.duration_ms > 0) imm_ring_update((int)((long long)st.position_ms * 1000 / st.duration_ms));   /* fork perf: baked ring */
+    if(imm_fast && imm_still() && imm_playing) imm_render_frame();   /* None: the ring still moves, about 4 times a second */
     if(g_lyr_n <= 0) return;
     int cur = -1;
     for(int i = 0; i < g_lyr_n && g_lyr[i].ms <= st.position_ms + 200; i++) cur = i;   /* +200: show a hair early */
@@ -856,6 +885,7 @@ void ui_np_fsart_open(void){
     else anim_fade(fsart, LV_OPA_TRANSP, LV_OPA_COVER, 240, NULL);
     fsart_on = 1;
     if(g_np_poster || g_np_ring){                       /* Ring and Braun share this immersive path */
+        if(imm_still()) imm_angle = 0;                  /* None: upright, standing still */
         if(g_poster_stale) poster_reload();               /* decode the sharp cover now, not on every track */
         if(imm_spin){
             if(g_spin_ok){                              /* sharp 364px cover, native format, 1:1 - best quality */
@@ -881,7 +911,7 @@ void ui_np_fsart_open(void){
         imm_last_spin = imm_last_lyr = lv_tick_get(); imm_el_avg = 0; imm_frames = 0;
         imm_spin_ms=(uint32_t)imm_angle*20000/3600;
         imm_playing = g_np_is_playing;
-        if(!imm_timer) imm_timer = lv_timer_create(imm_tick, imm_frame_period, NULL);   /* initial render already measured its cost */
+        if(!imm_timer) imm_timer = lv_timer_create(imm_tick, imm_still() ? 250 : imm_frame_period, NULL);   /* initial render already measured its cost */
     }
 }
 static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN); }

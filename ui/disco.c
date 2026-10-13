@@ -42,9 +42,26 @@ static void open_songs(void){ library_open_songs(); screen_section(SCR_LIBRARY, 
 static void open_queue(void){ queue_open(); }
 #define IC_ROULETTE "@vinyl"
 #define IC_BOOM "@boom"
+#define IC_STATS "@stats"
 /* Theme-coloured vector icons (no new font glyph): Album Roulette's vinyl (three rings) and Boomshine's burst (a
  * filled dot inside a ring, with three small dots flying off). */
+static void stats_icon(lv_obj_t *label, int size){                 /* Listening Stats: four rising bars */
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 3) return;
+    lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)3);
+    lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
+    lv_color_t color = lv_obj_get_style_text_color(label, 0);
+    static const signed char H[4] = { 40, 70, 55, 100 };          /* % of size */
+    int bw = size / 6 > 2 ? size / 6 : 2, gap = (size - 4 * bw) / 5;
+    for(int i = 0; i < 4; i++){
+        lv_obj_t *b = lv_obj_create(label); lv_obj_remove_style_all(b);
+        int h = H[i] * size * 85 / 10000; if(h < 3) h = 3;
+        lv_obj_set_size(b, bw, h); lv_obj_set_pos(b, gap + i * (bw + gap), size - size / 10 - h);
+        lv_obj_set_style_radius(b, bw / 3, 0); lv_obj_set_style_bg_color(b, color, 0); lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    }
+}
 static void roulette_icon(lv_obj_t *label, const char *icon, int size){
+    if(!strcmp(icon, IC_STATS)){ stats_icon(label, size); return; }
     int vinyl = !strcmp(icon, IC_ROULETTE), boom = !strcmp(icon, IC_BOOM);
     if(lv_obj_get_child_count(label) && (!(vinyl || boom) || (intptr_t)lv_obj_get_user_data(label) != (boom ? 2 : 1))) lv_obj_clean(label);
     if(!vinyl && !boom){
@@ -105,6 +122,7 @@ static const dsec_t SEC[] = {
     { "ma",        "Sendspin",  "MA",               SCR_MA,       NULL,              0 },
     { "roulette",  "Album Roulette", IC_ROULETTE,    SCR_ROULETTE, NULL,              0 },
     { "boomshine", "Boomshine", IC_BOOM,            SCR_APPLAND,   open_boomshine,    0 },
+    { "stats",     "Stats",     IC_STATS,           SCR_APPLAND,   stats_landing,     0 },
 };
 #define NSEC ((int)(sizeof SEC / sizeof SEC[0]))
 #define MAXM 10                                    /* the picker holds at most ten (the dots must fit) */
@@ -120,7 +138,7 @@ static int menu_has_screen(int scr);
 static int in_menu(int s){ for(int i = 0; i < g_nmenu; i++) if(g_menu[i] == s) return i; return -1; }
 static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == scr) return 1; return 0; }
 /* parse cfg "disco_menu": unknown and duplicate ids are skipped, missing protected ones come back (never locked out) */
-static const char CODE[] = "mlsoceFaudbwrgqMRB";                /* one letter per SEC[] entry, same order (digits: apps) */
+static const char CODE[] = "mlsoceFaudbwrgqMRBS";                /* one letter per SEC[] entry, same order (digits: apps) */
 static void menu_load(void){
     menu_apps_scan();
     char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str("disco_menu", "music,library,settings,modes,shortcuts,eq"));

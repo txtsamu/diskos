@@ -346,6 +346,7 @@ void screens_init(void)
     s_roots[SCR_MA]        = screen_make_root(parent);
     s_roots[SCR_ROULETTE]  = screen_make_root(parent);
     s_roots[SCR_APPLAND]   = screen_make_root(parent);
+    s_roots[SCR_STATS]     = screen_make_root(parent);
     s_roots[SCR_UPNEXT] = screen_make_root(parent);
     s_roots[SCR_DATETIME] = screen_make_root(parent);
 
@@ -379,6 +380,7 @@ void screens_init(void)
     ma_create(s_roots[SCR_MA]);
     roulette_create(s_roots[SCR_ROULETTE]);
     applanding_create(s_roots[SCR_APPLAND]);
+    stats_create(s_roots[SCR_STATS]);
     search_create(s_roots[SCR_SEARCH]);
     saver_create(s_roots[SCR_SAVER]);
     quicksettings_create(s_roots[SCR_QUICK]);
