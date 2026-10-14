@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>diskOS Disco! for the Snowsky Disc</title>
+<title>diskOS Disco! Make your Snowsky Disc yours</title>
 <meta name="description" content="diskOS Disco! 2.2: a new touch interface for the FiiO Snowsky Disc. The album fills the round screen; SongSphere plays by mood, Listening Stats shows your year, and apps live in the navigation circle.">
 <meta property="og:title" content="diskOS Disco! 2.2">
 <meta property="og:description" content="The album cover is the interface. A touch UI for the FiiO Snowsky Disc, built on diskOS.">
@@ -14,8 +14,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#0f111b; --ink2:#151827; --ink3:#1c2033; --line:rgba(220,226,255,.10);
-  --paper:#f3f4f8; --mist:#a3a8bc; --dim:#6c7189;
+  --ink:#000; --ink2:#0a0a0d; --ink3:#131317; --line:rgba(255,255,255,.09);
+  --paper:#f4f4f6; --mist:#a6a6b0; --dim:#6f6f7a;
+  --rainbow:linear-gradient(90deg,#ff6fb1,#ffc36b,#f5f07a,#7cf2c0,#6bc8ff,#a88bff);
   --silver:#dfe3ea; --silver2:#c9ceda; --onsilver:#141726;
   --foil:conic-gradient(from 200deg,#ff6fb1,#ffc36b,#f5f07a,#7cf2c0,#6bc8ff,#8d8bff,#c58bff,#ff6fb1);
   --cyan:#5fd6f2;
@@ -51,7 +52,8 @@ figcaption{margin-top:14px;font-size:15px;line-height:1.45;color:var(--mist)}
 figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 
 /* ---- top bar ---- */
-.bar{position:sticky;top:0;z-index:30;background:rgba(15,17,27,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.bar{position:sticky;top:0;z-index:30;background:rgba(0,0,0,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.bar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--rainbow);opacity:.45}
 .bar .wrap{display:flex;align-items:center;gap:26px;height:64px}
 .logo{display:flex;align-items:center;gap:11px;text-decoration:none;font-family:var(--display);font-weight:600;font-size:17px;white-space:nowrap}
 .logo i{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,var(--ink) 0 17%,rgba(255,255,255,.55) 18% 21%,transparent 22%),var(--foil)}
@@ -65,8 +67,8 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 /* ---- hero: the Disc itself ---- */
 .hero{padding:64px 0 96px;overflow:hidden}
 .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-.hero h1{font-size:clamp(46px,7vw,96px);line-height:.98;font-weight:800;letter-spacing:-.035em}
-.hero h1 span{display:block;color:transparent;-webkit-text-stroke:1.5px rgba(243,244,248,.85)}
+.hero h1{font-size:clamp(40px,5.1vw,70px);line-height:1;font-weight:800;letter-spacing:-.035em}
+.hero h1 span{display:block;white-space:nowrap;color:transparent;-webkit-text-stroke:1.5px rgba(243,244,248,.85)}
 .for{display:inline-block;margin-bottom:26px;color:var(--mist);font-size:15px}
 .for b{color:var(--paper);font-weight:600}
 .hero .lead{margin:26px 0 34px}
@@ -74,9 +76,9 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 .hero .small{margin-top:22px;max-width:52ch}
 .device{position:relative;width:min(100%,500px);aspect-ratio:1;margin-left:auto}
 .device .body{position:absolute;inset:0;border-radius:50%;
-  background:radial-gradient(circle closest-side,#262a3a 0 77%,#f1f3f7 77.6% 78.6%,#9aa1b4 79.5%,#dde1e9 86%,#aab0c2 93%,#eef0f5 99%,transparent 100%);
+  background:radial-gradient(circle closest-side,#15161d 0 77%,#f1f3f7 77.6% 78.6%,#9aa1b4 79.5%,#dde1e9 86%,#aab0c2 93%,#eef0f5 99%,transparent 100%);
   box-shadow:0 40px 90px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.4)}
-.device .foil{position:absolute;inset:0;border-radius:50%;background:var(--foil);mix-blend-mode:color;opacity:.55;
+.device .foil{position:absolute;inset:0;border-radius:50%;background:var(--foil);mix-blend-mode:color;opacity:.32;
   -webkit-mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);
   animation:spin 26s linear infinite}
 .device .sheen{position:absolute;inset:0;border-radius:50%;
@@ -93,6 +95,7 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 /* ---- sections ---- */
 section{padding:110px 0}
 .head{max-width:760px;margin-bottom:56px}
+.stroke::after{content:"";display:block;width:56px;height:3px;border-radius:2px;background:var(--rainbow);margin-top:22px}
 .head p{margin-top:20px}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center}
 .split.rev>:first-child{order:2}
@@ -106,7 +109,7 @@ section{padding:110px 0}
 @media (max-width:900px){.r4{grid-template-columns:repeat(2,1fr)}.r3{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:560px){.r3{grid-template-columns:1fr 1fr}.r2{grid-template-columns:1fr 1fr}}
 .more{display:inline-block;margin-top:26px;font-weight:600;color:var(--paper);text-decoration:none;border-bottom:1px solid rgba(220,226,255,.35);padding-bottom:2px}
-.more:hover{border-color:var(--paper)}
+.more:hover{border-image:var(--rainbow) 1}
 .band{background:var(--ink2)}
 
 /* ---- what's new: three discs on a groove ---- */
@@ -152,6 +155,37 @@ section{padding:110px 0}
 @media (max-width:980px){#gallery{grid-template-columns:repeat(4,1fr)}}
 @media (max-width:600px){#gallery{grid-template-columns:repeat(2,1fr)}}
 
+/* ---- build your Disc: one setting at a time ---- */
+.mixer{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.mixer .groups{display:grid;gap:22px}
+.mixer .group span{display:block;font-size:14px;color:var(--dim);margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{appearance:none;cursor:pointer;font:500 15px var(--body);color:var(--mist);background:var(--ink3);border:1px solid var(--line);
+  padding:8px 16px;border-radius:999px}
+.chips button:hover{color:var(--paper)}
+.chips button[aria-pressed=true]{color:var(--paper);border-color:transparent;
+  background:linear-gradient(var(--ink3),var(--ink3)) padding-box,var(--rainbow) border-box;border:1px solid transparent}
+.mixer .stage{width:min(100%,430px);margin:0 auto}
+.mixer .stage img{transition:opacity .25s ease}
+.mixer .note{margin-top:18px;text-align:center;font-size:15px;color:var(--mist);min-height:1.6em}
+.alsos{margin-top:64px;display:grid;grid-template-columns:repeat(3,1fr);gap:0 40px}
+.alsos p{padding:14px 0;border-top:1px solid var(--line);color:var(--mist);font-size:16px}
+.alsos b{color:var(--paper);font-weight:600}
+@media (max-width:900px){.mixer{grid-template-columns:1fr;gap:40px}.alsos{grid-template-columns:1fr}}
+
+/* ---- for music lovers ---- */
+.lovers{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.lovers div{background:var(--ink3);border-radius:22px;padding:26px}
+.lovers h3{font-size:18px;margin-bottom:10px}
+.lovers p{color:var(--mist);font-size:16px}
+.ways{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:80px}
+.ways a{text-decoration:none;display:grid;grid-template-columns:96px 1fr;gap:18px;align-items:center}
+.ways .shot{padding:3px}.ways .shot::after{inset:3px}
+.ways b{display:block;font-family:var(--display);font-weight:600;font-size:17px;margin-bottom:4px}
+.ways span{color:var(--mist);font-size:15px;line-height:1.45}
+@media (max-width:900px){.lovers{grid-template-columns:1fr 1fr}.ways{grid-template-columns:1fr}}
+@media (max-width:560px){.lovers{grid-template-columns:1fr}}
+
 /* ---- options ---- */
 .opts{display:grid;grid-template-columns:repeat(2,1fr);gap:0 56px;margin-top:10px}
 .opts div{padding:16px 0;border-bottom:1px solid var(--line)}
@@ -173,30 +207,28 @@ section{padding:110px 0}
 @media (max-width:520px){.wsteps{grid-template-columns:1fr}}
 
 /* ---- install: the jewel-case insert ---- */
-.insert{background:var(--silver);color:var(--onsilver);border-radius:36px 36px 0 0;margin-top:40px}
-.insert .lead,.insert .muted{color:#4a5068}
-.insert a{color:var(--onsilver)}
-.insert code{background:rgba(20,23,38,.08)}
+.insert{background:var(--ink2);border-top:1px solid var(--line)}
+.insert a{color:var(--paper)}
 .insert ol{list-style:none;counter-reset:i;padding:0;margin:40px 0 0;display:grid;gap:0}
-.insert li{counter-increment:i;display:grid;grid-template-columns:64px 1fr;gap:10px;padding:26px 0;border-top:1px solid rgba(20,23,38,.13)}
-.insert li::before{content:counter(i);font-family:var(--display);font-weight:600;font-size:26px;color:#8a90a6;line-height:1.1}
+.insert li{counter-increment:i;display:grid;grid-template-columns:64px 1fr;gap:10px;padding:26px 0;border-top:1px solid var(--line)}
+.insert li::before{content:counter(i);font-family:var(--display);font-weight:600;font-size:26px;line-height:1.1;background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent}
 .insert li>div{min-width:0}
 .insert li h3{font-size:19px;margin-bottom:8px}
-.insert li p{max-width:72ch;color:#3e4459}
+.insert li p{max-width:72ch;color:var(--mist)}
 .insert li p+p,.insert li pre+p{margin-top:12px}
-.insert pre{margin:14px 0 0;padding:16px 18px;background:var(--onsilver);color:#e7e9f2;border-radius:14px;overflow-x:auto;font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.insert pre{margin:14px 0 0;padding:16px 18px;background:#000;border:1px solid var(--line);color:#e7e9f2;border-radius:14px;overflow-x:auto;font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .insert pre .c{color:#8d93ab}
-.warn{margin-top:36px;padding:20px 22px;border-radius:18px;background:#fff;border:1px solid rgba(20,23,38,.12);font-size:16px;color:#3e4459}
-.warn b{color:var(--onsilver)}
+.warn{margin-top:36px;padding:20px 22px;border-radius:18px;background:var(--ink3);border:1px solid var(--line);font-size:16px;color:var(--mist)}
+.warn b{color:var(--paper)}
 @media (max-width:560px){.insert li{grid-template-columns:1fr}.insert li::before{font-size:20px}}
 
-footer{background:var(--silver2);color:var(--onsilver);padding:56px 0 calc(56px + env(safe-area-inset-bottom,0px))}
+footer{background:#000;color:var(--paper);border-top:1px solid var(--line);padding:56px 0 calc(56px + env(safe-area-inset-bottom,0px))}
 footer .cols{display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px}
-footer p{color:#3e4459;font-size:15px;max-width:52ch;margin-top:14px}
+footer p{color:var(--mist);font-size:15px;max-width:52ch;margin-top:14px}
 footer h4{font-family:var(--display);font-size:14px;font-weight:600;margin:0 0 10px}
-footer .links a{display:block;text-decoration:none;color:#3e4459;font-size:15px;padding:3px 0}
-footer .links a:hover{color:var(--onsilver)}
-footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,255,255,.55) 18% 21%,transparent 22%),var(--foil)}
+footer .links a{display:block;text-decoration:none;color:var(--mist);font-size:15px;padding:3px 0}
+footer .links a:hover{color:var(--paper)}
+footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55) 18% 21%,transparent 22%),var(--foil)}
 @media (max-width:760px){footer .cols{grid-template-columns:1fr 1fr}footer .cols>:first-child{grid-column:1/-1}}
 
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.device .foil,.device .sheen{animation:none}.device .screen img{transition:none}}
@@ -208,8 +240,8 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   <div class="wrap">
     <a class="logo" href="#top"><i aria-hidden="true"></i>diskOS Disco!</a>
     <nav aria-label="Sections">
-      <a href="#new">New in 2.2</a><a href="#music">Music</a><a href="#songsphere">SongSphere</a><a href="#stats">Stats</a>
-      <a href="#apps">Apps</a><a href="#yours">Make it yours</a><a href="#install">Install</a>
+      <a href="#new">New in 2.2</a><a href="#choice">Make it yours</a><a href="#play">Play your way</a><a href="#songsphere">SongSphere</a>
+      <a href="#apps">Apps</a><a href="#install">Install</a>
     </nav>
     <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest">Download</a>
   </div>
@@ -220,10 +252,10 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   <div class="wrap">
     <div>
       <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
-      <h1>Your Disc, <span>your way.</span></h1>
-      <p class="lead">A new interface for the Disc's round screen. The album you're playing fills it, and
-        everything else is yours to arrange, recolour, and fill with apps: play by mood, see your year in music,
-        or set off a chain reaction between songs.</p>
+      <h1>Make it yours. <span>Play your way.</span></h1>
+      <p class="lead">More than an MP3 player. diskOS Disco! turns the Snowsky Disc into a player built around your
+        albums and the way you listen: choose the look, the layout and the apps, then find the next record by mood,
+        by chance or by habit. Every piece is optional, and every piece is yours.</p>
       <div class="ctas">
         <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
         <a class="pill line" href="#install">Linux and SD updates</a>
@@ -260,11 +292,86 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   </div>
 </section>
 
-<section id="music" class="band">
+
+<section id="choice" class="band">
+  <div class="wrap">
+    <div class="head">
+      <h2 class="stroke">Your Disc, built from choices.</h2>
+      <p class="lead">Nothing in Disco is fixed. Try a few of the choices here: each one is a single setting on the Disc,
+        and they all mix.</p>
+    </div>
+    <div class="mixer">
+      <div class="groups" id="mixer">
+        <div class="group"><span>Theme</span><div class="chips" data-group="theme">
+          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
+          <button type="button" aria-pressed="false" data-img="disco/ring-music.png" data-note="Ring: the progress ring is the interface.">Ring</button>
+          <button type="button" aria-pressed="false" data-img="disco/ring-light-music.png" data-note="Ring Light: off-white with lime.">Ring Light</button>
+          <button type="button" aria-pressed="false" data-img="disco/braun-music.png" data-note="Braun: after Dieter Rams' SK4 radio.">Braun</button>
+          <button type="button" aria-pressed="false" data-img="disco/braun-dark-music.png" data-note="Braun Dark: charcoal and aluminium.">Braun Dark</button>
+        </div></div>
+        <div class="group"><span>Title font</span><div class="chips" data-group="font">
+          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="The original Disco voice.">Original</button>
+          <button type="button" aria-pressed="false" data-img="disco/music-inter.png" data-note="Inter Semibold: crisp and easy to read.">Inter</button>
+          <button type="button" aria-pressed="false" data-img="disco/music-nunito.png" data-note="Nunito Bold: round and warm.">Nunito</button>
+        </div></div>
+        <div class="group"><span>Progress</span><div class="chips" data-group="progress">
+          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="A rainbow line under the title.">Line</button>
+          <button type="button" aria-pressed="false" data-img="disco/music-arc.png" data-note="An arc all the way around the rim.">Arc</button>
+        </div></div>
+        <div class="group"><span>Hand</span><div class="chips" data-group="hand">
+          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="The menu on the right edge.">Right</button>
+          <button type="button" aria-pressed="false" data-img="disco/left-music.png" data-note="Everything mirrored for the left hand.">Left</button>
+        </div></div>
+        <div class="group"><span>Appearance</span><div class="chips" data-group="look">
+          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Dark, for the night bus.">Dark</button>
+          <button type="button" aria-pressed="false" data-img="disco/music-light.png" data-note="Light, or automatic by the time of day.">Light</button>
+          <button type="button" aria-pressed="false" data-img="disco/accent.png" data-note="An accent that follows the album, or your own colour.">Accent</button>
+        </div></div>
+      </div>
+      <div>
+        <div class="stage"><div class="shot"><img id="mix-img" src="disco/music.png" alt="Music, as chosen" width="360" height="360"></div></div>
+        <p class="note" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
+      </div>
+    </div>
+    <div class="alsos">
+      <p><b>Your menu.</b> Pick the sections of the navigation circle and their order.</p>
+      <p><b>Your apps.</b> Five of them in the circle, each with its icon.</p>
+      <p><b>Your full-screen cover.</b> A spinning vinyl or CD, or the still cover, with or without lyrics.</p>
+      <p><b>Your scrolling.</b> Straight, classic, or rows that swing round the circle like a CD.</p>
+      <p><b>Your gestures.</b> Back, Music and Quick Settings from the edges, and Shortcuts your way.</p>
+      <p><b>Your fallback.</b> FiiO's own interface is one setting away, always.</p>
+    </div>
+  </div>
+</section>
+
+<section id="play">
+  <div class="wrap">
+    <div class="head">
+      <h2 class="stroke">For people who still listen to albums.</h2>
+      <p class="lead">More than an MP3 player: Disco is built around albums, artists and the way you actually listen,
+        on a Disc that's yours to set up.</p>
+    </div>
+    <div class="lovers">
+      <div><h3>Albums, played right</h3><p>Albums play in track order. Group by artist or album artist; compilations show as Various Artists, and collaborations stay with each artist.</p></div>
+      <div><h3>Lyrics that follow along</h3><p>Synced lyrics from an .lrc file, the song's tags, or online if you allow it, under the title or full screen over the cover.</p></div>
+      <div><h3>Ten bands of EQ</h3><p>Presets or ten of your own, on rainbow faders you drag; tap a band, double-tap to reset.</p></div>
+      <div><h3>Every way in</h3><p>Library, Folders, Search with artists first, Favourites, a queue that plays added songs next, and audiobooks with chapters kept apart.</p></div>
+      <div><h3>Out to your gear</h3><p>USB DAC, Bluetooth, AirPlay, or a Music Assistant speaker in sync with your other rooms.</p></div>
+      <div><h3>Your listening, kept</h3><p>Listening Stats on the Disc, nothing sent anywhere; Last.fm scrobbling if you want it.</p></div>
+    </div>
+    <div class="ways">
+      <a href="#songsphere"><div class="shot"><img src="disco/songsphere.png" alt="" width="360" height="360" loading="lazy"></div><div><b>By mood</b><span>SongSphere plays what fits the moment.</span></div></a>
+      <a href="#apps"><div class="shot"><img src="disco/roulette-dark.png" alt="" width="360" height="360" loading="lazy"></div><div><b>By chance</b><span>Album Roulette spins your shelf for a forgotten favourite.</span></div></a>
+      <a href="#stats"><div class="shot"><img src="disco/stats-wrapped.png" alt="" width="360" height="360" loading="lazy"></div><div><b>By habit</b><span>Listening Stats shows your top artists, albums and songs.</span></div></a>
+    </div>
+  </div>
+</section>
+
+<section id="music">
   <div class="wrap">
     <div class="split">
       <div>
-        <h2>The cover is the interface.</h2>
+        <h2 class="stroke">The cover is the interface.</h2>
         <p class="lead" style="margin-top:22px">The album fills the screen, sharp. Over it: the time and the weather, the title and
           artist, a progress line you drag to seek, and play controls on an arc that follows the round edge.</p>
         <ul class="points">
@@ -279,16 +386,6 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
         <figure style="margin-top:80px"><div class="shot"><img src="disco/music-arc.png" alt="Music with the progress arc on the rim" width="360" height="360" loading="lazy"></div></figure>
       </div>
     </div>
-    <div style="margin-top:96px">
-      <h3>Three voices for the title</h3>
-      <p class="muted" style="margin-top:8px;max-width:60ch">Keep the original feel, go crisp with Inter Semibold, or soften the edges with
-        Nunito Bold. Choose Track Font under Disco Options, Music Screen.</p>
-      <div class="row r3" style="margin-top:34px">
-        <figure><div class="shot plain"><img src="disco/music.png" alt="Original track font" width="360" height="360" loading="lazy"></div><figcaption><b>Original</b>The familiar Disco voice.</figcaption></figure>
-        <figure><div class="shot plain"><img src="disco/music-inter.png" alt="Inter Semibold track font" width="360" height="360" loading="lazy"></div><figcaption><b>Inter Semibold</b>Crisp, confident, easy to read.</figcaption></figure>
-        <figure><div class="shot plain"><img src="disco/music-nunito.png" alt="Nunito Bold track font" width="360" height="360" loading="lazy"></div><figcaption><b>Nunito Bold</b>Round, warm, a little playful.</figcaption></figure>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -296,7 +393,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   <div class="wrap">
     <div class="split rev">
       <div>
-        <h2>A shard on the rim opens your menu.</h2>
+        <h2 class="stroke">A shard on the rim opens your menu.</h2>
         <p class="lead" style="margin-top:22px">No home screen full of buttons. A small shard sits on the edge; tap it and a circle
           slides out with your sections. Tap the top or bottom to step through them, the middle to open one,
           or hold it to go back to Music.</p>
@@ -319,7 +416,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   <div class="wrap">
     <div class="split">
       <div>
-        <h2>Play by mood.</h2>
+        <h2 class="stroke">Play by mood.</h2>
         <p class="lead" style="margin-top:22px">Place your music on a sphere, from Calm to Energetic and from Dark to Bright.
           Then drag to the mood you're in and play up to 40 songs from near that spot, in Shuffle, kept as a
           playlist if you like.</p>
@@ -347,7 +444,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
 <section id="stats">
   <div class="wrap">
     <div class="head">
-      <h2>Your music, in numbers.</h2>
+      <h2 class="stroke">Your music, in numbers.</h2>
       <p class="lead">How long you listened this week, month or year and how that compares, your top artists, albums and
         songs, the song on repeat, and when you listen, round the rim. Swipe back through time; tap a #1 for its Wrapped.</p>
     </div>
@@ -365,7 +462,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   <div class="wrap">
     <div class="split rev">
       <div>
-        <h2>Apps live in the circle.</h2>
+        <h2 class="stroke">Apps live in the circle.</h2>
         <p class="lead" style="margin-top:22px">Add Apps to the navigation circle and pick up to five, each with its icon. Every app
           opens on a landing page first, so stepping through the circle never starts anything by accident.</p>
         <ul class="points">
@@ -412,7 +509,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
 <section id="screens">
   <div class="wrap">
     <div class="head" style="margin-bottom:40px">
-      <h2>Made for a circle, all the way through.</h2>
+      <h2 class="stroke">Made for a circle, all the way through.</h2>
       <p class="lead">Lists follow the curve, nothing hides behind the menu, and every popup speaks the same language.
         Dark, light, or automatic by the time of day.</p>
       <div class="toggle" role="group" aria-label="Appearance">
@@ -445,11 +542,11 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
   </div>
 </section>
 
-<section id="yours" class="band">
+<section id="yours">
   <div class="wrap">
     <div class="split">
       <div>
-        <h2>Make it yours.</h2>
+        <h2 class="stroke">Every detail, a setting.</h2>
         <p class="lead" style="margin-top:22px">Settings, Display, Disco Options gathers everything about the Disco look in four short
           pages: Music Screen, Colours, Layout and the Disco Menu.</p>
       </div>
@@ -475,23 +572,13 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
       <div><h3>Stock is never far</h3><p>FiiO's own interface is one setting, or one held key at power-on, away.</p></div>
       <div><h3>Hold for more</h3><p>Hold any song, album, artist, genre, file or folder for its actions. A tap still plays.</p></div>
     </div>
-    <div style="margin-top:110px">
-      <h3 style="font-size:clamp(24px,2.6vw,32px)">Ring and Braun, too</h3>
-      <p class="muted" style="margin-top:10px;max-width:60ch">Two more complete themes with the same features and settings, under Display, Theme. Upstream's Stone is kept too.</p>
-      <div class="row r4" style="margin-top:36px">
-        <figure><div class="shot plain"><img src="disco/ring-music.png" alt="Ring theme" width="360" height="360" loading="lazy"></div><figcaption><b>Ring</b>The progress ring is the interface</figcaption></figure>
-        <figure><div class="shot plain"><img src="disco/ring-light-music.png" alt="Ring Light theme" width="360" height="360" loading="lazy"></div><figcaption><b>Ring Light</b>Off-white with lime</figcaption></figure>
-        <figure><div class="shot plain"><img src="disco/braun-music.png" alt="Braun theme" width="360" height="360" loading="lazy"></div><figcaption><b>Braun</b>After Dieter Rams' SK4</figcaption></figure>
-        <figure><div class="shot plain"><img src="disco/braun-dark-music.png" alt="Braun Dark theme" width="360" height="360" loading="lazy"></div><figcaption><b>Braun Dark</b>Charcoal and aluminium</figcaption></figure>
-      </div>
-    </div>
   </div>
 </section>
 
 <section id="windows">
   <div class="wrap">
     <div class="head">
-      <h2>From Windows to your Disc, in four clicks.</h2>
+      <h2 class="stroke">From Windows to your Disc, in four clicks.</h2>
       <p class="lead">An app checks your PC, sets up everything it needs, flashes the Disc and later puts new versions
         on your SD card, signed with your own keys.</p>
     </div>
@@ -513,7 +600,7 @@ footer .logo i{background:radial-gradient(circle,var(--silver2) 0 17%,rgba(255,2
 <section id="install" class="insert">
   <div class="wrap">
     <div class="head" style="margin-bottom:0">
-      <h2>Install on Linux.</h2>
+      <h2 class="stroke">Install on Linux.</h2>
       <p class="lead">You need a Snowsky Disc on FiiO firmware V2.57, FiiO's official V2.57 firmware ZIP and a good USB data cable.
         Twenty quiet minutes. On Windows, <a href="#windows">the app</a> does it all.</p>
     </div>
@@ -598,6 +685,15 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre></div></li>
   var imgs=[].slice.call(document.querySelectorAll('#screen img')),cap=document.getElementById('cap'),i=0;
   var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!still&&imgs.length>1){setInterval(function(){imgs[i].classList.remove('on');i=(i+1)%imgs.length;imgs[i].classList.add('on');cap.textContent=imgs[i].getAttribute('data-cap');},3600);}
+  /* the mixer: one setting at a time on the round screen */
+  var mi=document.getElementById('mix-img'),mn=document.getElementById('mix-note');
+  document.querySelectorAll('#mixer .chips button').forEach(function(b){b.addEventListener('click',function(){
+    document.querySelectorAll('#mixer .chips button').forEach(function(x){
+      var same=x.parentNode===b.parentNode;
+      if(same) x.setAttribute('aria-pressed',x===b?'true':'false');
+      else x.setAttribute('aria-pressed',x===x.parentNode.firstElementChild?'true':'false');});
+    mi.src=b.getAttribute('data-img');mn.textContent=b.getAttribute('data-note');
+  });});
   /* dark / light gallery */
   var btns=document.querySelectorAll('.toggle button');
   btns.forEach(function(b){b.addEventListener('click',function(){
