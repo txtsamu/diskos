@@ -78,6 +78,8 @@ track popup, then play a mood. **Apps** puts up to five apps, with their icons, 
 **2.2.1** makes **USB DAC** play again on the latest firmware (it was silent) and fixes a few smaller things in
 Listening Stats, SongSphere and Album Roulette. [2.2.1 notes](docs/releases/v2.2.1.md)
 
+**2.2.2** brings a surprise and fixes the album covers in Listening Stats. [2.2.2 notes](docs/releases/v2.2.2.md)
+
 <table><tr>
 <td align="center" width="25%"><img src="docs/disco/songsphere.png" width="190" alt="SongSphere"><br><sub><b>SongSphere</b>: play by mood</sub></td>
 <td align="center" width="25%"><img src="docs/disco/apps-shelf.png" width="190" alt="Apps"><br><sub><b>Apps</b> in the circle</sub></td>

@@ -1,4 +1,12 @@
-# diskOS Disco handoff - 2.2.1 (2026-10-14)
+# diskOS Disco handoff - 2.2.2 (2026-10-15)
+
+## 2.2.2 specifics
+- splash.c: own boot splash (CD spins up, hub becomes D, rolls out to "Disco!", Monoton font_splash_disco_72);
+  splash_cover() in main.c hides Home until it runs. Changelog calls it "A surprise!" on purpose.
+- stats.c: cover_any() (own cover, other album tracks, then 42 px thumb scaled); per-bubble initial in ui_font_cjk;
+  < > on the period arc.
+- Open: Cover Flow blank for a user (all covers, restarts don't help); suspect artcache MIN_FREE_BYTES 1 GB.
+
 
 ## 2.2.1 specifics (fixes on 2.2.0)
 
