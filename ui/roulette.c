@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 static void launch_cb(lv_event_t *e){
     (void)e;
     const char *app = "/usr/data/apps/album-roulette/app";
@@ -59,10 +60,12 @@ void roulette_create(lv_obj_t *root){
 
 /* ---- App landing page: Boomshine, and any installed app (text from its app.conf, or plain defaults). */
 static lv_obj_t *g_land_root, *g_land_art, *g_land_title, *g_land_tag, *g_land_about, *g_land_btn_l;
-static char g_land_exec[256];
+static char g_land_exec[256], g_land_icon[264];
+void applanding_icon(const char *bmp_path){ snprintf(g_land_icon, sizeof g_land_icon, "%s", bmp_path ? bmp_path : ""); }
 static void land_cb(lv_event_t *e){
     (void)e;
-    if(!strcmp(g_land_exec, APP_BUILTIN_STATS)){ stats_open(); return; }   /* built into mq_ui: a screen, not a program */
+    if(!strcmp(g_land_exec, APP_BUILTIN_STATS)){ stats_open(); return; }
+    if(!strcmp(g_land_exec, APP_BUILTIN_SPHERE)){ sphere_ui_open(); return; }   /* built into mq_ui: a screen, not a program */
     if(strncmp(g_land_exec, "builtin:", 8) && access(g_land_exec, X_OK)){ ui_toast("That app is not installed"); return; }
     app_launch_direct(g_land_exec);
 }
@@ -140,6 +143,14 @@ void applanding_show(const char *name, const char *tagline, const char *about, c
     if(!g_land_root) return;
     snprintf(g_land_exec, sizeof g_land_exec, "%s", exec ? exec : "");
     land_art(name, !strcmp(g_land_exec, APP_BUILTIN_BOOMSHINE) ? 1 : !strcmp(g_land_exec, APP_BUILTIN_STATS) ? 2 : 0);
+    if(g_land_icon[0] && strncmp(g_land_exec, "builtin:", 8) && !access(g_land_icon, R_OK)){   /* the app's own icon */
+        static lv_image_dsc_t *ic;
+        lv_image_dsc_t *nw = app_icon_load(g_land_icon, 88);
+        if(nw){ lv_obj_clean(g_land_art); free(ic); ic = nw;
+            lv_obj_t *im = lv_image_create(g_land_art); lv_image_set_src(im, ic); lv_obj_center(im);
+            lv_obj_set_style_radius(im, 22, 0); lv_obj_set_style_clip_corner(im, true, 0); }
+    }
+    g_land_icon[0] = 0;                                          /* one show only */
     lv_label_set_text(g_land_title, name && name[0] ? name : "App");
     lv_label_set_text(g_land_tag, tagline && tagline[0] ? tagline : "Installed app");
     lv_label_set_text(g_land_about, about && about[0] ? about : "Opens full screen. Your music\nkeeps playing.");

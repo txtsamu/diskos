@@ -356,8 +356,48 @@ static void ov_act_cb(lv_event_t *e){
         case OV_INFO: { track_state_t st; ipc_get_state(&st); ov_close(); songinfo_unpin(); songinfo_set(&st); screen_show(SCR_SONGINFO); break; }
     }
 }
+static void ov_mood_cb(lv_event_t *e){                       /* SongSphere: where this song sits */
+    if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    track_state_t st; ipc_get_state(&st); ov_close();
+    if(st.have_track) sphere_ui_tag(0, st.path, st.title);
+}
+/* the mood pill under the buttons: the song's mood in its colour (its own, else its album's or artist's), or Set mood */
+static void ov_mood_pill(lv_obj_t *p, int y){
+    track_state_t st; ipc_get_state(&st);
+    float x = 0, yy = 0; int src = st.have_track ? sphere_ui_song_spot(st.path, NULL, NULL, &x, &yy) : 0;
+    char t[64]; const lv_font_t *f = TF(UI_18), *fs = TF(UI_14);
+    snprintf(t, sizeof t, "%s", src ? sphere_ui_mood_name(x, yy) : "Set mood");
+    const char *from = src == 2 ? "album" : src == 3 ? "artist" : NULL;
+    lv_point_t a, b = { 0, 0 }; lv_text_get_size(&a, t, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if(from) lv_text_get_size(&b, from, fs, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int w = 18 + 14 + 10 + a.x + (from ? 8 + b.x : 0) + 30 + 16; if(w > 200) w = 200;
+    lv_obj_t *pl = lv_button_create(p); lv_obj_remove_style_all(pl);
+    lv_obj_set_size(pl, w, 40); lv_obj_set_pos(pl, 180 - w / 2, y);
+    lv_obj_set_style_radius(pl, 20, 0);
+    lv_obj_set_style_bg_color(pl, TC(SURFACE), 0); lv_obj_set_style_bg_opa(pl, 205, 0);
+    lv_obj_set_style_bg_color(pl, TC(SURFACE_RAISED), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(pl, 1, 0); lv_obj_set_style_border_color(pl, src ? sphere_ui_mood_colour(x, yy) : g_acc, 0); lv_obj_set_style_border_opa(pl, 140, 0);
+    lv_obj_set_ext_click_area(pl, 8);
+    lv_obj_t *d = lv_obj_create(pl); lv_obj_remove_style_all(d);
+    lv_obj_set_size(d, 14, 14); lv_obj_align(d, LV_ALIGN_LEFT_MID, 18, 0); lv_obj_set_style_radius(d, LV_RADIUS_CIRCLE, 0);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    if(src){ lv_color_t c = sphere_ui_mood_colour(x, yy); lv_obj_set_style_bg_color(d, c, 0); lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+             lv_obj_set_style_shadow_width(d, 10, 0); lv_obj_set_style_shadow_color(d, c, 0); lv_obj_set_style_shadow_opa(d, LV_OPA_50, 0); }
+    else { lv_obj_set_style_border_width(d, 2, 0); lv_obj_set_style_border_color(d, g_acc, 0); }
+    lv_obj_t *l = lv_label_create(pl); lv_label_set_text(l, t); lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(l, w - 42 - 30 - (from ? 8 + b.x : 0)); lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, src ? TC(TEXT_PRIMARY) : g_acc, 0); lv_obj_align(l, LV_ALIGN_LEFT_MID, 42, 0);
+    if(from){ lv_obj_t *fl = lv_label_create(pl); lv_label_set_text(fl, from);
+        lv_obj_set_style_text_font(fl, fs, 0); lv_obj_set_style_text_color(fl, TC(TEXT_MUTED), 0);
+        lv_obj_align_to(fl, l, LV_ALIGN_OUT_RIGHT_MID, 8, 1); }
+    lv_obj_t *ch = lv_label_create(pl); lv_label_set_text(ch, LV_SYMBOL_RIGHT);
+    lv_obj_set_style_text_font(ch, TF(UI_14), 0); lv_obj_set_style_text_color(ch, TC(TEXT_SECONDARY), 0);
+    lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -16, 0);
+    ui_on(pl, ov_mood_cb, LV_EVENT_CLICKED, NULL, "disco.track.mood", UI_REACHABLE);
+}
 static void ov_open(void){
     if(!g_have || g_ov) return;
+    int mood = sphere_ui_enabled(), lift = mood ? 28 : 0;                 /* SongSphere on: smaller buttons, moved up for the mood pill */
     g_ov = lv_obj_create(lv_layer_top());
     if(g_ov)onboarding_discovered(HINT_MUSIC);
     lv_obj_remove_style_all(g_ov);
@@ -365,7 +405,7 @@ static void ov_open(void){
     lv_obj_set_style_bg_color(g_ov, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ov, 245, 0);
     lv_obj_add_flag(g_ov, LV_OBJ_FLAG_CLICKABLE); lv_obj_clear_flag(g_ov, LV_OBJ_FLAG_SCROLLABLE);   /* swallows taps */
     lv_obj_t *tb = lv_obj_create(g_ov); lv_obj_remove_style_all(tb);   /* the title + artist: tap here to close */
-    lv_obj_set_size(tb, 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 38);
+    lv_obj_set_size(tb, 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 38 - lift / 2);
     lv_obj_add_flag(tb, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(tb, 10);
     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
@@ -381,7 +421,8 @@ static void ov_open(void){
         { 94, 250, "Queue" },     { 180, 270, "Lyrics" }, { 266, 250, "Info" } };
     const char *G[OV_N] = { TH_IC_HEART, TH_IC_RECORD, "\xEF\x84\xB0", LV_SYMBOL_LIST, LV_SYMBOL_FILE, "i" };   /* Artist: microphone; Info: circled i */
     for(int i = 0; i < OV_N; i++){
-        lv_obj_t *b = glass_circle(g_ov, P[i].x, P[i].y, 70, G[i]);
+        int py = P[i].y - (i < 3 ? (mood ? 26 : 0) : (mood ? 36 : 0));
+        lv_obj_t *b = glass_circle(g_ov, P[i].x, py, mood ? 60 : 70, G[i]);
         g_ov_btn[i] = b; lv_obj_set_style_text_color(lv_obj_get_child(b, 0), g_acc, 0); lv_obj_set_style_border_color(b, g_acc, 0); lv_obj_set_style_border_opa(b, 140, 0);
         if(i == OV_FAV || i == OV_ALBUM) lv_obj_set_style_text_font(lv_obj_get_child(b, 0), &font_theme_24, 0);
         if(i == OV_ARTIST) lv_obj_set_style_text_font(lv_obj_get_child(b, 0), TF(ICON_28), 0);
@@ -396,8 +437,10 @@ static void ov_open(void){
         ui_on(b, ov_act_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i, actions[i], UI_REACHABLE);
         g_ov_cap[i] = lv_label_create(g_ov); lv_label_set_text(g_ov_cap[i], P[i].cap);
         lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_18), 0); lv_obj_set_style_text_color(g_ov_cap[i], TC(TEXT_PRIMARY), 0);
-        ov_place_cap(i, P[i].x, P[i].y);
+        if(mood) lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_16), 0);
+        ov_place_cap(i, P[i].x, py - (mood ? 7 : 0));
     }
+    if(mood) ov_mood_pill(g_ov, 294);
     kit_pass(g_ov);
     ov_paint();
 }

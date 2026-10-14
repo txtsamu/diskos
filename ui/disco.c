@@ -43,6 +43,8 @@ static void open_queue(void){ queue_open(); }
 #define IC_ROULETTE "@vinyl"
 #define IC_BOOM "@boom"
 #define IC_STATS "@stats"
+#define IC_APPS "@apps"
+#define IC_SPHERE "@sphere"
 /* Theme-coloured vector icons (no new font glyph): Album Roulette's vinyl (three rings) and Boomshine's burst (a
  * filled dot inside a ring, with three small dots flying off). */
 static void stats_icon(lv_obj_t *label, int size){                 /* Listening Stats: four rising bars */
@@ -60,8 +62,41 @@ static void stats_icon(lv_obj_t *label, int size){                 /* Listening 
         lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     }
 }
+static void apps_icon(lv_obj_t *label, int size){                  /* Apps: four rounded tiles */
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 4) return;
+    lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)4);
+    lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
+    lv_color_t color = lv_obj_get_style_text_color(label, 0);
+    int g = size / 7 > 2 ? size / 7 : 2, t = (size - g) / 2;
+    for(int i = 0; i < 4; i++){
+        lv_obj_t *b = lv_obj_create(label); lv_obj_remove_style_all(b);
+        lv_obj_set_size(b, t, t); lv_obj_set_pos(b, (i & 1) * (t + g), (i >> 1) * (t + g));
+        lv_obj_set_style_radius(b, t / 3, 0); lv_obj_set_style_bg_color(b, color, 0);
+        lv_obj_set_style_bg_opa(b, i == 3 ? LV_OPA_50 : LV_OPA_COVER, 0);
+        lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    }
+}
+static void sphere_icon(lv_obj_t *label, int size){                /* SongSphere: a ball with its marker (a dot in a ring) */
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 5) return;
+    lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)5);
+    lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
+    lv_color_t color = lv_obj_get_style_text_color(label, 0);
+    for(int i = 0; i < 3; i++){
+        lv_obj_t *o = lv_obj_create(label); lv_obj_remove_style_all(o);
+        lv_obj_clear_flag(o, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+        if(i == 0){ lv_obj_set_size(o, size, size); lv_obj_center(o); lv_obj_set_style_border_width(o, size >= 24 ? 2 : 1, 0); lv_obj_set_style_border_color(o, color, 0);
+                    lv_obj_set_style_bg_color(o, color, 0); lv_obj_set_style_bg_opa(o, LV_OPA_20, 0); }
+        else { int d = i == 1 ? size * 3 / 8 : size / 6; if(d < 3) d = 3; lv_obj_set_size(o, d, d);
+               lv_obj_align(o, LV_ALIGN_CENTER, size / 6, -size / 6);
+               if(i == 1){ lv_obj_set_style_border_width(o, size >= 24 ? 2 : 1, 0); lv_obj_set_style_border_color(o, color, 0); }
+               else { lv_obj_set_style_bg_color(o, color, 0); lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0); } }
+    }
+}
 static void roulette_icon(lv_obj_t *label, const char *icon, int size){
     if(!strcmp(icon, IC_STATS)){ stats_icon(label, size); return; }
+    if(!strcmp(icon, IC_SPHERE)){ sphere_icon(label, size); return; }
+    if(!strcmp(icon, IC_APPS)){ apps_icon(label, size); return; }
     int vinyl = !strcmp(icon, IC_ROULETTE), boom = !strcmp(icon, IC_BOOM);
     if(lv_obj_get_child_count(label) && (!(vinyl || boom) || (intptr_t)lv_obj_get_user_data(label) != (boom ? 2 : 1))) lv_obj_clean(label);
     if(!vinyl && !boom){
@@ -123,6 +158,8 @@ static const dsec_t SEC[] = {
     { "roulette",  "Album Roulette", IC_ROULETTE,    SCR_ROULETTE, NULL,              0 },
     { "boomshine", "Boomshine", IC_BOOM,            SCR_APPLAND,   open_boomshine,    0 },
     { "stats",     "Stats",     IC_STATS,           SCR_APPLAND,   stats_landing,     0 },
+    { "apps",      "Apps",      IC_APPS,            SCR_APPSHELF,  appshelf_open,     0 },
+    { "songsphere","SongSphere", IC_SPHERE,         SCR_SPHERE,    sphere_ui_open,    0 },
 };
 #define NSEC ((int)(sizeof SEC / sizeof SEC[0]))
 #define MAXM 10                                    /* the picker holds at most ten (the dots must fit) */
@@ -138,7 +175,7 @@ static int menu_has_screen(int scr);
 static int in_menu(int s){ for(int i = 0; i < g_nmenu; i++) if(g_menu[i] == s) return i; return -1; }
 static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(menu_section(g_menu[i]).screen == scr) return 1; return 0; }
 /* parse cfg "disco_menu": unknown and duplicate ids are skipped, missing protected ones come back (never locked out) */
-static const char CODE[] = "mlsoceFaudbwrgqMRBS";                /* one letter per SEC[] entry, same order (digits: apps) */
+static const char CODE[] = "mlsoceFaudbwrgqMRBSAP";                /* one letter per SEC[] entry, same order (digits: apps) */
 static void menu_load(void){
     menu_apps_scan();
     char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str("disco_menu", "music,library,settings,modes,shortcuts,eq"));
@@ -172,7 +209,7 @@ static lv_image_dsc_t g_bd_dsc;
 static int g_bd_ok;
 static lv_obj_t *g_parent;
 static int no_backdrop(int which){
-    return which == SCR_HOME || which == SCR_NOWPLAYING || which == SCR_SAVER || which == SCR_QUICK;
+    return which == SCR_HOME || which == SCR_NOWPLAYING || which == SCR_SAVER || which == SCR_QUICK || which == SCR_SPHERE;   /* SongSphere: its ball is drawn on the plain canvas */
 }
 static void backdrop_apply(void){
     for(int i = 0; i < SCR_COUNT; i++){
@@ -390,7 +427,7 @@ static int picker_wanted(int which){
     switch(which){
         case SCR_HOME: case SCR_LIBRARY: case SCR_SETTINGS: case SCR_SETLIST: case SCR_WORKMODE: case SCR_APPS:
         case SCR_PLVIEW: case SCR_FOLDER: case SCR_BOOKS: case SCR_ALBUMWALL: case SCR_UPNEXT: case SCR_WIFI:
-        case SCR_ROULETTE: case SCR_BT: case SCR_WEATHER: case SCR_MODEINFO: case SCR_USAGE: case SCR_EQ: case SCR_MA: case SCR_APPLAND: return 1;
+        case SCR_ROULETTE: case SCR_BT: case SCR_WEATHER: case SCR_MODEINFO: case SCR_USAGE: case SCR_EQ: case SCR_MA: case SCR_APPLAND: case SCR_APPSHELF: return 1;
         case SCR_SEARCH: return search_landing_active();             /* the landing page has the menu; the keyboard doesn't */
         default: return 0;
     }
@@ -430,6 +467,7 @@ static void go_section(int idx, int dir){
     if(g_menu[idx] >= NSEC){                                         /* an installed app: its landing page, never a straight launch */
         const menu_app_t *app=menu_apps_get(g_menu[idx]-NSEC);
         if(!app){ ui_toast("That app is not installed"); return; }
+        applanding_icon(app->icon);
         applanding_show(app->name, app->tagline, app->about, app->button, app->exec);
         if(screen_current()==SCR_APPLAND)onboarding_discovered(HINT_NAV);
         return;
@@ -826,6 +864,8 @@ lv_obj_t *disco_title(lv_obj_t *root, const char *t){
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 28);
     return l;
 }
+/* the vector icons for other screens (Apps' tiles): "@boom", "@stats", "@vinyl", "@apps" */
+void disco_vec_icon(lv_obj_t *label, const char *icon, int size){ roulette_icon(label, icon, size); }
 /* host tests only: a tap on the open circle (zone 0 top / 1 middle / 2 bottom, 3 = hold) */
 void disco_test_tap(int zone){
     if(zone == 3){ g_long = 1; g_cur = 0; for(int i = 0; i < g_nmenu; i++) if(g_menu[i] == 0) g_cur = i; picker_paint(); screen_home(); g_long = 0; return; }

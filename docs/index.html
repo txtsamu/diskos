@@ -253,8 +253,8 @@ footer a:hover{color:var(--text)}
             themes, left-handed mode, gestures and Quick Settings. <a href="#options">All the options</a></p></div>
         <div class="card"><div class="dev"><img src="disco/boomshine-neon.png" alt="Boomshine" width="360" height="360" loading="lazy"></div>
           <h4>Apps and games</h4>
-          <p>Boomshine is built in, Listening Stats shows your month in music, SongSphere plays by mood, Album Roulette picks
-            your next album, Disc Shelf brings your Navidrome server. Any app can sit in the navigation circle.
+          <p>Boomshine, Listening Stats and SongSphere are built in, Album Roulette picks your next album, Disc Shelf
+            brings your Navidrome server. Apps puts five of them, with their icons, in the navigation circle.
             <a href="#stats">Listening Stats</a></p></div>
         <div class="card"><div class="dev"><img src="disco/search-results.png" alt="Search" width="360" height="360" loading="lazy"></div>
           <h4>Find it fast</h4>
@@ -346,29 +346,28 @@ footer a:hover{color:var(--text)}
   <!-- Listening Stats -->
   <section id="stats">
     <div class="wrap center">
-      <span class="kicker">Built in · New in 2.1</span>
+      <span class="kicker">Built in · Refreshed in 2.2</span>
       <h2>Your music, in numbers.</h2>
       <p class="sub">Your week, month or year: how long you listened, your top artists, albums and songs, the song on repeat,
-        and when you listen, round the rim. It counts from the day you install 2.1.</p>
+        and when you listen, round the rim. Swipe back through time; tap a #1 for its Wrapped.</p>
       <div class="gallery" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-top:36px">
         <div class="tile"><div class="dev"><img src="disco/stats-overview.png" alt="Listening Stats: the month at a glance" width="360" height="360" loading="lazy"></div><p><b>At a glance</b>Time, plays, songs, best streak.</p></div>
         <div class="tile"><div class="dev"><img src="disco/stats-artists.png" alt="Top artists" width="360" height="360" loading="lazy"></div><p><b>Favourites</b>Artists, albums and songs.</p></div>
         <div class="tile"><div class="dev"><img src="disco/stats-clock.png" alt="When you listen" width="360" height="360" loading="lazy"></div><p><b>When you listen</b>24 hours round the rim.</p></div>
-        <div class="tile"><div class="dev"><img src="disco/stats-landing.png" alt="Listening Stats landing page" width="360" height="360" loading="lazy"></div><p><b>Add it to the circle</b>Disco Options › Disco Menu, then Stats.</p></div>
+        <div class="tile"><div class="dev"><img src="disco/stats-wrapped.png" alt="Wrapped" width="360" height="360" loading="lazy"></div><p><b>Wrapped</b>Each #1, with its top 5.</p></div>
       </div>
     </div>
   </section>
 
   <section id="songsphere" style="background:var(--bg2)">
     <div class="wrap"><div class="feature reveal">
-      <div><span class="kicker">Optional app · SongSphere 1.0</span>
+      <div><span class="kicker">Built in · New in 2.2</span>
         <h2>Play by mood.</h2>
-        <p>Place your albums and artists on a sphere, from Calm to Energetic and from Dark to Bright: drag the marker,
-          save. Then drag to the mood you're in and play up to 40 songs from near that spot, in Shuffle, kept as a
-          playlist if you like.</p>
-        <p>Your placements live in SongSphere's own small file; your library is only read.</p>
-        <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/SONGSPHERE_INSTALL.md">Install SongSphere</a>
-        <p class="small">A separate app. A UI update does not install it. Open it from All apps, Shortcuts or the navigation circle.</p>
+        <p>Place your music on a sphere, from Calm to Energetic and from Dark to Bright: hold an album or an artist and
+          choose Mood, or tap the mood pill while a song plays. Then drag to the mood you're in and play up to 40 songs
+          from near that spot, in Shuffle, kept as a playlist if you like.</p>
+        <p>Placements stay on your Disc. Turn it off in Settings › Playback › SongSphere.</p>
+        <a class="btn ghost" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md#songsphere">How it works</a>
       </div>
       <div class="shots"><div class="dev"><img src="disco/songsphere.png" alt="SongSphere: the mood sphere" width="360" height="360" loading="lazy"></div></div>
     </div></div>
@@ -639,7 +638,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre>
         </div>
         <div class="step">
           <h4>Test and keep the trial</h4>
-          <p>Check <b>Settings › System › About</b> for the new version (Disco! 2.1.0). Keep the trial running for
+          <p>Check <b>Settings › System › About</b> for the new version (Disco! 2.2.0). Keep the trial running for
             at least three minutes and test playback. A confirmed playback start with running audio can
             accept it automatically after the minimum time; otherwise choose <b>Keep</b> when asked.
             Choose <b>Go back</b> and restart to revert.</p>

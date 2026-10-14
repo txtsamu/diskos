@@ -5,7 +5,8 @@
  *   Library song:   Add to queue, Playlist, Favourite, Album, Artist, Info, Tags
  *   folder song:    Add to queue, Playlist, Favourite, Info, Tags, Rename, Copy / Move, Delete
  *   folder:         Add to queue, Playlist, Tags, Rename, Copy / Move, Delete
- *   album (Library, fork): Play, Shuffle, Add to queue, Playlist, Tags; artist / genre: Play, Shuffle, Add to queue, Playlist
+ *   album (Library, fork): Play, Shuffle, Add to queue, Playlist, Tags, Mood; artist: Play, Shuffle, Add to queue, Playlist, Mood;
+ *   genre: Play, Shuffle, Add to queue, Playlist (Mood: SongSphere's tag page, when SongSphere is on)
  * The name sits at the top; the hub in the middle cancels. Favourite is filled red when it already is one. */
 #include "screens.h"
 #include "theme.h"
@@ -16,7 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
-enum { A_QUEUE, A_PLAYLIST, A_FAV, A_ALBUM, A_ARTIST, A_INFO, A_TAGS, A_RENAME, A_COPYMOVE, A_DELETE, A_PLAY, A_SHUFFLE, A_N };
+enum { A_QUEUE, A_PLAYLIST, A_FAV, A_ALBUM, A_ARTIST, A_INFO, A_TAGS, A_RENAME, A_COPYMOVE, A_DELETE, A_PLAY, A_SHUFFLE, A_MOOD, A_N };
 static lv_obj_t *g_ov;
 static orbit_t g_orb;
 static int g_act[8], g_nact, g_is_dir, g_fav;
@@ -71,6 +72,7 @@ static void pick(int i){
         case A_DELETE:   fileops_action(g_dir, g_name, g_is_dir, g_done, 2); break;
         case A_PLAY:     if(g_gplay) g_gplay(0); break;
         case A_SHUFFLE:  if(g_gplay) g_gplay(1); break;
+        case A_MOOD:     sphere_ui_tag(!strcmp(g_gcol, "ALBUM") ? 1 : 2, g_gval, g_gval); break;   /* SongSphere: where it sits */
     }
 }
 static void hub_cb(lv_event_t *e){ (void)e; close_ov(); }
@@ -84,8 +86,8 @@ static void open_menu(const char *title, const int *acts, int n){
     lv_obj_add_flag(g_ov, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(g_ov, LV_OBJ_FLAG_SCROLLABLE);
     static const char *const GLYPH[A_N] = { LV_SYMBOL_LIST, LV_SYMBOL_PLUS, TH_IC_HEART, LV_SYMBOL_IMAGE, LV_SYMBOL_HOME, LV_SYMBOL_FILE,
-                                           LV_SYMBOL_DOWNLOAD, LV_SYMBOL_EDIT, LV_SYMBOL_COPY, LV_SYMBOL_TRASH, LV_SYMBOL_PLAY, LV_SYMBOL_SHUFFLE };
-    static const char *const CAP[A_N] = { "Queue", "Playlist", "Favourite", "Album", "Artist", "Info", "Tags", "Rename", "Copy/Move", "Delete", "Play", "Shuffle" };
+                                           LV_SYMBOL_DOWNLOAD, LV_SYMBOL_EDIT, LV_SYMBOL_COPY, LV_SYMBOL_TRASH, LV_SYMBOL_PLAY, LV_SYMBOL_SHUFFLE, LV_SYMBOL_GPS };
+    static const char *const CAP[A_N] = { "Queue", "Playlist", "Favourite", "Album", "Artist", "Info", "Tags", "Rename", "Copy/Move", "Delete", "Play", "Shuffle", "Mood" };
     orbit_item_t it[8];
     g_nact = n > 8 ? 8 : n;
     for(int i = 0; i < g_nact; i++){ g_act[i] = acts[i]; it[i].glyph = GLYPH[acts[i]]; it[i].cap = CAP[acts[i]]; }
@@ -140,6 +142,9 @@ void songmenu_open_group(const char *col, const char *val, const char *title, vo
     if(!col || !val || !val[0]) return;
     snprintf(g_gcol, sizeof g_gcol, "%s", col); snprintf(g_gval, sizeof g_gval, "%s", val);
     g_gplay = play; g_is_dir = 0; g_done = NULL; g_have_song = 0; g_fav = 0; g_path[0] = 0;
-    static const int A[5] = { A_PLAY, A_SHUFFLE, A_QUEUE, A_PLAYLIST, A_TAGS };   /* Tags: albums only */
-    open_menu(title && title[0] ? title : val, A, strcmp(col, "ALBUM") ? 4 : 5);
+    int A[6] = { A_PLAY, A_SHUFFLE, A_QUEUE, A_PLAYLIST }, n = 4;
+    int album = !strcmp(col, "ALBUM");
+    if(album) A[n++] = A_TAGS;                                                    /* Tags: albums only */
+    if(sphere_ui_enabled() && (album || !strcmp(col, "ARTIST"))) A[n++] = A_MOOD; /* Mood: albums and artists */
+    open_menu(title && title[0] ? title : val, A, n);
 }

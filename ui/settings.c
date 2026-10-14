@@ -715,6 +715,8 @@ static const setting_t TABLE[] = {
       "On power-on: Off = start fresh, Position = resume the exact spot, Song = reopen the last track.", NULL },
     { "Playback", "Artists",     ST_CYCLER, "artist_class", 0,0,0, OPT_ARTISTCLASS, 2, NULL, apply_artist_class, 0,
       "Group the Artists list by each song's artist, or by its album artist - the same choice as the stock player.", NULL },
+    { "Playback", "SongSphere", ST_TOGGLE, "songsphere", 0,1,1, NULL, 0, NULL, NULL, 1,
+      "Music by mood: place albums, artists and songs on a sphere, then play what fits. Off hides it in Apps and the Mood actions.", NULL },
     { "Playback", "Play Through Folders", ST_TOGGLE, "folder_jump", 0,1,1, NULL, 0, NULL, apply_folder_jump, 0,
       "When an album, artist, genre or folder finishes, keep playing the next one. Works with Sequential, Shuffle and Loop All.", NULL },
     /* Audio/DAC cluster - cyclers with min=-1 so they can read "System default" (unmanaged):

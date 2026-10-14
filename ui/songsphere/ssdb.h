@@ -5,6 +5,7 @@
 enum { SS_SONG = 0, SS_ALBUM = 1, SS_ARTIST = 2 };
 typedef struct { char name[128], sub[128]; int songs, plays, placed; float x, y; } ss_item_t;
 
+void ssdb_paths(const char *lib, const char *ss);   /* before ssdb_open: other files (mq_ui keeps its own) */
 int  ssdb_open(void);                       /* 1 = ready (the library is readable; our file opens or is created) */
 void ssdb_close(void);
 int  ssdb_items(int kind, ss_item_t **out); /* albums or artists, most played first; caller frees; count (-1 error) */

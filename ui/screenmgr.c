@@ -257,7 +257,9 @@ void screen_back(void)
 {
     if (s_current != SCR_SAVER && screen_press_was_long()) { screen_home(); return; }
     if (s_current == SCR_SEARCH && (search_back_consumed() || search_back_to_landing())) return;   /* fork: results page -> back to the keyboard */
-    if (s_current == SCR_SETLIST && settings_back_consumed()) return;   /* Disco Options -> Display */
+    if (s_current == SCR_SETLIST && settings_back_consumed()) return;
+    if (s_current == SCR_STATS && stats_back_consumed()) return;
+    if (s_current == SCR_SPHERE && sphere_ui_back_consumed()) return;   /* SongSphere: up one page */          /* Stats: Wrapped / top 15 -> the list */   /* Disco Options -> Display */
     if (s_sp <= 0) return;
     int from = s_current;
     int prev = s_stack[--s_sp];
@@ -347,6 +349,9 @@ void screens_init(void)
     s_roots[SCR_ROULETTE]  = screen_make_root(parent);
     s_roots[SCR_APPLAND]   = screen_make_root(parent);
     s_roots[SCR_STATS]     = screen_make_root(parent);
+    s_roots[SCR_APPSHELF]  = screen_make_root(parent);
+    s_roots[SCR_APPPICK]   = screen_make_root(parent);
+    s_roots[SCR_SPHERE]    = screen_make_root(parent);
     s_roots[SCR_UPNEXT] = screen_make_root(parent);
     s_roots[SCR_DATETIME] = screen_make_root(parent);
 
@@ -381,6 +386,9 @@ void screens_init(void)
     roulette_create(s_roots[SCR_ROULETTE]);
     applanding_create(s_roots[SCR_APPLAND]);
     stats_create(s_roots[SCR_STATS]);
+    appshelf_create(s_roots[SCR_APPSHELF]);
+    appshelf_pick_create(s_roots[SCR_APPPICK]);
+    sphere_ui_create(s_roots[SCR_SPHERE]);
     search_create(s_roots[SCR_SEARCH]);
     saver_create(s_roots[SCR_SAVER]);
     quicksettings_create(s_roots[SCR_QUICK]);

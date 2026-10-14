@@ -123,10 +123,10 @@ static void period_name(int type, int off, char *out, size_t n, int short_form){
 }
 
 /* ================================ the numbers ================================ */
-#define TOPN 10
+#define TOPN 15                                       /* the sub-views list 15; the main screen shows 5 */
 typedef struct { char name[128], sub[128], path[256]; int plays; long long ms; } item_t;
 typedef struct {
-    int plays, songs, streak, empty; long long ms, prev_ms; int prev_known;
+    int plays, songs, albums, artists, streak, empty; long long ms, prev_ms; int prev_known;
     long long hour_ms[24];
     item_t art[TOPN], alb[TOPN], song[TOPN]; int nart, nalb, nsong;
 } stats_t;
@@ -190,7 +190,7 @@ static void load_artists(sqlite3 *d, long long a, long long b){
         for(int i = 0; i < n; i++){ snprintf(it[i].name, sizeof it[i].name, "%s", acc[i].name);
             snprintf(it[i].path, sizeof it[i].path, "%s", acc[i].path); it[i].plays = acc[i].plays; it[i].ms = acc[i].ms; }
         qsort(it, (size_t)n, sizeof *it, item_cmp);
-        g_s.nart = n < TOPN ? n : TOPN;
+        g_s.nart = n < TOPN ? n : TOPN; g_s.artists = n;
         memcpy(g_s.art, it, (size_t)g_s.nart * sizeof *it);
         free(it);
     }
@@ -239,13 +239,22 @@ static void load_days_hours(sqlite3 *d, long long a, long long b){
         sqlite3_finalize(st);
     }
 }
+static int count_albums(sqlite3 *d, long long a, long long b){
+    sqlite3_stmt *st; int n = 0;
+    if(!bind_range(d, "SELECT COUNT(*) FROM (SELECT 1 FROM PLAY_LOG WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' "
+                      "GROUP BY ALBUM,COALESCE(NULLIF(AARTIST,''),ARTIST));", a, b, &st)) return 0;
+    if(sqlite3_step(st) == SQLITE_ROW) n = sqlite3_column_int(st, 0);
+    sqlite3_finalize(st);
+    return n;
+}
+static long long g_ra, g_rb;                         /* the loaded period's [from, to) - the Wrapped covers query it again */
 static void stats_load(void){
     memset(&g_s, 0, sizeof g_s); g_s.empty = 1; g_first_at = 0;
     sqlite3 *d = NULL;
     if(sqlite3_open_v2(STATS_DB_PATH, &d, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK){ if(d) sqlite3_close(d); return; }
     sqlite3_busy_timeout(d, 400);
     long long a, b, pa, pb; struct tm f;
-    period_range(g_ptype, g_poff, &a, &b, &f);
+    period_range(g_ptype, g_poff, &a, &b, &f); g_ra = a; g_rb = b;
     period_range(g_ptype, g_poff - 1, &pa, &pb, &f);
     sqlite3_stmt *st;
     if(sqlite3_prepare_v2(d, "SELECT IFNULL(MIN(AT),0) FROM PLAY_LOG;", -1, &st, NULL) == SQLITE_OK){
@@ -261,10 +270,11 @@ static void stats_load(void){
     if(!g_s.empty){
         load_artists(d, a, b);
         g_s.nalb = load_items(d, "SELECT ALBUM,COALESCE(NULLIF(AARTIST,''),ARTIST),COUNT(*),SUM(MS),MAX(PATH) FROM PLAY_LOG "
-                                 "WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' GROUP BY ALBUM,2 ORDER BY 3 DESC,4 DESC LIMIT 10;",
+                                 "WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' GROUP BY ALBUM,2 ORDER BY 3 DESC,4 DESC LIMIT 15;",
                               a, b, g_s.alb);
+        g_s.albums = count_albums(d, a, b);
         g_s.nsong = load_items(d, "SELECT MAX(TITLE),MAX(ARTIST),COUNT(*),SUM(MS),PATH FROM PLAY_LOG "
-                                  "WHERE AT>=?1 AND AT<?2 GROUP BY PATH ORDER BY 3 DESC,4 DESC LIMIT 10;", a, b, g_s.song);
+                                  "WHERE AT>=?1 AND AT<?2 GROUP BY PATH ORDER BY 3 DESC,4 DESC LIMIT 15;", a, b, g_s.song);
         load_days_hours(d, a, b);
     }
     sqlite3_close(d);
@@ -293,14 +303,25 @@ static const char *persona(int h){
     return "Night owl";
 }
 
-/* ================================ the screen ================================ */
-static lv_obj_t *g_root, *g_list;
-static curvelist_t g_cl;
+/* ================================ the screen ================================
+ * Main list: the overview (Week / Month / Year on an arc at the top, the period strip, the time, three pills), then
+ * Top Artists, Top Albums and On repeat (top 5 each: the #1 as a hero, then rows), then the listening clock.
+ * A tap on a section's title opens its top 15 (a sub-view); a tap on its #1 artwork opens its Wrapped (two pages:
+ * the covers as bubbles, then the top 5 with their colour and time). Back closes the top-most of the two. */
+LV_FONT_DECLARE(font_inter_bold_44)
+LV_FONT_DECLARE(font_inter_bold_22)
+LV_FONT_DECLARE(font_inter_medium_14)
+LV_FONT_DECLARE(font_inter_medium_20)
+
+static lv_obj_t *g_root, *g_list, *g_sub, *g_subl, *g_wrap;
+static curvelist_t g_cl, g_cl2;
+enum { K_ART, K_ALB, K_SONG };
 /* covers, decoded into RAM once per build (no LVGL file decoding, no per-frame scaling): thumbs at their own 42 px,
- * the two big ones scaled once here to their size */
-#define NPIC 16
+ * the big ones scaled once here to their size. The sub-view and Wrapped take theirs after g_pic_keep and give them
+ * back when they close. */
+#define NPIC 64
 static struct { uint8_t *px; lv_image_dsc_t dsc; } g_pic[NPIC];
-static int g_npic;
+static int g_npic, g_pic_keep;
 static lv_obj_t *box(lv_obj_t *p, int x, int y, int w, int h, int r, lv_color_t c, lv_opa_t o){
     lv_obj_t *b = lv_obj_create(p); lv_obj_remove_style_all(b);
     lv_obj_set_pos(b, x, y); lv_obj_set_size(b, w, h);
@@ -314,10 +335,15 @@ static lv_obj_t *text(lv_obj_t *p, const char *s, int x, int y, int w, const lv_
     lv_obj_set_style_text_align(l, al, 0); lv_obj_set_width(l, w);
     if(!strchr(s, '\n')){ lv_label_set_long_mode(l, LV_LABEL_LONG_DOT); lv_obj_set_height(l, lv_font_get_line_height(f)); }
     lv_obj_set_pos(l, x, y);
+    lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
     return l;
 }
 static lv_obj_t *centre(lv_obj_t *p, const char *s, int y, int w, const lv_font_t *f, lv_color_t c){
     return text(p, s, (lv_obj_get_style_width(p, LV_PART_MAIN) - w) / 2, y, w, f, c, LV_TEXT_ALIGN_CENTER);   /* before layout: the set width */
+}
+static int text_w(const char *s, const lv_font_t *f){
+    lv_point_t sz; lv_text_get_size(&sz, s, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return sz.x;
 }
 static void arc(lv_obj_t *p, int cx, int cy, int r, int w, int a0, int a1, lv_color_t c, lv_opa_t o, int round){
     lv_obj_t *a = lv_arc_create(p); lv_obj_remove_style_all(a);
@@ -326,16 +352,12 @@ static void arc(lv_obj_t *p, int cx, int cy, int r, int w, int a0, int a1, lv_co
     lv_obj_set_style_arc_opa(a, o, LV_PART_MAIN); lv_obj_set_style_arc_rounded(a, round, LV_PART_MAIN);
     lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE);
 }
-/* a full-width block in the list that doesn't curve (the overview, the heroes, the clock) */
-static lv_obj_t *block(int h){
-    lv_obj_t *b = lv_obj_create(g_list); lv_obj_remove_style_all(b);
+/* a full-width block in a list that doesn't curve (the overview, the heroes, the clock) */
+static lv_obj_t *block(lv_obj_t *list, int h){
+    lv_obj_t *b = lv_obj_create(list); lv_obj_remove_style_all(b);
     lv_obj_set_size(b, 360, h);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     return b;
-}
-static void heading(const char *s){
-    lv_obj_t *b = block(44);
-    centre(b, s, 18, 240, TF(UI_14), TC(ACCENT_PRIMARY));
 }
 /* a cache BMP (24-bit, bottom-up, rows padded to 4 bytes: the 42 px thumb's are) into XRGB8888 */
 static int read_bmp(const char *path, int n, uint8_t *dst){
@@ -350,9 +372,9 @@ static int read_bmp(const char *path, int n, uint8_t *dst){
     fclose(f);
     return ok ? 0 : -1;
 }
-static void pics_forget(void){
-    for(int i = 0; i < g_npic; i++){ free(g_pic[i].px); g_pic[i].px = NULL; }
-    g_npic = 0;
+static void pics_forget_from(int keep){
+    for(int i = keep; i < g_npic; i++){ free(g_pic[i].px); g_pic[i].px = NULL; }
+    if(g_npic > keep) g_npic = keep;
 }
 /* the track's cached cover as an image of size x size (42: the thumb as is; else the 148 px cover, box-filtered down);
  * NULL when the cache doesn't have it yet */
@@ -386,6 +408,24 @@ static const lv_image_dsc_t *cover_image(const char *path, int size){
     d->data = dst; d->data_size = (uint32_t)size * size * 4;
     return d;
 }
+/* the cover's colour, for the Wrapped dots: the thumb's most colourful pixels, lifted so a dot reads on the canvas */
+static lv_color_t cover_colour(const char *path){
+    const lv_image_dsc_t *img = cover_image(path, 42);
+    if(!img) return TC(ACCENT_PRIMARY);
+    long acc[3] = { 0, 0, 0 }, wsum = 0;
+    for(int i = 0; i < 42 * 42; i++){
+        const uint8_t *p = img->data + i * 4;
+        int mx = p[0], mn = p[0];
+        for(int k = 1; k < 3; k++){ if(p[k] > mx) mx = p[k]; if(p[k] < mn) mn = p[k]; }
+        long w = 1 + (mx - mn) * (mx - mn) / 64;                                 /* saturated pixels weigh more */
+        acc[0] += p[0] * w; acc[1] += p[1] * w; acc[2] += p[2] * w; wsum += w;
+    }
+    int b = (int)(acc[0] / wsum), g = (int)(acc[1] / wsum), r = (int)(acc[2] / wsum);
+    int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    if(mx < 200 && mx > 0){ r = r * 200 / mx; g = g * 200 / mx; b = b * 200 / mx; }   /* bright enough on dark */
+    pics_forget_from(g_npic - 1);                                                /* only the colour is kept */
+    return theme_color_from_rgb(((uint32_t)(r > 255 ? 255 : r) << 16) | ((uint32_t)(g > 255 ? 255 : g) << 8) | (uint32_t)(b > 255 ? 255 : b));
+}
 /* a round or rounded picture: the cover scaled to `size`, else the theme surface with a glyph or a letter */
 static lv_obj_t *picture(lv_obj_t *p, int x, int y, int size, int round, const char *path, const char *fallback){
     lv_obj_t *w = box(p, x, y, size, size, round ? LV_RADIUS_CIRCLE : (size > 60 ? 12 : 6), TC(SURFACE_RAISED), LV_OPA_COVER);
@@ -394,6 +434,7 @@ static lv_obj_t *picture(lv_obj_t *p, int x, int y, int size, int round, const c
     if(img){
         lv_obj_t *im = lv_image_create(w);
         lv_image_set_src(im, img);
+        if(size > 148){ lv_image_set_scale(im, (uint32_t)(256 * size / 148)); }
         lv_obj_center(im);
     } else {
         lv_obj_t *l = lv_label_create(w); lv_label_set_text(l, fallback);
@@ -408,199 +449,273 @@ static void initial(const char *name, char *out, size_t n){       /* the first l
     snprintf(out, n, "%.*s", k, name);
     if(k == 1 && out[0] >= 'a' && out[0] <= 'z') out[0] = (char)(out[0] - 32);
 }
-static lv_obj_t *row(int h){
-    lv_obj_t *r = lv_obj_create(g_list); lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, 268, h);
+
+/* ---- rows: wide enough that the play counts sit near the rim; the curve narrows the first and last in view,
+ * which may cut their counts (only the three in the middle need to show them whole) ---- */
+#define ROW_W 304
+#define ROW_H 66
+static lv_obj_t *row(lv_obj_t *list){
+    lv_obj_t *r = lv_obj_create(list); lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, ROW_W, ROW_H);
     lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);                                     /* curves like a Library row */
-    lv_obj_set_style_radius(r, 10, 0);
+    lv_obj_set_style_radius(r, 14, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE), LV_STATE_PRESSED); lv_obj_set_style_bg_opa(r, LV_OPA_70, LV_STATE_PRESSED);
     lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     return r;
 }
 static void plays_right(lv_obj_t *r, int plays, int accent){
     char t[16]; snprintf(t, sizeof t, "%d", plays);
-    int h = lv_obj_get_style_height(r, LV_PART_MAIN), lh = lv_font_get_line_height(TF(UI_18)), sh = lv_font_get_line_height(TF(UI_10));
-    int y = (h - lh - sh) / 2;
-    text(r, t, 196, y, 60, TF(UI_18), accent ? TC(ACCENT_PRIMARY) : TC(TEXT_PRIMARY), LV_TEXT_ALIGN_RIGHT);
-    text(r, plays == 1 ? "play" : "plays", 196, y + lh, 60, TF(UI_10), TC(TEXT_MUTED), LV_TEXT_ALIGN_RIGHT);
+    const lv_font_t *fn = &font_inter_bold_22, *fc = TF(UI_12);
+    int lh = lv_font_get_line_height(fn), sh = lv_font_get_line_height(fc), y = (ROW_H - lh - sh) / 2;
+    text(r, t, ROW_W - 74, y, 60, fn, accent ? TC(ACCENT_PRIMARY) : TC(TEXT_PRIMARY), LV_TEXT_ALIGN_RIGHT);    /* the count: right-aligned */
+    text(r, plays == 1 ? "play" : "plays", ROW_W - 74, y + lh, 60, fc, TC(TEXT_MUTED), LV_TEXT_ALIGN_RIGHT);
 }
 static void two_lines(lv_obj_t *r, int x, int w, const char *top, const char *sub){
-    const lv_font_t *ft = ui_font_cjk(18), *fs = ui_font_cjk(14);
-    int h = lv_obj_get_style_height(r, LV_PART_MAIN), h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs);
-    int two = sub && sub[0], y = (h - (two ? h1 + h2 : h1)) / 2;
+    const lv_font_t *ft = ui_font_cjk(20), *fs = ui_font_cjk(16);
+    int h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs);
+    int two = sub && sub[0], y = (ROW_H - (two ? h1 + h2 : h1)) / 2;
     lv_obj_add_flag(text(r, top, x, y, w, ft, TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
     if(two) lv_obj_add_flag(text(r, sub, x, y + h1, w, fs, TC(TEXT_LYRICS), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
 }
 static void rank(lv_obj_t *r, int n){
     char t[8]; snprintf(t, sizeof t, "%d", n);
-    int lh = lv_font_get_line_height(TF(UI_18));
-    text(r, t, 6, (lv_obj_get_style_height(r, LV_PART_MAIN) - lh) / 2, 28, TF(UI_18), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
+    const lv_font_t *f = &font_inter_bold_22; int lh = lv_font_get_line_height(f);
+    text(r, t, 4, (ROW_H - lh) / 2, 36, f, TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
 }
-
-/* after the curve (it narrows rows near the top and bottom and slides the play counts in): the names give way, so
- * they never run under a count. Names carry LV_OBJ_FLAG_USER_2. */
-static void names_fit(void){
-    uint32_t n = lv_obj_get_child_count(g_list);
+/* after the curve: the names give way, so they never run under a count. Names carry LV_OBJ_FLAG_USER_2. */
+static void names_fit(lv_obj_t *list){
+    if(!list) return;
+    uint32_t n = lv_obj_get_child_count(list);
     for(uint32_t i = 0; i < n; i++){
-        lv_obj_t *r = lv_obj_get_child(g_list, i);
+        lv_obj_t *r = lv_obj_get_child(list, i);
         if(!lv_obj_has_flag(r, LV_OBJ_FLAG_USER_1)) continue;
         lv_area_t a; lv_obj_get_coords(r, &a);
         if(a.y2 < -40 || a.y1 > 400) continue;
-        int rw = lv_obj_get_style_width(r, LV_PART_MAIN);
+        int rw = lv_obj_get_style_width(r, LV_PART_MAIN), narrow = rw < ROW_W - 6;   /* the curve took the count's room */
         for(uint32_t k = 0; k < lv_obj_get_child_count(r); k++){
             lv_obj_t *l = lv_obj_get_child(r, k);
-            if(!lv_obj_has_flag(l, LV_OBJ_FLAG_USER_2)) continue;
-            int x = lv_obj_get_style_x(l, LV_PART_MAIN), w = rw - x - 50;   /* the count is right-aligned: about 46 px */
-            if(w > 152) w = 152;
-            if(w < 40) w = 40;
+            int count = lv_obj_check_type(l, &lv_label_class) && lv_obj_get_style_text_align(l, 0) == LV_TEXT_ALIGN_RIGHT;   /* plays_right's */
+            if(!lv_obj_has_flag(l, LV_OBJ_FLAG_USER_2) && !count) continue;
+            int x = lv_obj_get_style_x(l, LV_PART_MAIN), w = ROW_W - 80 - x;    /* the count: right-aligned at the row's end */
+            if(count){                                                 /* a count: only where the row shows it whole */
+                lv_obj_set_style_opa(l, narrow ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
+                continue;
+            }
+            if(narrow) w = rw - x - 14;
             if(lv_obj_get_style_width(l, LV_PART_MAIN) != w) lv_obj_set_width(l, w);
         }
     }
 }
-static void fit_cb(lv_event_t *e){ (void)e; names_fit(); }
-static void rebuild(void);
-static void period_cb(lv_event_t *e){ g_ptype = (int)(intptr_t)lv_event_get_user_data(e); g_poff = 0; stats_load(); rebuild(); }
-static void step_cb(lv_event_t *e){ g_poff += (int)(intptr_t)lv_event_get_user_data(e); if(g_poff > 0) g_poff = 0; stats_load(); rebuild(); }
-static void song_cb(lv_event_t *e){
-    int i = (int)(intptr_t)lv_event_get_user_data(e);
-    if(i < 0 || i >= g_s.nsong) return;
-    if(ui_play_song_by_path(g_s.song[i].path)) screen_show(SCR_NOWPLAYING);
-}
+static void fit_cb(lv_event_t *e){ names_fit(lv_event_get_target(e)); }
 static lv_obj_t *tap(lv_obj_t *o, lv_event_cb_t cb, intptr_t ud){
     lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(o, cb, LV_EVENT_CLICKED, (void *)ud);
     if(!lv_obj_has_flag(o, LV_OBJ_FLAG_USER_1)) lv_obj_add_flag(o, LV_OBJ_FLAG_USER_4);   /* our own look in every theme (the kit leaves it) */
     return o;
 }
+static void rebuild(void);
+static void song_cb(lv_event_t *e){
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if(i < 0 || i >= g_s.nsong) return;
+    if(ui_play_song_by_path(g_s.song[i].path)) screen_show(SCR_NOWPLAYING);
+}
+static int kind_n(int k){ return k == K_ART ? g_s.nart : k == K_ALB ? g_s.nalb : g_s.nsong; }
+static const item_t *kind_items(int k){ return k == K_ART ? g_s.art : k == K_ALB ? g_s.alb : g_s.song; }
+static const char *const KIND_TITLE[3] = { "Top Artists", "Top Albums", "On Repeat" };
 
-/* the period at a glance: Week / Month / Year, the period with arrows, the time, the comparison, three counts */
+/* one row of a top list: rank, (cover), name (+ artist), plays */
+static void item_row(lv_obj_t *list, int k, int i){
+    const item_t *it = &kind_items(k)[i];
+    lv_obj_t *r = row(list);
+    if(k == K_SONG) tap(r, song_cb, i);
+    rank(r, i + 1);
+    if(k == K_ART){
+        int lh = lv_font_get_line_height(ui_font_cjk(20));
+        lv_obj_add_flag(text(r, it->name, 44, (ROW_H - lh) / 2, 150, ui_font_cjk(20), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
+    } else if(k == K_ALB){
+        char n[12]; snprintf(n, sizeof n, "%d", i + 1);
+        picture(r, 42, (ROW_H - 46) / 2, 46, 0, it->path, n);
+        two_lines(r, 98, 120, it->name, it->sub);
+    } else two_lines(r, 44, 150, it->name, it->sub);
+    plays_right(r, it->plays, 0);
+}
+
+/* ================================ swipe strips (period kind, period) ================================ */
+static lv_point_t g_press;
+static void strip_cb(lv_event_t *e){
+    lv_event_code_t code = lv_event_get_code(e);
+    int which = (int)(intptr_t)lv_event_get_user_data(e);                       /* 0: Week/Month/Year, 1: the period */
+    lv_indev_t *id = lv_indev_active(); if(!id) return;
+    lv_point_t p; lv_indev_get_point(id, &p);
+    if(code == LV_EVENT_PRESSED){ g_press = p; return; }
+    if(code != LV_EVENT_RELEASED) return;
+    int dx = p.x - g_press.x, dy = p.y - g_press.y, step = 0;
+    if(abs(dy) > 24 && abs(dy) > abs(dx)) return;                                /* the list scrolled */
+    if(abs(dx) >= 24) step = dx < 0 ? 1 : -1;                                    /* drag the strip: the next one comes in */
+    else if(p.x < 130) step = -1; else if(p.x > 230) step = 1;                   /* or tap a neighbour */
+    if(!step) return;
+    if(which == 0){
+        int t = g_ptype + step; if(t < P_WEEK || t > P_YEAR) return;
+        g_ptype = t; g_poff = 0;
+    } else {
+        long long a, z; struct tm f; period_range(g_ptype, g_poff, &a, &z, &f);
+        if(step < 0 && !(g_first_at && g_first_at < a)) return;                  /* nothing recorded before */
+        if(step > 0 && g_poff >= 0) return;
+        g_poff += step;
+    }
+    stats_load(); rebuild();
+}
+static lv_obj_t *strip(lv_obj_t *p, int y, int h, int which){
+    lv_obj_t *s = box(p, 0, y, 360, h, 0, TC(CANVAS), LV_OPA_TRANSP);
+    lv_obj_add_flag(s, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s, strip_cb, LV_EVENT_PRESSED, (void *)(intptr_t)which);
+    lv_obj_add_event_cb(s, strip_cb, LV_EVENT_RELEASED, (void *)(intptr_t)which);
+    return s;
+}
+/* a label on the top arc: centred at `deg` from 12 o'clock (clockwise +), turned along the rim */
+static void arc_label(lv_obj_t *p, const char *s, int deg, int rad, const lv_font_t *f, lv_color_t c){
+    int w = 96, h = lv_font_get_line_height(f);
+    float a = (float)deg * 3.14159265f / 180.0f;
+    int cx = 180 + (int)lroundf(sinf(a) * rad), cy = 180 - (int)lroundf(cosf(a) * rad);
+    lv_obj_t *l = text(p, s, cx - w / 2, cy - h / 2, w, f, c, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_style_transform_pivot_x(l, w / 2, 0); lv_obj_set_style_transform_pivot_y(l, h / 2, 0);
+    if(deg) lv_obj_set_style_transform_rotation(l, deg * 10, 0);
+}
+
+/* ================================ the overview ================================ */
 static void build_overview(void){
-    lv_obj_t *b = block(360);
-    static const char *const P[3] = { "Week", "Month", "Year" };
-    lv_obj_t *bar = box(b, 92, 30, 176, 32, 16, TC(SURFACE), LV_OPA_COVER);
-    for(int i = 0; i < 3; i++){
-        lv_obj_t *seg = box(bar, 2 + i * 58, 2, 56, 28, 14, i == g_ptype ? TC(ACCENT_PRIMARY) : TC(SURFACE), i == g_ptype ? LV_OPA_COVER : LV_OPA_TRANSP);
-        lv_obj_set_style_bg_color(seg, TC(SURFACE_PRESSED), LV_STATE_PRESSED); lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_set_ext_click_area(seg, 6);
-        if(i != g_ptype) tap(seg, period_cb, i);
-        lv_obj_t *l = text(seg, P[i], 0, (28 - lv_font_get_line_height(TF(UI_14))) / 2, 56, TF(UI_14),
-                           i == g_ptype ? TC(ON_ACCENT) : TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
-        lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
-    }
-    char name[48]; period_name(g_ptype, g_poff, name, sizeof name, 0);
-    centre(b, name, 76, 190, TF(UI_18), TC(TEXT_SECONDARY));
-    long long a, z; struct tm f; period_range(g_ptype, g_poff, &a, &z, &f);
-    int can_back = g_first_at && g_first_at < a, can_fwd = g_poff < 0;
-    for(int k = 0; k < 2; k++){                                                  /* the arrows: earlier / later */
-        int on = k ? can_fwd : can_back;
-        lv_obj_t *btn = box(b, k ? 266 : 58, 70, 36, 36, LV_RADIUS_CIRCLE, TC(SURFACE), on ? LV_OPA_COVER : LV_OPA_TRANSP);
-        lv_obj_set_style_bg_color(btn, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
-        lv_obj_set_ext_click_area(btn, 8);
-        lv_obj_t *l = lv_label_create(btn); lv_label_set_text(l, k ? LV_SYMBOL_RIGHT : LV_SYMBOL_LEFT);
-        lv_obj_set_style_text_font(l, TF(UI_14), 0);
-        lv_obj_set_style_text_color(l, on ? TC(TEXT_PRIMARY) : TC(TEXT_DISABLED), 0); lv_obj_center(l);
-        if(on) tap(btn, step_cb, k ? 1 : -1);
-    }
+    lv_obj_t *b = block(g_list, 360);
     /* the rim: this period against the one before (now: against the same stretch of it; full when ahead) */
-    arc(b, 180, 180, 178, 4, 0, 360, TC(SURFACE), LV_OPA_COVER, 0);
+    arc(b, 180, 180, 179, 3, 0, 360, TC(SURFACE), LV_OPA_COVER, 0);
     if(!g_s.empty){
         int deg = 360;
         if(g_s.prev_known && g_s.prev_ms > 0 && g_s.ms < g_s.prev_ms) deg = (int)(360 * g_s.ms / g_s.prev_ms);
-        if(deg >= 4) arc(b, 180, 180, 178, 4, 270, 270 + deg, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
+        if(deg >= 4) arc(b, 180, 180, 179, 3, 270, 270 + deg, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
     }
-    char t[48]; fmt_dur(g_s.ms, t, sizeof t);
-    centre(b, t, 108, 290, TF(UI_44), TC(TEXT_PRIMARY));
-    int y = 108 + lv_font_get_line_height(TF(UI_44)) + 2;
+    /* Week / Month / Year round the top: the chosen one in the middle, lit; its neighbours turned along the arc */
+    static const char *const P[3] = { "Week", "Month", "Year" };
+    arc(b, 180, 180, 168, 34, 270 - 54, 270 + 54, TC(SURFACE), LV_OPA_COVER, 1);
+    arc(b, 180, 180, 168, 34, 270 - 18, 270 + 18, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
+    for(int i = 0; i < 3; i++){
+        int off = i - g_ptype; if(off < -1 || off > 1) continue;
+        arc_label(b, P[i], off * 36, 151, off ? TF(UI_16) : TF(UI_20), off ? TC(TEXT_SECONDARY) : TC(ON_ACCENT));
+    }
+    strip(b, 0, 64, 0);                                                          /* on top: drag or tap it */
+    /* the period, with the ones either side peeking in at the edges */
+    lv_obj_t *s1 = strip(b, 66, 40, 1);
+    char name[48]; period_name(g_ptype, g_poff, name, sizeof name, 0);
+    centre(s1, name, (40 - lv_font_get_line_height(TF(UI_24))) / 2, 170, TF(UI_24), TC(TEXT_PRIMARY));
+    long long a, z; struct tm f; period_range(g_ptype, g_poff, &a, &z, &f);
+    int fy = (40 - lv_font_get_line_height(TF(UI_16))) / 2;
+    if(g_first_at && g_first_at < a){
+        char pv[48]; period_name(g_ptype, g_poff - 1, pv, sizeof pv, 0);
+        lv_obj_t *l = text(s1, pv, -40, fy, 128, TF(UI_16), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_RIGHT);
+        lv_obj_set_style_text_opa(l, LV_OPA_50, 0);
+    }
+    if(g_poff < 0){
+        char nx[48]; period_name(g_ptype, g_poff + 1, nx, sizeof nx, 0);
+        lv_obj_t *l = text(s1, nx, 272, fy, 128, TF(UI_16), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
+        lv_obj_set_style_text_opa(l, LV_OPA_50, 0);
+    }
+    /* the time: big figures, small units on the same baseline ("2h 40m") */
+    long long m = g_s.ms / 60000;
+    char n1[16], n2[16]; const char *u1, *u2 = NULL;
+    if(m >= 60){ snprintf(n1, sizeof n1, "%lld", m / 60); u1 = "h"; snprintf(n2, sizeof n2, "%02lld", m % 60); u2 = "m"; }
+    else { snprintf(n1, sizeof n1, "%lld", m); u1 = "m"; }
+    const lv_font_t *fb = &font_inter_bold_44, *fu = &font_inter_medium_20;
+    int ty = 108, gap = 3, sp = 12;
+    int w = text_w(n1, fb) + gap + text_w(u1, fu) + (u2 ? sp + text_w(n2, fb) + gap + text_w(u2, fu) : 0);
+    int x = 180 - w / 2, base = ty + fb->line_height - fb->base_line, uy = base - (fu->line_height - fu->base_line);
+    const char *part[4] = { n1, u1, u2 ? n2 : NULL, u2 };
+    for(int i = 0; i < 4 && part[i]; i++){
+        int big = !(i & 1); const lv_font_t *ff = big ? fb : fu; int pw = text_w(part[i], ff);
+        text(b, part[i], x, big ? ty : uy, pw + 2, ff, big ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
+        x += pw + (big ? gap : sp);
+    }
+    int y = ty + fb->line_height + 2;
     if(g_s.empty){
-        centre(b, g_poff == 0 ? "Nothing played yet" : "Nothing played then", y, 260, TF(UI_16), TC(TEXT_SECONDARY));
-        centre(b, "A song counts once it has played\nfor 30 seconds. Your stats\nfill in as you listen.", y + 40, 250, TF(UI_14), TC(TEXT_MUTED));
+        centre(b, g_poff == 0 ? "Nothing played yet" : "Nothing played then", y + 4, 260, TF(UI_18), TC(TEXT_SECONDARY));
+        centre(b, "A song counts once it has played\nfor 30 seconds. Your stats\nfill in as you listen.", y + 40, 250, TF(UI_16), TC(TEXT_MUTED));
         return;
     }
-    centre(b, "of music", y, 260, TF(UI_16), TC(TEXT_SECONDARY));
-    y += lv_font_get_line_height(TF(UI_16)) + 6;
-    if(g_s.prev_known){
+    centre(b, "of music", y, 200, TF(UI_16), TC(TEXT_SECONDARY));
+    y += lv_font_get_line_height(TF(UI_16)) + 8;
+    if(g_s.prev_known){                                                          /* the comparison, in a soft accent chip */
         char d[24], prev[48], line[96]; long long diff = g_s.ms - g_s.prev_ms;
         fmt_dur_short(diff < 0 ? -diff : diff, d, sizeof d);
         period_name(g_ptype, g_poff - 1, prev, sizeof prev, 1);
         if(llabs(diff) < 60000) snprintf(line, sizeof line, g_poff ? "About the same as %s" : "On a par with %s", prev);
         else if(g_poff) snprintf(line, sizeof line, "%s  %s %s than %s", diff > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN, d, diff > 0 ? "more" : "less", prev);
-        else snprintf(line, sizeof line, "%s  %s %s %s", diff > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN, d, diff > 0 ? "ahead of" : "behind", prev);   /* the same days of it */
-        centre(b, line, y, 290, TF(UI_14), TC(ACCENT_PRIMARY));
+        else snprintf(line, sizeof line, "%s  %s %s %s", diff > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN, d, diff > 0 ? "ahead of" : "behind", prev);
+        int cw = text_w(line, TF(UI_14)) + 28; if(cw > 290) cw = 290;
+        lv_obj_t *chip = box(b, 180 - cw / 2, y, cw, 28, 14, TC(ACCENT_PRIMARY), LV_OPA_20);
+        text(chip, line, 0, (28 - lv_font_get_line_height(TF(UI_14))) / 2, cw, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
     }
-    y += lv_font_get_line_height(TF(UI_14)) + 16;
-    char v[3][16]; const char *cap[3] = { g_s.plays == 1 ? "play" : "plays", g_s.songs == 1 ? "song" : "songs", "day streak" };
-    snprintf(v[0], 16, "%d", g_s.plays); snprintf(v[1], 16, "%d", g_s.songs); snprintf(v[2], 16, "%d", g_s.streak);
+    y += 28 + 12;
+    /* songs / albums / artists */
+    char v[3][16]; const char *cap[3] = { g_s.songs == 1 ? "song" : "songs", g_s.albums == 1 ? "album" : "albums", g_s.artists == 1 ? "artist" : "artists" };
+    snprintf(v[0], 16, "%d", g_s.songs); snprintf(v[1], 16, "%d", g_s.albums); snprintf(v[2], 16, "%d", g_s.artists);
     for(int i = 0; i < 3; i++){
-        lv_obj_t *c = box(b, 46 + i * 92, y, 84, 62, 14, TC(SURFACE), LV_OPA_COVER);
+        lv_obj_t *c = box(b, 36 + i * 98, y, 92, 72, 20, TC(SURFACE), LV_OPA_COVER);
         lv_obj_set_style_border_width(c, 1, 0); lv_obj_set_style_border_color(c, TC(BORDER), 0);
-        text(c, v[i], 0, 7, 84, TF(UI_22), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_CENTER);
-        text(c, cap[i], 0, 37, 84, TF(UI_12), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
+        text(c, v[i], 0, 8, 92, TF(UI_28), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_CENTER);
+        text(c, cap[i], 0, 44, 92, &font_inter_medium_14, TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
     }
-    centre(b, LV_SYMBOL_DOWN "  Your favourites", y + 82, 220, TF(UI_12), TC(TEXT_MUTED));
+    y += 72 + 10;
+    const char *fav = "Your favourites";
+    int fw = text_w(fav, TF(UI_18)), aw = text_w(LV_SYMBOL_DOWN, TF(UI_14)) + 10;
+    text(b, LV_SYMBOL_DOWN, 180 - (fw + aw) / 2, y + 3, aw, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
+    text(b, fav, 180 - (fw + aw) / 2 + aw, y, fw + 2, TF(UI_18), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
 }
-static void build_artists(void){
-    if(!g_s.nart) return;
-    heading("TOP ARTISTS");
-    const item_t *top = &g_s.art[0];
-    lv_obj_t *h = block(178);
+
+/* ================================ the three sections ================================ */
+static void sub_open(int k);
+static void wrap_open(int k);
+static void sub_cb(lv_event_t *e){ sub_open((int)(intptr_t)lv_event_get_user_data(e)); }
+static void wrap_cb(lv_event_t *e){ wrap_open((int)(intptr_t)lv_event_get_user_data(e)); }
+/* the section title: bigger, in a soft pill with a chevron - it opens the top 15 */
+static void heading(int k){
+    lv_obj_t *b = block(g_list, 58);
+    char t[48]; snprintf(t, sizeof t, "%s", KIND_TITLE[k]);
+    for(char *q = t; *q; q++) if(*q >= 'a' && *q <= 'z') *q = (char)(*q - 32);
+    const lv_font_t *f = TF(UI_18);
+    int tw = text_w(t, f), cw = text_w(LV_SYMBOL_RIGHT, TF(UI_14)), pw = tw + cw + 40;
+    lv_obj_t *p = box(b, 180 - pw / 2, 12, pw, 38, 19, TC(SURFACE), LV_OPA_COVER);
+    lv_obj_set_style_border_width(p, 1, 0); lv_obj_set_style_border_color(p, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_border_opa(p, LV_OPA_40, 0);
+    lv_obj_set_style_bg_color(p, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_ext_click_area(p, 8);
+    text(p, t, 16, (38 - lv_font_get_line_height(f)) / 2, tw + 2, f, TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
+    text(p, LV_SYMBOL_RIGHT, pw - cw - 16, (38 - lv_font_get_line_height(TF(UI_14))) / 2, cw + 2, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
+    tap(p, sub_cb, k);
+}
+/* the #1: its artwork (tap: Wrapped), name, and how much */
+static void hero(int k){
+    const item_t *top = &kind_items(k)[0];
+    lv_obj_t *h = block(g_list, 186);
     char ini[8]; initial(top->name, ini, sizeof ini);
-    lv_obj_t *pic = picture(h, 128, 4, 104, 1, top->path, ini);
+    lv_obj_t *pic = picture(h, 124, 2, 112, k == K_ART, top->path, k == K_SONG ? LV_SYMBOL_AUDIO : ini);
     lv_obj_set_style_border_width(pic, 3, 0); lv_obj_set_style_border_color(pic, TC(ACCENT_PRIMARY), 0);
-    lv_obj_t *badge = box(h, 206, 78, 30, 30, LV_RADIUS_CIRCLE, TC(ACCENT_PRIMARY), LV_OPA_COVER);
-    text(badge, "1", 0, (30 - lv_font_get_line_height(TF(UI_16))) / 2, 30, TF(UI_16), TC(ON_ACCENT), LV_TEXT_ALIGN_CENTER);
-    centre(h, top->name, 116, 290, ui_font_cjk(26), TC(TEXT_PRIMARY));
-    char d[24], line[64]; fmt_dur(top->ms, d, sizeof d);
-    snprintf(line, sizeof line, "%d %s in %s", top->plays, top->plays == 1 ? "play" : "plays", d);
-    centre(h, line, 150, 260, TF(UI_14), TC(TEXT_SECONDARY));
-    for(int i = 1; i < g_s.nart; i++){
-        lv_obj_t *r = row(46);
-        rank(r, i + 1);
-        int lh = lv_font_get_line_height(ui_font_cjk(18));
-        lv_obj_add_flag(text(r, g_s.art[i].name, 40, (46 - lh) / 2, 136, ui_font_cjk(18), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
-        plays_right(r, g_s.art[i].plays, 0);
-    }
+    lv_obj_set_ext_click_area(pic, 6);
+    tap(pic, wrap_cb, k);
+    lv_obj_t *badge = box(h, 214, 84, 32, 32, LV_RADIUS_CIRCLE, TC(ACCENT_PRIMARY), LV_OPA_COVER);
+    text(badge, "1", 0, (32 - lv_font_get_line_height(TF(UI_16))) / 2, 32, TF(UI_16), TC(ON_ACCENT), LV_TEXT_ALIGN_CENTER);
+    centre(h, top->name, 122, 290, ui_font_cjk(26), TC(TEXT_PRIMARY));
+    char d[24], line[96]; fmt_dur(top->ms, d, sizeof d);
+    if(k == K_ART) snprintf(line, sizeof line, "%d %s in %s", top->plays, top->plays == 1 ? "play" : "plays", d);
+    else snprintf(line, sizeof line, "%s  \xC2\xB7  %d %s", top->sub[0] ? top->sub : d, top->plays, top->plays == 1 ? "play" : "plays");
+    centre(h, line, 156, 280, ui_font_cjk(16), TC(TEXT_SECONDARY));
 }
-static void build_albums(void){
-    if(!g_s.nalb) return;
-    heading("TOP ALBUMS");
-    for(int i = 0; i < g_s.nalb; i++){
-        lv_obj_t *r = row(58);
-        if(i == 0){ lv_obj_set_style_border_width(r, 2, 0); lv_obj_set_style_border_color(r, TC(ACCENT_PRIMARY), 0);
-                    lv_obj_set_style_bg_color(r, TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0); }
-        char n[12]; snprintf(n, sizeof n, "%d", i + 1);
-        picture(r, 8, 8, 42, 0, g_s.alb[i].path, n);
-        two_lines(r, 60, 120, g_s.alb[i].name, g_s.alb[i].sub);
-        plays_right(r, g_s.alb[i].plays, i == 0);
-    }
-}
-static void build_songs(void){
-    if(!g_s.nsong) return;
-    heading("ON REPEAT");
-    const item_t *top = &g_s.song[0];
-    lv_obj_t *h = block(214);
-    tap(h, song_cb, 0);
-    arc(h, 180, 62, 62, 4, 0, 360, TC(SURFACE), LV_OPA_COVER, 0);
-    arc(h, 180, 62, 62, 4, 300, 300 + 290, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);   /* a loop round the cover */
-    picture(h, 136, 18, 88, 0, top->path, LV_SYMBOL_AUDIO);
-    lv_obj_t *loop = box(h, 216, 2, 32, 32, LV_RADIUS_CIRCLE, TC(ACCENT_PRIMARY), LV_OPA_COVER);
-    text(loop, LV_SYMBOL_LOOP, 0, (32 - lv_font_get_line_height(TF(UI_14))) / 2, 32, TF(UI_14), TC(ON_ACCENT), LV_TEXT_ALIGN_CENTER);
-    centre(h, top->name, 132, 290, ui_font_cjk(24), TC(TEXT_PRIMARY));
-    centre(h, top->sub, 164, 260, ui_font_cjk(16), TC(TEXT_SECONDARY));
-    char line[48]; snprintf(line, sizeof line, "%d %s", top->plays, top->plays == 1 ? "play" : "plays");
-    centre(h, line, 188, 200, TF(UI_14), TC(ACCENT_PRIMARY));
-    for(int i = 1; i < g_s.nsong; i++){
-        lv_obj_t *r = row(54);
-        tap(r, song_cb, i);
-        rank(r, i + 1);
-        two_lines(r, 40, 136, g_s.song[i].name, g_s.song[i].sub);
-        plays_right(r, g_s.song[i].plays, 0);
-    }
+static void build_section(int k){
+    int n = kind_n(k); if(!n) return;
+    heading(k);
+    hero(k);
+    for(int i = 1; i < n && i < 5; i++) item_row(g_list, k, i);
 }
 /* when you listen: 24 bars round the rim (midnight at the top), the busiest hour in the middle */
 static void build_clock(void){
     long long mx = 0; int peak = 0;
     for(int h = 0; h < 24; h++) if(g_s.hour_ms[h] > mx){ mx = g_s.hour_ms[h]; peak = h; }
     if(mx <= 0) return;
-    lv_obj_t *b = block(360);
+    lv_obj_t *b = block(g_list, 360);
     for(int h = 0; h < 24; h++){
         int a0 = 270 + h * 15 + 2, a1 = a0 + 11;
         arc(b, 180, 180, 160, 36, a0, a1, TC(SURFACE), LV_OPA_COVER, 0);
@@ -619,18 +734,148 @@ static void build_clock(void){
     centre(b, hr, 162, 170, TF(UI_32), TC(TEXT_PRIMARY));
     centre(b, persona(peak), 166 + lv_font_get_line_height(TF(UI_32)), 170, TF(UI_16), TC(ACCENT_PRIMARY));
 }
+
+/* ================================ overlays: the top 15, Wrapped ================================ */
+static lv_obj_t *panel(void){
+    lv_obj_t *p = lv_obj_create(g_root); lv_obj_remove_style_all(p);
+    lv_obj_set_size(p, 360, 360); lv_obj_set_pos(p, 0, 0);
+    lv_obj_set_style_bg_color(p, TC(CANVAS), 0); lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);                                   /* nothing underneath takes a tap */
+    return p;
+}
+static void overlays_close(void);
+static void sub_back_cb(lv_event_t *e){ (void)e; screen_back(); }
+static void sub_open(int k){
+    overlays_close();
+    g_pic_keep = g_npic;
+    g_sub = panel();
+    char t[48]; snprintf(t, sizeof t, "%s", KIND_TITLE[k]);
+    ui_header_cb(g_sub, t, sub_back_cb);
+    g_subl = lv_obj_create(g_sub); lv_obj_remove_style_all(g_subl);
+    lv_obj_set_size(g_subl, 360, 360);
+    lv_obj_set_flex_flow(g_subl, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(g_subl, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_top(g_subl, 64, 0); lv_obj_set_style_pad_bottom(g_subl, 120, 0);
+    lv_obj_set_scroll_dir(g_subl, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(g_subl, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(g_subl, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    lv_obj_move_background(g_subl);                                              /* under the header */
+    curvelist_attach(&g_cl2, g_subl, g_sub, ROW_W);
+    lv_obj_add_event_cb(g_subl, fit_cb, LV_EVENT_SCROLL, NULL);
+    for(int i = 0; i < kind_n(k); i++) item_row(g_subl, k, i);
+    curvelist_update(&g_cl2); names_fit(g_subl);
+}
+/* Wrapped: two pages that snap - the covers as overlapping bubbles with the #1, then the top 5 with each one's colour */
+static void wrap_back_cb(lv_event_t *e){ (void)e; screen_back(); }
+static int artist_covers(const char *artist, char out[3][256]){
+    sqlite3 *d = NULL; int n = 0;
+    if(sqlite3_open_v2(STATS_DB_PATH, &d, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK){ if(d) sqlite3_close(d); return 0; }
+    sqlite3_stmt *st;
+    if(sqlite3_prepare_v2(d, "SELECT MAX(PATH) FROM PLAY_LOG WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' AND "
+                             "(ARTIST=?3 OR AARTIST=?3 OR (','||REPLACE(REPLACE(ARTIST,', ',','),';',',')||',') LIKE '%,'||?3||',%') "
+                             "GROUP BY ALBUM ORDER BY COUNT(*) DESC LIMIT 3;", -1, &st, NULL) == SQLITE_OK){
+        sqlite3_bind_int64(st, 1, g_ra); sqlite3_bind_int64(st, 2, g_rb); sqlite3_bind_text(st, 3, artist, -1, SQLITE_STATIC);
+        while(n < 3 && sqlite3_step(st) == SQLITE_ROW) snprintf(out[n++], 256, "%s", col(st, 0));
+        sqlite3_finalize(st);
+    }
+    sqlite3_close(d);
+    return n;
+}
+static void wrap_open(int k){
+    int n = kind_n(k); if(!n) return;
+    const item_t *it = kind_items(k);
+    if(g_wrap){ lv_obj_delete(g_wrap); g_wrap = NULL; }
+    if(!g_sub) g_pic_keep = g_npic;
+    g_wrap = panel();
+    lv_obj_t *sc = lv_obj_create(g_wrap); lv_obj_remove_style_all(sc);
+    lv_obj_set_size(sc, 360, 360);
+    lv_obj_set_flex_flow(sc, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(sc, LV_DIR_VER); lv_obj_set_scroll_snap_y(sc, LV_SCROLL_SNAP_START);
+    lv_obj_set_scrollbar_mode(sc, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(sc, LV_OBJ_FLAG_SCROLL_ONE);
+    char per[48]; period_name(g_ptype, g_poff, per, sizeof per, 0);
+    for(char *q = per; *q; q++) if(*q >= 'a' && *q <= 'z') *q = (char)(*q - 32);
+
+    /* page 1: the bubbles */
+    lv_obj_t *p1 = block(sc, 360);
+    char paths[3][256]; int np = 0;
+    if(k == K_ART) np = artist_covers(it[0].name, paths);
+    else for(; np < 3 && np < n; np++) snprintf(paths[np], 256, "%s", it[np].path);
+    if(!np){ snprintf(paths[0], 256, "%s", it[0].path); np = 1; }
+    lv_color_t glow = cover_colour(paths[0]);
+    lv_obj_t *g = box(p1, 30, 20, 300, 300, LV_RADIUS_CIRCLE, glow, LV_OPA_20);   /* the #1's colour, softly behind */
+    lv_obj_set_style_bg_grad_color(g, TC(CANVAS), 0); lv_obj_set_style_bg_grad_dir(g, LV_GRAD_DIR_VER, 0);
+    static const struct { int x, y, s; } B[3] = { { 82, 64, 136 }, { 202, 92, 100 }, { 150, 168, 78 } };   /* big, right, below */
+    for(int i = np - 1; i >= 0; i--){                                            /* the biggest on top */
+        int s = np == 1 ? 150 : B[i].s, x = np == 1 ? 105 : B[i].x, y = np == 1 ? 58 : B[i].y;
+        if(np == 2 && i == 0) x = 96;
+        char ini[8]; initial(it[0].name, ini, sizeof ini);
+        lv_obj_t *pc = picture(p1, x, y, s, 1, paths[i], ini);
+        lv_obj_set_style_border_width(pc, 4, 0); lv_obj_set_style_border_color(pc, TC(CANVAS), 0);
+        lv_obj_set_style_shadow_width(pc, 24, 0); lv_obj_set_style_shadow_color(pc, TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_shadow_opa(pc, LV_OPA_60, 0);
+    }
+    char cap[64]; snprintf(cap, sizeof cap, "%s, %s", k == K_ART ? "YOUR TOP ARTIST" : k == K_ALB ? "YOUR TOP ALBUM" : "YOUR SONG", per);
+    centre(p1, cap, 30, 230, TF(UI_12), TC(ACCENT_PRIMARY));
+    centre(p1, it[0].name, 254, 280, ui_font_cjk(28), TC(TEXT_PRIMARY));
+    char d[24], line[96]; fmt_dur(it[0].ms, d, sizeof d);
+    if(k == K_ART) snprintf(line, sizeof line, "%s  \xC2\xB7  %d %s", d, it[0].plays, it[0].plays == 1 ? "play" : "plays");
+    else snprintf(line, sizeof line, "%s  \xC2\xB7  %d %s", it[0].sub, it[0].plays, it[0].plays == 1 ? "play" : "plays");
+    centre(p1, line, 292, 250, ui_font_cjk(16), TC(TEXT_SECONDARY));
+    char more[48]; snprintf(more, sizeof more, LV_SYMBOL_DOWN "  Your top %d", n < 5 ? n : 5);
+    centre(p1, more, 322, 200, TF(UI_14), TC(TEXT_MUTED));
+
+    /* page 2: the top 5, each its cover's colour, then how long */
+    lv_obj_t *p2 = block(sc, 360);
+    char t2[48]; snprintf(t2, sizeof t2, "TOP %d %s", n < 5 ? n : 5, k == K_ART ? "ARTISTS" : k == K_ALB ? "ALBUMS" : "SONGS");
+    centre(p2, t2, 30, 200, TF(UI_12), TC(ACCENT_PRIMARY));
+    int m5 = n < 5 ? n : 5, y0 = 180 - m5 * 56 / 2 + 6;
+    for(int i = 0; i < m5; i++){
+        int y = y0 + i * 56;
+        const lv_font_t *fn = ui_font_cjk(i ? 20 : 24);
+        char nm[160]; snprintf(nm, sizeof nm, "%s", it[i].name);
+        int nw = text_w(nm, fn); if(nw > 220) nw = 220;
+        int dx = 180 - (nw + 22) / 2;
+        lv_color_t c = cover_colour(it[i].path);
+        lv_obj_t *dot = box(p2, dx, y + (lv_font_get_line_height(fn) - 14) / 2, 14, 14, LV_RADIUS_CIRCLE, c, LV_OPA_COVER);
+        lv_obj_set_style_shadow_width(dot, 10, 0); lv_obj_set_style_shadow_color(dot, c, 0); lv_obj_set_style_shadow_opa(dot, LV_OPA_50, 0);
+        text(p2, nm, dx + 22, y, nw + 2, fn, i ? TC(TEXT_PRIMARY) : c, LV_TEXT_ALIGN_LEFT);
+        char tm[24], l2[64]; fmt_dur(it[i].ms, tm, sizeof tm);
+        snprintf(l2, sizeof l2, "listened for %s", tm);
+        centre(p2, l2, y + lv_font_get_line_height(fn) + 1, 240, TF(UI_14), TC(TEXT_SECONDARY));
+    }
+    /* the back hint: a small tab on the left edge */
+    lv_obj_t *tab = box(g_wrap, -18, 150, 40, 60, 30, TC(SURFACE), LV_OPA_80);
+    lv_obj_set_ext_click_area(tab, 10);
+    text(tab, LV_SYMBOL_LEFT, 18, (60 - lv_font_get_line_height(TF(UI_14))) / 2, 18, TF(UI_14), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
+    tap(tab, wrap_back_cb, 0);
+}
+static void overlays_close(void){
+    int had = g_wrap || g_sub;
+    if(g_wrap){ lv_obj_delete(g_wrap); g_wrap = NULL; }
+    if(g_sub){ lv_obj_delete(g_sub); g_sub = NULL; g_subl = NULL; memset(&g_cl2, 0, sizeof g_cl2); }
+    if(had) pics_forget_from(g_pic_keep);
+}
+/* screen_back: the top-most overlay closes first (Wrapped, then the top 15); 0 = nothing open, leave the screen */
+int stats_back_consumed(void){
+    if(g_wrap){ lv_obj_delete(g_wrap); g_wrap = NULL; if(!g_sub) pics_forget_from(g_pic_keep); return 1; }
+    if(g_sub){ overlays_close(); return 1; }
+    return 0;
+}
+
 static void rebuild(void){
     if(!g_list) return;
+    overlays_close();
     lv_obj_clean(g_list);
-    pics_forget();                                          /* after the clean: no image points at them any more */
+    pics_forget_from(0); g_pic_keep = 0;                    /* after the clean: no image points at them any more */
     build_overview();
-    build_artists();
-    build_albums();
-    build_songs();
+    build_section(K_ART);
+    build_section(K_ALB);
+    build_section(K_SONG);
     build_clock();
     lv_obj_scroll_to_y(g_list, 0, LV_ANIM_OFF);
     curvelist_update(&g_cl);
-    names_fit();
+    names_fit(g_list);
 }
 void stats_create(lv_obj_t *root){
     g_root = root;
@@ -641,14 +886,21 @@ void stats_create(lv_obj_t *root){
     lv_obj_remove_style_all(g_list);
     lv_obj_set_size(g_list, 360, 360);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(g_list, 0, 0);
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
-    curvelist_attach(&g_cl, g_list, root, 268);
+    curvelist_attach(&g_cl, g_list, root, ROW_W);
     lv_obj_add_event_cb(g_list, fit_cb, LV_EVENT_SCROLL, NULL);   /* after the curve's own handler */
 }
-lv_obj_t *stats_scroller(void){ return g_list; }
+lv_obj_t *stats_scroller(void){ return g_sub ? g_subl : g_list; }
+/* host renders: open a section's top 15 / Wrapped (k: 0 artists, 1 albums, 2 songs) and its wrapped page */
+void stats_test_sub(int k){ sub_open(k); }
+void stats_test_wrap(int k, int page){
+    wrap_open(k);
+    if(page && g_wrap){ lv_obj_t *sc = lv_obj_get_child(g_wrap, 0); lv_obj_update_layout(sc); lv_obj_scroll_to_y(sc, 360, LV_ANIM_OFF); }
+}
 /* the landing page's button: read the numbers now, then show them */
 void stats_open(void){
     g_ptype = P_MONTH; g_poff = 0;

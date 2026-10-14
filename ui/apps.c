@@ -40,6 +40,11 @@ static void scan_apps(void){
         md5_hex("boomshine", 9, a->id);
         snprintf(a->name, sizeof a->name, "Boomshine"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_BOOMSHINE);
     }
+    if(sphere_ui_enabled()){   /* SongSphere too (since 2.2.0): the add-on's id, so its shortcuts keep working */
+        app_t *a = &g_apps[g_napps++];
+        md5_hex("songsphere", 10, a->id);
+        snprintf(a->name, sizeof a->name, "SongSphere"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_SPHERE);
+    }
     {   /* Listening Stats is built in too */
         app_t *a = &g_apps[g_napps++];
         md5_hex("builtin:stats", 13, a->id);
@@ -49,7 +54,7 @@ static void scan_apps(void){
     if(!d) return;
     struct dirent *de;
     while((de = readdir(d)) && g_napps < MAX_APPS){
-        if(de->d_name[0] == '.' || !strcmp(de->d_name, "boomshine")) continue;   /* an old separate install: the built-in one wins */
+        if(de->d_name[0] == '.' || !strcmp(de->d_name, "boomshine") || !strcmp(de->d_name, "songsphere")) continue;   /* built in now */   /* an old separate install: the built-in one wins */
         app_t *a = &g_apps[g_napps];
         /* Stable identity is the installation directory, never the display name.
          * A compact digest also fits the 47-byte configuration value limit. */

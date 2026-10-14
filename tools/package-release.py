@@ -10,8 +10,7 @@ meta=json.loads((root/'payload/mq_ui.build.json').read_text())
 assert meta['version']==version
 assert hashlib.sha256((root/'payload/mq_ui').read_bytes()).hexdigest()==meta['binary']['sha256']
 assert (root/'payload/mq_ui').stat().st_size==meta['binary']['bytes']
-apps=[('album-roulette','1.3.1','Album-Roulette-1.3.1.tar.gz','w:gz'),('disc-shelf','1.0.4','Disc-Shelf-1.0.4.tar','w'),
-      ('songsphere','1.0','SongSphere-1.0.tar','w')]
+apps=[('album-roulette','1.3.1','Album-Roulette-1.3.1.tar.gz','w:gz'),('disc-shelf','1.0.4','Disc-Shelf-1.0.4.tar','w')]
 allowed={'app','app.conf','shelf.conf.example','README.md','NOTICE.md','LICENSE','BUILD.json','CHANGELOG.md','HANDOFF.md'}
 entries=[];outputs=[]
 for name,appver,archive,mode in apps:
@@ -47,7 +46,7 @@ complete=out/f'diskos-disco-{version}-complete.zip'
 with zipfile.ZipFile(complete,'w',zipfile.ZIP_DEFLATED) as z:
     z.write(out/'mq_ui','mq_ui');z.write(out/'mq_ui.build.json','mq_ui.build.json')
     z.write(root/'RELEASE_INSTALL.md','INSTALL.md');z.write(root/f'docs/releases/v{version}.md','RELEASE-NOTES.md')
-    for name in ['UPDATING.md','WINDOWS.md','DISC_SHELF_INSTALL.md','ALBUM_ROULETTE_INSTALL.md','SONGSPHERE_INSTALL.md']:z.write(root/'docs'/name,'docs/'+name)
+    for name in ['UPDATING.md','WINDOWS.md','DISC_SHELF_INSTALL.md','ALBUM_ROULETTE_INSTALL.md']:z.write(root/'docs'/name,'docs/'+name)
     for name in ['LICENSE','NOTICE.md']:z.write(root/name,name)
     for f in entries:z.write(f,f.relative_to(root))
     for name,appver,archive,mode in apps:
