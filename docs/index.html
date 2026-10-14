@@ -136,14 +136,30 @@ section{padding:110px 0}
 @media (max-width:560px){.how{grid-template-columns:1fr}}
 
 /* ---- apps: the shelf ---- */
-.shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:70px}
-.app{background:var(--ink3);border-radius:28px;padding:30px 28px 32px;display:flex;flex-direction:column}
+.shelf{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;margin-top:70px}
+.app{background:var(--ink3);border-radius:28px;padding:30px 24px 30px;display:flex;flex-direction:column}
 .app .shot{width:58%;margin:-70px auto 22px}
 .app .kind{font-size:14px;color:var(--dim);margin-bottom:6px}
 .app p{color:var(--mist);font-size:16px;margin-top:10px}
 .app .more{margin-top:auto;padding-top:20px;border:0;align-self:flex-start}
 .app .more span{border-bottom:1px solid rgba(220,226,255,.35)}
-@media (max-width:900px){.shelf{grid-template-columns:1fr;gap:90px;margin-top:100px}.app .shot{width:44%}}
+@media (max-width:1100px){.shelf{grid-template-columns:1fr 1fr;row-gap:90px;margin-top:100px}}
+@media (max-width:640px){.shelf{grid-template-columns:1fr}.app .shot{width:44%}}
+
+/* ---- write your own app ---- */
+.dev-apps{margin-top:110px;display:grid;grid-template-columns:1fr 1fr;gap:28px 56px;align-items:start}
+.dev-intro h3{font-size:clamp(24px,2.6vw,32px)}
+.dev-intro p{margin-top:14px;max-width:48ch}
+.conf{margin:0;padding:20px 22px;background:#000;border:1px solid var(--line);border-radius:18px;overflow-x:auto;
+  font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#e7e9f2;position:relative}
+.conf::before{content:"";position:absolute;left:22px;right:22px;top:0;height:2px;background:var(--rainbow);opacity:.7}
+.conf .c{color:var(--dim)}
+.dev-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:22px}
+.dev-grid div{border-top:1px solid var(--line);padding-top:16px}
+.dev-grid h4{margin:0 0 8px;font-family:var(--display);font-weight:600;font-size:16px}
+.dev-grid p{color:var(--mist);font-size:15px}
+@media (max-width:980px){.dev-apps{grid-template-columns:1fr}.dev-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.dev-grid{grid-template-columns:1fr}}
 
 /* ---- every screen ---- */
 .toggle{display:inline-flex;padding:4px;border-radius:999px;background:var(--ink3);margin-top:26px}
@@ -254,8 +270,8 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
       <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
       <h1>Make it yours. <span>Play your way.</span></h1>
       <p class="lead">More than an MP3 player. diskOS Disco! turns the Snowsky Disc into a player built around your
-        albums and the way you listen: choose the look, the layout and the apps, then find the next record by mood,
-        by chance or by habit. Every piece is optional, and every piece is yours.</p>
+        albums and the way you listen: choose the look and the layout, fill it with apps (or write your own), and
+        find the next record by mood, by chance or by habit. Every piece is optional, and every piece is yours.</p>
       <div class="ctas">
         <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
         <a class="pill line" href="#install">Linux and SD updates</a>
@@ -462,9 +478,10 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap">
     <div class="split rev">
       <div>
-        <h2 class="stroke">Apps live in the circle.</h2>
-        <p class="lead" style="margin-top:22px">Add Apps to the navigation circle and pick up to five, each with its icon. Every app
-          opens on a landing page first, so stepping through the circle never starts anything by accident.</p>
+        <h2 class="stroke">A player with apps.</h2>
+        <p class="lead" style="margin-top:22px">Games, discovery, your server, your stats: the Disc runs apps, and they live right
+          in the navigation circle. Add Apps and pick up to five, each with its icon. Every app opens on a landing page
+          first, so stepping through the circle never starts anything by accident.</p>
         <ul class="points">
           <li><b>Choose apps:</b> tap to add or remove; the number is the order.</li>
           <li><b>Any installed app</b> can also sit in the circle on its own, or in Shortcuts.</li>
@@ -478,6 +495,14 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     </div>
 
     <div class="shelf">
+      <article class="app">
+        <div class="shot"><img src="disco/songsphere.png" alt="SongSphere" width="360" height="360" loading="lazy"></div>
+        <span class="kind">Built in</span>
+        <h3>SongSphere</h3>
+        <p>Place albums, artists and songs on a mood sphere, then drag to how you feel and play up to 40 songs that fit,
+          kept as a playlist if you like.</p>
+        <a class="more" href="#songsphere"><span>Play by mood</span></a>
+      </article>
       <article class="app">
         <div class="shot"><img src="disco/boomshine-neon.png" alt="Boomshine, NeoN look" width="360" height="360" loading="lazy"></div>
         <span class="kind">Built in</span>
@@ -502,6 +527,32 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
           files to the Disc. Files already on the card are skipped; nothing is overwritten.</p>
         <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISC_SHELF_INSTALL.md"><span>Install Disc Shelf</span></a>
       </article>
+    </div>
+
+    <div class="dev-apps">
+      <div class="dev-intro">
+        <h3>Write your own</h3>
+        <p class="muted">An app is a program in its own folder on the Disc. diskOS finds it, gives it a landing page and
+          a place in Apps, All apps, Shortcuts and the circle, and keeps it safe to try.</p>
+        <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md#apps-in-the-menu">How apps work</a>
+      </div>
+<pre class="conf"><span class="c"># /usr/data/apps/my-app/app.conf</span>
+name=My App
+exec=/usr/data/apps/my-app/app
+tagline=One line about it.
+about=Two short lines\nabout what it does.
+button=Open My App
+icon=icon.bmp</pre>
+      <div class="dev-grid">
+        <div><h4>Looks like the rest</h4><p>Before your app starts, diskOS hands it the theme's colours, light or dark, and the
+          screen rotation in <code>/tmp/diskos-app-env</code>, so it matches whatever the owner picked.</p></div>
+        <div><h4>Hands music back</h4><p>Leave a list of songs in <code>/tmp/diskos-app-request</code> when you exit and diskOS
+          plays them, in Shuffle if you ask, or keeps them as a playlist.</p></div>
+        <div><h4>Safe to try</h4><p>An app runs as its own program and nothing starts until its landing page's button is
+          tapped. Holding Volume Up for three seconds closes one that stopped responding.</p></div>
+        <div><h4>A working example</h4><p>SongSphere also builds as a stand-alone app from <code>ui/songsphere</code>: screens,
+          touch, theme colours, the library and the hand-over, in under a thousand lines.</p></div>
+      </div>
     </div>
   </div>
 </section>
