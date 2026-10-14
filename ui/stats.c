@@ -68,8 +68,9 @@ void stats_tick(const track_state_t *st, int playing){
     int have = st && st->have_track && st->path[0];
     if(!have){ rec_finish(); r_path[0] = 0; return; }
     if(strcmp(st->path, r_path)) { rec_finish(); rec_start(st); }
-    else if(playing && r_active && r_ms >= COUNT_MS && st->position_ms < 5000 && st->position_ms + 3000 < r_last_pos){
-        rec_finish(); rec_start(st);                                             /* the same song again (Repeat One) */
+    else if(st->position_ms < 5000 && st->position_ms + 3000 < r_last_pos){
+        rec_finish(); rec_start(st);   /* back to its start (Repeat One, a restart, a seek): a new attempt; rec_finish decides
+                                        * whether the one before counts, so short tries never add up into one play */
     }
     long long now = mono_ms();
     if(!playing){ r_last_pos = st->position_ms; r_last_ms = now; }              /* paused: a seek meanwhile never counts */

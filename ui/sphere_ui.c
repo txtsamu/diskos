@@ -15,6 +15,7 @@
 #include "musicdb.h"
 #include "songsphere/sphere.h"
 #include "songsphere/ssdb.h"
+#include "sqlite3.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,16 +46,37 @@ static lv_color_t ACC(void){ return ui_current_accent(); }
 int sphere_ui_enabled(void){ return cfg_get_int("songsphere", 1); }
 
 /* ---- data ---- */
+/* The add-on's placements, moved once with SQLite's own backup (never a raw byte copy): written to a temporary file,
+ * checked, then renamed into place. Any failure leaves no new file behind, so the next start simply tries again; until
+ * then SongSphere works on the add-on's file itself, so nothing ever looks lost. 1 = the new file holds them. */
+static int db_migrate(void){
+    sqlite3 *src = NULL, *dst = NULL; int ok = 0;
+    unlink(SS_DB_NEW ".tmp");
+    if(sqlite3_open_v2(SS_DB_OLD, &src, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK &&
+       sqlite3_open_v2(SS_DB_NEW ".tmp", &dst, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) == SQLITE_OK){
+        sqlite3_busy_timeout(src, 1500);
+        sqlite3_backup *bk = sqlite3_backup_init(dst, "main", src, "main");
+        if(bk){ int rc = sqlite3_backup_step(bk, -1); ok = sqlite3_backup_finish(bk) == SQLITE_OK && rc == SQLITE_DONE; }
+        if(ok){                                                                 /* the copy reads back whole */
+            sqlite3_stmt *st; ok = 0;
+            if(sqlite3_prepare_v2(dst, "PRAGMA quick_check;", -1, &st, NULL) == SQLITE_OK){
+                ok = sqlite3_step(st) == SQLITE_ROW && !strcmp((const char *)sqlite3_column_text(st, 0), "ok");
+                sqlite3_finalize(st);
+            }
+        }
+    }
+    if(src) sqlite3_close(src);
+    if(dst && sqlite3_close(dst) != SQLITE_OK) ok = 0;
+    if(ok && rename(SS_DB_NEW ".tmp", SS_DB_NEW) != 0) ok = 0;
+    if(!ok) unlink(SS_DB_NEW ".tmp");
+    return ok;
+}
 static int db_ready(void){
     if(g_ok) return 1;
-    if(access(SS_DB_NEW, F_OK) && !access(SS_DB_OLD, R_OK)){               /* the add-on's placements carry over */
-        FILE *i = fopen(SS_DB_OLD, "rb"), *o = i ? fopen(SS_DB_NEW ".tmp", "wb") : NULL; int ok = i && o;
-        char b[8192]; size_t n;
-        while(ok && (n = fread(b, 1, sizeof b, i)) > 0) ok = fwrite(b, 1, n, o) == n;
-        if(i) fclose(i);
-        if(o){ ok = fclose(o) == 0 && ok; if(ok) rename(SS_DB_NEW ".tmp", SS_DB_NEW); else unlink(SS_DB_NEW ".tmp"); }
-    }
-    ssdb_paths(NULL, SS_DB_NEW);
+    const char *path = SS_DB_NEW;
+    if(access(SS_DB_NEW, F_OK) && !access(SS_DB_OLD, R_OK) && !db_migrate())
+        path = SS_DB_OLD;                                                       /* not moved yet: use it where it is */
+    ssdb_paths(NULL, path);
     g_ok = ssdb_open();
     return g_ok;
 }

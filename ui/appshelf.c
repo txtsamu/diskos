@@ -94,9 +94,11 @@ lv_image_dsc_t *app_icon_load(const char *path, int size){
     uint32_t off = h[10] | h[11] << 8 | h[12] << 16 | (uint32_t)h[13] << 24;
     int32_t w = (int32_t)(h[18] | h[19] << 8 | h[20] << 16 | (uint32_t)h[21] << 24);
     int32_t ht = (int32_t)(h[22] | h[23] << 8 | h[24] << 16 | (uint32_t)h[25] << 24);
-    int bpp = h[28] | h[29] << 8, comp = h[30];
+    int bpp = h[28] | h[29] << 8;
+    uint32_t comp = h[30] | h[31] << 8 | h[32] << 16 | (uint32_t)h[33] << 24;   /* the whole 32-bit field */
+    if(ht < -512 || ht > 512) goto out;                                          /* (also keeps -ht in range) */
     int down = ht > 0; if(ht < 0) ht = -ht;
-    if((bpp != 24 && bpp != 32) || (comp != 0 && comp != 3) || w <= 0 || w > 512 || ht <= 0 || ht > 512) goto out;
+    if((bpp != 24 && bpp != 32) || comp != 0 /* BI_RGB only: bitfield BMPs need their masks */ || w <= 0 || w > 512 || ht <= 0 || ht > 512) goto out;
     size_t stride = ((size_t)w * (size_t)bpp / 8 + 3) & ~(size_t)3;
     src = malloc(stride * (size_t)ht); if(!src || fseek(f, (long)off, SEEK_SET) || fread(src, 1, stride * (size_t)ht, f) != stride * (size_t)ht) goto out;
     d = calloc(1, sizeof *d + (size_t)size * size * 4); if(!d) goto out;

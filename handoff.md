@@ -1,4 +1,16 @@
-# diskOS Disco handoff - 2.2.0 (2026-10-14)
+# diskOS Disco handoff - 2.2.1 (2026-10-14)
+
+## 2.2.1 specifics (fixes on 2.2.0)
+
+- main.c source_send: USB DAC sends work mode 1 (0657000C0001) instead of 8; device-tested by the owner.
+- stats.c stats_tick: any jump back to < 5 s (by > 3 s) starts a new attempt; rec_finish alone decides if it counts.
+- sphere_ui.c db_migrate: sqlite3_backup into songsphere.db.tmp, PRAGMA quick_check, rename; any failure removes the
+  tmp and uses /usr/data/apps/songsphere/sphere.db for that run (retried next start).
+- songsphere/ssdb.c ssdb_pick: cnt_get / cnt_add, only taken songs counted, probe bounded to HN.
+- roulette_spin.c: loader_main sets loader_done; left() starts reap_cb (500 ms) that joins a finished loader.
+- appshelf.c app_icon_load: 32-bit compression field, BI_RGB only; height bounded before negation.
+- Built with the GCC 11.2 MIPS toolchain (musl-cross-make 227df8b; sources from archive.ubuntu.com as below).
+
 
 ## 2.2.0 specifics
 

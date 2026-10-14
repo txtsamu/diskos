@@ -38,6 +38,15 @@ static const lv_style_prop_t press_properties[] = { LV_STYLE_TRANSFORM_WIDTH, LV
 static lv_anim_t text_scroll;
 static pthread_t loader;
 static int loader_joinable;
+static atomic_int loader_done;                       /* the loader thread has returned: joining it can't block */
+static lv_timer_t *reaper;
+static void *loader_main(void *arg){ void *r = prepare_albums(arg); atomic_store(&loader_done, 1); return r; }
+/* after leaving: collect the finished loader in the background, so its thread never lingers until the next visit */
+static void reap_cb(lv_timer_t *t){
+    if(loader_joinable && !atomic_load(&loader_done)) return;
+    if(loader_joinable){ pthread_join(loader, NULL); loader_joinable = 0; }
+    lv_timer_delete(t); reaper = NULL;
+}
 static lv_obj_t *ball_btn;
 static lv_obj_t *root_obj, *landing, *spin, *status_label, *discs[3], *title, *artist, *ball, *hint, *fade, *orbit_ball, *selection_mark;
 static lv_obj_t *error_panel, *error_text;
@@ -219,11 +228,12 @@ static void place_orbit(float degrees){
     int y = (int)lroundf(orbit[a].y + (orbit[b].y - orbit[a].y) * f);
     lv_obj_set_pos(orbit_ball, x - 5, y - 5);
 }
-/* Leaving the screen: stop a preparation still running (its thread is collected on the next visit) */
+/* Leaving the screen: stop a preparation still running (its thread is collected once it has returned) */
 static void left(void){
     stage = LEFT; atomic_store(&cancelled, 1);
     lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP); lv_label_set_long_mode(artist, LV_LABEL_LONG_CLIP);
     if(anim_timer) lv_timer_pause(anim_timer);
+    if(loader_joinable && !reaper) reaper = lv_timer_create(reap_cb, 500, NULL);
 }
 static void timer(lv_timer_t *unused){
     (void)unused; uint32_t now = lv_tick_get();
@@ -350,7 +360,8 @@ void roulette_spin_open(void){
     if(!anim_timer) anim_timer = lv_timer_create(timer, FRAME_MS, NULL);
     lv_timer_set_period(anim_timer, FRAME_MS); lv_timer_resume(anim_timer);
     pthread_attr_t attr; pthread_attr_init(&attr); pthread_attr_setstacksize(&attr, 512 * 1024);
-    loader_joinable = !pthread_create(&loader, &attr, prepare_albums, NULL);
+    atomic_store(&loader_done, 0);
+    loader_joinable = !pthread_create(&loader, &attr, loader_main, NULL);
     pthread_attr_destroy(&attr);
     if(!loader_joinable){ snprintf(load_error, sizeof load_error, "Couldn't start.\nTry again."); atomic_store(&prepared, -1); }
     screen_show(SCR_ROULETTE_SPIN);

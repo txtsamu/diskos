@@ -506,9 +506,11 @@ static int source_send(int mode){
         case 0:
             if(ipc_send_cmd("0642000C0000") < 0) return -1;
             return ipc_send_cmd("0657000C0008");
-        case 1:
+        case 1:                                          /* USB DAC: the player's own USB DAC work mode (1). With 8 (local
+                                                          * playback) the gadget binds and the host plays, but the player
+                                                          * never reads the incoming audio: silent on the latest firmware. */
             if(ipc_send_cmd("0642000C0002") < 0) return -1;
-            return ipc_send_cmd("0657000C0008");
+            return ipc_send_cmd("0657000C0001");
         case 2:
             if(ipc_send_cmd("0818000C0000") < 0 || ipc_send_cmd("0642000C0000") < 0) return -1;
             return ipc_send_cmd("0657000C0006");

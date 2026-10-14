@@ -6,7 +6,23 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
-## [2.2.0] - 2026-10-14
+## [2.2.1] - 2026-10-14
+
+SD update from 1.4.1 or later (no reflash). Fixes only.
+
+- Fixed: USB DAC was silent on the latest firmware: the player now gets its own USB DAC work mode (1), not local
+  playback (8).
+- Fixed: Listening Stats added up restarts of the same song: two 20-second tries counted as one 40-second play, and
+  short Repeat One loops merged. Every jump back to the start of a song is now a new attempt that counts on its own.
+- Fixed: SongSphere's move of the separate app's placements could leave them looking lost (a failed copy or rename
+  left an empty new file and was never tried again). It now uses SQLite's backup, checks the copy, and until it
+  succeeds SongSphere keeps using the old file and tries again on the next start.
+- Fixed: SongSphere could freeze while picking songs on very large libraries with thousands of albums (a full
+  counting table). Only picked songs are counted now, and the lookup is bounded.
+- Fixed: Album Roulette's loading thread is collected once it finishes after you leave, instead of on the next visit.
+- Fixed: app icons: the BMP compression field is read in full; bitfield BMPs (whose channel masks aren't read) are
+  no longer shown wrongly but fall back to the letter tile.
+
 
 SD update from 1.4.1 or later (no reflash).
 

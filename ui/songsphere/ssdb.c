@@ -120,10 +120,18 @@ typedef struct { int id; float d; unsigned alb, art; int recent, taken; } cand_t
 static unsigned hstr(const char *s){ unsigned h = 2166136261u; for(; *s; s++){ h ^= (unsigned char)*s; h *= 16777619u; } return h ? h : 1; }
 #define HN 4096
 typedef struct { unsigned k[HN]; unsigned char c[HN]; } counts_t;   /* how many picked per album / artist */
-static unsigned char *cnt(counts_t *t, unsigned k){
+/* Only songs actually picked are counted (at most `want` keys, far below HN), so the table never fills; the probe is
+ * bounded all the same. cnt_get: 0 for a key not seen; cnt_add: count one more (0 if, impossibly, the table is full). */
+static int cnt_slot(const counts_t *t, unsigned k){
     unsigned i = k & (HN - 1);
-    while(t->k[i] && t->k[i] != k) i = (i + 1) & (HN - 1);
-    t->k[i] = k; return &t->c[i];
+    for(int n = 0; n < HN; n++, i = (i + 1) & (HN - 1)) if(!t->k[i] || t->k[i] == k) return (int)i;
+    return -1;
+}
+static unsigned cnt_get(const counts_t *t, unsigned k){ int i = cnt_slot(t, k); return i >= 0 && t->k[i] == k ? t->c[i] : 0; }
+static int cnt_add(counts_t *t, unsigned k){
+    int i = cnt_slot(t, k); if(i < 0) return 0;
+    t->k[i] = k; if(t->c[i] < 255) t->c[i]++;
+    return 1;
 }
 static unsigned rnd_state;
 static float frand(void){ rnd_state = rnd_state * 1103515245u + 12345u; return (float)((rnd_state >> 8) & 0xFFFFFF) / 16777216.0f; }
@@ -175,9 +183,9 @@ int ssdb_pick(float x, float y, int want, int **ids, float *radius_out){
             for(; i < n; i++){ if(w[i] <= 0) continue; pick -= w[i]; if(pick <= 0) break; }
             if(i >= n){ for(i = n - 1; i >= 0 && w[i] <= 0; i--); if(i < 0) break; }
             total -= w[i]; avail--; float wi = w[i]; w[i] = 0; (void)wi;
-            unsigned char *ca = cnt(&t[0], c[i].alb), *cr = cnt(&t[1], c[i].art);
-            if(capped && (*ca >= 3 || *cr >= 4)) continue;             /* full for now: may come back in the last round */
-            c[i].taken = 1; (*ca)++; (*cr)++; out[got++] = c[i].id;
+            if(capped && (cnt_get(&t[0], c[i].alb) >= 3 || cnt_get(&t[1], c[i].art) >= 4)) continue;   /* full for now: may come back in the last round */
+            cnt_add(&t[0], c[i].alb); cnt_add(&t[1], c[i].art);         /* only what is taken is ever counted */
+            c[i].taken = 1; out[got++] = c[i].id;
         }
         if(got >= want) break;
         if(r >= 2.0f){ if(!capped || round > 40) break; }

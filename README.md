@@ -113,7 +113,7 @@ everything it needs, flashes the Disc and later makes your SD updates. No termin
 Also in 2.0: no more false "Couldn't start playback" when a big playlist takes a moment to load. Everything from
 1.5.0 is here too: [Boomshine](docs/DISCO_TOUR.md#boomshine), any app in the navigation circle, and landing pages.
 
-All the details: [2.2 release notes](docs/releases/v2.2.0.md) · [2.1](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
+All the details: [2.2.1 fixes](docs/releases/v2.2.1.md) · [2.2 release notes](docs/releases/v2.2.0.md) · [2.1](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
