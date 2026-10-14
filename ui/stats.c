@@ -428,18 +428,34 @@ static lv_color_t cover_colour(const char *path){
     return theme_color_from_rgb(((uint32_t)(r > 255 ? 255 : r) << 16) | ((uint32_t)(g > 255 ? 255 : g) << 8) | (uint32_t)(b > 255 ? 255 : b));
 }
 /* a round or rounded picture: the cover scaled to `size`, else the theme surface with a glyph or a letter */
-static lv_obj_t *picture(lv_obj_t *p, int x, int y, int size, int round, const char *path, const char *fallback){
+/* the cover for a played track: its own, else (the art cache holds one cover per album for sure, not per track) the
+ * cover of another track of the same album, else its small thumb blown up. *scale_from: the source size to scale from */
+static const lv_image_dsc_t *cover_any(const char *path, const char *album, int size, int *scale_from){
+    *scale_from = 0;
+    const lv_image_dsc_t *img = cover_image(path, size);
+    if(!img && album && album[0]){
+        int ids[6], n = mdb_album_track_ids(album, ids, 6);
+        for(int i = 0; i < n && !img; i++){
+            char t[512]; t[0] = 0;
+            if(mdb_song_path(ids[i], t, sizeof t) && t[0] && strcmp(t, path ? path : "")) img = cover_image(t, size);
+        }
+    }
+    if(!img && size != 42 && (img = cover_image(path, 42))) *scale_from = 42;
+    else if(img && size > 148) *scale_from = 148;
+    return img;
+}
+static lv_obj_t *picture(lv_obj_t *p, int x, int y, int size, int round, const char *path, const char *album, const char *fallback){
     lv_obj_t *w = box(p, x, y, size, size, round ? LV_RADIUS_CIRCLE : (size > 60 ? 12 : 6), TC(SURFACE_RAISED), LV_OPA_COVER);
     lv_obj_set_style_clip_corner(w, true, 0);
-    const lv_image_dsc_t *img = cover_image(path, size);
+    int from; const lv_image_dsc_t *img = cover_any(path, album, size, &from);
     if(img){
         lv_obj_t *im = lv_image_create(w);
         lv_image_set_src(im, img);
-        if(size > 148){ lv_image_set_scale(im, (uint32_t)(256 * size / 148)); }
+        if(from){ lv_image_set_scale(im, (uint32_t)(256 * size / from)); }
         lv_obj_center(im);
     } else {
         lv_obj_t *l = lv_label_create(w); lv_label_set_text(l, fallback);
-        lv_obj_set_style_text_font(l, size >= 80 ? TF(UI_44) : size >= 40 ? TF(UI_22) : TF(UI_16), 0);
+        lv_obj_set_style_text_font(l, size >= 40 ? ui_font_cjk(28) : ui_font_cjk(16), 0);   /* any script's first letter */
         lv_obj_set_style_text_color(l, TC(ACCENT_PRIMARY), 0); lv_obj_center(l);
     }
     return w;
@@ -534,7 +550,7 @@ static void item_row(lv_obj_t *list, int k, int i){
         lv_obj_add_flag(text(r, it->name, 44, (ROW_H - lh) / 2, 150, ui_font_cjk(20), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
     } else if(k == K_ALB){
         char n[12]; snprintf(n, sizeof n, "%d", i + 1);
-        picture(r, 42, (ROW_H - 46) / 2, 46, 0, it->path, n);
+        picture(r, 42, (ROW_H - 46) / 2, 46, 0, it->path, k == K_ALB ? it->name : NULL, n);
         two_lines(r, 98, 120, it->name, it->sub);
     } else two_lines(r, 44, 150, it->name, it->sub);
     plays_right(r, it->plays, 0);
@@ -594,11 +610,19 @@ static void build_overview(void){
     }
     /* Week / Month / Year round the top: the chosen one in the middle, lit; its neighbours turned along the arc */
     static const char *const P[3] = { "Week", "Month", "Year" };
-    arc(b, 180, 180, 168, 34, 270 - 54, 270 + 54, TC(SURFACE), LV_OPA_COVER, 1);
+    arc(b, 180, 180, 168, 34, 270 - 60, 270 + 60, TC(SURFACE), LV_OPA_COVER, 1);
     arc(b, 180, 180, 168, 34, 270 - 18, 270 + 18, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
     for(int i = 0; i < 3; i++){
         int off = i - g_ptype; if(off < -1 || off > 1) continue;
         arc_label(b, P[i], off * 36, 151, off ? TF(UI_16) : TF(UI_20), off ? TC(TEXT_SECONDARY) : TC(ON_ACCENT));
+    }
+    /* < > at the arc's ends: it can be swiped (or tapped) to the next kind; dim where there is none */
+    for(int sd = -1; sd <= 1; sd += 2){
+        int on = sd < 0 ? g_ptype > P_WEEK : g_ptype < P_YEAR, lh = lv_font_get_line_height(TF(UI_16));
+        float ang = sd * 53 * 3.14159265f / 180.0f;
+        int cx = 180 + (int)lroundf(sinf(ang) * 168), cy = 180 - (int)lroundf(cosf(ang) * 168);
+        text(b, sd < 0 ? LV_SYMBOL_LEFT : LV_SYMBOL_RIGHT, cx - 12, cy - lh / 2, 24, TF(UI_16),
+             on ? TC(ACCENT_PRIMARY) : TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
     }
     strip(b, 0, 64, 0);                                                          /* on top: drag or tap it */
     /* the period, with the ones either side peeking in at the edges */
@@ -693,7 +717,7 @@ static void hero(int k){
     const item_t *top = &kind_items(k)[0];
     lv_obj_t *h = block(g_list, 186);
     char ini[8]; initial(top->name, ini, sizeof ini);
-    lv_obj_t *pic = picture(h, 124, 2, 112, k == K_ART, top->path, k == K_SONG ? LV_SYMBOL_AUDIO : ini);
+    lv_obj_t *pic = picture(h, 124, 2, 112, k == K_ART, top->path, k == K_ALB ? top->name : NULL, k == K_SONG ? LV_SYMBOL_AUDIO : ini);
     lv_obj_set_style_border_width(pic, 3, 0); lv_obj_set_style_border_color(pic, TC(ACCENT_PRIMARY), 0);
     lv_obj_set_ext_click_area(pic, 6);
     tap(pic, wrap_cb, k);
@@ -769,15 +793,15 @@ static void sub_open(int k){
 }
 /* Wrapped: two pages that snap - the covers as overlapping bubbles with the #1, then the top 5 with each one's colour */
 static void wrap_back_cb(lv_event_t *e){ (void)e; screen_back(); }
-static int artist_covers(const char *artist, char out[3][256]){
+static int artist_covers(const char *artist, char out[3][256], char alb[3][128]){
     sqlite3 *d = NULL; int n = 0;
     if(sqlite3_open_v2(STATS_DB_PATH, &d, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK){ if(d) sqlite3_close(d); return 0; }
     sqlite3_stmt *st;
-    if(sqlite3_prepare_v2(d, "SELECT MAX(PATH) FROM PLAY_LOG WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' AND "
+    if(sqlite3_prepare_v2(d, "SELECT MAX(PATH),ALBUM FROM PLAY_LOG WHERE AT>=?1 AND AT<?2 AND IFNULL(ALBUM,'')<>'' AND "
                              "(ARTIST=?3 OR AARTIST=?3 OR (','||REPLACE(REPLACE(ARTIST,', ',','),';',',')||',') LIKE '%,'||?3||',%') "
                              "GROUP BY ALBUM ORDER BY COUNT(*) DESC LIMIT 3;", -1, &st, NULL) == SQLITE_OK){
         sqlite3_bind_int64(st, 1, g_ra); sqlite3_bind_int64(st, 2, g_rb); sqlite3_bind_text(st, 3, artist, -1, SQLITE_STATIC);
-        while(n < 3 && sqlite3_step(st) == SQLITE_ROW) snprintf(out[n++], 256, "%s", col(st, 0));
+        while(n < 3 && sqlite3_step(st) == SQLITE_ROW){ snprintf(out[n], 256, "%s", col(st, 0)); snprintf(alb[n], 128, "%s", col(st, 1)); n++; }
         sqlite3_finalize(st);
     }
     sqlite3_close(d);
@@ -800,10 +824,10 @@ static void wrap_open(int k){
 
     /* page 1: the bubbles */
     lv_obj_t *p1 = block(sc, 360);
-    char paths[3][256]; int np = 0;
-    if(k == K_ART) np = artist_covers(it[0].name, paths);
-    else for(; np < 3 && np < n; np++) snprintf(paths[np], 256, "%s", it[np].path);
-    if(!np){ snprintf(paths[0], 256, "%s", it[0].path); np = 1; }
+    char paths[3][256], albs[3][128]; int np = 0;
+    if(k == K_ART) np = artist_covers(it[0].name, paths, albs);
+    else for(; np < 3 && np < n; np++){ snprintf(paths[np], 256, "%s", it[np].path); snprintf(albs[np], 128, "%s", k == K_ALB ? it[np].name : ""); }
+    if(!np){ snprintf(paths[0], 256, "%s", it[0].path); albs[0][0] = 0; np = 1; }
     lv_color_t glow = cover_colour(paths[0]);
     lv_obj_t *g = box(p1, 30, 20, 300, 300, LV_RADIUS_CIRCLE, glow, LV_OPA_20);   /* the #1's colour, softly behind */
     lv_obj_set_style_bg_grad_color(g, TC(CANVAS), 0); lv_obj_set_style_bg_grad_dir(g, LV_GRAD_DIR_VER, 0);
@@ -811,8 +835,8 @@ static void wrap_open(int k){
     for(int i = np - 1; i >= 0; i--){                                            /* the biggest on top */
         int s = np == 1 ? 150 : B[i].s, x = np == 1 ? 105 : B[i].x, y = np == 1 ? 58 : B[i].y;
         if(np == 2 && i == 0) x = 96;
-        char ini[8]; initial(it[0].name, ini, sizeof ini);
-        lv_obj_t *pc = picture(p1, x, y, s, 1, paths[i], ini);
+        char ini[8]; initial(it[k == K_ART ? 0 : i].name, ini, sizeof ini);              /* each bubble its own letter */
+        lv_obj_t *pc = picture(p1, x, y, s, 1, paths[i], albs[i], k == K_SONG ? LV_SYMBOL_AUDIO : ini);
         lv_obj_set_style_border_width(pc, 4, 0); lv_obj_set_style_border_color(pc, TC(CANVAS), 0);
         lv_obj_set_style_shadow_width(pc, 24, 0); lv_obj_set_style_shadow_color(pc, TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_shadow_opa(pc, LV_OPA_60, 0);
     }

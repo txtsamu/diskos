@@ -9,6 +9,9 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 ## [Unreleased]
 
 - Added: A surprise!
+- Fixed: Stats: album covers in the Wrapped bubbles and the #1 now come from any track of the album the art cache has
+  (else the small thumb), each bubble shows its own letter, and the letter draws in any script.
+- Changed: Stats: < > arrows at the ends of the Week / Month / Year arc show it can be swiped.
 
 ## [2.2.1] - 2026-10-14
 
