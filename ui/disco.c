@@ -48,7 +48,8 @@ static void open_queue(void){ queue_open(); }
 /* Theme-coloured vector icons (no new font glyph): Album Roulette's vinyl (three rings) and Boomshine's burst (a
  * filled dot inside a ring, with three small dots flying off). */
 static void stats_icon(lv_obj_t *label, int size){                 /* Listening Stats: four rising bars */
-    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 3) return;
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 3){   /* already drawn: clear the "@..." */
+        lv_label_set_text(label, ""); lv_obj_set_size(label, size, size); return; }      /* name the caller just set as text */
     lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)3);
     lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
     lv_color_t color = lv_obj_get_style_text_color(label, 0);
@@ -63,7 +64,8 @@ static void stats_icon(lv_obj_t *label, int size){                 /* Listening 
     }
 }
 static void apps_icon(lv_obj_t *label, int size){                  /* Apps: four rounded tiles */
-    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 4) return;
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 4){   /* already drawn: clear the "@..." */
+        lv_label_set_text(label, ""); lv_obj_set_size(label, size, size); return; }      /* name the caller just set as text */
     lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)4);
     lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
     lv_color_t color = lv_obj_get_style_text_color(label, 0);
@@ -77,7 +79,8 @@ static void apps_icon(lv_obj_t *label, int size){                  /* Apps: four
     }
 }
 static void sphere_icon(lv_obj_t *label, int size){                /* SongSphere: a ball with its marker (a dot in a ring) */
-    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 5) return;
+    if(lv_obj_get_child_count(label) && (intptr_t)lv_obj_get_user_data(label) == 5){   /* already drawn: clear the "@..." */
+        lv_label_set_text(label, ""); lv_obj_set_size(label, size, size); return; }      /* name the caller just set as text */
     lv_obj_clean(label); lv_obj_set_user_data(label, (void *)(intptr_t)5);
     lv_label_set_text(label, ""); lv_obj_set_size(label, size, size);
     lv_color_t color = lv_obj_get_style_text_color(label, 0);
