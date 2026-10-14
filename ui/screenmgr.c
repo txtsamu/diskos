@@ -263,6 +263,7 @@ void screen_back(void)
     if (s_sp <= 0) return;
     int from = s_current;
     int prev = s_stack[--s_sp];
+    if(prev == SCR_ROULETTE_SPIN && s_sp > 0) prev = s_stack[--s_sp];   /* a finished spin: back to its landing page */
     s_current = prev;
     s_popping = 1; transition(from, prev, -1); s_popping = 0;
 }
@@ -347,6 +348,7 @@ void screens_init(void)
     s_roots[SCR_MODEINFO]  = screen_make_root(parent);
     s_roots[SCR_MA]        = screen_make_root(parent);
     s_roots[SCR_ROULETTE]  = screen_make_root(parent);
+    s_roots[SCR_ROULETTE_SPIN] = screen_make_root(parent);
     s_roots[SCR_APPLAND]   = screen_make_root(parent);
     s_roots[SCR_STATS]     = screen_make_root(parent);
     s_roots[SCR_APPSHELF]  = screen_make_root(parent);
@@ -384,6 +386,7 @@ void screens_init(void)
     modeinfo_create(s_roots[SCR_MODEINFO]);
     ma_create(s_roots[SCR_MA]);
     roulette_create(s_roots[SCR_ROULETTE]);
+    roulette_spin_create(s_roots[SCR_ROULETTE_SPIN]);
     applanding_create(s_roots[SCR_APPLAND]);
     stats_create(s_roots[SCR_STATS]);
     appshelf_create(s_roots[SCR_APPSHELF]);

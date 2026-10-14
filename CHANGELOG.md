@@ -15,6 +15,11 @@ SD update from 1.4.1 or later (no reflash).
   (the song's mood in its colour, or Set mood). Play a mood from SongSphere's own screen (Disco Menu, Apps, All apps).
   Placements live in `/usr/data/songsphere.db`; the 2.1 add-on's placements are taken over the first time. A separate
   install in `/usr/data/apps/songsphere` is no longer used and can be removed.
+- Added: **Album Roulette is built in** (it was a separate app): I feel lucky! on its vinyl page shows the
+  roulette wheel while albums are prepared, then the spin starts by itself; Play! or the cover plays the album in
+  track order; hold the cover for another spin. It's in Apps, All apps and the Disco Menu without installing
+  anything, and reuses the old app's cover cache. A separate install in `/usr/data/apps/album-roulette` is no longer
+  used and can be removed.
 - Added: **Apps**, a Disco Menu section: up to five apps you choose (Choose apps), each with its icon, opening its
   landing page. Apps can ship an icon (`icon=` in `app.conf`, else `icon.bmp`).
 - Changed: **Listening Stats**: Week / Month / Year on an arc and the period as a strip you swipe (or tap a

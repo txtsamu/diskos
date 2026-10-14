@@ -45,6 +45,11 @@ static void scan_apps(void){
         md5_hex("songsphere", 10, a->id);
         snprintf(a->name, sizeof a->name, "SongSphere"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_SPHERE);
     }
+    {   /* Album Roulette too (since 2.2.0), under its old folder's id, so shortcuts and pins keep working */
+        app_t *a = &g_apps[g_napps++];
+        md5_hex("album-roulette", 14, a->id);
+        snprintf(a->name, sizeof a->name, "Album Roulette"); snprintf(a->exec, sizeof a->exec, "%s", APP_BUILTIN_ROULETTE);
+    }
     {   /* Listening Stats is built in too */
         app_t *a = &g_apps[g_napps++];
         md5_hex("builtin:stats", 13, a->id);
@@ -54,7 +59,7 @@ static void scan_apps(void){
     if(!d) return;
     struct dirent *de;
     while((de = readdir(d)) && g_napps < MAX_APPS){
-        if(de->d_name[0] == '.' || !strcmp(de->d_name, "boomshine") || !strcmp(de->d_name, "songsphere")) continue;   /* built in now */   /* an old separate install: the built-in one wins */
+        if(de->d_name[0] == '.' || !strcmp(de->d_name, "boomshine") || !strcmp(de->d_name, "songsphere") || !strcmp(de->d_name, "album-roulette")) continue;   /* built in now */   /* an old separate install: the built-in one wins */
         app_t *a = &g_apps[g_napps];
         /* Stable identity is the installation directory, never the display name.
          * A compact digest also fits the 47-byte configuration value limit. */

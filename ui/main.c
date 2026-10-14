@@ -1504,7 +1504,7 @@ static char g_app_exec[256];
 static int  g_app_pending = 0;
 void app_launch_direct(const char *exec){ snprintf(g_app_exec, sizeof g_app_exec, "%s", exec); g_app_pending = 1; }
 void app_launch(const char *exec){
-    if(!strcmp(exec, "/usr/data/apps/album-roulette/app")){
+    if(!strcmp(exec, APP_BUILTIN_ROULETTE) || !strcmp(exec, "/usr/data/apps/album-roulette/app")){   /* built in since 2.2.0 */
         screen_show(SCR_ROULETTE);
         return;
     }

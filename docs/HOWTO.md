@@ -177,6 +177,6 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 
 **Install from Windows.** Use the [Windows app](WINDOWS.md): Check, Prepare, Install, and later Update for SD updates.
 
-**Install Album Roulette or Disc Shelf.** They're separate from the interface: follow
-[Album Roulette](ALBUM_ROULETTE_INSTALL.md) or [Disc Shelf](DISC_SHELF_INSTALL.md). Open them from the navigation circle
-(add them in Disco Options > Disco Menu), All apps or a shortcut. Boomshine is built in: just add it.
+**Install Disc Shelf.** It's separate from the interface: follow [Disc Shelf](DISC_SHELF_INSTALL.md). Open it from
+the navigation circle (add it in Disco Options > Disco Menu), Apps, All apps or a shortcut. Boomshine, Album Roulette,
+Listening Stats and SongSphere are built in: just add them.

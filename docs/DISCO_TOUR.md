@@ -19,11 +19,11 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).
 - **Listening:** [Music](#music), [The title menu](#the-title-menu), [Queue and Up Next](#queue-and-up-next), [Equalizer](#equalizer), [Working mode](#working-mode), [MA Sendspin](#ma-sendspin-experimental), [Album Roulette](#album-roulette).
-- **Play:** [Boomshine](#boomshine), [Listening Stats](#listening-stats), [SongSphere](#songsphere), [Apps](#apps), [Apps in the menu](#apps-in-the-menu).
+- **Play:** [Boomshine](#boomshine), [Listening Stats](#listening-stats), [SongSphere](#songsphere), [Album Roulette](#album-roulette), [Apps](#apps), [Apps in the menu](#apps-in-the-menu).
 - **Your library:** [Library](#library), [Hold menus](#hold-menus), [Search](#search), [Shortcuts](#shortcuts).
 - **Make it yours:** [Settings](#settings), [Disco Options](#disco-options), [Themes](#themes).
 - **More:** [Weather](#weather), [Battery](#battery), [Updates and safety](#updates-and-safety), [Limits](#limits).
-- **Optional apps:** [Album Roulette](#album-roulette), [Disc Shelf](#disc-shelf).
+- **Optional apps:** [Disc Shelf](#disc-shelf).
 
 ## Getting around
 
@@ -695,28 +695,21 @@ tap. The winner plays in track order.
 
 ### How a spin works
 
-1. Open **Album Roulette** from the Disco main menu, Apps or an app shortcut. The firmware shows the vinyl
-   landing page. Tap **I feel lucky!** to launch the installed app.
-2. The app prepares its album selection from your local library. Its roulette-themed start screen has
-   **Surprise me** and **Exit**, with a small ball around the wheel while preparation is underway.
-3. Tap **Surprise me**. Round album covers fly from right to left, fast at first, then progressively slower
-   until the winning cover comes to rest. The album title and artist tell you what chance has picked.
-4. Tap the white **Play!** ball **or the winning cover**. The cover zooms and fades into the Music screen,
-   and the selected album starts in sequential order. You get the album experience, in track order.
-5. Fancy another go? **Long-press the winning cover** to return to the start screen for a fresh spin. It is
-   an intentionally unlabelled shortcut. **Exit** leaves the app without choosing an album to play.
+1. Open **Album Roulette** from the navigation circle, Apps, All apps or a shortcut: its vinyl page. Tap
+   **I feel lucky!**
+2. The roulette wheel turns while up to 37 albums from your library are prepared (covers you've seen before come
+   straight from the card's cache). Then the spin starts by itself: round covers fly from right to left, fast at
+   first, then slower, until the winner comes to rest with its title and artist.
+3. Tap the white **Play!** ball **or the winning cover**. The cover zooms into Music and the album plays in track
+   order.
+4. Fancy another go? **Hold the winning cover** for a fresh spin (the last three winners sit it out). Back, or
+   **Exit** on the wheel, returns to the vinyl page without playing anything.
 
-The current app only considers albums with **more than three tracks**. That keeps one-, two- and three-track
-entries out of the draw and helps avoid some incomplete imports, though it cannot prove that an album is complete.
-It works with your indexed local collection; it does not fetch new music for you.
+Only albums with **more than three tracks** take part. That keeps singles and stray tracks out of the draw. It works
+with your indexed local collection; it doesn't fetch new music.
 
-### Add it to your menu
-
-Album Roulette is a separate app in the release package: [install it](ALBUM_ROULETTE_INSTALL.md). SD updates
-of the interface don't install or change it.
-
-Add **Album Roulette** in Disco Options > Disco Menu; it can be reordered or removed like other entries. All apps
-and app shortcuts open the same landing page. **I feel lucky!** starts the app, or reminds you to install it.
+Album Roulette is **built in since 2.2.0**. If you installed the separate app before, it's no longer used:
+[remove it](ALBUM_ROULETTE_INSTALL.md).
 
 ![Album Roulette landing page, dark and light](disco/album-roulette-landing.png)
 

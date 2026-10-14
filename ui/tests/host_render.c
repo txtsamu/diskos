@@ -687,6 +687,14 @@ int main(int argc, char **argv){
         for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
+    if(!strncmp(argv[3],"roulette-",9)){           /* Album Roulette built in: roulette-<ms> after I feel lucky! (roulette-land: its page) */
+        screen_set_anim(0);screens_init();
+        if(!strcmp(argv[3],"roulette-land")) screen_show(SCR_ROULETTE);
+        else { roulette_spin_open(); int ms=atoi(argv[3]+9);
+            for(int t=0;t<ms;t+=10){ lv_tick_inc(10); lv_timer_handler(); if(t%200==0) usleep(2000); } }
+        for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
     if(!strncmp(argv[3],"statsapp",8)){           /* Listening Stats (stats.c) on a seeded PLAY_LOG; statsapp-land = its landing page */
         stats_seed_demo();
         screen_set_anim(0);screens_init();

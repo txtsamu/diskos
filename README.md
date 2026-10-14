@@ -124,8 +124,8 @@ All the details: [2.2 release notes](docs/releases/v2.2.0.md) · [2.1](docs/rele
 - **Boomshine.** A built-in chain-reaction game: one tap, one blast, as many dots as you can catch.
   [How to play](docs/DISCO_TOUR.md#boomshine).
 - **Album Roulette.** Too much music, nothing to play? Spin your collection: covers fly past, slow down and
-  land on an album. Tap **Play!** to listen, long-press to spin again. A separate app in the release package:
-  [install it](docs/ALBUM_ROULETTE_INSTALL.md), [how it works](docs/DISCO_TOUR.md#album-roulette).
+  land on an album. Tap **Play!** to listen, hold the cover to spin again. Built in:
+  [how it works](docs/DISCO_TOUR.md#album-roulette).
 - **Disc Shelf.** Browse your Navidrome server's artists and download original files to the card. Also a separate
   app: [install it](docs/DISC_SHELF_INSTALL.md), [what it does](docs/DISCO_TOUR.md#disc-shelf).
 - **Your apps in the menu.** Any installed app can sit in the navigation circle, with its own landing page.

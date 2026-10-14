@@ -5,12 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-static void launch_cb(lv_event_t *e){
-    (void)e;
-    const char *app = "/usr/data/apps/album-roulette/app";
-    if(access(app, X_OK)){ ui_toast("Install Album Roulette from the release app package."); return; }
-    app_launch_direct(app);
-}
+static void launch_cb(lv_event_t *e){ (void)e; roulette_spin_open(); }   /* built in since 2.2.0 */
 static lv_obj_t *text(lv_obj_t *root, const char *s, int y, int width, const lv_font_t *font, lv_color_t color){
     lv_obj_t *l = lv_label_create(root);
     lv_label_set_text(l, s); lv_obj_set_width(l, width);
