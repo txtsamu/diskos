@@ -9,7 +9,7 @@
  *
  * Cost on the GPU-less renderer: the disc itself (grooves, its rainbow sheen, the hub) is one 360 px picture made once
  * and never redrawn - a real CD's reflections stay with the light, not the disc, so only what is printed on it turns:
- * two marks on the hub and the 24 short coloured arcs of its rim. Those are small areas; nothing is scaled, masked or
+ * two marks on the hub and the 36 coloured arcs of its rim. Those are small areas; nothing is scaled, masked or
  * blurred. The word unrolls inside a plain rectangular clip. */
 #include "screens.h"
 #include "theme.h"
@@ -24,7 +24,7 @@
 #define SP_MS   2600            /* the whole splash */
 #define CDR     178             /* the disc's radius */
 #define HUBR    54              /* its clear centre */
-#define NRIM    24              /* coloured arcs round the rim */
+#define NRIM    36              /* coloured arcs round the rim */
 
 static struct {
     lv_obj_t *root, *cd, *rim[NRIM], *mark, *hubring, *banner, *dl, *clip, *rest;
@@ -45,7 +45,7 @@ static void rainbow(float h, float *r, float *g, float *b){   /* h 0..1 round th
 }
 static uint32_t rainbow_rgb(float h){
     float r, g, b; rainbow(h, &r, &g, &b);
-    return ((uint32_t)(255 * (0.25f + 0.75f * r)) << 16) | ((uint32_t)(255 * (0.25f + 0.75f * g)) << 8) | (uint32_t)(255 * (0.25f + 0.75f * b));
+    return ((uint32_t)(255 * (0.4f + 0.6f * r)) << 16) | ((uint32_t)(255 * (0.4f + 0.6f * g)) << 8) | (uint32_t)(255 * (0.4f + 0.6f * b));
 }
 
 /* ---- the disc, once ---- */
@@ -109,7 +109,7 @@ static void splash_frame(int ms){
     int a0 = ((int)ang % 360 + 360) % 360;
     for(int i = 0; i < NRIM; i++){
         int s = (a0 + i * 360 / NRIM) % 360;
-        lv_arc_set_bg_angles(g_sp.rim[i], s, s + 360 / NRIM - 2);
+        lv_arc_set_bg_angles(g_sp.rim[i], s, s + 360 / NRIM);
     }
     lv_arc_set_rotation(g_sp.mark, a0);
     lv_obj_set_style_opa(g_sp.mark, (lv_opa_t)(220 * (1 - speed * 0.85f) * (1 - seg(t, 0.56f, 0.62f))), 0);   /* blurs away at speed */
@@ -180,7 +180,7 @@ static int build(void){
     g_sp.cd = lv_image_create(g_sp.root); kit_keep(g_sp.cd);
     lv_image_set_src(g_sp.cd, &g_dsc); lv_obj_set_pos(g_sp.cd, 0, 0);
     for(int i = 0; i < NRIM; i++)                                   /* the turning rainbow rim */
-        g_sp.rim[i] = bare_arc(g_sp.cd, CDR - 1, 4, theme_color_from_rgb(rainbow_rgb((float)i / NRIM)), 200);
+        g_sp.rim[i] = bare_arc(g_sp.cd, CDR - 1, 4, theme_color_from_rgb(rainbow_rgb((float)i / NRIM)), 130);
     g_sp.mark = bare_arc(g_sp.cd, 42, 4, TC(FIXED_SPLASH_3), LV_OPA_COVER);   /* two marks on the hub, opposite */
     lv_arc_set_bg_angles(g_sp.mark, 0, 14);
     lv_obj_set_style_arc_opa(g_sp.mark, LV_OPA_COVER, LV_PART_INDICATOR); lv_obj_set_style_arc_color(g_sp.mark, TC(FIXED_SPLASH_3), LV_PART_INDICATOR);
