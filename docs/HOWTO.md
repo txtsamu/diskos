@@ -99,7 +99,7 @@ to reset it to 0 dB. Changes save to that preset.
 
 **Use the Disc as a USB DAC, Bluetooth DAC, USB stick or AirPlay speaker.** Pick Working mode in the navigation
 circle (or Mode in Quick Settings) and tap the mode. For USB storage, eject the card on your computer before
-going back to Playback (Modes, then Playback).
+going back to Playback (Modes, then Playback). USB DAC needs 2.2.1 or later on the latest player firmware.
 
 ## Make it yours
 

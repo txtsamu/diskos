@@ -282,6 +282,9 @@ mode has an accent outline and a tick; while a change is in progress, spinning a
 While a mode other than Playback is active, its own screen shows what is connected; tap **Modes** there, then
 **Playback**, to go back to normal listening.
 
+**USB DAC** needs 2.2.1 or later on the latest player firmware (V2.57): in 2.2.0 and earlier the computer played
+but the Disc stayed silent.
+
 <table>
 <tr>
 <td align="center" valign="top" width="33%"><img src="disco/modes.png" width="220" alt="Working mode"><br><sub>Working mode</sub></td>

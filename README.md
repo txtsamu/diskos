@@ -75,6 +75,9 @@ track popup, then play a mood. **Apps** puts up to five apps, with their icons, 
 **Listening Stats** gets swipeable periods, top 5s with a top 15 a tap away, and a Wrapped for each #1.
 [2.2 release notes](docs/releases/v2.2.0.md)
 
+**2.2.1** makes **USB DAC** play again on the latest firmware (it was silent) and fixes a few smaller things in
+Listening Stats, SongSphere and Album Roulette. [2.2.1 notes](docs/releases/v2.2.1.md)
+
 <table><tr>
 <td align="center" width="25%"><img src="docs/disco/songsphere.png" width="190" alt="SongSphere"><br><sub><b>SongSphere</b>: play by mood</sub></td>
 <td align="center" width="25%"><img src="docs/disco/apps-shelf.png" width="190" alt="Apps"><br><sub><b>Apps</b> in the circle</sub></td>
