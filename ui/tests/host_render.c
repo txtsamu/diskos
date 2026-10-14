@@ -695,6 +695,13 @@ int main(int argc, char **argv){
         for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
+    if(!strcmp(argv[3],"splashbench")){           /* the splash's cost per frame: ms of work per 40 ms step */
+        screen_set_anim(0);screens_init(); lv_obj_invalidate(lv_screen_active()); lv_refr_now(NULL);
+        for(int ms=0;ms<=2600;ms+=40){ struct timespec a,b,c; clock_gettime(CLOCK_MONOTONIC,&a);
+            splash_test_frame(ms); clock_gettime(CLOCK_MONOTONIC,&b); lv_refr_now(NULL); clock_gettime(CLOCK_MONOTONIC,&c);
+            printf("%5d frame %6.2f render %6.2f\n",ms,(b.tv_sec-a.tv_sec)*1e3+(b.tv_nsec-a.tv_nsec)/1e6,(c.tv_sec-b.tv_sec)*1e3+(c.tv_nsec-b.tv_nsec)/1e6); }
+        return 0;
+    }
     if(!strncmp(argv[3],"splash-",7)){             /* the boot splash standing at splash-<ms> */
         screen_set_anim(0);screens_init();
         splash_test_frame(atoi(argv[3]+7));

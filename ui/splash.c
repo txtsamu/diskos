@@ -141,21 +141,24 @@ static void splash_frame(int ms){
     float t = ms / (float)SP_MS;
     float rot = -0.6f + eio(seg(t, 0.2f, 1)) * 5.0f;
 
-    /* 1. the lights curl in */
-    float g = seg(t, 0, 0.42f), gone = 1 - seg(t, 0.36f, 0.46f);
+    /* 1. the lights curl in. Each has its own arrival time (spread over 0.30..0.47 of the splash), speeds up as it is
+     * drawn in, and shrinks and fades over the last fifth of its path into the ball - so they melt into it one by one
+     * while the ball brightens, rather than stopping short and all vanishing at once. */
     for(int i = 0; i < NSPECK; i++){
-        float p = ease(seg(g, g_sk_d[i], 1));
-        if(p >= 1 || gone <= 0){ lv_obj_add_flag(g_sp.speck[i], LV_OBJ_FLAG_HIDDEN); continue; }
+        float arrive = 0.30f + g_sk_d[i] * 1.4f;                      /* g_sk_d: 0..0.12 */
+        float p = seg(t, 0.0f, arrive); p = p * p * (3 - 2 * p);      /* smooth start, smooth landing */
+        float land = clampf((1 - p) / 0.2f);                          /* 1 while flying, to 0 as it lands */
+        if(land <= 0.02f){ lv_obj_add_flag(g_sp.speck[i], LV_OBJ_FLAG_HIDDEN); continue; }
         float ang = g_sk_a[i] + g_sk_spin[i] * (1 - p) * 1.4f, r = g_sk_r[i] * (1 - p);
         int x = (int)(BCX + cosf(ang) * r + g_sk_ex[i] * BR * 0.85f * p), y = (int)(BCY + sinf(ang) * r + g_sk_ey[i] * BR * 0.85f * p);
-        float tw = 0.55f + 0.45f * sinf(g_sk_tw[i] + t * 40);
+        float tw = 0.7f + 0.3f * sinf(g_sk_tw[i] + t * 40);
         lv_obj_remove_flag(g_sp.speck[i], LV_OBJ_FLAG_HIDDEN);
-        place(g_sp.speck[i], x, y, 2 + (i % 3));
-        lv_obj_set_style_opa(g_sp.speck[i], (lv_opa_t)(255 * gone * tw * clampf(p * 6)), 0);
+        place(g_sp.speck[i], x, y, (int)((2 + (i % 3)) * (0.4f + 0.6f * land) + 0.5f));
+        lv_obj_set_style_opa(g_sp.speck[i], (lv_opa_t)(255 * tw * land * clampf(t * 20)), 0);
     }
 
     /* 2. the ball */
-    float b = ease(seg(t, 0.33f, 0.5f)), out = 1 - seg(t, 0.9f, 1);
+    float b = seg(t, 0.30f, 0.50f), out = 1 - seg(t, 0.9f, 1); b = b * b * (3 - 2 * b);   /* brightens as the lights land */
     if(b > 0){
         /* the fade is drawn into the picture itself: an opaque copy every frame, never a blended one (that blend made
          * the hand-over from the lights to the ball stutter on the Disc) */
