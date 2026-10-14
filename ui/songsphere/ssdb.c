@@ -14,8 +14,10 @@
 static sqlite3 *g_lib, *g_ss;                          /* the library (read-only, with ours attached), ours (writes) */
 static int g_has_stats;                                /* PLAY_STATS exists: plays and recent plays are known */
 
-static const char *lib_path(void){ const char *p = getenv("SS_LIB"); return p ? p : "/usr/data/fiio/db/song.db"; }
-static const char *ss_path(void){ const char *p = getenv("SS_DB"); return p ? p : "/usr/data/apps/songsphere/sphere.db"; }
+static const char *g_lib_path, *g_ss_path;            /* set by ssdb_paths() (mq_ui), else the app's own */
+void ssdb_paths(const char *lib, const char *ss){ g_lib_path = lib; g_ss_path = ss; }
+static const char *lib_path(void){ const char *p = getenv("SS_LIB"); return p ? p : g_lib_path ? g_lib_path : "/usr/data/fiio/db/song.db"; }
+static const char *ss_path(void){ const char *p = getenv("SS_DB"); return p ? p : g_ss_path ? g_ss_path : "/usr/data/apps/songsphere/sphere.db"; }
 
 int ssdb_open(void){
     if(g_lib) return 1;

@@ -6,6 +6,28 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.2.0] - 2026-10-14
+
+SD update from 1.4.1 or later (no reflash).
+
+- Added: **SongSphere is built in** (Settings > Playback > SongSphere, on by default). Place albums, artists and now
+  single songs: a **Mood** action in the Library's album and artist hold menus, and a mood pill in Music's track popup
+  (the song's mood in its colour, or Set mood). Play a mood from SongSphere's own screen (Disco Menu, Apps, All apps).
+  Placements live in `/usr/data/songsphere.db`; the 2.1 add-on's placements are taken over the first time. A separate
+  install in `/usr/data/apps/songsphere` is no longer used and can be removed.
+- Added: **Album Roulette is built in** (it was a separate app): I feel lucky! on its vinyl page shows the
+  roulette wheel while albums are prepared, then the spin starts by itself; Play! or the cover plays the album in
+  track order; hold the cover for another spin. It's in Apps, All apps and the Disco Menu without installing
+  anything, and reuses the old app's cover cache. A separate install in `/usr/data/apps/album-roulette` is no longer
+  used and can be removed.
+- Added: **Apps**, a Disco Menu section: up to five apps you choose (Choose apps), each with its icon, opening its
+  landing page. Apps can ship an icon (`icon=` in `app.conf`, else `icon.bmp`).
+- Changed: **Listening Stats**: Week / Month / Year on an arc and the period as a strip you swipe (or tap a
+  neighbour); the overview counts songs, albums and artists. Top Artists, Top Albums and On repeat show their top 5;
+  tap a section's title for its top 15, or the #1 cover for its Wrapped (the covers as bubbles, then the top 5 with
+  their colour and time).
+- Docs: tour (Listening Stats, SongSphere, Apps), SongSphere page, website, README.
+
 ## [2.1.0] - 2026-10-13
 
 SD update from 1.4.1 or later (no reflash). SongSphere is a separate app, installed over SSH.

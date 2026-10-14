@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
+#include "md5.h"
 #include "screens.h"
 #include "onboarding.h"
 #include "quicksettings.h"
@@ -667,6 +668,33 @@ int main(int argc, char **argv){
         for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
+    if(!strncmp(argv[3],"ssphere-",8)){            /* SongSphere built in: ssphere-0 first page, -1 list, -3 play; ssphere-tag = an album's tag page */
+        screen_set_anim(0);screens_init();
+        if(!strcmp(argv[3],"ssphere-tag")) sphere_ui_tag(1,getenv("SS_KEY")?getenv("SS_KEY"):"Atlas",getenv("SS_KEY")?getenv("SS_KEY"):"Atlas");
+        else sphere_ui_test(atoi(argv[3]+8),getenv("SS_X")?(float)atof(getenv("SS_X")):0.4f,getenv("SS_Y")?(float)atof(getenv("SS_Y")):0.5f);
+        for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strncmp(argv[3],"appshelf",8)){            /* Apps (appshelf.c): the list; -pick = Choose apps; -land = the 3rd app's landing page */
+        if(getenv("APPS_PINS")){ char b[256]; snprintf(b,sizeof b,"%s",getenv("APPS_PINS")); int s=0;   /* folder names / built-in keys */
+            for(char *p=strtok(b,",");p&&s<5;p=strtok(NULL,",")){ char id[33],k[12]; md5_hex(p,strlen(p),id); snprintf(k,sizeof k,"apps_p%d",++s); cfg_set_str(k,id); }
+            while(s<5){ char k[12]; snprintf(k,sizeof k,"apps_p%d",++s); cfg_set_str(k,""); } }
+        screen_set_anim(0);screens_init();
+        if(!strcmp(argv[3],"appshelf-pick")) appshelf_pick_open();
+        else { appshelf_open();
+            if(!strcmp(argv[3],"appshelf-land")){ for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();}
+                lv_obj_t *l=appshelf_scroller(); lv_obj_t *r=lv_obj_get_child(l,3); assert(r); lv_obj_send_event(r,LV_EVENT_CLICKED,NULL); } }
+        for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
+    if(!strncmp(argv[3],"roulette-",9)){           /* Album Roulette built in: roulette-<ms> after I feel lucky! (roulette-land: its page) */
+        screen_set_anim(0);screens_init();
+        if(!strcmp(argv[3],"roulette-land")) screen_show(SCR_ROULETTE);
+        else { roulette_spin_open(); int ms=atoi(argv[3]+9);
+            for(int t=0;t<ms;t+=10){ lv_tick_inc(10); lv_timer_handler(); if(t%200==0) usleep(2000); } }
+        for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
     if(!strncmp(argv[3],"statsapp",8)){           /* Listening Stats (stats.c) on a seeded PLAY_LOG; statsapp-land = its landing page */
         stats_seed_demo();
         screen_set_anim(0);screens_init();
@@ -679,6 +707,8 @@ int main(int argc, char **argv){
             if(getenv("STATS_BACK")){ for(int k=0;k<atoi(getenv("STATS_BACK"));k++){ lv_obj_t *l=find_text(screen_get_root(SCR_STATS),LV_SYMBOL_LEFT); assert(l);
                 lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);} }
             for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();}
+            if(getenv("STATS_SUB")) stats_test_sub(atoi(getenv("STATS_SUB")));
+            if(getenv("STATS_WRAP")) stats_test_wrap(atoi(getenv("STATS_WRAP")),getenv("STATS_PAGE")?atoi(getenv("STATS_PAGE")):0);
             if(getenv("STATS_SCROLL")){ lv_obj_t *list=stats_scroller();
                 lv_obj_scroll_to_y(list,atoi(getenv("STATS_SCROLL")),LV_ANIM_OFF); lv_obj_send_event(list,LV_EVENT_SCROLL,NULL); }
         }

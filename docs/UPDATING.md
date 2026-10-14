@@ -15,7 +15,7 @@ build if the trial fails.
 > Already on 1.4.1 or later? 2.0 is an ordinary SD update.
 
 An SD update changes `mq_ui` (the interface) only. It doesn't touch the stock player, the boot scripts or the
-optional apps ([Album Roulette](ALBUM_ROULETTE_INSTALL.md), [Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
+optional app ([Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
 `mq_ui` is **not** signed with your keys yet; you sign it yourself (step 3).
 
 ## 1. Make keys and flash once

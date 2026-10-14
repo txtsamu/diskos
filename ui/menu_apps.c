@@ -25,7 +25,7 @@ void menu_apps_scan(void){
     while((de=readdir(d))){
         if(de->d_name[0]=='.')continue;
         /* Built into the menu already. */
-        if(!strcmp(de->d_name,"album-roulette")||!strcmp(de->d_name,"boomshine"))continue;
+        if(!strcmp(de->d_name,"album-roulette")||!strcmp(de->d_name,"boomshine")||!strcmp(de->d_name,"songsphere"))continue;   /* SongSphere: built in since 2.2.0 */
         char dir[512],conf[544];struct stat st;
         int len=snprintf(dir,sizeof dir,MENU_APPS_DIR "/%s",de->d_name);
         if(len<0 || (size_t)len>=sizeof dir || stat(dir,&st)<0 || !S_ISDIR(st.st_mode))continue;
@@ -53,12 +53,18 @@ void menu_apps_scan(void){
                 for(char *q=a->about;(q=strstr(q,"\\n"));){*q='\n';memmove(q+1,q+2,strlen(q+2)+1);}
             }
             else if(!strncmp(line,"button=",7))snprintf(a->button,sizeof a->button,"%.31s",line+7);
+            else if(!strncmp(line,"icon=",5)&&line[5]){                 /* relative: inside the app's folder */
+                if(line[5]=='/')snprintf(a->icon,sizeof a->icon,"%.255s",line+5);
+                else{int k=snprintf(a->icon,sizeof a->icon,"%s/%s",dir,line+5);if(k<0||(size_t)k>=sizeof a->icon)a->icon[0]=0;}
+            }
             else if(!strncmp(line,"exec=",5)){
                 if(strlen(line+5)<sizeof a->exec)memcpy(a->exec,line+5,strlen(line+5)+1);
                 else a->exec[0]=0;
             }
         }fclose(f);}
         if(!a->exec[0]||access(a->exec,X_OK))continue;
+        if(!a->icon[0]){char ic[544];snprintf(ic,sizeof ic,"%s/icon.bmp",dir);
+            if(strlen(ic)<sizeof a->icon&&!access(ic,R_OK))memcpy(a->icon,ic,strlen(ic)+1);}
         n++;
     }
     closedir(d);

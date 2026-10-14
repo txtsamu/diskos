@@ -19,11 +19,11 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).
 - **Listening:** [Music](#music), [The title menu](#the-title-menu), [Queue and Up Next](#queue-and-up-next), [Equalizer](#equalizer), [Working mode](#working-mode), [MA Sendspin](#ma-sendspin-experimental), [Album Roulette](#album-roulette).
-- **Play:** [Boomshine](#boomshine), [Listening Stats](#listening-stats), [Apps in the menu](#apps-in-the-menu).
+- **Play:** [Boomshine](#boomshine), [Listening Stats](#listening-stats), [SongSphere](#songsphere), [Album Roulette](#album-roulette), [Apps](#apps), [Apps in the menu](#apps-in-the-menu).
 - **Your library:** [Library](#library), [Hold menus](#hold-menus), [Search](#search), [Shortcuts](#shortcuts).
 - **Make it yours:** [Settings](#settings), [Disco Options](#disco-options), [Themes](#themes).
 - **More:** [Weather](#weather), [Battery](#battery), [Updates and safety](#updates-and-safety), [Limits](#limits).
-- **Optional apps:** [SongSphere](#songsphere), [Album Roulette](#album-roulette), [Disc Shelf](#disc-shelf).
+- **Optional apps:** [Disc Shelf](#disc-shelf).
 
 ## Getting around
 
@@ -594,25 +594,40 @@ If the game ever stops responding, hold **Volume Up** for 3 seconds to close it.
 ## Listening Stats
 
 **Your music, in numbers.** Built in: add **Stats** to the menu (Disco Options > Disco Menu), or open
-**Listening Stats** from All apps or a Shortcut. Its landing page reads nothing until you tap **Show me**.
+**Listening Stats** from Apps, All apps or a Shortcut. Its landing page reads nothing until you tap **Show me**.
 
-- **Week, Month or Year** at the top; the arrows step back through earlier ones.
+- **Week, Month or Year** on the arc at the top; swipe the period below it (or tap a neighbour) to go back in time.
 - **The overview:** how long you listened, how that compares (while a period is running, with the same stretch of the
-  one before), and your plays, songs and best run of days in a row.
-- **Top artists, top albums, on repeat:** your favourites with their covers, ten of each. Tap a song to play it.
+  one before), and how many songs, albums and artists.
+- **Top Artists, Top Albums, On repeat:** the top 5 of each, the #1 big with its cover. Tap a section's title for its
+  **top 15**; tap the #1 cover for its **Wrapped**: the covers as bubbles, then the top 5 with their colour and time.
   Artists follow Settings > Playback > Artists (by artist or by album artist).
 - **When you listen:** your listening by the hour, round the rim, with your busiest hour in the middle.
 
 Scroll it like the Library. A song counts once it has played for 30 seconds (or almost all of a shorter one), and
-only the time it really played adds up: pauses and skipping ahead don't. Audiobooks are left out. Stats start when
-you install this version, so the first weeks look thin; nothing leaves the Disc.
+only the time it really played adds up: pauses and skipping ahead don't. Audiobooks are left out. Nothing leaves the
+Disc.
 
 <table>
 <tr>
-<td align="center" valign="top" width="25%"><img src="disco/stats-landing.png" width="200" alt="Listening Stats landing page"><br><sub>Landing page</sub></td>
 <td align="center" valign="top" width="25%"><img src="disco/stats-overview.png" width="200" alt="The month at a glance"><br><sub>The month</sub></td>
 <td align="center" valign="top" width="25%"><img src="disco/stats-artists.png" width="200" alt="Top artists"><br><sub>Top artists</sub></td>
+<td align="center" valign="top" width="25%"><img src="disco/stats-wrapped.png" width="200" alt="Wrapped"><br><sub>Wrapped</sub></td>
 <td align="center" valign="top" width="25%"><img src="disco/stats-clock.png" width="200" alt="When you listen"><br><sub>When you listen</sub></td>
+</tr>
+</table>
+
+## Apps
+
+**Your apps, one tap away.** Add **Apps** to the menu (Disco Options > Disco Menu): up to five apps you choose, each
+with its icon. Tap one for its landing page. **Choose apps** (under the list) picks them: tap to add or remove; the
+number is the order. Until you choose, the first five are shown. App makers can give their app an icon: `icon=` in
+its `app.conf`, or an `icon.bmp` in its folder.
+
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><img src="disco/apps-shelf.png" width="200" alt="Apps"><br><sub>Apps</sub></td>
+<td align="center" valign="top" width="50%"><img src="disco/apps-choose.png" width="200" alt="Choose apps"><br><sub>Choose apps</sub></td>
 </tr>
 </table>
 
@@ -649,10 +664,17 @@ button=Open Disc Shelf
 
 ## SongSphere
 
-**Play by mood** (a separate app: [install it](SONGSPHERE_INSTALL.md)). Place albums and artists on a sphere, from
-Calm to Energetic and from Dark to Bright, by dragging the marker. Then drag to the mood you're in and play: up to 40
-songs from near that spot, a few per album and artist, recent plays less likely, in Shuffle, kept as a playlist if
-you like.
+**Music by mood**, built in since 2.2.0 (Settings > Playback > SongSphere turns it off). Place your music on a sphere,
+from Calm to Energetic and from Dark to Bright, by dragging the marker, then drag to the mood you're in and play.
+
+- **Place music:** in SongSphere (Place Music: albums or artists, most played first), or straight from where you
+  are: hold an album or an artist in the Library and choose **Mood**, or tap the mood pill in Music's track popup to
+  place the song playing. A song uses its own spot, else its album's, else its artist's; the pill shows which.
+- **Play a mood:** open SongSphere (Disco Menu, Apps, All apps), **Play Music**, drag the marker, **Play mood**: up to
+  40 songs from near that spot, a few per album and artist, recent plays less likely, in Shuffle, kept as a playlist
+  if you like.
+
+Placements live on the Disc (`/usr/data/songsphere.db`). If you used the 2.1 add-on, they carry over.
 
 <table>
 <tr>
@@ -673,28 +695,21 @@ tap. The winner plays in track order.
 
 ### How a spin works
 
-1. Open **Album Roulette** from the Disco main menu, Apps or an app shortcut. The firmware shows the vinyl
-   landing page. Tap **I feel lucky!** to launch the installed app.
-2. The app prepares its album selection from your local library. Its roulette-themed start screen has
-   **Surprise me** and **Exit**, with a small ball around the wheel while preparation is underway.
-3. Tap **Surprise me**. Round album covers fly from right to left, fast at first, then progressively slower
-   until the winning cover comes to rest. The album title and artist tell you what chance has picked.
-4. Tap the white **Play!** ball **or the winning cover**. The cover zooms and fades into the Music screen,
-   and the selected album starts in sequential order. You get the album experience, in track order.
-5. Fancy another go? **Long-press the winning cover** to return to the start screen for a fresh spin. It is
-   an intentionally unlabelled shortcut. **Exit** leaves the app without choosing an album to play.
+1. Open **Album Roulette** from the navigation circle, Apps, All apps or a shortcut: its vinyl page. Tap
+   **I feel lucky!**
+2. The roulette wheel turns while up to 37 albums from your library are prepared (covers you've seen before come
+   straight from the card's cache). Then the spin starts by itself: round covers fly from right to left, fast at
+   first, then slower, until the winner comes to rest with its title and artist.
+3. Tap the white **Play!** ball **or the winning cover**. The cover zooms into Music and the album plays in track
+   order.
+4. Fancy another go? **Hold the winning cover** for a fresh spin (the last three winners sit it out). Back, or
+   **Exit** on the wheel, returns to the vinyl page without playing anything.
 
-The current app only considers albums with **more than three tracks**. That keeps one-, two- and three-track
-entries out of the draw and helps avoid some incomplete imports, though it cannot prove that an album is complete.
-It works with your indexed local collection; it does not fetch new music for you.
+Only albums with **more than three tracks** take part. That keeps singles and stray tracks out of the draw. It works
+with your indexed local collection; it doesn't fetch new music.
 
-### Add it to your menu
-
-Album Roulette is a separate app in the release package: [install it](ALBUM_ROULETTE_INSTALL.md). SD updates
-of the interface don't install or change it.
-
-Add **Album Roulette** in Disco Options > Disco Menu; it can be reordered or removed like other entries. All apps
-and app shortcuts open the same landing page. **I feel lucky!** starts the app, or reminds you to install it.
+Album Roulette is **built in since 2.2.0**. If you installed the separate app before, it's no longer used:
+[remove it](ALBUM_ROULETTE_INSTALL.md).
 
 ![Album Roulette landing page, dark and light](disco/album-roulette-landing.png)
 

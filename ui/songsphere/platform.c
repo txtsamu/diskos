@@ -85,7 +85,8 @@ int platform_init(void){
     for(int i = 0; i < 20; i++){ if(fbpan_create("/dev/fb0")) break; if(i == 19) return 0; usleep(150000); }
     if(access("/usr/data/touch_off", 0) != 0){
         lv_indev_t *t = lv_evdev_create(LV_INDEV_TYPE_POINTER, "/dev/input/event1");
-        if(t){ fbpan_bind_touch(t); lv_indev_set_scroll_limit(t, 10); }
+        if(t){ fbpan_bind_touch(t); lv_indev_set_scroll_limit(t, 10); lv_indev_set_long_press_time(t, 900); }
     }
     return 1;
 }
+lv_color_t sphere_rgb(uint32_t rgb){ return lv_color_hex(rgb); }   /* the add-on: plain LVGL */

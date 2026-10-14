@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SR 148                                  /* ball radius */
+#define SR 164                                  /* ball radius: the whole screen but a 16 px rim (the back swipe starts there) */
 #define SW (2 * SR + 4)                         /* its picture */
 #define GW 120                                  /* the glow sprite */
 #define NPT 49                                  /* points per line */
@@ -179,16 +179,16 @@ lv_obj_t *sphere_create(lv_obj_t *parent, int cx, int cy, lv_color_t canvas){
     for(int k = 0; k < 2; k++){
         g_line[k] = lv_line_create(g_box);
         lv_obj_set_style_line_width(g_line[k], 2, 0); lv_obj_set_style_line_rounded(g_line[k], false, 0);   /* round joints would overlap into beads at 40 % */
-        lv_obj_set_style_line_color(g_line[k], lv_color_white(), 0); lv_obj_set_style_line_opa(g_line[k], LV_OPA_40, 0);
+        lv_obj_set_style_line_color(g_line[k], sphere_rgb(0xFFFFFF), 0); lv_obj_set_style_line_opa(g_line[k], LV_OPA_40, 0);
         lv_obj_remove_flag(g_line[k], LV_OBJ_FLAG_CLICKABLE); lv_obj_add_flag(g_line[k], LV_OBJ_FLAG_EVENT_BUBBLE);
     }
     g_ring = dot(g_box, 20);
-    lv_obj_set_style_border_width(g_ring, 2, 0); lv_obj_set_style_border_color(g_ring, lv_color_white(), 0);
-    lv_obj_set_style_outline_width(g_ring, 1, 0); lv_obj_set_style_outline_color(g_ring, lv_color_black(), 0);
+    lv_obj_set_style_border_width(g_ring, 2, 0); lv_obj_set_style_border_color(g_ring, sphere_rgb(0xFFFFFF), 0);
+    lv_obj_set_style_outline_width(g_ring, 1, 0); lv_obj_set_style_outline_color(g_ring, sphere_rgb(0x000000), 0);
     lv_obj_set_style_outline_opa(g_ring, LV_OPA_30, 0);
     g_core = dot(g_box, 8);
-    lv_obj_set_style_bg_color(g_core, lv_color_white(), 0);
-    lv_obj_set_style_outline_width(g_core, 1, 0); lv_obj_set_style_outline_color(g_core, lv_color_black(), 0);
+    lv_obj_set_style_bg_color(g_core, sphere_rgb(0xFFFFFF), 0);
+    lv_obj_set_style_outline_width(g_core, 1, 0); lv_obj_set_style_outline_color(g_core, sphere_rgb(0x000000), 0);
     lv_obj_set_style_outline_opa(g_core, LV_OPA_30, 0);
     lv_obj_add_event_cb(g_box, input_cb, LV_EVENT_ALL, NULL);
     g_x = g_y = 0; g_faded = 1; g_grab = 0; place();

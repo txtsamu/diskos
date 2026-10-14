@@ -68,6 +68,20 @@ replaces only what you see and touch.
 </tr>
 </table>
 
+## New in 2.2: SongSphere built in, Apps, a new Listening Stats
+
+**SongSphere** is now part of diskOS: place albums, artists and songs by mood from the Library's hold menu or Music's
+track popup, then play a mood. **Apps** puts up to five apps, with their icons, in the navigation circle.
+**Listening Stats** gets swipeable periods, top 5s with a top 15 a tap away, and a Wrapped for each #1.
+[2.2 release notes](docs/releases/v2.2.0.md)
+
+<table><tr>
+<td align="center" width="25%"><img src="docs/disco/songsphere.png" width="190" alt="SongSphere"><br><sub><b>SongSphere</b>: play by mood</sub></td>
+<td align="center" width="25%"><img src="docs/disco/apps-shelf.png" width="190" alt="Apps"><br><sub><b>Apps</b> in the circle</sub></td>
+<td align="center" width="25%"><img src="docs/disco/stats-overview.png" width="190" alt="Listening Stats"><br><sub><b>Stats</b>: swipe through time</sub></td>
+<td align="center" width="25%"><img src="docs/disco/stats-wrapped.png" width="190" alt="Wrapped"><br><sub><b>Wrapped</b> for each #1</sub></td>
+</tr></table>
+
 ## New in 2.1: Listening Stats and SongSphere
 
 **Listening Stats** shows your week, month or year in music: time, top artists, albums and songs, and when you
@@ -99,18 +113,19 @@ everything it needs, flashes the Disc and later makes your SD updates. No termin
 Also in 2.0: no more false "Couldn't start playback" when a big playlist takes a moment to load. Everything from
 1.5.0 is here too: [Boomshine](docs/DISCO_TOUR.md#boomshine), any app in the navigation circle, and landing pages.
 
-All the details: [2.1 release notes](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
+All the details: [2.2 release notes](docs/releases/v2.2.0.md) · [2.1](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
 
 ## Highlights
 
 - **Listening Stats.** Your week, month or year in music, built in. [What it shows](docs/DISCO_TOUR.md#listening-stats).
-- **SongSphere.** Play by mood: place albums and artists on a sphere, then pick a mood. A separate app:
-  [install it](docs/SONGSPHERE_INSTALL.md).
+- **SongSphere.** Play by mood: place albums, artists and songs on a sphere, then pick a mood. Built in.
+  [How it works](docs/DISCO_TOUR.md#songsphere).
+- **Apps.** Up to five apps, with their icons, in the navigation circle. [More](docs/DISCO_TOUR.md#apps).
 - **Boomshine.** A built-in chain-reaction game: one tap, one blast, as many dots as you can catch.
   [How to play](docs/DISCO_TOUR.md#boomshine).
 - **Album Roulette.** Too much music, nothing to play? Spin your collection: covers fly past, slow down and
-  land on an album. Tap **Play!** to listen, long-press to spin again. A separate app in the release package:
-  [install it](docs/ALBUM_ROULETTE_INSTALL.md), [how it works](docs/DISCO_TOUR.md#album-roulette).
+  land on an album. Tap **Play!** to listen, hold the cover to spin again. Built in:
+  [how it works](docs/DISCO_TOUR.md#album-roulette).
 - **Disc Shelf.** Browse your Navidrome server's artists and download original files to the card. Also a separate
   app: [install it](docs/DISC_SHELF_INSTALL.md), [what it does](docs/DISCO_TOUR.md#disc-shelf).
 - **Your apps in the menu.** Any installed app can sit in the navigation circle, with its own landing page.

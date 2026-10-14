@@ -1,4 +1,21 @@
-# diskOS Disco handoff - 2.1.0 (2026-10-13)
+# diskOS Disco handoff - 2.2.0 (2026-10-14)
+
+## 2.2.0 specifics
+
+- SongSphere built in: sphere_ui.c (SCR_SPHERE; pages land / list / tag / play) sharing ui/songsphere/sphere.c + ssdb.c
+  with the add-on program. DB /usr/data/songsphere.db (migrated from /usr/data/apps/songsphere/sphere.db). cfg
+  songsphere (Settings > Playback). Mood: songmenu A_MOOD (album/artist), Music track popup mood pill (ov_mood_pill).
+  ui_app_play_ids (main.c) shared by the app request hook and SongSphere. The add-on folder is skipped by All apps.
+  sphere_rgb(): content colours made by the host program (mq_ui: theme_color_from_rgb; add-on: lv_color_hex).
+- Album Roulette built in: roulette_spin.c (SCR_ROULETTE_SPIN: the 1.3.1 app's spin, timings and gestures) +
+  roulette_backend.c (its sampler / cover cache / diskos-artdec decoding, verbatim; play via mdb_album_plan +
+  ui_play_plan in track order) + roulette_rim.h (the wheel picture). roulette.c's I feel lucky! -> roulette_spin_open().
+  APP_BUILTIN_ROULETTE; ids md5("album-roulette") kept; the old folder is skipped; screen_back skips a finished spin.
+  Host: roulette-land, roulette-<ms>.
+- Apps (appshelf.c, SCR_APPSHELF, Disco Menu code A): five pinned apps (cfg apps_p1..5 = app ids), picker, icons from
+  app.conf icon= / icon.bmp (menu_app_t.icon).
+- Listening Stats: TOPN 15, main list top 5 + sub-views (stats_test_sub) and Wrapped (stats_test_wrap); swipe strips.
+- Host: ssphere-0/1/3, ssphere-tag (SS_KEY), appshelf, appshelf-pick, appshelf-land (APPS_PINS); STATS_SUB, STATS_WRAP.
 
 ## 2.1.0 specifics
 

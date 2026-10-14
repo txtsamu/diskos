@@ -1504,7 +1504,7 @@ static char g_app_exec[256];
 static int  g_app_pending = 0;
 void app_launch_direct(const char *exec){ snprintf(g_app_exec, sizeof g_app_exec, "%s", exec); g_app_pending = 1; }
 void app_launch(const char *exec){
-    if(!strcmp(exec, "/usr/data/apps/album-roulette/app")){
+    if(!strcmp(exec, APP_BUILTIN_ROULETTE) || !strcmp(exec, "/usr/data/apps/album-roulette/app")){   /* built in since 2.2.0 */
         screen_show(SCR_ROULETTE);
         return;
     }
@@ -1512,6 +1512,7 @@ void app_launch(const char *exec){
         boomshine_landing();
         return;
     }
+    if(!strcmp(exec, APP_BUILTIN_SPHERE)){ sphere_ui_open(); return; }   /* built in: a screen of mq_ui */
     if(!strcmp(exec, APP_BUILTIN_STATS)){
         stats_landing();
         return;
@@ -1581,10 +1582,14 @@ static void app_request_take(void){
         }
     }
     fclose(f); unlink(APP_REQ_PATH);
-    if(ok && n > 0) n = mdb_keep_song_ids(ids, n);
-    if(!ok || n <= 0){ free(ids); if(ok) ui_toast("Nothing to play"); return; }
-    int play = !strcmp(action, "play") || !strcmp(action, "playsave"), save = !strcmp(action, "save") || !strcmp(action, "playsave");
-    if(save && name[0]){
+    if(!ok){ free(ids); return; }
+    ui_app_play_ids(ids, n, shuffle, name, !strcmp(action, "play") || !strcmp(action, "playsave"), !strcmp(action, "save") || !strcmp(action, "playsave"));
+}
+/* play and/or keep a list of SONG ids (an app's request, or SongSphere built in); takes ownership of ids (malloc'd) */
+void ui_app_play_ids(int *ids, int n, int shuffle, const char *name, int play, int save){
+    if(n > 0) n = mdb_keep_song_ids(ids, n);
+    if(n <= 0){ free(ids); ui_toast("Nothing to play"); return; }
+    if(save && name && name[0]){
         long pid = mdb_playlist_create(name);
         int added = pid > 0 ? mdb_playlist_add_ids(pid, ids, n) : -1;
         ui_toast(added > 0 ? "Playlist saved" : "Couldn't save the playlist");
@@ -3283,7 +3288,8 @@ int main(int argc, char **argv){
                     cover_tap = 0;
                     fsart_touch = ui_np_fsart_active();   /* latch: overlay owns this whole gesture */
                     sleep_touch = ui_np_overlay_active()   /* latch: the sleep popover owns this whole gesture, */
-                               || (screen_current()==SCR_EQ_EDITOR && eqcustom_owns_point(p.x, p.y));   /* and so does the EQ dial (fork) */
+                               || (screen_current()==SCR_EQ_EDITOR && eqcustom_owns_point(p.x, p.y))    /* and so does the EQ dial (fork) */
+                               || (screen_current()==SCR_SPHERE && sphere_ui_owns_point(p.x, p.y));     /* and SongSphere's marker */
                     seek_touch = dhome_owns_point(p.x, p.y);   /* fork: Disco Music's seek line / ring (no swipe to Apps) */
                     if(fsart_touch || sleep_touch){
                         /* a modal overlay is up -> LVGL handles it; arm no ring seek / rim scroll here */

@@ -1,17 +1,16 @@
 {
-  "version": "2.1.0",
-  "status": "release candidate; host-tested (renders, sanitizers, unit and flow tests); SD update from 1.4.1",
-  "source_commit": "c1e0fb1e8cb4d2c8eaa944071b4470be1fa0ee0b",
-  "base_commit": "c76027879bad7cabb891f4396719212130b8705c",
+  "version": "2.2.0",
+  "status": "release candidate; compiled, not device-tested; SD update from 1.4.1",
+  "source_commit": "3e786d0be80192e766eb661eab06e88b444bb4fb",
+  "base_commit": "1ae5b54",
   "working_changes": false,
-  "ui_source_sha256": "a0dad9cd8bc9cb01c241170b0d1a9843c1959844b37f8f643c2833f47dd466c7",
+  "ui_source_sha256": "0df7d6995dfeff43ba0296e96fb1d8d7c3759f5ac191f6f562b73937122a20ba",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "479761630324119974958fe69df4ee6d9ffb87a74f2ff3f265bd7f6a483e8c7f",
-    "md5": "49130c79fa5ef8406aaf5d1569f8ad0e",
-    "bytes": 5536580
+    "sha256": "28f25707e364caef8cb09ff17a14743536ea3b90333025ea7391e7102d0f8131",
+    "md5": "7f4dd4d637c216ea122db0fefb170f12",
+    "bytes": 6131784
   },
-  "replaces_binary_sha256": "e22c11417924171242c24ae4bba6b7bc5cfe16fcb32026465d4ee34d0077459c",
-  "toolchain_check": "rebuilt toolchain reproduces payload/diskos-artdec and diskos-bootprobe byte for byte"
+  "replaces_binary_sha256": "479761630324119974958fe69df4ee6d9ffb87a74f2ff3f265bd7f6a483e8c7f"
 }
