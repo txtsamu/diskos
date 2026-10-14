@@ -1,16 +1,16 @@
 {
   "version": "2.2.0",
   "status": "release candidate; compiled, not device-tested; SD update from 1.4.1",
-  "source_commit": "ea5db96f6983dbb6ec4398b9be2b2217d1632fe1",
+  "source_commit": "b3623ae7ea62161ee46572db305b404e74a80bb1",
   "base_commit": "1ae5b54",
   "working_changes": false,
-  "ui_source_sha256": "95a8c2a0a321c1d8e5dddbe4ce5d79274c3c56fe08810a739391b2fe119b5be8",
+  "ui_source_sha256": "77ca896e40e300d53bf515b00fc399f05db4df0f4129d6ff23e1b4be545d16ce",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "a74d5517dfaf2f41aee2de8460f40f435116960ea93e9ca47d487464d43abc8a",
-    "md5": "b0f2a898c11435ded7d7d4e6be599377",
-    "bytes": 5588856
+    "sha256": "bae97982f86226fc8eab711f8cea2c25e878fe735b4839854d7742982fd021dc",
+    "md5": "6cdafae3d9c31a7c9f40cdfc3a54982e",
+    "bytes": 6131784
   },
   "replaces_binary_sha256": "479761630324119974958fe69df4ee6d9ffb87a74f2ff3f265bd7f6a483e8c7f"
 }
