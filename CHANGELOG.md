@@ -8,10 +8,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
-- Changed: a new boot splash of our own: a CD fills the screen, its rainbow rim turning, spins up and slows; its hub
-  becomes a "D" with an accent ring, and the D rolls out to "Disco!" (Monoton, the "!" in the accent colour). 2.6 s,
-  every theme; replaces the diskOS "Disc loads a disc" splash. Home no longer shows for a moment before it.
-  Monoton: SIL OFL 1.1 (licenses/OFL-1.1-Monoton.txt).
+- Added: A surprise!
 
 ## [2.2.1] - 2026-10-14
 
