@@ -32,7 +32,7 @@ bundles. See `../NOTICE.md` for the component->license mapping and the static-li
 | IBM Plex Mono (converted as `diskos_mono`, "something" theme, in `mq_ui`) | OFL-1.1 (Reserved Font Name "Plex") | [`OFL-1.1-IBMPlexMono.txt`](OFL-1.1-IBMPlexMono.txt) |
 | Doto (converted as `diskos_dot`, "something" theme, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Doto.txt`](OFL-1.1-Doto.txt) |
 | Inter (converted as `diskos_hifi_ui`, hi-fi theme text, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Inter.txt`](OFL-1.1-Inter.txt) |
-| Monoton by Vernon Adams (converted as `diskos_splash_disco_46`, the boot splash's "Disco!", in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Monoton.txt`](OFL-1.1-Monoton.txt) |
+| Monoton by Vernon Adams (converted as `diskos_splash_disco_72`, the boot splash's "Disco!", in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Monoton.txt`](OFL-1.1-Monoton.txt) |
 | DSEG7 Classic (converted as `diskos_hifi_seg`, hi-fi theme clock and time counters, in `mq_ui`) | OFL-1.1 (Reserved Font Name "DSEG") | [`OFL-1.1-DSEG.txt`](OFL-1.1-DSEG.txt) |
 | JetBrains Mono (converted as `diskos_term`, terminal theme text and clock, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-JetBrainsMono.txt`](OFL-1.1-JetBrainsMono.txt) |
 | Space Grotesk (converted as `diskos_bauh`, bauhaus theme text, titles and clock, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-SpaceGrotesk.txt`](OFL-1.1-SpaceGrotesk.txt) |

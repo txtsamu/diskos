@@ -53,5 +53,5 @@ LV_FONT_DECLARE(diskos_zine_glitch_26)
 LV_FONT_DECLARE(diskos_zine_clk_50)
 LV_FONT_DECLARE(diskos_splash_light_26)
 LV_FONT_DECLARE(diskos_splash_bold_26)
-LV_FONT_DECLARE(diskos_splash_disco_46)   /* the boot splash's "Disco!" (Monoton) */
+LV_FONT_DECLARE(diskos_splash_disco_72)   /* the boot splash's "Disco!" (Monoton) */
 #endif
