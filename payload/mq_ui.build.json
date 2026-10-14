@@ -1,16 +1,16 @@
 {
-  "version": "2.2.0",
-  "status": "release candidate; compiled, not device-tested; SD update from 1.4.1",
-  "source_commit": "3e786d0be80192e766eb661eab06e88b444bb4fb",
-  "base_commit": "1ae5b54",
+  "version": "2.2.1",
+  "status": "release candidate; compiled, not device-tested (the USB DAC fix alone was tested on the Disc); SD update from 1.4.1",
+  "source_commit": "f63ed2173be8e115d6eeba86c8cd760b7335a136",
+  "base_commit": "362a5f1",
   "working_changes": false,
-  "ui_source_sha256": "0df7d6995dfeff43ba0296e96fb1d8d7c3759f5ac191f6f562b73937122a20ba",
+  "ui_source_sha256": "b656875c200dee129a5df9573c3a591c8225ad42f100429681c1aef47579f3d1",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "28f25707e364caef8cb09ff17a14743536ea3b90333025ea7391e7102d0f8131",
-    "md5": "7f4dd4d637c216ea122db0fefb170f12",
-    "bytes": 6131784
+    "sha256": "63e0bdd54dbda152e2bc974721f7fa9c43b37ce1ab4fa0b3d5ccc97a50501ba8",
+    "md5": "a5341f943bc030c069308dd32724a774",
+    "bytes": 6132052
   },
-  "replaces_binary_sha256": "479761630324119974958fe69df4ee6d9ffb87a74f2ff3f265bd7f6a483e8c7f"
+  "replaces_binary_sha256": "28f25707e364caef8cb09ff17a14743536ea3b90333025ea7391e7102d0f8131"
 }
