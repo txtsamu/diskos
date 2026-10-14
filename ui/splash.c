@@ -1,232 +1,292 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* splash.c - the diskOS boot splash: the Disc loads a disc.
+/* splash.c - the Disco! boot splash: a mirror ball.
  *
- * A drawing of the Snowsky Disc (in the body colour set in Settings > Display > Disc Colour) rises into view; a CD
- * rolls into its window from the right, seats on the spindle with a click of light and spins up; "diskOS" appears
- * beneath. Then the drawing grows until its round window is exactly the real screen, and the spinning disc gives way
- * to Home underneath. 2.4 s, once per boot, on lv_layer_top; it swallows taps and deletes itself.
+ * Rainbow lights curl in from the rim on their own spirals and gather; a faceted mirror ball, hanging on its wire,
+ * fades in where they met and turns, throwing small spots of light that travel sideways across the screen as it
+ * turns (what a real mirror ball does to a room). "Disco!" rises in beneath it in Monoton, the "!" in the accent
+ * colour. Then everything fades and Home is there. 2.6 s, once per boot, on lv_layer_top; it swallows taps and
+ * deletes itself.
  *
- * Cost on the GPU-less renderer: about 30 plain objects (rounded rectangles, circles, arcs) moved and resized from one
- * timeline; nothing is scaled as an image. The window clips the CD only while it rolls in (a circular mask is the
- * one costly draw here); once seated the CD fits inside the window and the clip is turned off.
- * Integer maths only (the timeline runs every frame). */
+ * Cost on the GPU-less renderer: the ball is one 150 px picture redrawn each frame from lookup tables made once
+ * (per pixel: its tile row, its longitude and edge shade; per frame only the ~430 tile shades are worked out), so a
+ * frame of it is integer work. The lights and spots are ~90 small plain circles moved from one timeline. Nothing is
+ * scaled, masked or blurred. */
 #include "screens.h"
 #include "theme.h"
 #include "theme_fonts.h"
-#include "config.h"
 #include "theme_kit.h"
+#include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define SP_MS    2400          /* the whole splash */
-#define SP_BASE  176           /* the drawn Disc's width while it is a drawing */
-#define SP_FULL  450           /* its width when the window (40% of it, as a radius) reaches the screen edge */
-#define SP_BANDS 5
+#define SP_MS   2600            /* the whole splash */
+#define BR      74              /* ball radius */
+#define BW      (2 * BR + 2)    /* its picture */
+#define BCX     180             /* ball centre */
+#define BCY     150
+#define ROWS    16              /* rings of tiles */
+#define MAXCOL  32              /* tiles round the equator */
+#define NSPECK  64              /* lights coming in */
+#define NSPOT   48              /* light spots on the walls */
 
 static struct {
-    lv_obj_t *root, *stage, *btn, *body, *bezel, *well, *spindle, *cd, *band[2 * SP_BANDS], *hub, *hubl[3], *hole,
-             *marks, *click, *word;
-    int clip, frames;
+    lv_obj_t *root, *ball, *wire, *word, *bang, *speck[NSPECK], *spot[NSPOT], *glint[3];
+    int frames;
     uint32_t t0;
 } g_sp;
 
-/* 0..1024 fixed point */
-static int clampk(int v){ return v < 0 ? 0 : v > 1024 ? 1024 : v; }
-static int win_k(int t, int a, int b){ return clampk((t - a) * 1024 / (b - a)); }
-static int ease_out(int k){ int r = 1024 - k; return 1024 - (int)((int64_t)r * r * r >> 20); }   /* cubic out */
-static int scl(int v, int k){ return (int)((int64_t)v * k >> 10); }
+/* the ball: per pixel (made once) its row, its longitude (16-bit turn) and how much its edge darkens */
+static uint8_t *g_px;                                   /* the picture, XRGB8888 */
+static lv_image_dsc_t g_dsc;
+static int8_t  *g_row;                                  /* -1 outside, else the tile row */
+static uint16_t *g_lon;                                 /* longitude seen at this pixel, before turning */
+static uint8_t *g_edge, *g_rowfrac;                     /* rim darkening 0..255; position within the row 0..255 */
+static int g_ncol[ROWS];
+static uint8_t g_tint[ROWS][MAXCOL];                    /* each tile catches the light a little differently */
+static uint8_t g_shade[ROWS][MAXCOL][3];                /* this frame's colour of every tile */
+static float g_spot_lat[NSPOT], g_spot_lon[NSPOT];
+static uint32_t g_spot_rgb[NSPOT];
+static float g_sk_a[NSPECK], g_sk_r[NSPECK], g_sk_spin[NSPECK], g_sk_d[NSPECK], g_sk_ex[NSPECK], g_sk_ey[NSPECK], g_sk_tw[NSPECK];
 
-/* every splash object is marked styled: it lives on the top layer, where a theme's styling pass would otherwise
- * restyle it as a popup (square corners, theme borders). The splash is a fixed identity in every theme. */
-static lv_obj_t *shape(lv_obj_t *parent, int radius){
-    lv_obj_t *o = lv_obj_create(parent);
-    lv_obj_remove_style_all(o);
-    kit_keep(o);
-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_radius(o, radius, 0);
-    return o;
-}
-static lv_obj_t *circle(lv_obj_t *parent, lv_color_t fill, lv_opa_t opa){
-    lv_obj_t *o = shape(parent, LV_RADIUS_CIRCLE);
-    lv_obj_set_style_bg_color(o, fill, 0);
-    lv_obj_set_style_bg_opa(o, opa, 0);
-    return o;
-}
-static lv_obj_t *ring_line(lv_obj_t *parent, lv_color_t c, lv_opa_t opa){   /* an outline circle */
-    lv_obj_t *o = shape(parent, LV_RADIUS_CIRCLE);
-    lv_obj_set_style_border_color(o, c, 0);
-    lv_obj_set_style_border_opa(o, opa, 0);
-    lv_obj_set_style_border_width(o, 1, 0);
-    return o;
-}
-static lv_obj_t *arc(lv_obj_t *parent, lv_color_t c, lv_opa_t opa){           /* a bare arc: MAIN part only */
-    lv_obj_t *a = lv_arc_create(parent);
-    lv_obj_remove_style_all(a);
-    kit_keep(a);
-    lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_arc_color(a, c, LV_PART_MAIN);
-    lv_obj_set_style_arc_opa(a, opa, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(a, c, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(a, opa, LV_PART_INDICATOR);
-    return a;
-}
-static void place(lv_obj_t *o, int cx, int cy, int r){   /* a circle of radius r centred on (cx, cy) */
-    if(r < 1) r = 1;
-    lv_obj_set_pos(o, cx - r, cy - r);
-    lv_obj_set_size(o, 2 * r, 2 * r);
+static unsigned g_rs = 7;
+static float rnd(void){ g_rs = g_rs * 1103515245u + 12345u; return (float)((g_rs >> 8) & 0xFFFF) / 65535.0f; }
+static float clampf(float v){ return v < 0 ? 0 : v > 1 ? 1 : v; }
+static float seg(float t, float a, float b){ return clampf((t - a) / (b - a)); }
+static float ease(float t){ t = clampf(t); float r = 1 - t; return 1 - r * r * r; }
+static float eio(float t){ t = clampf(t); return t < 0.5f ? 4 * t * t * t : 1 - powf(-2 * t + 2, 3) / 2; }
+/* a rainbow colour, as the Disco rim's: h 0..1 */
+static uint32_t rainbow(float h, float l){
+    float r = fabsf(h * 6 - 3) - 1, g = 2 - fabsf(h * 6 - 2), b = 2 - fabsf(h * 6 - 4);
+    r = clampf(r); g = clampf(g); b = clampf(b);
+    float k = 0.35f + 0.65f * l;
+    return ((uint32_t)(255 * clampf(r * k + (1 - k) * 0.95f)) << 16) | ((uint32_t)(255 * clampf(g * k + (1 - k) * 0.95f)) << 8) | (uint32_t)(255 * clampf(b * k + (1 - k) * 0.95f));
 }
 
-/* one frame of the timeline, t in ms */
-static void splash_frame(int t){
-    int rise = ease_out(win_k(t, 0, 500));                          /* the Disc rises in */
-    int g = win_k(t, 1700, 2250); g = g * g >> 10;                  /* then grows, gathering speed */
-    int size = SP_BASE + scl(SP_FULL - SP_BASE, g);
-    int cx = 180, cy = 180;
-    int r = size * 9 / 100, win = size * 40 / 100;                  /* from the product photo: screen ~80% of the body */
+/* ---- made once ---- */
+static int tables(void){
+    g_px = malloc((size_t)BW * BW * 4); g_row = malloc((size_t)BW * BW); g_lon = malloc((size_t)BW * BW * 2);
+    g_edge = malloc((size_t)BW * BW); g_rowfrac = malloc((size_t)BW * BW);
+    if(!g_px || !g_row || !g_lon || !g_edge || !g_rowfrac) return 0;
+    for(int r = 0; r < ROWS; r++){
+        float lm = -1.5707963f + 3.1415927f * (r + 0.5f) / ROWS;
+        int n = (int)lroundf(MAXCOL * cosf(lm)); g_ncol[r] = n < 6 ? 6 : n > MAXCOL ? MAXCOL : n;
+        for(int c = 0; c < MAXCOL; c++) g_tint[r][c] = (uint8_t)(rnd() * 255);
+    }
+    for(int j = 0; j < BW; j++) for(int i = 0; i < BW; i++){
+        size_t k = (size_t)j * BW + i;
+        float X = (i + 0.5f - BW / 2.0f) / BR, Y = -(j + 0.5f - BW / 2.0f) / BR, r2 = X * X + Y * Y;
+        if(r2 >= 1){ g_row[k] = -1; continue; }
+        float Z = sqrtf(1 - r2), lat = asinf(Y), lon = atan2f(X, Z);
+        float rf = (lat + 1.5707963f) / 3.1415927f * ROWS; int row = (int)rf; if(row >= ROWS) row = ROWS - 1;
+        g_row[k] = (int8_t)row; g_rowfrac[k] = (uint8_t)((rf - row) * 255);
+        g_lon[k] = (uint16_t)((int32_t)lroundf(lon / 6.2831853f * 65536) & 0xFFFF);
+        float cov = BR + 0.5f - sqrtf(r2) * BR; if(cov > 1) cov = 1;           /* antialiased rim */
+        g_edge[k] = (uint8_t)(255 * cov * (0.45f + 0.55f * powf(Z, 0.6f)));
+    }
+    memset(&g_dsc, 0, sizeof g_dsc);
+    g_dsc.header.magic = LV_IMAGE_HEADER_MAGIC; g_dsc.header.cf = LV_COLOR_FORMAT_XRGB8888;
+    g_dsc.header.w = g_dsc.header.h = BW; g_dsc.header.stride = BW * 4;
+    g_dsc.data = g_px; g_dsc.data_size = (uint32_t)BW * BW * 4;
+    return 1;
+}
+static void tables_free(void){
+    free(g_px); free(g_row); free(g_lon); free(g_edge); free(g_rowfrac);
+    g_px = NULL; g_row = NULL; g_lon = NULL; g_edge = NULL; g_rowfrac = NULL;
+}
 
-    lv_obj_set_style_opa(g_sp.stage, (lv_opa_t)(rise * 255 >> 10), 0);
-    lv_obj_set_y(g_sp.stage, scl(14, 1024 - rise));
-
-    lv_obj_set_style_radius(g_sp.body, r, 0);
-    lv_obj_set_pos(g_sp.body, cx - size / 2, cy - size / 2);
-    lv_obj_set_size(g_sp.body, size, size);
-    int bw = size * 12 / 100, bh = 4 + size / 176;                  /* the button on the top edge, near the right */
-    lv_obj_set_pos(g_sp.btn, cx + size * 28 / 100, cy - size / 2 - bh + 1);
-    lv_obj_set_size(g_sp.btn, bw, bh + 2);
-    place(g_sp.bezel, cx, cy, win + 3 * size / SP_BASE);
-    lv_obj_set_style_border_width(g_sp.bezel, 1 + size / 300, 0);
-    place(g_sp.well, cx, cy, win);
-    place(g_sp.spindle, win, win, win * 11 / 100);
-
-    /* the CD: rolls in from the right 500..1050, overshoots the spindle a touch and settles, then spins up */
-    int R = win * 99 / 100, dx = 2 * win + win / 20, rot = 0;
-    if(t >= 500){
-        int p = ease_out(win_k(t, 500, 1050));
-        dx = scl(2 * win + win / 20, 1024 - p);
-        rot = -scl(120, 1024 - p);                                  /* it rolls as it travels */
-        if(t > 1050 && t < 1230){
-            int q = win_k(t, 1050, 1230);
-            dx -= scl(scl(5 * size / SP_BASE, 1024 - q), lv_trigo_sin((int16_t)(q * 180 >> 10)) >> 5);
+/* ---- one frame of the ball: tile shades for this turn, then the pixels ---- */
+static const float LX = -0.45f, LY = 0.55f, LZ = 0.70f;     /* the room's light, up and to the left (normalised below) */
+static void ball_draw(float rot, uint32_t bg){
+    float ln = sqrtf(LX * LX + LY * LY + LZ * LZ), lx = LX / ln, ly = LY / ln, lz = LZ / ln;
+    for(int r = 0; r < ROWS; r++){
+        float lm = -1.5707963f + 3.1415927f * (r + 0.5f) / ROWS, cl = cosf(lm), sl = sinf(lm);
+        for(int c = 0; c < g_ncol[r]; c++){
+            float lo = 6.2831853f * (c + 0.5f) / g_ncol[r] + rot;
+            float nx = cl * sinf(lo), ny = sl, nz = cl * cosf(lo), tint = g_tint[r][c] / 255.0f;
+            float nl = nx * lx + ny * ly + nz * lz + (tint - 0.5f) * 0.15f; if(nl < 0) nl = 0;
+            float spec = powf(nl, 24), v = 8 + nl * nl * 62 + tint * 16 + spec * 60; if(v > 97) v = 97;
+            float L = v / 100 * 255;
+            uint8_t *s = g_shade[r][c];
+            if(g_tint[r][c] > 247 && nz > 0.3f){                                /* a few tiles catch the rainbow */
+                uint32_t rb = rainbow(tint * 7.3f - floorf(tint * 7.3f), 0.8f);
+                s[2] = (uint8_t)((2 * L + ((rb >> 16) & 255)) / 3); s[1] = (uint8_t)((2 * L + ((rb >> 8) & 255)) / 3); s[0] = (uint8_t)((2 * L + (rb & 255)) / 3);
+            } else { s[2] = (uint8_t)(L * 0.96f); s[1] = (uint8_t)(L * 0.98f); s[0] = (uint8_t)L; }   /* silvered, faintly cool */
         }
     }
-    if(t > 1150){ int64_t s = t - 1150; rot = (int)(940 * s * s / 1000000); }
-    int clip = t < 1230;                                            /* the CD sits inside the window once seated */
-    if(clip != g_sp.clip){ g_sp.clip = clip; lv_obj_set_style_clip_corner(g_sp.well, clip, 0); }
-    place(g_sp.cd, win + dx, win, R);
+    uint16_t turn = (uint16_t)((int32_t)lroundf(rot / 6.2831853f * 65536) & 0xFFFF);
+    uint8_t bb = (uint8_t)(bg & 255), bgg = (uint8_t)((bg >> 8) & 255), br = (uint8_t)((bg >> 16) & 255);
+    for(size_t k = 0; k < (size_t)BW * BW; k++){
+        uint8_t *o = g_px + k * 4; int row = g_row[k];
+        if(row < 0){ o[0] = bb; o[1] = bgg; o[2] = br; o[3] = 255; continue; }
+        uint16_t lon = (uint16_t)(g_lon[k] - turn);
+        uint32_t cf = (uint32_t)lon * (uint32_t)g_ncol[row];                  /* which tile, and where in it */
+        int col = (int)(cf >> 16), fx = (int)((cf >> 8) & 255), fy = g_rowfrac[k];
+        int grout = fx < 22 || fy < 26;                                        /* the dark gaps between tiles */
+        const uint8_t *s = g_shade[row][col % g_ncol[row]];
+        int e = g_edge[k], m = grout ? 70 : 256;
+        for(int ch = 0; ch < 3; ch++){                                         /* the tile, darker at the rim; never below the room */
+            int v = (s[ch] * m >> 8) * e >> 8, bgc = ch == 0 ? bb : ch == 1 ? bgg : br;
+            o[ch] = (uint8_t)(v > bgc ? v : bgc);
+        }
+        o[3] = 255;
+    }
+}
 
-    for(int i = 0; i < SP_BANDS; i++){                              /* the light it throws: fixed to the light, not the disc */
-        int br = R * (69 + 21 * i) / 178, mid = 325 + 3 * i;
-        for(int s = 0; s < 2; s++){
-            lv_obj_t *a = g_sp.band[2 * i + s];
-            place(a, R, R, br + scl(R * 21 / 178, 512));
-            lv_obj_set_style_arc_width(a, R * 21 / 178, LV_PART_MAIN);
-            lv_arc_set_bg_angles(a, (mid + 180 * s - 15) % 360, (mid + 180 * s + 15) % 360);
+/* ---- the timeline ---- */
+static void place(lv_obj_t *o, int cx, int cy, int r){ if(r < 1) r = 1; lv_obj_set_pos(o, cx - r, cy - r); lv_obj_set_size(o, 2 * r, 2 * r); }
+static void splash_frame(int ms){
+    float t = ms / (float)SP_MS;
+    float rot = -0.6f + eio(seg(t, 0.2f, 1)) * 5.0f;
+
+    /* 1. the lights curl in */
+    float g = seg(t, 0, 0.42f), gone = 1 - seg(t, 0.36f, 0.46f);
+    for(int i = 0; i < NSPECK; i++){
+        float p = ease(seg(g, g_sk_d[i], 1));
+        if(p >= 1 || gone <= 0){ lv_obj_add_flag(g_sp.speck[i], LV_OBJ_FLAG_HIDDEN); continue; }
+        float ang = g_sk_a[i] + g_sk_spin[i] * (1 - p) * 1.4f, r = g_sk_r[i] * (1 - p);
+        int x = (int)(BCX + cosf(ang) * r + g_sk_ex[i] * BR * 0.85f * p), y = (int)(BCY + sinf(ang) * r + g_sk_ey[i] * BR * 0.85f * p);
+        float tw = 0.55f + 0.45f * sinf(g_sk_tw[i] + t * 40);
+        lv_obj_remove_flag(g_sp.speck[i], LV_OBJ_FLAG_HIDDEN);
+        place(g_sp.speck[i], x, y, 2 + (i % 3));
+        lv_obj_set_style_opa(g_sp.speck[i], (lv_opa_t)(255 * gone * tw * clampf(p * 6)), 0);
+    }
+
+    /* 2. the ball */
+    float b = ease(seg(t, 0.33f, 0.5f)), out = 1 - seg(t, 0.9f, 1);
+    if(b > 0){
+        ball_draw(rot, lv_color_to_u32(TC(FIXED_SPLASH_BG)) & 0xFFFFFF);
+        lv_image_cache_drop(&g_dsc);
+        lv_obj_invalidate(g_sp.ball);
+        lv_obj_remove_flag(g_sp.ball, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(g_sp.wire, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_opa(g_sp.ball, (lv_opa_t)(255 * b), 0);
+        lv_obj_set_style_opa(g_sp.wire, (lv_opa_t)(70 * b), 0);
+    }
+
+    /* 3. the spots it throws: each from a tile, travelling sideways across the walls as the ball turns */
+    float sa = seg(t, 0.48f, 0.6f) * out;
+    float ln = sqrtf(LX * LX + LY * LY + LZ * LZ);
+    for(int i = 0; i < NSPOT; i++){
+        float lo = g_spot_lon[i] + rot, la = g_spot_lat[i];
+        float X = cosf(la) * sinf(lo), Y = sinf(la), Z = cosf(la) * cosf(lo);
+        float sx = BCX + X * 185, sy = BCY + 20 - Y * 165 + Z * 12, d = hypotf(sx - BCX, sy - BCY);
+        float edge = clampf(1.15f - fabsf(X) * 1.1f), lit = 0.5f + 0.5f * Z * Z;
+        float br = Z < 0.15f || d < BR + 10 ? 0 : lit * edge * sa * (0.7f + 0.3f * sinf(i * 7.0f + rot * 9));
+        (void)ln;
+        if(br <= 0.03f){ lv_obj_add_flag(g_sp.spot[i], LV_OBJ_FLAG_HIDDEN); continue; }
+        lv_obj_remove_flag(g_sp.spot[i], LV_OBJ_FLAG_HIDDEN);
+        int w = (int)(2 + Z * 3);
+        lv_obj_set_pos(g_sp.spot[i], (int)sx - 2 * w, (int)sy - w); lv_obj_set_size(g_sp.spot[i], 4 * w, 2 * w);   /* stretched sideways, along their travel */
+        lv_obj_set_style_opa(g_sp.spot[i], (lv_opa_t)(255 * br), 0);
+    }
+
+    /* glints: the three brightest tiles facing the light get a star */
+    {
+        float best[3] = { 0, 0, 0 }; int bx[3] = { 0 }, by[3] = { 0 };
+        for(int r = 2; r < ROWS - 2; r++){
+            float lm = -1.5707963f + 3.1415927f * (r + 0.5f) / ROWS;
+            for(int c = 0; c < g_ncol[r]; c++){
+                float lo = 6.2831853f * (c + 0.5f) / g_ncol[r] + rot, nx = cosf(lm) * sinf(lo), ny = sinf(lm), nz = cosf(lm) * cosf(lo);
+                if(nz < 0.2f) continue;
+                float s = (nx * LX + ny * LY + nz * LZ) / ln;
+                for(int q = 0; q < 3; q++) if(s > best[q]){
+                    for(int z = 2; z > q; z--){ best[z] = best[z - 1]; bx[z] = bx[z - 1]; by[z] = by[z - 1]; }
+                    best[q] = s; bx[q] = BCX + (int)(nx * BR); by[q] = BCY - (int)(ny * BR); break;
+                }
+            }
+        }
+        for(int q = 0; q < 3; q++){
+            float k = clampf((best[q] - 0.9f) * 10) * b * out;
+            if(k <= 0.05f){ lv_obj_add_flag(g_sp.glint[q], LV_OBJ_FLAG_HIDDEN); continue; }
+            lv_obj_remove_flag(g_sp.glint[q], LV_OBJ_FLAG_HIDDEN);
+            place(g_sp.glint[q], bx[q], by[q], 2 + q % 2);
+            lv_obj_set_style_opa(g_sp.glint[q], (lv_opa_t)(255 * k), 0);
         }
     }
-    int hr[3] = { 56, 44, 34 };
-    place(g_sp.hub, R, R, R * 56 / 178);
-    for(int i = 0; i < 3; i++) place(g_sp.hubl[i], R, R, R * hr[i] / 178);
-    place(g_sp.hole, R, R, R * 22 / 178);
-    int mr = R * 72 / 178;                                          /* two marks show it turning; they blur out at speed */
-    place(g_sp.marks, R, R, mr);
-    lv_obj_set_style_arc_width(g_sp.marks, R * 6 / 178 + 1, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(g_sp.marks, R * 6 / 178 + 1, LV_PART_INDICATOR);
-    lv_arc_set_rotation(g_sp.marks, ((rot % 360) + 360) % 360);
-    lv_obj_set_style_opa(g_sp.marks, (lv_opa_t)(255 - scl(180, win_k(t, 1500, 1950))), 0);
 
-    int ck = 1024 - clampk(abs(t - 1120) * 1024 / 90);              /* the click of light as it seats */
-    lv_obj_set_style_opa(g_sp.click, (lv_opa_t)(ck * 204 >> 10), 0);
-    place(g_sp.click, cx, cy, win * 14 / 100 + scl(6, 1024 - ck));
+    /* 4. the name rises in beneath */
+    float w = ease(seg(t, 0.62f, 0.8f));
+    lv_obj_set_style_opa(g_sp.word, (lv_opa_t)(255 * w), 0);
+    lv_obj_set_y(g_sp.word, 254 + (int)(8 * (1 - w)));
 
-    /* the name, once, beneath the Disc; it leaves as the Disc grows */
-    int wm = scl(ease_out(win_k(t, 1150, 1550)), 1024 - win_k(t, 1700, 1950));
-    lv_obj_set_style_opa(g_sp.word, (lv_opa_t)(wm * 255 >> 10), 0);
-    lv_obj_set_y(g_sp.word, cy + size / 2 + 17 + scl(14, 1024 - rise));
-
-    lv_obj_set_style_opa(g_sp.root, (lv_opa_t)(255 - (win_k(t, 2150, SP_MS) * 255 >> 10)), 0);   /* hand-off to Home */
+    /* 5. hand-off to Home */
+    lv_obj_set_style_opa(g_sp.root, (lv_opa_t)(255 * out), 0);
 }
 
 static void splash_anim_cb(void *var, int32_t v){ (void)var; if(g_sp.root) splash_frame((int)v); }
 static void splash_drawn_cb(lv_event_t *e){ (void)e; g_sp.frames++; }   /* a frame actually drawn to the screen */
 static void splash_done(lv_anim_t *a){
     (void)a;
-    /* one line in the boot log: how smoothly this Disc drew it */
     lv_display_remove_event_cb_with_user_data(lv_display_get_default(), splash_drawn_cb, NULL);
-    fprintf(stderr, "splash: %d frames drawn in %u ms\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0));
+    fprintf(stderr, "splash: %d frames drawn in %u ms\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0));   /* how smoothly this Disc drew it */
     if(g_sp.root) lv_obj_delete(g_sp.root);
     memset(&g_sp, 0, sizeof g_sp);
+    tables_free();
 }
-
-void splash_start(void){
-    if(g_sp.root) return;                                           /* one splash at a time */
-    static const theme_color_role_t BODY[3][2] = {
-        { THEME_CLR_FIXED_SPLASH_BLACK_HI, THEME_CLR_FIXED_SPLASH_BLACK_LO },
-        { THEME_CLR_FIXED_SPLASH_TURQ_HI,  THEME_CLR_FIXED_SPLASH_TURQ_LO },
-        { THEME_CLR_FIXED_SPLASH_PINK_HI,  THEME_CLR_FIXED_SPLASH_PINK_LO } };
-    static const theme_color_role_t BAND[SP_BANDS] = { THEME_CLR_FIXED_SPLASH_BAND_1, THEME_CLR_FIXED_SPLASH_BAND_2,
-        THEME_CLR_FIXED_SPLASH_BAND_3, THEME_CLR_FIXED_SPLASH_BAND_4, THEME_CLR_FIXED_SPLASH_BAND_5 };
-    int col = cfg_get_int("disc_colour", 0);
-    if(col < 0 || col > 2) col = 0;
-
-    g_sp.root = shape(lv_layer_top(), 0);
+static lv_obj_t *dot(lv_obj_t *parent, lv_color_t c){
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o); kit_keep(o);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(o, c, 0); lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    return o;
+}
+static void build(void){
+    g_rs = 7;
+    g_sp.root = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(g_sp.root); kit_keep(g_sp.root);
+    lv_obj_remove_flag(g_sp.root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(g_sp.root, 360, 360);
     lv_obj_set_style_bg_color(g_sp.root, TC(FIXED_SPLASH_BG), 0);
     lv_obj_set_style_bg_opa(g_sp.root, LV_OPA_COVER, 0);
     lv_obj_add_flag(g_sp.root, LV_OBJ_FLAG_CLICKABLE);             /* swallow taps during the splash */
 
-    g_sp.stage = shape(g_sp.root, 0);
-    lv_obj_set_size(g_sp.stage, 360, 360);
-    g_sp.btn = shape(g_sp.stage, 2);                                /* behind the body: only its top shows */
-    lv_obj_set_style_bg_color(g_sp.btn, theme_color(BODY[col][1]), 0);
-    lv_obj_set_style_bg_opa(g_sp.btn, LV_OPA_COVER, 0);
-    g_sp.body = shape(g_sp.stage, 0);
-    lv_obj_set_style_bg_color(g_sp.body, theme_color(BODY[col][0]), 0);
-    lv_obj_set_style_bg_grad_color(g_sp.body, theme_color(BODY[col][1]), 0);
-    lv_obj_set_style_bg_grad_dir(g_sp.body, LV_GRAD_DIR_VER, 0);
-    lv_obj_set_style_bg_opa(g_sp.body, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(g_sp.body, TC(FIXED_SPLASH_3), 0);   /* the machined edge catching the light */
-    lv_obj_set_style_border_opa(g_sp.body, 46, 0);
-    lv_obj_set_style_border_width(g_sp.body, 1, 0);
-    g_sp.bezel = circle(g_sp.stage, TC(FIXED_SPLASH_RING), LV_OPA_COVER);
-    lv_obj_set_style_border_color(g_sp.bezel, TC(FIXED_SPLASH_3), 0);
-    lv_obj_set_style_border_opa(g_sp.bezel, 70, 0);
-    g_sp.well = circle(g_sp.stage, TC(FIXED_SPLASH_WELL), LV_OPA_COVER);
-    g_sp.spindle = circle(g_sp.well, TC(FIXED_SPLASH_SPINDLE), LV_OPA_COVER);
+    for(int i = 0; i < NSPOT; i++){                                 /* the spots: behind the ball */
+        float rr = rnd(); int row = 3 + (int)(rr * (ROWS - 6));
+        g_spot_lat[i] = -1.5707963f + 3.1415927f * (row + 0.5f) / ROWS;
+        g_spot_lon[i] = rnd() * 6.2831853f;
+        g_spot_rgb[i] = rnd() < 0.3f ? rainbow(rnd(), 0.75f) : (uint32_t)lv_color_to_u32(TC(FIXED_SPLASH_3)) & 0xFFFFFF;
+        g_sp.spot[i] = dot(g_sp.root, theme_color_from_rgb(g_spot_rgb[i]));
+    }
+    g_sp.wire = lv_obj_create(g_sp.root);
+    lv_obj_remove_style_all(g_sp.wire); kit_keep(g_sp.wire);
+    lv_obj_set_pos(g_sp.wire, BCX, 0); lv_obj_set_size(g_sp.wire, 1, BCY - BR);
+    lv_obj_set_style_bg_color(g_sp.wire, TC(FIXED_SPLASH_3), 0); lv_obj_set_style_bg_opa(g_sp.wire, LV_OPA_COVER, 0);
+    lv_obj_add_flag(g_sp.wire, LV_OBJ_FLAG_HIDDEN);
+    g_sp.ball = lv_image_create(g_sp.root); kit_keep(g_sp.ball);
+    lv_image_set_src(g_sp.ball, &g_dsc);
+    lv_obj_set_pos(g_sp.ball, BCX - BW / 2, BCY - BW / 2);
+    lv_obj_add_flag(g_sp.ball, LV_OBJ_FLAG_HIDDEN);
+    for(int q = 0; q < 3; q++) g_sp.glint[q] = dot(g_sp.root, TC(FIXED_SPLASH_3));
+    for(int i = 0; i < NSPECK; i++){                                /* the lights, in front */
+        g_sk_a[i] = rnd() * 6.2831853f; g_sk_r[i] = 200 + rnd() * 60; g_sk_spin[i] = (rnd() < 0.5f ? -1 : 1) * (0.6f + rnd() * 0.9f);
+        g_sk_d[i] = rnd() * 0.12f; g_sk_ex[i] = rnd() - 0.5f; g_sk_ey[i] = rnd() - 0.5f; g_sk_tw[i] = rnd() * 6.2831853f;
+        g_sp.speck[i] = dot(g_sp.root, theme_color_from_rgb(rainbow((i * 37 % 360) / 360.0f, 0.9f)));
+    }
 
-    g_sp.cd = circle(g_sp.well, TC(FIXED_SPLASH_1), LV_OPA_COVER);
-    lv_obj_set_style_bg_grad_color(g_sp.cd, TC(FIXED_SPLASH_2), 0);
-    lv_obj_set_style_bg_grad_dir(g_sp.cd, LV_GRAD_DIR_VER, 0);
-    for(int i = 0; i < 2 * SP_BANDS; i++) g_sp.band[i] = arc(g_sp.cd, theme_color(BAND[i / 2]), 80);
-    g_sp.hub = circle(g_sp.cd, TC(FIXED_SPLASH_3), 140);
-    for(int i = 0; i < 3; i++) g_sp.hubl[i] = ring_line(g_sp.cd, TC(FIXED_SPLASH_HUB_LINE), 140);
-    g_sp.hole = circle(g_sp.cd, TC(FIXED_SPLASH_HOLE), LV_OPA_COVER);
-    g_sp.marks = arc(g_sp.cd, TC(FIXED_SPLASH_MARK), 150);
-    lv_arc_set_bg_angles(g_sp.marks, 0, 12);                        /* two marks, opposite */
-    lv_arc_set_angles(g_sp.marks, 180, 192);
-
-    g_sp.click = ring_line(g_sp.stage, TC(FIXED_SPLASH_3), LV_OPA_COVER);
-    lv_obj_set_style_border_width(g_sp.click, 2, 0);
-
-    /* "diskOS": a light "disk", a bold "OS" */
-    g_sp.word = shape(g_sp.root, 0);
+    /* "Disco!" in Monoton; the "!" in the accent */
+    g_sp.word = lv_obj_create(g_sp.root);
+    lv_obj_remove_style_all(g_sp.word); kit_keep(g_sp.word);
     lv_obj_set_size(g_sp.word, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(g_sp.word, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(g_sp.word, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    const lv_font_t *F[2] = { &diskos_splash_light_26, &diskos_splash_bold_26 };
-    const char *T[2] = { "disk", "OS" };
+    const char *T[2] = { "Disco", "!" };
     for(int i = 0; i < 2; i++){
-        lv_obj_t *l = lv_label_create(g_sp.word);
-        kit_keep(l);
+        lv_obj_t *l = lv_label_create(g_sp.word); kit_keep(l);
         lv_label_set_text(l, T[i]);
-        lv_obj_set_style_text_font(l, F[i], 0);
-        lv_obj_set_style_text_color(l, TC(FIXED_SPLASH_3), 0);
+        lv_obj_set_style_text_font(l, &diskos_splash_disco_46, 0);
+        lv_obj_set_style_text_color(l, i ? ui_current_accent() : TC(FIXED_SPLASH_3), 0);
     }
     lv_obj_update_layout(g_sp.word);
     lv_obj_set_x(g_sp.word, 180 - lv_obj_get_width(g_sp.word) / 2);
+}
 
-    g_sp.clip = -1;
+void splash_start(void){
+    if(g_sp.root) return;                                           /* one splash at a time */
+    if(!tables()){ tables_free(); return; }                         /* no memory for the ball: no splash, straight to Home */
+    build();
     g_sp.t0 = lv_tick_get();
     lv_display_add_event_cb(lv_display_get_default(), splash_drawn_cb, LV_EVENT_RENDER_READY, NULL);
     splash_frame(0);
@@ -238,4 +298,9 @@ void splash_start(void){
     lv_anim_set_exec_cb(&a, splash_anim_cb);
     lv_anim_set_completed_cb(&a, splash_done);
     lv_anim_start(&a);
+}
+/* host renders: the splash standing at `ms` (no animation, nothing deleted) */
+void splash_test_frame(int ms){
+    if(!g_sp.root){ if(!tables()){ tables_free(); return; } build(); }
+    splash_frame(ms);
 }

@@ -32,6 +32,7 @@ bundles. See `../NOTICE.md` for the component->license mapping and the static-li
 | IBM Plex Mono (converted as `diskos_mono`, "something" theme, in `mq_ui`) | OFL-1.1 (Reserved Font Name "Plex") | [`OFL-1.1-IBMPlexMono.txt`](OFL-1.1-IBMPlexMono.txt) |
 | Doto (converted as `diskos_dot`, "something" theme, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Doto.txt`](OFL-1.1-Doto.txt) |
 | Inter (converted as `diskos_hifi_ui`, hi-fi theme text, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Inter.txt`](OFL-1.1-Inter.txt) |
+| Monoton by Vernon Adams (converted as `diskos_splash_disco_46`, the boot splash's "Disco!", in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Monoton.txt`](OFL-1.1-Monoton.txt) |
 | DSEG7 Classic (converted as `diskos_hifi_seg`, hi-fi theme clock and time counters, in `mq_ui`) | OFL-1.1 (Reserved Font Name "DSEG") | [`OFL-1.1-DSEG.txt`](OFL-1.1-DSEG.txt) |
 | JetBrains Mono (converted as `diskos_term`, terminal theme text and clock, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-JetBrainsMono.txt`](OFL-1.1-JetBrainsMono.txt) |
 | Space Grotesk (converted as `diskos_bauh`, bauhaus theme text, titles and clock, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-SpaceGrotesk.txt`](OFL-1.1-SpaceGrotesk.txt) |
@@ -55,6 +56,6 @@ contributors`. See [`../LICENSE`](../LICENSE). The **diskOS UI source** (`ui/`, 
 `payload/mq_ui`) is licensed **GPL-3.0-or-later** (`GPL-3.0.txt`, `../ui/COPYING`; (c) diskOS
 contributors) - deliberately separate from the MIT tooling so UI forks stay open. Its embedded
 third-party notices - LVGL (MIT), SQLite (public domain), JSMN (MIT), md5 (public domain), and
-Montserrat / Source Han Sans / Font Awesome / IBM Plex Mono / Doto and the theme fonts (Inter, DSEG7 Classic, JetBrains Mono, Space Grotesk, IBM Plex Sans, Nunito, Courier Prime, Rubik Glitch) (OFL-1.1), and the built-in Boomshine game (MIT, `MIT-Boomshine.txt`) with its
+Montserrat / Source Han Sans / Font Awesome / IBM Plex Mono / Doto, Monoton (the boot splash) and the theme fonts (Inter, DSEG7 Classic, JetBrains Mono, Space Grotesk, IBM Plex Sans, Nunito, Courier Prime, Rubik Glitch) (OFL-1.1), and the built-in Boomshine game (MIT, `MIT-Boomshine.txt`) with its
 DejaVu Sans glyphs (`LICENSE-DejaVu.txt`) - ship in this directory and in
 `../ui/licenses/`.

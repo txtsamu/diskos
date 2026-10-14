@@ -695,6 +695,12 @@ int main(int argc, char **argv){
         for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
+    if(!strncmp(argv[3],"splash-",7)){             /* the boot splash standing at splash-<ms> */
+        screen_set_anim(0);screens_init();
+        splash_test_frame(atoi(argv[3]+7));
+        for(int i=0;i<3;i++){lv_tick_inc(10);lv_timer_handler();}
+        goto render;
+    }
     if(!strncmp(argv[3],"statsapp",8)){           /* Listening Stats (stats.c) on a seeded PLAY_LOG; statsapp-land = its landing page */
         stats_seed_demo();
         screen_set_anim(0);screens_init();

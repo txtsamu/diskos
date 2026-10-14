@@ -6,6 +6,12 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [Unreleased]
+
+- Changed: a new boot splash of our own: rainbow lights curl in and gather into a turning mirror ball that throws
+  spots of light across the screen, then "Disco!" in Monoton with the "!" in the accent colour (2.6 s). Replaces the
+  diskOS "Disc loads a disc" splash in every theme. Monoton: SIL OFL 1.1 (licenses/OFL-1.1-Monoton.txt).
+
 ## [2.2.1] - 2026-10-14
 
 SD update from 1.4.1 or later (no reflash). Fixes only.
