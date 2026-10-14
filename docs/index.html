@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>diskOS Disco! Make your Snowsky Disc yours</title>
+<title>diskOS Disco! Your Disco, built from your choices</title>
 <meta name="description" content="diskOS Disco! 2.2: a new touch interface for the FiiO Snowsky Disc. The album fills the round screen; SongSphere plays by mood, Listening Stats shows your year, and apps live in the navigation circle.">
 <meta property="og:title" content="diskOS Disco! 2.2">
 <meta property="og:description" content="The album cover is the interface. A touch UI for the FiiO Snowsky Disc, built on diskOS.">
@@ -67,11 +67,15 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 /* ---- hero: the Disc itself ---- */
 .hero{padding:64px 0 96px;overflow:hidden}
 .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+
 .hero h1{font-size:clamp(40px,5.1vw,70px);line-height:1;font-weight:800;letter-spacing:-.035em}
-.hero h1 span{display:block;white-space:nowrap;color:transparent;-webkit-text-stroke:1.5px rgba(243,244,248,.85)}
+.hero h1 span{display:block;color:transparent;-webkit-text-stroke:1.5px rgba(243,244,248,.85)}
 .for{display:inline-block;margin-bottom:26px;color:var(--mist);font-size:15px}
 .for b{color:var(--paper);font-weight:600}
-.hero .lead{margin:26px 0 34px}
+.hero .lead{margin:22px 0 26px}
+.hero .try{font-size:15px;color:var(--dim);margin-bottom:14px}
+.hero .groups{gap:14px;margin-bottom:30px}
+.device .caption{bottom:-40px}
 .hero .ctas{display:flex;gap:12px;flex-wrap:wrap}
 .hero .small{margin-top:22px;max-width:52ch}
 .device{position:relative;width:min(100%,500px);aspect-ratio:1;margin-left:auto}
@@ -90,7 +94,7 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 .device .screen img.on{opacity:1}
 .device .caption{position:absolute;left:0;right:0;bottom:-44px;text-align:center;font-size:14px;color:var(--mist)}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:900px){.hero .wrap{grid-template-columns:1fr}.device{margin:20px auto 40px;width:min(88%,440px)}}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr}.device{order:-1;margin:0 auto 64px;width:min(80%,400px)}}
 
 /* ---- sections ---- */
 section{padding:110px 0}
@@ -174,7 +178,8 @@ section{padding:110px 0}
 /* ---- build your Disc: one setting at a time ---- */
 .mixer{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
 .mixer .groups{display:grid;gap:22px}
-.mixer .group span{display:block;font-size:14px;color:var(--dim);margin-bottom:8px}
+.group span{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+.groups{display:grid}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{appearance:none;cursor:pointer;font:500 15px var(--body);color:var(--mist);background:var(--ink3);border:1px solid var(--line);
   padding:8px 16px;border-radius:999px}
@@ -256,7 +261,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap">
     <a class="logo" href="#top"><i aria-hidden="true"></i>diskOS Disco!</a>
     <nav aria-label="Sections">
-      <a href="#new">New in 2.2</a><a href="#choice">Make it yours</a><a href="#play">Play your way</a><a href="#songsphere">SongSphere</a>
+      <a href="#new">New in 2.2</a><a href="#top">Make it yours</a><a href="#play">Play your way</a><a href="#songsphere">SongSphere</a>
       <a href="#apps">Apps</a><a href="#install">Install</a>
     </nav>
     <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest">Download</a>
@@ -268,55 +273,11 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap">
     <div>
       <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
-      <h1>Make it yours. <span>Play your way.</span></h1>
+      <h1>Your Disco, <span>built from your choices.</span></h1>
       <p class="lead">More than an MP3 player. diskOS Disco! turns the Snowsky Disc into a player built around your
         albums and the way you listen: choose the look and the layout, fill it with apps (or write your own), and
         find the next record by mood, by chance or by habit. Every piece is optional, and every piece is yours.</p>
-      <div class="ctas">
-        <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
-        <a class="pill line" href="#install">Linux and SD updates</a>
-        <a class="pill line" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Take the tour</a>
-      </div>
-      <p class="small">Free and open source. A testing release, provided as is. Built on b0hemia's diskOS; not affiliated with FiiO or Snowsky.</p>
-    </div>
-    <div class="device" aria-label="The Disc, showing screens from diskOS Disco!">
-      <div class="body"></div><div class="foil"></div><div class="sheen"></div>
-      <div class="screen" id="screen">
-        <img class="on" src="disco/music.png" alt="Music: the album cover fills the screen" data-cap="Music">
-        <img src="disco/songsphere.png" alt="SongSphere: pick a mood" data-cap="SongSphere">
-        <img src="disco/stats-wrapped.png" alt="Listening Stats: your top artist" data-cap="Listening Stats">
-        <img src="disco/nav-open.png" alt="The navigation circle" data-cap="The navigation circle">
-        <img src="disco/apps-shelf.png" alt="Apps in the circle" data-cap="Apps">
-        <img src="disco/music-arc.png" alt="Music with the progress arc around the rim" data-cap="Progress on the rim">
-      </div>
-      <p class="caption" id="cap" aria-live="off">Music</p>
-    </div>
-  </div>
-</section>
-
-<section class="new" id="new">
-  <div class="wrap">
-    <h2>New in 2.2</h2>
-    <div class="grid">
-      <a href="#songsphere"><figure><div class="shot"><img src="disco/songsphere-place.png" alt="Placing an album on SongSphere" width="360" height="360" loading="lazy"></div>
-        <figcaption><b>SongSphere, built in</b>Hold an album or tap the mood pill while a song plays, place it on the sphere, then play a mood.</figcaption></figure></a>
-      <a href="#apps"><figure><div class="shot"><img src="disco/apps-shelf.png" alt="Apps in the navigation circle" width="360" height="360" loading="lazy"></div>
-        <figcaption><b>Apps in the circle</b>Five apps you choose, each with its icon, one tap from anywhere.</figcaption></figure></a>
-      <a href="#stats"><figure><div class="shot"><img src="disco/stats-wrapped.png" alt="Listening Stats Wrapped" width="360" height="360" loading="lazy"></div>
-        <figcaption><b>Listening Stats, refreshed</b>Swipe through weeks, months and years, and open a Wrapped for every #1.</figcaption></figure></a>
-    </div>
-  </div>
-</section>
-
-
-<section id="choice" class="band">
-  <div class="wrap">
-    <div class="head">
-      <h2 class="stroke">Your Disc, built from choices.</h2>
-      <p class="lead">Nothing in Disco is fixed. Try a few of the choices here: each one is a single setting on the Disc,
-        and they all mix.</p>
-    </div>
-    <div class="mixer">
+      <p class="try">Try it: every choice below is one setting on the Disc.</p>
       <div class="groups" id="mixer">
         <div class="group"><span>Theme</span><div class="chips" data-group="theme">
           <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
@@ -344,12 +305,44 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
           <button type="button" aria-pressed="false" data-img="disco/accent.png" data-note="An accent that follows the album, or your own colour.">Accent</button>
         </div></div>
       </div>
-      <div>
-        <div class="stage"><div class="shot"><img id="mix-img" src="disco/music.png" alt="Music, as chosen" width="360" height="360"></div></div>
-        <p class="note" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
+      <div class="ctas">
+        <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
+        <a class="pill line" href="#install">Linux and SD updates</a>
+        <a class="pill line" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Take the tour</a>
       </div>
+      <p class="small">Free and open source. A testing release, provided as is. Built on b0hemia's diskOS; not affiliated with FiiO or Snowsky.</p>
     </div>
-    <div class="alsos">
+    <div class="device" aria-label="The Disc, showing screens from diskOS Disco!">
+      <div class="body"></div><div class="foil"></div><div class="sheen"></div>
+      <div class="screen"><img class="on" id="mix-img" src="disco/music.png" alt="Music, as chosen"></div>
+      <p class="caption" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
+    </div>
+  </div>
+</section>
+
+<section class="new" id="new">
+  <div class="wrap">
+    <h2>New in 2.2</h2>
+    <div class="grid">
+      <a href="#songsphere"><figure><div class="shot"><img src="disco/songsphere-place.png" alt="Placing an album on SongSphere" width="360" height="360" loading="lazy"></div>
+        <figcaption><b>SongSphere, built in</b>Hold an album or tap the mood pill while a song plays, place it on the sphere, then play a mood.</figcaption></figure></a>
+      <a href="#apps"><figure><div class="shot"><img src="disco/apps-shelf.png" alt="Apps in the navigation circle" width="360" height="360" loading="lazy"></div>
+        <figcaption><b>Apps in the circle</b>Five apps you choose, each with its icon, one tap from anywhere.</figcaption></figure></a>
+      <a href="#stats"><figure><div class="shot"><img src="disco/stats-wrapped.png" alt="Listening Stats Wrapped" width="360" height="360" loading="lazy"></div>
+        <figcaption><b>Listening Stats, refreshed</b>Swipe through weeks, months and years, and open a Wrapped for every #1.</figcaption></figure></a>
+    </div>
+  </div>
+</section>
+
+
+<section id="choice" class="band">
+  <div class="wrap">
+    <div class="head">
+      <h2 class="stroke">And it doesn't stop at the looks.</h2>
+      <p class="lead">Nothing in Disco is fixed. Every choice is a setting on the Disc, they all mix, and you can
+        change your mind any time.</p>
+    </div>
+    <div class="alsos" style="margin-top:10px">
       <p><b>Your menu.</b> Pick the sections of the navigation circle and their order.</p>
       <p><b>Your apps.</b> Five of them in the circle, each with its icon.</p>
       <p><b>Your full-screen cover.</b> A spinning vinyl or CD, or the still cover, with or without lyrics.</p>
@@ -732,10 +725,6 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre></div></li>
 
 <script>
 (function(){
-  /* the Disc in the hero: one screen after another (still for reduced motion) */
-  var imgs=[].slice.call(document.querySelectorAll('#screen img')),cap=document.getElementById('cap'),i=0;
-  var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!still&&imgs.length>1){setInterval(function(){imgs[i].classList.remove('on');i=(i+1)%imgs.length;imgs[i].classList.add('on');cap.textContent=imgs[i].getAttribute('data-cap');},3600);}
   /* the mixer: one setting at a time on the round screen */
   var mi=document.getElementById('mix-img'),mn=document.getElementById('mix-note');
   document.querySelectorAll('#mixer .chips button').forEach(function(b){b.addEventListener('click',function(){
