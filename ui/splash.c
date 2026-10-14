@@ -99,7 +99,7 @@ static void tables_free(void){
 
 /* ---- one frame of the ball: tile shades for this turn, then the pixels ---- */
 static const float LX = -0.45f, LY = 0.55f, LZ = 0.70f;     /* the room's light, up and to the left (normalised below) */
-static void ball_draw(float rot, uint32_t bg){
+static void ball_draw(float rot, uint32_t bg, int fade){   /* fade 0..256: drawn into the picture, never as object opacity */
     float ln = sqrtf(LX * LX + LY * LY + LZ * LZ), lx = LX / ln, ly = LY / ln, lz = LZ / ln;
     for(int r = 0; r < ROWS; r++){
         float lm = -1.5707963f + 3.1415927f * (r + 0.5f) / ROWS, cl = cosf(lm), sl = sinf(lm);
@@ -128,7 +128,7 @@ static void ball_draw(float rot, uint32_t bg){
         const uint8_t *s = g_shade[row][col % g_ncol[row]];
         int e = g_edge[k], m = grout ? 70 : 256;
         for(int ch = 0; ch < 3; ch++){                                         /* the tile, darker at the rim; never below the room */
-            int v = (s[ch] * m >> 8) * e >> 8, bgc = ch == 0 ? bb : ch == 1 ? bgg : br;
+            int v = ((s[ch] * m >> 8) * e >> 8) * fade >> 8, bgc = ch == 0 ? bb : ch == 1 ? bgg : br;
             o[ch] = (uint8_t)(v > bgc ? v : bgc);
         }
         o[3] = 255;
@@ -157,11 +157,12 @@ static void splash_frame(int ms){
     /* 2. the ball */
     float b = ease(seg(t, 0.33f, 0.5f)), out = 1 - seg(t, 0.9f, 1);
     if(b > 0){
-        ball_draw(rot, lv_color_to_u32(TC(FIXED_SPLASH_BG)) & 0xFFFFFF);
+        /* the fade is drawn into the picture itself: an opaque copy every frame, never a blended one (that blend made
+         * the hand-over from the lights to the ball stutter on the Disc) */
+        ball_draw(rot, lv_color_to_u32(TC(FIXED_SPLASH_BG)) & 0xFFFFFF, (int)(256 * b));
         lv_image_cache_drop(&g_dsc);
         lv_obj_invalidate(g_sp.ball);
         lv_obj_remove_flag(g_sp.ball, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(g_sp.wire, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_opa(g_sp.ball, (lv_opa_t)(255 * b), 0);
         lv_obj_set_style_opa(g_sp.wire, (lv_opa_t)(70 * b), 0);
     }
 
@@ -283,10 +284,24 @@ static void build(void){
     lv_obj_set_x(g_sp.word, 180 - lv_obj_get_width(g_sp.word) / 2);
 }
 
+/* A plain cover in the splash's colour, put up before the first frame is drawn: Home is built and painted during
+ * startup, well before the splash can start (the loop isn't running yet), and showed for a moment without it. */
+static lv_obj_t *g_cover;
+void splash_cover(void){
+    if(g_cover || g_sp.root) return;
+    g_cover = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(g_cover); kit_keep(g_cover);
+    lv_obj_remove_flag(g_cover, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(g_cover, 360, 360);
+    lv_obj_set_style_bg_color(g_cover, TC(FIXED_SPLASH_BG), 0); lv_obj_set_style_bg_opa(g_cover, LV_OPA_COVER, 0);
+    lv_obj_add_flag(g_cover, LV_OBJ_FLAG_CLICKABLE);
+}
+static void cover_off(void){ if(g_cover){ lv_obj_delete(g_cover); g_cover = NULL; } }
 void splash_start(void){
-    if(g_sp.root) return;                                           /* one splash at a time */
-    if(!tables()){ tables_free(); return; }                         /* no memory for the ball: no splash, straight to Home */
+    if(g_sp.root){ cover_off(); return; }                           /* one splash at a time */
+    if(!tables()){ tables_free(); cover_off(); return; }            /* no memory for the ball: no splash, straight to Home */
     build();
+    cover_off();                                                    /* the splash's own black takes over from here */
     g_sp.t0 = lv_tick_get();
     lv_display_add_event_cb(lv_display_get_default(), splash_drawn_cb, LV_EVENT_RENDER_READY, NULL);
     splash_frame(0);

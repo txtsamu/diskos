@@ -3027,6 +3027,7 @@ int main(int argc, char **argv){
     }
     screen_show(start);
     onboarding_start();
+    if(!getenv("DISKOS_THEME_RELOAD")) splash_cover();   /* the boot splash comes later: until then Home stays hidden */
     /* Force ONE full-screen repaint at startup. The framebuffer may still hold the stock
      * boot splash (switching stock->diskOS, or our own relaunch); the partial-render engine
      * only copies widget-dirty areas, so background regions would show stale splash pixels

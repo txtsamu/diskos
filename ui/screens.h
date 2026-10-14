@@ -83,6 +83,7 @@ void screen_set_anim(int on);
 int  screen_current(void);
 void ui_toast(const char *msg);
 void splash_start(void);
+void splash_cover(void);         /* a plain cover in the splash colour until splash_start (main.c, before the first frame) */
 void splash_test_frame(int ms);   /* host renders: the splash at ms */
 /* the "something" block-matrix clock (home.c): handle 0 = Home, 1 = screensaver */
 int  mclock_new(int h, lv_obj_t *parent, int y);
