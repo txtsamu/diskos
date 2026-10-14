@@ -66,35 +66,26 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 
 /* ---- hero: the Disc itself ---- */
 .hero{padding:64px 0 96px;overflow:hidden}
-.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.hero .wrap{display:block}
+.hero .intro{max-width:900px;margin:0 auto;text-align:center}
+.hero .intro .lead{margin:22px auto 0}
+.row5{display:flex;align-items:center;justify-content:center;gap:clamp(10px,2.2vw,30px);margin:58px auto 0}
+.row5 figure{flex:none}
+.row5 .s1{width:clamp(70px,14vw,180px)}.row5 .s2{width:clamp(96px,19vw,240px)}.row5 .s3{width:clamp(150px,29vw,370px)}
+.row5 .s3 img{transition:opacity .2s ease}
+.hero .note{text-align:center;margin-top:20px;font-size:15px;color:var(--mist);min-height:1.6em}
+.picker{max-width:760px;margin:30px auto 36px;text-align:center}
+.picker .groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px 28px;margin-top:14px;text-align:left}
+@media (max-width:620px){.row5 .s1{display:none}.row5 .s2{width:24vw}.row5 .s3{width:44vw}}
 
-.hero h1{font-size:clamp(40px,5.1vw,70px);line-height:1;font-weight:800;letter-spacing:-.035em}
+.hero h1{font-size:clamp(38px,5.6vw,76px);line-height:1;font-weight:800;letter-spacing:-.035em}
 .hero h1 span{display:block;color:transparent;-webkit-text-stroke:1.5px rgba(243,244,248,.85)}
 .for{display:inline-block;margin-bottom:26px;color:var(--mist);font-size:15px}
 .for b{color:var(--paper);font-weight:600}
-.hero .lead{margin:22px 0 26px}
-.hero .try{font-size:15px;color:var(--dim);margin-bottom:14px}
-.hero .groups{gap:14px;margin-bottom:30px}
-.device .caption{bottom:-40px}
+.hero .try{font-size:15px;color:var(--dim)}
 .hero .ctas{display:flex;gap:12px;flex-wrap:wrap}
 .hero .small{margin-top:22px;max-width:52ch}
-.device{position:relative;width:min(100%,500px);aspect-ratio:1;margin-left:auto}
-.device .body{position:absolute;inset:0;border-radius:50%;
-  background:radial-gradient(circle closest-side,#15161d 0 77%,#f1f3f7 77.6% 78.6%,#9aa1b4 79.5%,#dde1e9 86%,#aab0c2 93%,#eef0f5 99%,transparent 100%);
-  box-shadow:0 40px 90px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.4)}
-.device .foil{position:absolute;inset:0;border-radius:50%;background:var(--foil);mix-blend-mode:color;opacity:.32;
-  -webkit-mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);
-  animation:spin 26s linear infinite}
-.device .sheen{position:absolute;inset:0;border-radius:50%;
-  background:conic-gradient(from 30deg,transparent 0 10%,rgba(255,255,255,.55) 14%,transparent 20% 60%,rgba(255,255,255,.35) 64%,transparent 70%);
-  -webkit-mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);mask:radial-gradient(circle closest-side,transparent 0 79%,#000 80% 99%,transparent 99.6%);
-  animation:spin 26s linear infinite reverse}
-.device .screen{position:absolute;inset:13%;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 3px #07080d,0 0 0 4px rgba(255,255,255,.12)}
-.device .screen img{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1s ease}
-.device .screen img.on{opacity:1}
-.device .caption{position:absolute;left:0;right:0;bottom:-44px;text-align:center;font-size:14px;color:var(--mist)}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:900px){.hero .wrap{grid-template-columns:1fr}.device{order:-1;margin:0 auto 64px;width:min(80%,400px)}}
+
 
 /* ---- sections ---- */
 section{padding:110px 0}
@@ -252,7 +243,7 @@ footer .links a:hover{color:var(--paper)}
 footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55) 18% 21%,transparent 22%),var(--foil)}
 @media (max-width:760px){footer .cols{grid-template-columns:1fr 1fr}footer .cols>:first-child{grid-column:1/-1}}
 
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.device .foil,.device .sheen{animation:none}.device .screen img{transition:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.row5 .s3 img{transition:none}}
 </style>
 </head>
 <body id="top">
@@ -271,13 +262,23 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 <main>
 <section class="hero">
   <div class="wrap">
-    <div>
+    <div class="intro">
       <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
       <h1>Your Disco, <span>built from your choices.</span></h1>
       <p class="lead">More than an MP3 player. diskOS Disco! turns the Snowsky Disc into a player built around your
         albums and the way you listen: choose the look and the layout, fill it with apps (or write your own), and
         find the next record by mood, by chance or by habit. Every piece is optional, and every piece is yours.</p>
-      <p class="try">Try it: every choice below is one setting on the Disc.</p>
+    </div>
+    <div class="row5" aria-label="Screens from diskOS Disco!">
+      <figure class="s1"><div class="shot"><img src="disco/apps-shelf.png" alt="Apps in the navigation circle" width="360" height="360"></div></figure>
+      <figure class="s2"><div class="shot"><img src="disco/songsphere.png" alt="SongSphere: play by mood" width="360" height="360"></div></figure>
+      <figure class="s3"><div class="shot"><img id="mix-img" src="disco/music.png" alt="Music, as chosen below" width="360" height="360"></div></figure>
+      <figure class="s2"><div class="shot"><img src="disco/stats-wrapped.png" alt="Listening Stats: your top artist" width="360" height="360"></div></figure>
+      <figure class="s1"><div class="shot"><img src="disco/roulette-dark.png" alt="Album Roulette" width="360" height="360"></div></figure>
+    </div>
+    <p class="note" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
+    <div class="picker">
+      <p class="try">Try it: each choice is one setting on the Disc, shown on Music in the middle.</p>
       <div class="groups" id="mixer">
         <div class="group"><span>Theme</span><div class="chips" data-group="theme">
           <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
@@ -305,18 +306,13 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
           <button type="button" aria-pressed="false" data-img="disco/accent.png" data-note="An accent that follows the album, or your own colour.">Accent</button>
         </div></div>
       </div>
-      <div class="ctas">
+    </div>
+      <div class="ctas" style="justify-content:center">
         <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
         <a class="pill line" href="#install">Linux and SD updates</a>
         <a class="pill line" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Take the tour</a>
       </div>
-      <p class="small">Free and open source. A testing release, provided as is. Built on b0hemia's diskOS; not affiliated with FiiO or Snowsky.</p>
-    </div>
-    <div class="device" aria-label="The Disc, showing screens from diskOS Disco!">
-      <div class="body"></div><div class="foil"></div><div class="sheen"></div>
-      <div class="screen"><img class="on" id="mix-img" src="disco/music.png" alt="Music, as chosen"></div>
-      <p class="caption" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
-    </div>
+      <p class="small" style="margin:22px auto 0;text-align:center">Free and open source. A testing release, provided as is. Built on b0hemia's diskOS; not affiliated with FiiO or Snowsky.</p>
   </div>
 </section>
 
