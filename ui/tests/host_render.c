@@ -965,7 +965,7 @@ int main(int argc, char **argv){
         if(th_null()&&!strcmp(page,"scr43"))appshelf_open();
         screen_show(scr);
         if(!strncmp(page,"immersive",9)){
-            ui_np_fsart_open();assert(ui_np_fsart_active());
+            if(th_disco() || th_null()) disco_open_np_immersive(); else ui_np_fsart_open();assert(ui_np_fsart_active());
             for(int i=0;i<100;i++){lyrics_poll(NULL);usleep(1000);}
         }
         for(int i=0;i<120;i++){lv_tick_inc(10);lv_timer_handler();}kit_pass(screen_get_root(scr));
@@ -973,6 +973,24 @@ int main(int argc, char **argv){
             void disco_test_tap(int);disco_nav_set_open(1);nav_wait(300);
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
             if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
+        }
+        if(getenv("REVIEW_NULL_ROUTES")){
+            assert(th_null());
+            for(int animated=0;animated<=1;animated++){
+                screen_set_anim(animated);screen_home();nav_wait(300);
+                /* Every library/queue/search playback picker uses this same public destination. */
+                screen_show(SCR_LIBRARY);nav_wait(300);screen_show(SCR_NOWPLAYING);nav_wait(300);
+                assert(screen_current()==SCR_HOME);
+                assert(!lv_obj_has_flag(screen_get_root(SCR_HOME),LV_OBJ_FLAG_HIDDEN));
+                assert(lv_obj_has_flag(screen_get_root(SCR_NOWPLAYING),LV_OBJ_FLAG_HIDDEN));
+                disco_open_np_immersive();nav_wait(800);
+                assert(screen_current()==SCR_NOWPLAYING && ui_np_fsart_active());
+                ui_np_fsart_close();nav_wait(600);
+                assert(screen_current()==SCR_HOME && !ui_np_fsart_active());
+                assert(lv_obj_has_flag(screen_get_root(SCR_NOWPLAYING),LV_OBJ_FLAG_HIDDEN));
+            }
+            puts("PASS: Null playback redirects to Music and Immersive exits to Music, animations on/off");
+            return 0;
         }
         if(getenv("REVIEW_NULL")){review_null();return 0;}
         if(getenv("REVIEW_NAV")){review_nav();return 0;}

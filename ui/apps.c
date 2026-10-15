@@ -143,7 +143,7 @@ void shortcut_run(const char *key){
         return;
     }
     if(!strcmp(key, "weather")) weather_app_open();
-    else if(!strcmp(key, "immersive")){ if(th_disco()) disco_open_np_immersive(); else { screen_show(SCR_NOWPLAYING); ui_np_fsart_open(); } }   /* Disco: Now Playing redirects to Music unless asked for */
+    else if(!strcmp(key, "immersive")){ if(th_disco() || th_null()) disco_open_np_immersive(); else { screen_show(SCR_NOWPLAYING); ui_np_fsart_open(); } }   /* Disco: Now Playing redirects to Music unless asked for */
     else if(!strcmp(key, "eq")) screen_show(SCR_EQ);
     else if(!strcmp(key, "folders")) folderbrowser_open();
     else if(!strcmp(key, "lyrics")) lyrics_open();

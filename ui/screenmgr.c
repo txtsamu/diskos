@@ -231,7 +231,7 @@ static void transition_core(int from, int to, int dir)
 void screen_show(int which)
 {
     if (which < 0 || which >= SCR_COUNT) return;
-    if (th_disco() && which == SCR_NOWPLAYING && !disco_np_wanted()) { screen_home(); return; }   /* Disco: Music is Now Playing */
+    if ((th_disco() || th_null()) && which == SCR_NOWPLAYING && !disco_np_wanted()) { screen_home(); return; }   /* Disco/Null: ordinary playback routes to Music; only explicit Immersive enters the shared NP root. */
     int from = s_current;
     if (which != s_current) {
         int cap = (int)(sizeof(s_stack)/sizeof(s_stack[0]));

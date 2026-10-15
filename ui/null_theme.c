@@ -169,8 +169,7 @@ static void track_event(lv_event_t *e)
     if (!have)
         return;
     if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
-        screen_show(SCR_NOWPLAYING);
-        ui_np_fsart_open();
+        disco_open_np_immersive();
     } else if (lv_event_get_code(e) == LV_EVENT_CLICKED && !screen_press_was_long())
         disco_track_overlay_open();
 }

@@ -658,12 +658,12 @@ static void np_immersive_now(void){
     /* Ask the overlay itself before navigating: it can refuse when the UI
      * has no track, even if IPC still carries the previous track. */
     ui_np_fsart_open();
-    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); if(screen_current() == SCR_HOME) dhome_imm_return(); return; }
+    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); if(th_disco() && screen_current() == SCR_HOME) dhome_imm_return(); return; }
     if(screen_get_anim()) screen_skip_anim_once();                    /* the record drops in instead of the slide */
     g_np_want = 1; screen_show(SCR_NOWPLAYING); g_np_want = 0;
 }
 void disco_open_np_immersive(void){
-    if(screen_current() == SCR_HOME && screen_get_anim()) dhome_imm_leave(np_immersive_now);   /* Music's pieces step aside first */
+    if(th_disco() && screen_current() == SCR_HOME && screen_get_anim()) dhome_imm_leave(np_immersive_now);   /* Music's pieces step aside first */
     else np_immersive_now();
 }
 

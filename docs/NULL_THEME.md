@@ -1,4 +1,4 @@
-# Null 2.3.0-Null.2 — Disc device-test build
+# Null 2.3.0-Null.3 — Disc device-test build
 
 Select Display > Theme > Null. Theme settings are under Display > Null Options.
 
@@ -26,4 +26,9 @@ Music's title, artist, album and time. Theme changes reject overlapping picks du
 restart and failed saves; Null's styling callbacks check the running theme.
 
 The changed Music, open drawer, popup and QS screens were rendered on the host.
-The intermittent Ring/Null switching symptom needs confirmation on the device.
+Null.3 fixes the actual cause of the apparent Ring/Null mixing: ordinary
+SCR_NOWPLAYING requests now route to Null Music, while explicit Immersive entries
+use the shared record overlay and return to Music on close. Title hold, QS,
+Shortcuts and the track-menu full-art action use the same guarded entry path.
+A focused host regression passed for playback destinations and Immersive exit
+with animations both enabled and disabled. Physical Disc confirmation is pending.

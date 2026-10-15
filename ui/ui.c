@@ -883,7 +883,7 @@ void ui_np_fsart_open(void){
     lv_obj_set_style_opa(fsart, LV_OPA_TRANSP, 0);
     lv_obj_remove_flag(fsart, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(fsart);
-    if(th_disco()) lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
+    if(th_disco() || th_null()) lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
     else anim_fade(fsart, LV_OPA_TRANSP, LV_OPA_COVER, 240, NULL);
     fsart_on = 1;
     if(g_np_poster || g_np_ring){                       /* Ring and Braun share this immersive path */
@@ -914,7 +914,7 @@ void ui_np_fsart_open(void){
         imm_spin_ms=(uint32_t)imm_angle*20000/3600;
         imm_playing = g_np_is_playing;
         if(!imm_timer) imm_timer = lv_timer_create(imm_tick, imm_still() ? 250 : imm_frame_period, NULL);   /* initial render already measured its cost */
-        if(th_disco() && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)) imm_in_start();
+        if((th_disco() || th_null()) && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)) imm_in_start();
     }
 }
 
@@ -961,7 +961,7 @@ static void imm_out_exec(void *x, int32_t v){
 static void imm_out_done(lv_anim_t *a){
     (void)a;
     imm_boost = 0; if(imm_spin) lv_image_set_scale(imm_spin, imm_fast || g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP));   /* rest for next time */
-    screen_skip_anim_once(); screen_home(); dhome_imm_return();
+    screen_skip_anim_once(); screen_home(); if(th_disco()) dhome_imm_return();
     if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);
 }
 static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN); }
@@ -969,7 +969,7 @@ void ui_np_fsart_close(void){
     if(!fsart || !fsart_on) return;
     fsart_on = 0;
     if(imm_timer){ lv_timer_delete(imm_timer); imm_timer = NULL; }
-    if(th_disco() && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
+    if((th_disco() || th_null()) && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
         static int tag; lv_anim_delete(&tag, NULL);                  /* the record lifts off, then Music slides back in */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
         lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_out_exec);
@@ -977,7 +977,7 @@ void ui_np_fsart_close(void){
         lv_anim_set_completed_cb(&a, imm_out_done); lv_anim_start(&a);
         return;
     }
-    if(th_disco() && screen_current() == SCR_NOWPLAYING){
+    if((th_disco() || th_null()) && screen_current() == SCR_NOWPLAYING){
         /* The shared NP root uses Ring's layout. Keep it covered throughout
          * the 240ms return slide; hiding/fading first exposes that layout. */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);

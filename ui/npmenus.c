@@ -465,6 +465,7 @@ __attribute__((unused)) static void hub_eq_cb(lv_event_t *e){ if(lv_event_get_co
 static void fsart_deferred_cb(lv_timer_t *t){ lv_timer_delete(t); ui_np_fsart_open(); }
 static void hub_fsart_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    if(th_disco() || th_null()){ disco_open_np_immersive(); return; }
     screen_show(SCR_NOWPLAYING);   /* fsart lives on the NP root -> make NP the active screen first */
     /* open after the NP slide-in settles so the transition can't stomp the overlay's z-order/opacity */
     lv_timer_t *t = lv_timer_create(fsart_deferred_cb, 360, NULL);
