@@ -108,16 +108,17 @@ void usage_tick(int screen_on, int playing){
     /* a full charge: reached full while charging, then unplugged -> the totals start again from here */
     if(g_batt >= 0){
         int target = cfg_get_int("charge_protect", 0) ? 80 : 96;   /* full = 95% or more (the gauge seldom reaches 100); 79+ with the limit */
-        static int boot_checked;                             /* charged while switched off: starts up full, was lower */
-        if(!boot_checked){ boot_checked = 1;
-            if(!g_chg && g_n > 0 && g_batt >= target - 1 && g_batt > at(g_n - 1)->pct + 5){
-                g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0; usage_save(); } }
-        if(g_chg && g_batt >= target - 1) g_cy.full_seen = 1;
-        else if(!g_chg && !g_cy.full_seen && g_batt >= target - 1 && g_n > 0 && (at(g_n - 1)->fl & FL_CHG)
-                && g_batt >= at(g_n - 1)->pct)                /* unplugged full, the moment of "full" itself unseen */
-            g_cy.full_seen = 1;
-        if(!g_chg && g_cy.full_seen){
+        /* Seen charging at full: remember it. Unplugged at full: a full charge, also when the charge itself wasn't
+         * watched - the Disc asleep or switched off while it charged - which shows as the level having risen 5 points
+         * or more since the last minute we recorded, or that minute having been on the charger. */
+        if(g_chg && g_batt >= target - 1 && !g_cy.full_seen){ g_cy.full_seen = 1; usage_save(); }   /* kept on disk at once: */
+        /* a restart of the interface between full and unplugging (USB, an update) must not forget it */
+        if(!g_chg && g_batt >= target - 1 && (g_cy.full_seen ||
+           (g_n > 0 && ((at(g_n - 1)->fl & FL_CHG) || g_batt >= at(g_n - 1)->pct + 5)))){
             g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0; usage_save();
+            g_acc &= (uint8_t)~FL_CHG;                       /* this minute starts the new cycle */
+            if(g_n > 0) at(g_n - 1)->fl &= (uint8_t)~FL_CHG; /* and the reset fires once, not again next pass */
+            if(g_n > 0 && at(g_n - 1)->pct < g_batt) at(g_n - 1)->pct = (uint8_t)g_batt;
         }
     }
     if(m != g_cur_min){
