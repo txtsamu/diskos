@@ -28,6 +28,8 @@ SD update from 1.4.1 or later (no reflash).
 - Changed: Library (Disco): rows reach further into the free edge, and titles run up to the count or duration.
 - Changed: Search shows up to five artists, the ones with the most songs first.
 - Changed: the website: new hero, Form and Function chapters, new screenshots.
+- Fixed: Battery: the playing / screen-on totals never restarted after a charge made with the screen off, and
+  screen-off minutes were logged at a stale level; the page now reads the gauge itself once a minute.
 
 ## [2.2.2] - 2026-10-15
 

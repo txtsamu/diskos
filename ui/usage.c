@@ -83,14 +83,28 @@ static void load(void){
 }
 /* from the 3 s status poll */
 void usage_note_battery(int pct, int charging){ if(pct >= 0 && pct <= 100){ g_batt = pct; g_chg = charging; } }
+/* The status poll that feeds usage_note_battery stops while the screen is off, so on its own the level and the
+ * charger state froze there: a charge made with the screen off was never seen (the since-full totals never reset)
+ * and screen-off minutes were logged at a stale level. So the recorder reads the gauge itself, once a minute. */
+static void read_gauge(void){
+#ifndef USAGE_NO_SYSFS
+    int pct = -1; long cur = 0;
+    FILE *f = fopen("/sys/class/power_supply/cw221X-bat/capacity", "r");
+    if(f){ if(fscanf(f, "%d", &pct) != 1) pct = -1; fclose(f); }
+    f = fopen("/sys/class/power_supply/cw221X-bat/current_now", "r");
+    if(f){ if(fscanf(f, "%ld", &cur) != 1) cur = 0; fclose(f); }
+    if(pct >= 0 && pct <= 100){ g_batt = pct; g_chg = cur > 0; }
+#endif
+}
 /* from every main-loop pass: cheap unless the minute just turned over */
 void usage_tick(int screen_on, int playing){
     static int loaded;
-    if(!loaded){ loaded = 1; load(); }
+    if(!loaded){ loaded = 1; load(); read_gauge(); }
     time_t now = time(NULL);
     if(now < 1600000000) return;                           /* the clock isn't set yet: record nothing */
     uint32_t m = (uint32_t)(now / 60);
     if(!g_cur_min) g_cur_min = m;
+    if(m != g_cur_min) read_gauge();                       /* a fresh level for the minute being closed */
     /* a full charge: reached full while charging, then unplugged -> the totals start again from here */
     if(g_batt >= 0){
         int target = cfg_get_int("charge_protect", 0) ? 80 : 96;   /* full = 95% or more (the gauge seldom reaches 100); 79+ with the limit */
@@ -99,7 +113,10 @@ void usage_tick(int screen_on, int playing){
             if(!g_chg && g_n > 0 && g_batt >= target - 1 && g_batt > at(g_n - 1)->pct + 5){
                 g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0; usage_save(); } }
         if(g_chg && g_batt >= target - 1) g_cy.full_seen = 1;
-        else if(!g_chg && g_cy.full_seen){
+        else if(!g_chg && !g_cy.full_seen && g_batt >= target - 1 && g_n > 0 && (at(g_n - 1)->fl & FL_CHG)
+                && g_batt >= at(g_n - 1)->pct)                /* unplugged full, the moment of "full" itself unseen */
+            g_cy.full_seen = 1;
+        if(!g_chg && g_cy.full_seen){
             g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0; usage_save();
         }
     }
