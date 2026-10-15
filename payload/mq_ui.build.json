@@ -1,16 +1,16 @@
 {
-  "version": "2.2.2",
-  "status": "release candidate; compiled, not device-tested (the splash and the Stats arrows were tested on the Disc in earlier builds); SD update from 1.4.1",
-  "source_commit": "f6b4a8759ab07e3071be5f00d56c697938c6725e",
-  "base_commit": "18dcdce",
+  "version": "2.3.0",
+  "status": "release candidate; tested on the Disc by the owner (battery reset fixes added after); SD update from 1.4.1",
+  "source_commit": "34365493213e5f83f903bec03eb22aadaa3901d8",
+  "base_commit": "85e10be",
   "working_changes": false,
-  "ui_source_sha256": "0513b7ae48a9ac7a8b596eb9a7ab8d5db9eba2e5cd1dc51b9fff497dfb1c1110",
+  "ui_source_sha256": "c671b27d9e23ce1cbf20b0de22c9e0abc8be06594dc7d905512495807e2f5ca6",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "5f93bd5f08e44ec80cab134de08256a517674475c7913d22de489e418e7a5df2",
-    "md5": "c671e359024ae5e6aa0eca830b2d433b",
-    "bytes": 6140372
+    "sha256": "3cb49c4cc69be5be334ea95efb395bca765decfda8fa94de926db32722fdbc41",
+    "md5": "5216c60daa4bb7fdc13b0eaf84cb95d1",
+    "bytes": 6156560
   },
-  "replaces_binary_sha256": "63e0bdd54dbda152e2bc974721f7fa9c43b37ce1ab4fa0b3d5ccc97a50501ba8"
+  "replaces_binary_sha256": "5f93bd5f08e44ec80cab134de08256a517674475c7913d22de489e418e7a5df2"
 }
