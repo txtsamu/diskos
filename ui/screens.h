@@ -80,6 +80,8 @@ void screen_back(void);
 void screen_home(void);              /* straight to Home, clearing the back stack */
 int  screen_press_was_long(void);    /* in a click handler: the press was a long press */
 void screen_set_anim(int on);
+int  screen_get_anim(void);
+void screen_skip_anim_once(void);          /* the next screen change without the slide (the caller animates it) */
 int  screen_current(void);
 void ui_toast(const char *msg);
 void splash_start(void);

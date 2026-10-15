@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "lvgl/src/core/lv_obj_event_private.h"   /* lv_hit_test_info_t: the gesture zone leaves the Arc ring alone */
 
 extern const lv_font_t font_theme_20, font_theme_24;
 extern const lv_font_t font_weather16;
@@ -95,6 +96,124 @@ static void transport_cb(lv_event_t *e){
 }
 static void disco_progress_arc_create(lv_obj_t *root);
 static void pa_set(int f);
+
+/* ---- Settings > Disco Options > Music Screen > Controls: 0 Buttons, 1 Auto-hide, 2 Gestures -----------------------
+ * Auto-hide: the buttons and the play mode fade out 5 s after the last touch; the next touch anywhere brings them
+ * back (a touch where they were only shows them, it presses nothing). Gestures: no buttons; the band below the line is
+ * a touch zone - double tap play/pause, swipe right next, swipe left previous - with faint hints along the bottom and
+ * a glyph that flashes for what was done. The play mode stays in the track overlay. */
+#define GZ_X 44
+#define GZ_Y 238
+#define GZ_W 272
+#define GZ_H 112
+static lv_obj_t *g_gz, *g_gz_hint[4], *g_gz_fx;
+static lv_obj_t *g_ov;                                                  /* the track overlay (below) */
+static int g_scrub;                                                     /* the line is being dragged (below) */
+static lv_timer_t *g_ctl_tmr;
+static int g_ctl_shown = 1, g_gz_px, g_gz_py; static uint32_t g_gz_t0, g_gz_last;
+static int ctl_mode(void){ return cfg_get_int("disco_controls", 0); }
+static void ctl_fade_done(lv_anim_t *a){ lv_obj_t *o = a->var; if(!g_ctl_shown) lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN); }
+static void ctl_opa_cb(void *o, int32_t v){ lv_obj_set_style_opa(o, (lv_opa_t)v, 0); }
+static void ctl_fade(lv_obj_t *o, int in){
+    if(!o) return;
+    lv_anim_delete(o, ctl_opa_cb);
+    if(in) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, o); lv_anim_set_exec_cb(&a, ctl_opa_cb);
+    lv_anim_set_values(&a, lv_obj_get_style_opa(o, 0), in ? 255 : 0); lv_anim_set_duration(&a, in ? 180 : 400);
+    lv_anim_set_completed_cb(&a, ctl_fade_done); lv_anim_start(&a);
+}
+static void ctl_show(int on){
+    if(on == g_ctl_shown) return;
+    g_ctl_shown = on;
+    for(int k = 0; k < 3; k++) ctl_fade(g_btn[k], on);
+    ctl_fade(g_mode, on);
+}
+static void ctl_tick(lv_timer_t *t){
+    (void)t;
+    if(ctl_mode() != 1 || screen_current() != SCR_HOME) return;
+    uint32_t idle = lv_display_get_inactive_time(NULL);
+    if(g_ctl_shown && idle >= 5000 && !g_scrub && !g_ov) ctl_show(0);
+    else if(!g_ctl_shown && idle < 300) ctl_show(1);                  /* any touch brings them back */
+}
+static void gz_flash(const char *glyph){
+    if(!g_gz_fx) return;
+    lv_label_set_text(g_gz_fx, glyph); lv_obj_remove_flag(g_gz_fx, LV_OBJ_FLAG_HIDDEN);
+    lv_anim_delete(g_gz_fx, ctl_opa_cb);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, g_gz_fx); lv_anim_set_exec_cb(&a, ctl_opa_cb);
+    lv_anim_set_values(&a, 255, 0); lv_anim_set_delay(&a, 250); lv_anim_set_duration(&a, 450); lv_anim_start(&a);
+}
+static int gz_arc_point(int x, int y){                                 /* on the Arc progress ring: the arc's, not ours */
+    int dx = x - 180, dy = y - 180;
+    return cfg_get_int("disco_prog_shape", 0) == 1 && cfg_get_int("disco_progress", 0) != 2 && dx * dx + dy * dy >= 144 * 144;
+}
+static void gz_cb(lv_event_t *e){
+    lv_event_code_t c = lv_event_get_code(e);
+    if(c == LV_EVENT_HIT_TEST){ lv_hit_test_info_t *h = lv_event_get_hit_test_info(e); if(gz_arc_point(h->point->x, h->point->y)) h->res = false; return; }
+    lv_indev_t *in = lv_indev_active(); lv_point_t p = { 0, 0 }; if(in) lv_indev_get_point(in, &p);
+    if(c == LV_EVENT_PRESSED){ g_gz_px = p.x; g_gz_py = p.y; g_gz_t0 = lv_tick_get(); return; }
+    if(c != LV_EVENT_RELEASED || !g_have) return;
+    int dx = p.x - g_gz_px, dy = p.y - g_gz_py, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
+    uint32_t now = lv_tick_get();
+    if(adx >= 40 && adx > 2 * ady && now - g_gz_t0 < 700){            /* a swipe: right = next, left = previous */
+        g_gz_last = 0;
+        if(dx > 0){ ui_transport_command("0201000C0001"); gz_flash(LV_SYMBOL_NEXT); }
+        else      { ui_transport_command("0201000C0002"); gz_flash(LV_SYMBOL_PREV); }
+        return;
+    }
+    if(adx > 18 || ady > 18 || now - g_gz_t0 > 400) return;           /* not a tap */
+    if(g_gz_last && now - g_gz_last < 400){                            /* the second tap of a double tap */
+        g_gz_last = 0;
+        track_state_t st; ipc_get_state(&st);
+        gz_flash(st.state == 2 ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+        ui_transport_command("0201000C0000");
+    } else g_gz_last = now;
+}
+static void gz_create(lv_obj_t *root){
+    g_gz = lv_obj_create(root); lv_obj_remove_style_all(g_gz);
+    lv_obj_set_pos(g_gz, disco_mirror() ? 360 - GZ_X - GZ_W : GZ_X, GZ_Y); lv_obj_set_size(g_gz, GZ_W, GZ_H);
+    lv_obj_add_flag(g_gz, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_ADV_HITTEST); lv_obj_clear_flag(g_gz, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(g_gz, gz_cb, LV_EVENT_ALL, NULL);
+    kit_keep(g_gz); lv_obj_add_flag(g_gz, LV_OBJ_FLAG_USER_2);
+    /* the hints, faint, along the bottom: previous at the left, the double tap in the middle, next at the right */
+    static const char *const H[3] = { LV_SYMBOL_LEFT "  " LV_SYMBOL_PREV, LV_SYMBOL_PAUSE, LV_SYMBOL_NEXT "  " LV_SYMBOL_RIGHT };
+    static const int HX[3] = { 96, 180, 264 }, HY[3] = { 298, 324, 298 };
+    for(int k = 0; k < 3; k++){
+        lv_obj_t *l = g_gz_hint[k] = lv_label_create(root); lv_label_set_text(l, H[k]);
+        lv_obj_set_style_text_font(l, TF(UI_14), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+        lv_obj_set_style_text_opa(l, 140, 0);
+        lv_obj_update_layout(l);
+        lv_obj_set_pos(l, HX[k] - lv_obj_get_width(l) / 2, HY[k] - lv_obj_get_height(l) / 2);
+        lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE); kit_keep(l);
+    }
+    { lv_obj_t *dots = g_gz_hint[3] = lv_obj_create(root); lv_obj_remove_style_all(dots);   /* two dots: tap twice */
+      lv_obj_set_size(dots, 16, 5); lv_obj_set_pos(dots, 172, 304); lv_obj_clear_flag(dots, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+      for(int k = 0; k < 2; k++){ lv_obj_t *d = lv_obj_create(dots); lv_obj_remove_style_all(d); lv_obj_set_size(d, 5, 5);
+          lv_obj_set_pos(d, k * 11, 0); lv_obj_set_style_radius(d, LV_RADIUS_CIRCLE, 0);
+          lv_obj_set_style_bg_color(d, TC(TEXT_PRIMARY), 0); lv_obj_set_style_bg_opa(d, 140, 0); lv_obj_clear_flag(d, LV_OBJ_FLAG_CLICKABLE); }
+      kit_keep(dots); lv_obj_add_flag(dots, LV_OBJ_FLAG_USER_2); }
+    g_gz_fx = lv_label_create(root); lv_obj_set_style_text_font(g_gz_fx, TF(UI_34), 0);   /* what was done, flashed */
+    lv_obj_set_style_text_color(g_gz_fx, g_acc, 0); lv_obj_set_width(g_gz_fx, 80);
+    lv_obj_set_style_text_align(g_gz_fx, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_pos(g_gz_fx, 140, 250);
+    lv_obj_clear_flag(g_gz_fx, LV_OBJ_FLAG_CLICKABLE); kit_keep(g_gz_fx); lv_obj_add_flag(g_gz_fx, LV_OBJ_FLAG_HIDDEN);
+}
+void dhome_controls_apply(void){
+    if(!g_btn[0]) return;
+    int m = ctl_mode();
+    for(int k = 0; k < 3; k++){ lv_anim_delete(g_btn[k], ctl_opa_cb); lv_obj_set_style_opa(g_btn[k], 255, 0); }
+    lv_anim_delete(g_mode, ctl_opa_cb); lv_obj_set_style_opa(g_mode, 255, 0);
+    g_ctl_shown = 1;
+    for(int k = 0; k < 3; k++){ if(m == 2) lv_obj_add_flag(g_btn[k], LV_OBJ_FLAG_HIDDEN); else lv_obj_remove_flag(g_btn[k], LV_OBJ_FLAG_HIDDEN); }
+    if(m == 2) lv_obj_add_flag(g_mode, LV_OBJ_FLAG_HIDDEN); else lv_obj_remove_flag(g_mode, LV_OBJ_FLAG_HIDDEN);
+    if(m == 2 && !g_gz) gz_create(lv_obj_get_parent(g_btn[0]));
+    if(g_gz){
+        lv_obj_t *o[5] = { g_gz, g_gz_hint[0], g_gz_hint[1], g_gz_hint[2], g_gz_hint[3] };
+        for(int i = 0; i < 5; i++) if(o[i]){ if(m == 2) lv_obj_remove_flag(o[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o[i], LV_OBJ_FLAG_HIDDEN); }
+    }
+    if(m == 1 && !g_ctl_tmr) g_ctl_tmr = lv_timer_create(ctl_tick, 250, NULL);
+}
+/* main.c asks: is a press here the gesture zone's? (a swipe there must not open Shortcuts) */
+static int gz_owns(int x, int y){ return g_gz && ctl_mode() == 2 && !lv_obj_has_flag(g_gz, LV_OBJ_FLAG_HIDDEN)
+                                         && x >= lv_obj_get_x(g_gz) && x < lv_obj_get_x(g_gz) + GZ_W && y >= GZ_Y && y < GZ_Y + GZ_H && !gz_arc_point(x, y); }
 /* ---- the progress underline: a rainbow (the CD's sheen) that fills from left to right; drag or tap it to seek ---- */
 /* 1.4.1: wider now that a swipe can't press - from near the free edge to just short of the closed shard */
 #define UL_W 276
@@ -102,6 +221,40 @@ static void pa_set(int f);
 #define UL_Y 214
 static lv_obj_t *g_ul_fill, *g_ul_knob, *g_ul_tr, *g_ul_hit, *g_ul_solid;
 static int g_frac = -1, g_scrub;
+/* hold the line (or the arc) to scrub: a large time over the controls follows the finger, the head grows */
+static lv_obj_t *g_zb, *g_zb_t, *g_zb_d, *g_pa_knob;
+static void zoom_show(int on, int frac){
+    if(!g_zb) return;
+    if(!on){ lv_obj_add_flag(g_zb, LV_OBJ_FLAG_HIDDEN);
+             if(g_ul_knob){ lv_obj_set_size(g_ul_knob, 10, 10); lv_obj_set_y(g_ul_knob, UL_Y - 3); }
+             if(g_pa_knob) lv_obj_set_style_outline_width(g_pa_knob, 3, 0); return; }
+    track_state_t st; ipc_get_state(&st);
+    if(!st.have_track || st.duration_ms <= 0) return;
+    char a[16], b[24]; long pos = (long)((long long)st.duration_ms * frac / 1000);
+    long sp = pos / 1000, sd = st.duration_ms / 1000;
+    if(sp >= 3600) snprintf(a, sizeof a, "%ld:%02ld:%02ld", sp / 3600, sp / 60 % 60, sp % 60); else snprintf(a, sizeof a, "%ld:%02ld", sp / 60, sp % 60);
+    if(sd >= 3600) snprintf(b, sizeof b, "of %ld:%02ld:%02ld", sd / 3600, sd / 60 % 60, sd % 60); else snprintf(b, sizeof b, "of %ld:%02ld", sd / 60, sd % 60);
+    lv_label_set_text(g_zb_t, a); lv_label_set_text(g_zb_d, b);
+    if(lv_obj_has_flag(g_zb, LV_OBJ_FLAG_HIDDEN)){
+        lv_obj_remove_flag(g_zb, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_zb);
+        if(g_ul_knob && cfg_get_int("disco_prog_shape", 0) != 1){ lv_obj_set_size(g_ul_knob, 16, 16); lv_obj_set_y(g_ul_knob, UL_Y - 6); }
+        if(g_pa_knob) lv_obj_set_style_outline_width(g_pa_knob, 6, 0);
+    }
+    if(g_ul_knob && cfg_get_int("disco_prog_shape", 0) != 1) lv_obj_set_x(g_ul_knob, UL_X + UL_W * frac / 1000 - 8);
+}
+static void zoom_create(lv_obj_t *root){
+    g_zb = lv_obj_create(root); lv_obj_remove_style_all(g_zb);
+    lv_obj_set_size(g_zb, 150, 74); lv_obj_set_pos(g_zb, 105, 238);
+    lv_obj_set_style_radius(g_zb, 22, 0); lv_obj_set_style_bg_color(g_zb, TC(SURFACE), 0); lv_obj_set_style_bg_opa(g_zb, 225, 0);
+    lv_obj_set_style_border_width(g_zb, 1, 0); lv_obj_set_style_border_color(g_zb, TC(TEXT_PRIMARY), 0); lv_obj_set_style_border_opa(g_zb, 50, 0);
+    lv_obj_clear_flag(g_zb, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    g_zb_t = lv_label_create(g_zb); lv_obj_set_style_text_font(g_zb_t, TF(UI_34), 0);
+    lv_obj_set_style_text_color(g_zb_t, TC(TEXT_PRIMARY), 0); lv_obj_align(g_zb_t, LV_ALIGN_TOP_MID, 0, 6);
+    g_zb_d = lv_label_create(g_zb); lv_obj_set_style_text_font(g_zb_d, TF(UI_14), 0);
+    lv_obj_set_style_text_color(g_zb_d, TC(TEXT_SECONDARY), 0); lv_obj_align(g_zb_d, LV_ALIGN_BOTTOM_MID, 0, -6);
+    kit_keep(g_zb);
+    lv_obj_add_flag(g_zb, LV_OBJ_FLAG_HIDDEN);
+}
 static void ul_set(int f){                                         /* f: 0..1000 */
     if(f < 0) f = 0;
     if(f > 1000) f = 1000;
@@ -147,14 +300,16 @@ static void ul_cb(lv_event_t *e){
     if(!g_have){ if(c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) g_scrub = 0; return; }   /* never stuck scrubbing */
     lv_indev_t *in = lv_indev_active(); lv_point_t p = { 0, 0 }; if(in) lv_indev_get_point(in, &p);
     int f = (p.x - UL_X) * 1000 / UL_W;
+    if(c == LV_EVENT_LONG_PRESSED){ zoom_show(1, f < 0 ? 0 : f > 1000 ? 1000 : f); return; }
     if(c == LV_EVENT_PRESSED || c == LV_EVENT_PRESSING){
         g_scrub = 1; ul_set(f);
+        if(g_zb && !lv_obj_has_flag(g_zb, LV_OBJ_FLAG_HIDDEN)) zoom_show(1, g_frac);
         track_state_t st; ipc_get_state(&st);                          /* the times follow the finger */
         if(st.have_track && st.duration_ms > 0) times_paint((long)((long long)st.duration_ms * g_frac / 1000), st.duration_ms);
         return;
     }
     if(c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST){
-        g_scrub = 0;
+        g_scrub = 0; zoom_show(0, 0);
         track_state_t st; ipc_get_state(&st);
         if(st.have_track && st.duration_ms > 0) ui_seek_to((long)((long long)st.duration_ms * g_frac / 1000));
     }
@@ -207,7 +362,7 @@ static void underline_create(lv_obj_t *root){
 #define PA_N 6
 #define PA_D 344                                                       /* the drawn ring: r 172 */
 #define PA_W 5
-static lv_obj_t *g_pa_tr, *g_pa_seg[PA_N], *g_pa_cap, *g_pa_knob, *g_pa_hit;
+static lv_obj_t *g_pa_tr, *g_pa_seg[PA_N], *g_pa_cap, *g_pa_hit;
 static int g_pa_deg = -1, g_pa_scrub, g_pa_frac;
 static int pa_on(void){ return cfg_get_int("disco_prog_shape", 0) == 1; }
 static lv_obj_t *pa_arc(lv_obj_t *root, int d, int w){
@@ -257,14 +412,16 @@ static void pa_cb(lv_event_t *e){
     lv_indev_t *in = lv_indev_active(); lv_point_t p = { 0, 0 }; if(in) lv_indev_get_point(in, &p);
     if(c == LV_EVENT_PRESSED){ g_pa_scrub = p.y >= 40; if(!g_pa_scrub) return; }   /* the top edge: Quick Settings */
     if(!g_pa_scrub) return;
+    if(c == LV_EVENT_LONG_PRESSED){ zoom_show(1, g_pa_frac); return; }
     if(c == LV_EVENT_PRESSED || c == LV_EVENT_PRESSING){
         g_scrub = 1; pa_set(pa_frac_at(p.x, p.y));
+        if(g_zb && !lv_obj_has_flag(g_zb, LV_OBJ_FLAG_HIDDEN)) zoom_show(1, g_pa_frac);
         track_state_t st; ipc_get_state(&st);
         if(st.have_track && st.duration_ms > 0) times_paint((long)((long long)st.duration_ms * g_pa_frac / 1000), st.duration_ms);
         return;
     }
     if(c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST){
-        g_scrub = 0; g_pa_scrub = 0;
+        g_scrub = 0; g_pa_scrub = 0; zoom_show(0, 0);
         track_state_t st; ipc_get_state(&st);
         if(st.have_track && st.duration_ms > 0) ui_seek_to((long)((long long)st.duration_ms * g_pa_frac / 1000));
     }
@@ -312,6 +469,7 @@ static void pa_paint(int m){                                          /* m: 1 Ac
 }
 /* main.c asks at the press: is this finger on Music's seek line or ring? (so a backwards drag isn't a swipe to Apps) */
 int dhome_owns_point(int x, int y){
+    if(g_ul_fill && th_disco() && screen_current() == SCR_HOME && gz_owns(x, y)) return 1;
     if(!g_ul_fill || !th_disco() || screen_current() != SCR_HOME || cfg_get_int("disco_progress", 0) == 2) return 0;
     if(pa_on()){
         int dx = x - 180, dy = y - 180, r2 = dx * dx + dy * dy;
@@ -606,6 +764,8 @@ void dhome_create(lv_obj_t *root){
     dl_make(g_mode, &L_MODE, TF(UI_18), -1, 0, LV_ALIGN_CENTER, 0, 0, 0);
     kit_keep(g_mode); lv_obj_add_flag(g_mode, LV_OBJ_FLAG_USER_2);     /* no button styling: just the icon */
     mode_paint();
+    zoom_create(root);                                                 /* hold the line: the large time */
+    dhome_controls_apply();                                            /* Buttons / Auto-hide / Gestures */
     g_tick = lv_timer_create(prog_tick, 1000, NULL);
     { lv_timer_t *it = lv_timer_create(idle_timer_cb, 10200, NULL); if(it) lv_timer_set_repeat_count(it, 1); }   /* idle 10 s after start */
     dhome_art_changed();
@@ -679,6 +839,7 @@ static void acc_paint(void){
         if(g_btn_lbl[k]) lv_obj_set_style_text_color(g_btn_lbl[k], g_acc, 0);
     }
     if(L_MODE.fg) lv_obj_set_style_text_color(L_MODE.fg, g_acc, 0);
+    if(g_gz_fx) lv_obj_set_style_text_color(g_gz_fx, g_acc, 0);
     if(g_ul_solid) lv_obj_set_style_bg_color(g_ul_solid, g_acc, 0);
     if(g_pa_tr) pa_paint(cfg_get_int("disco_progress", 0));
     if(g_ov) ov_paint();
@@ -730,3 +891,40 @@ void dhome_art_changed(void){
     if(src){ lv_image_set_src(g_cover, src); lv_obj_remove_flag(g_cover, LV_OBJ_FLAG_HIDDEN); }
     else lv_obj_add_flag(g_cover, LV_OBJ_FLAG_HIDDEN);
 }
+void dhome_test_zoom(int frac){ zoom_show(1, frac); }                  /* host renders: the hold-to-scrub time */
+
+/* ---- Immersive: Music's pieces step aside (the clock up, the controls down, the rest fades) and come back ---- */
+static void (*g_imm_done)(void);
+static lv_obj_t *imm_part(int i, int *dy){                             /* the pieces and which way each one goes */
+    lv_obj_t *o[] = { g_pill, g_trk, g_ul_tr, g_ul_fill, g_ul_knob, L_EL.fg, L_EL.sh, L_RM.fg, L_RM.sh, g_btn[0], g_btn[1], g_btn[2], g_mode,
+                      g_gz_hint[0], g_gz_hint[1], g_gz_hint[2], g_gz_hint[3] };
+    static const int D[] = { -26, 0, 0, 0, 0, 0, 0, 0, 0, 30, 34, 30, 30, 30, 30, 30, 30 };
+    if(i >= (int)(sizeof D / sizeof D[0])) return (lv_obj_t *)-1;
+    *dy = D[i]; return o[i];
+}
+static void imm_parts_set(int v){                                      /* v: 0 in place .. 1000 gone */
+    for(int i = 0;; i++){
+        int dy; lv_obj_t *o = imm_part(i, &dy);
+        if(o == (lv_obj_t *)-1) break;
+        if(!o) continue;
+        lv_obj_set_style_translate_y(o, dy * v / 1000, 0);
+        lv_obj_set_style_opa(o, (lv_opa_t)(255 - 255 * v / 1000), 0);
+    }
+}
+static void imm_parts_exec(void *x, int32_t v){ (void)x; imm_parts_set(v); }
+static void imm_leave_done(lv_anim_t *a){ (void)a; void (*d)(void) = g_imm_done; g_imm_done = NULL; if(d) d(); }
+static void imm_back_done(lv_anim_t *a){ (void)a; imm_parts_set(0); }
+static int g_imm_tag;
+void dhome_imm_leave(void (*done)(void)){
+    g_imm_done = done; lv_anim_delete(&g_imm_tag, NULL);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &g_imm_tag); lv_anim_set_exec_cb(&a, imm_parts_exec);
+    lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, 200); lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+    lv_anim_set_completed_cb(&a, imm_leave_done); lv_anim_start(&a);
+}
+void dhome_imm_return(void){
+    lv_anim_delete(&g_imm_tag, NULL);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &g_imm_tag); lv_anim_set_exec_cb(&a, imm_parts_exec);
+    lv_anim_set_values(&a, 1000, 0); lv_anim_set_duration(&a, 260); lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, imm_back_done); lv_anim_start(&a);
+}
+void dhome_test_imm_parts(int v){ imm_parts_set(v); }                  /* host renders */

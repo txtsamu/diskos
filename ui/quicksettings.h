@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef QUICKSETTINGS_H
 #define QUICKSETTINGS_H
-#define QS_MAX_ITEMS 8
+#define QS_MAX_ITEMS 7
 typedef struct { const char *code, *name, *icon; } qs_item_t;
 int quicksettings_item_count(void);
 const qs_item_t *quicksettings_item(int id);

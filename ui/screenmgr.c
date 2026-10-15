@@ -22,6 +22,7 @@ static int s_sp = 0;
 #define PUSH_MS 300   /* entrance (cubic ease-out: covers distance fast, settles gently) */
 #define POP_MS  240   /* exit faster than entrance - a premium-motion reflex */
 static int s_anim = 1;   /* slide transitions; disabled by /usr/data/anim_off */
+static int s_skip;       /* the next change shows at once: the caller animates it itself (Disco immersive) */
 
 static lv_obj_t *screen_make_root(lv_obj_t *parent)
 {
@@ -168,6 +169,7 @@ static void transition_core(int from, int to, int dir)
     }
     if (s_scrim) { lv_anim_delete(s_scrim, NULL); scrim_off(); }   /* scrim unused by zoom; keep clear */
 
+    if (s_skip) { s_skip = 0; show_raw(to); return; }
     if (!nw || to == from || !s_anim) { show_raw(to); return; }
     /* Full-screen overlays (screensaver, quick-settings pulldown) are takeovers, not hierarchical
      * navigation - show/hide instantly. */
@@ -423,3 +425,5 @@ void screens_init(void)
 }
 
 void screen_set_anim(int on){ s_anim = on ? 1 : 0; }
+int  screen_get_anim(void){ return s_anim; }
+void screen_skip_anim_once(void){ s_skip = 1; }

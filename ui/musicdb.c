@@ -3171,11 +3171,63 @@ int mdb_playlists(char names[][MDB_STR], long *ids, int cap){
 }
 
 /* artists whose name contains q (the Artists list's own names, so a tap opens exactly that artist) */
+/* Search: the matching artists with the most songs first (ties keep the Artists list's order). One pass over the
+ * songs counts every match, so a short query stays quick. */
+typedef struct { int idx, songs; } mdb_sa_t;
+static int g_sa_exact;                                       /* by album artist: names compare exactly */
+static int mdb_sa_name_cmp(const void *a, const void *b){
+    const char *x = g_cart[((const mdb_sa_t *)a)->idx], *y = g_cart[((const mdb_sa_t *)b)->idx];
+    return g_sa_exact ? strcmp(x, y) : strcasecmp(x, y);
+}
+static int mdb_sa_rank_cmp(const void *a, const void *b){
+    const mdb_sa_t *x = a, *y = b;
+    if(x->songs != y->songs) return y->songs - x->songs;
+    return x->idx - y->idx;
+}
+static mdb_sa_t *mdb_sa_find(mdb_sa_t *m, int n, const char *name){
+    int lo = 0, hi = n - 1;
+    while(lo <= hi){
+        int mid = (lo + hi) / 2, c = g_sa_exact ? strcmp(name, g_cart[m[mid].idx]) : strcasecmp(name, g_cart[m[mid].idx]);
+        if(!c) return &m[mid];
+        if(c < 0) hi = mid - 1; else lo = mid + 1;
+    }
+    return NULL;
+}
 int mdb_search_artists(const char *q, char names[][MDB_STR], int cap){
     if(!q || !q[0] || cap <= 0) return 0;
     if(mdb_artist_count() <= 0 || !g_cart) return 0;
+    mdb_sa_t *m = malloc((size_t)g_cart_n * sizeof *m);
     int n = 0;
-    for(int i = 0; i < g_cart_n && n < cap; i++) if(strcasestr(g_cart[i], q)) memcpy(names[n++], g_cart[i], MDB_STR);
+    if(!m){                                                  /* no memory: the old way, list order */
+        for(int i = 0; i < g_cart_n && n < cap; i++) if(strcasestr(g_cart[i], q)) memcpy(names[n++], g_cart[i], MDB_STR);
+        return n;
+    }
+    for(int i = 0; i < g_cart_n; i++) if(strcasestr(g_cart[i], q)){ m[n].idx = i; m[n].songs = 0; n++; }
+    if(n > 1){                                               /* count each match's songs in one pass */
+        g_sa_exact = g_artist_mode;
+        qsort(m, (size_t)n, sizeof *m, mdb_sa_name_cmp);
+        char tok[16][MDB_STR];
+        for(int i = 0; i < g_n; i++){
+            if(g_artist_mode){
+                if(!g_songs[i].artist_group[0] || !strcasestr(g_songs[i].artist_group, q)) continue;
+                mdb_sa_t *f = mdb_sa_find(m, n, g_songs[i].artist_group); if(f) f->songs++;
+            } else {
+                if(!strcasestr(g_songs[i].artist, q)) continue;
+                int k = mdb_split_artists(g_songs[i].artist, tok, 16);
+                for(int t = 0; t < k; t++){
+                    int dup = 0; for(int u = 0; u < t; u++) if(!strcasecmp(tok[u], tok[t])) dup = 1;
+                    if(dup || !strcasestr(tok[t], q)) continue;
+                    mdb_sa_t *f = mdb_sa_find(m, n, tok[t]); if(f) f->songs++;
+                }
+            }
+        }
+    }
+    if(n > 1){
+        qsort(m, (size_t)n, sizeof *m, mdb_sa_rank_cmp);
+    }
+    if(n > cap) n = cap;
+    for(int i = 0; i < n; i++) memcpy(names[i], g_cart[m[i].idx], MDB_STR);
+    free(m);
     return n;
 }
 int mdb_search(const char *q, const mdb_song_t **out, int cap){

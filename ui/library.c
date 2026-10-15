@@ -136,6 +136,7 @@ static void fmt_dur(char *b, size_t n, int ms){
  * Visible rows resize continuously while scrolling. Keep the existing width limits, panel clearance,
  * theme treatment and virtual row window; unchanged pixel geometry does no extra label/layout work. */
 #define ROW_W_FULL 268
+#define LEAN 12                /* Disco: rows reach this much further into the free edge (the back swipe needs less) */
 static void curve_apply(lv_obj_t *r, int w, int shift){
     int d = ROW_W_FULL - w;
     lv_obj_set_width(r, w);
@@ -149,6 +150,12 @@ static void curve_apply(lv_obj_t *r, int w, int shift){
         if(ox >= 150) lv_obj_set_x(c, ox - d);                       /* right-hand value: slide in */
         else          lv_obj_set_width(c, ow - d > 40 ? ow - d : 40);/* title / subtitle: narrow */
     }
+}
+/* Disco: every row reaches LEAN px further into the free edge (the back swipe needs less): the same curve, moved over,
+ * so the rows keep their shape relative to each other while scrolling; the right ends stay where they were */
+static void lean_free_edge(int y1, int y2, int *w, int *shift){
+    (void)y1; (void)y2;
+    *w += LEAN; *shift += disco_mirror() ? LEAN / 2 : -LEAN / 2;
 }
 static void curve_rows(void){
     if(!g_list) return;
@@ -171,7 +178,9 @@ static void curve_rows(void){
         lv_area_t a; lv_obj_get_coords(r, &a);
         if(a.y2 < -40 || a.y1 > 400) continue;                     /* off-screen: nothing to do */
         int w, shift;
-        if(!curvelist_disco_geom(mode, a.y1, a.y2, ROW_W_FULL, &w, &shift)){
+        if(curvelist_disco_geom(mode, a.y1, a.y2, ROW_W_FULL, &w, &shift)){
+            lean_free_edge(a.y1, a.y2, &w, &shift);
+        } else {
         int dy = abs((a.y1 + a.y2) / 2 - 180) + ROW_H / 2;          /* the row's far edge sets the limit */
         int half = dy < 176 ? (int)sqrtf((float)(180 * 180 - dy * dy)) - 8 : 0;
         w = 2 * half;
@@ -180,6 +189,7 @@ static void curve_rows(void){
         shift = 0; int L = disco_clear_left(a.y1, a.y2);
         { int R = disco_clear_right(a.y1, a.y2);                              /* Disco: clear of the closed sliver */
           if(R && 180 + w / 2 > R){ int lft = 180 - w / 2; w = R - lft; shift = (lft + R) / 2 - 180; } }
+        if(th_disco()) lean_free_edge(a.y1, a.y2, &w, &shift);
         if(L && 180 - w / 2 < L){ int right = 180 + w / 2; int nw = right - L; if(nw < 120) nw = 120; shift = L + nw / 2 - 180; w = nw; }   /* Disco: start right of the picker (never narrower than 120) */
         }
         intptr_t key = ((intptr_t)w << 16 | (unsigned)(shift + 32768)) + 1; /* exact width and translation */
@@ -245,15 +255,18 @@ static void row_two(lv_obj_t *r, const char *top, const char *sub, const char *r
     const lv_font_t *ft = lib_font(18), *fs = lib_font(16);
     int h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs), two = sub && sub[0];
     int y1 = (ROW_H - (two ? h1 + h2 : h1)) / 2; if(y1 < 0) y1 = 0;
+    int tw = 242;                                                   /* the text runs up to the value on the right */
+    if(right && right[0]){ lv_point_t sz; lv_text_get_size(&sz, right, TF(UI_18), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                           tw = 256 - 12 - sz.x - 8; if(tw > 230) tw = 230; }
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, top); lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-    lv_obj_set_pos(t, 12, y1); lv_obj_set_size(t, right&&right[0]?186:242, h1);
+    lv_obj_set_pos(t, 12, y1); lv_obj_set_size(t, tw, h1);
     lv_obj_set_style_text_font(t, ft, 0);   /* CJK titles render via Source Han Sans fallback */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     if(two){
         lv_obj_t *s = lv_label_create(r);
         lv_label_set_text(s, sub); lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
-        lv_obj_set_pos(s, 12, y1 + h1); lv_obj_set_size(s, right&&right[0]?186:242, h2);   /* clear of the duration */
+        lv_obj_set_pos(s, 12, y1 + h1); lv_obj_set_size(s, tw, h2);   /* clear of the duration */
         lv_obj_set_style_text_font(s, fs, 0);
         lv_obj_set_style_text_color(s, TC(TEXT_LYRICS), 0);
     }
@@ -782,7 +795,7 @@ static void az_show(int on){
     /* fork: the list always sits on the centre line, rows centred, so the curve narrows them evenly on both sides
      * (as History and the folder browser do); the A-Z button sits just outside the widest row on the right rim */
     if(g_list){
-        lv_obj_set_x(g_list, 37);
+        lv_obj_set_x(g_list, 22);
         lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     }
 }
@@ -1307,7 +1320,7 @@ void library_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 30, LIST_Y); lv_obj_set_size(g_list, 286, LIST_H);
+    lv_obj_set_pos(g_list, 22, LIST_Y); lv_obj_set_size(g_list, 316, LIST_H);   /* centred; wide enough for rows that lean to the free edge */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* round bottom bezel */
     lv_obj_set_style_pad_row(g_list, 4, 0);

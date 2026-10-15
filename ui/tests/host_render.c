@@ -293,7 +293,7 @@ static void review_qs(void){
     lv_obj_t *quicksettings_test_button(int);lv_obj_t *quicksettings_test_disc(void);
     void disco_test_editor_close(void);
     int items[QS_MAX_ITEMS];
-    cfg_set_str("disco_qs_items","wbmlefrs");assert(quicksettings_items_load(items)==8);
+    cfg_set_str("disco_qs_items","wbmlefrs");assert(quicksettings_items_load(items)==7);
     qs_wifi=0;qs_bt=BT_OFF;
     cfg_set_str("disco_qs_items","wbmlefrs");
     for(int style=0;style<2;style++){
@@ -833,6 +833,7 @@ int main(int argc, char **argv){
         if(getenv("IMM_LYRICS"))cfg_set_int_deferred("imm_lyrics",atoi(getenv("IMM_LYRICS")));
         if(getenv("DISCO_SCROLL"))cfg_set_int_deferred("disco_scroll",atoi(getenv("DISCO_SCROLL")));if(getenv("DISCO_SIDE"))cfg_set_int_deferred("disco_side",atoi(getenv("DISCO_SIDE")));
         if(getenv("DISCO_SHAPE"))cfg_set_int_deferred("disco_prog_shape",atoi(getenv("DISCO_SHAPE")));
+        if(getenv("DISCO_CTRL"))cfg_set_int_deferred("disco_controls",atoi(getenv("DISCO_CTRL")));
         if(getenv("DISCO_TAL"))cfg_set_int_deferred("disco_title_al",atoi(getenv("DISCO_TAL")));
         if(getenv("DISCO_SHEEN"))cfg_set_int_deferred("disco_sheen",atoi(getenv("DISCO_SHEEN")));
         if(getenv("NP_FONT"))cfg_set_int_deferred("np_font",atoi(getenv("NP_FONT")));
@@ -1327,6 +1328,10 @@ int main(int argc, char **argv){
         puts("PASS: real bounded decoder feeds 364px immersive image and async timed lyrics; close/reopen works");
     }
 render:
+    if(getenv("IMM_IN")){ void ui_test_imm_in(int); ui_test_imm_in(atoi(getenv("IMM_IN"))); }
+    if(getenv("IMM_OUT")){ void ui_test_imm_out(int); ui_test_imm_out(atoi(getenv("IMM_OUT"))); }
+    if(getenv("IMM_PARTS")){ void dhome_test_imm_parts(int); dhome_test_imm_parts(atoi(getenv("IMM_PARTS"))); }
+    if(getenv("NP_ZOOM")){ void dhome_test_zoom(int); dhome_test_zoom(atoi(getenv("NP_ZOOM"))); for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("TOPHOLD")){ void dhome_test_top_hold(void); for(int k=0;k<atoi(getenv("TOPHOLD"));k++) dhome_test_top_hold(); for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("SETKEY")){ void settings_open_key(const char*); settings_open_key(getenv("SETKEY")); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("IDLE")){ void dhome_set_now_playing(const char*,const char*,lv_color_t,bool); void disco_art_changed(void);   /* Disco Music with nothing playing */

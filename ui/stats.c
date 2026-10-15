@@ -127,7 +127,8 @@ static void period_name(int type, int off, char *out, size_t n, int short_form){
 #define TOPN 15                                       /* the sub-views list 15; the main screen shows 5 */
 typedef struct { char name[128], sub[128], path[256]; int plays; long long ms; } item_t;
 typedef struct {
-    int plays, songs, albums, artists, streak, empty; long long ms, prev_ms; int prev_known;
+    int plays, songs, albums, artists, streak, empty, days; long long ms, prev_ms; int prev_known;
+    long long best_day_ms; int best_day;                 /* the busiest day (julian day number) and its time */
     long long hour_ms[24];
     item_t art[TOPN], alb[TOPN], song[TOPN]; int nart, nalb, nsong;
 } stats_t;
@@ -229,13 +230,14 @@ static void load_days_hours(sqlite3 *d, long long a, long long b){
         while(sqlite3_step(st) == SQLITE_ROW){ int h = sqlite3_column_int(st, 0); if(h >= 0 && h < 24) g_s.hour_ms[h] += sqlite3_column_int64(st, 1); }
         sqlite3_finalize(st);
     }
-    if(bind_range(d, "SELECT DISTINCT CAST(julianday(AT,'unixepoch','localtime','start of day') AS INTEGER) FROM PLAY_LOG "
-                     "WHERE AT>=?1 AND AT<?2 ORDER BY 1;", a, b, &st)){
+    if(bind_range(d, "SELECT CAST(julianday(AT,'unixepoch','localtime','start of day') AS INTEGER),SUM(MS) FROM PLAY_LOG "
+                     "WHERE AT>=?1 AND AT<?2 GROUP BY 1 ORDER BY 1;", a, b, &st)){
         int prev = -100, run = 0;                                               /* the longest run of days in a row */
         while(sqlite3_step(st) == SQLITE_ROW){
-            int day = sqlite3_column_int(st, 0);
-            run = day == prev + 1 ? run + 1 : 1; prev = day;
+            int day = sqlite3_column_int(st, 0); long long ms = sqlite3_column_int64(st, 1);
+            run = day == prev + 1 ? run + 1 : 1; prev = day; g_s.days++;
             if(run > g_s.streak) g_s.streak = run;
+            if(ms > g_s.best_day_ms){ g_s.best_day_ms = ms; g_s.best_day = day; }   /* the busiest day */
         }
         sqlite3_finalize(st);
     }
@@ -482,13 +484,13 @@ static lv_obj_t *row(lv_obj_t *list){
 }
 static void plays_right(lv_obj_t *r, int plays, int accent){
     char t[16]; snprintf(t, sizeof t, "%d", plays);
-    const lv_font_t *fn = &font_inter_bold_22, *fc = TF(UI_12);
+    const lv_font_t *fn = TF(UI_24), *fc = TF(UI_14);
     int lh = lv_font_get_line_height(fn), sh = lv_font_get_line_height(fc), y = (ROW_H - lh - sh) / 2;
     text(r, t, ROW_W - 74, y, 60, fn, accent ? TC(ACCENT_PRIMARY) : TC(TEXT_PRIMARY), LV_TEXT_ALIGN_RIGHT);    /* the count: right-aligned */
     text(r, plays == 1 ? "play" : "plays", ROW_W - 74, y + lh, 60, fc, TC(TEXT_MUTED), LV_TEXT_ALIGN_RIGHT);
 }
 static void two_lines(lv_obj_t *r, int x, int w, const char *top, const char *sub){
-    const lv_font_t *ft = ui_font_cjk(20), *fs = ui_font_cjk(16);
+    const lv_font_t *ft = ui_font_cjk(22), *fs = ui_font_cjk(18);
     int h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs);
     int two = sub && sub[0], y = (ROW_H - (two ? h1 + h2 : h1)) / 2;
     lv_obj_add_flag(text(r, top, x, y, w, ft, TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
@@ -496,7 +498,7 @@ static void two_lines(lv_obj_t *r, int x, int w, const char *top, const char *su
 }
 static void rank(lv_obj_t *r, int n){
     char t[8]; snprintf(t, sizeof t, "%d", n);
-    const lv_font_t *f = &font_inter_bold_22; int lh = lv_font_get_line_height(f);
+    const lv_font_t *f = TF(UI_24); int lh = lv_font_get_line_height(f);
     text(r, t, 4, (ROW_H - lh) / 2, 36, f, TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
 }
 /* after the curve: the names give way, so they never run under a count. Names carry LV_OBJ_FLAG_USER_2. */
@@ -546,8 +548,8 @@ static void item_row(lv_obj_t *list, int k, int i){
     if(k == K_SONG) tap(r, song_cb, i);
     rank(r, i + 1);
     if(k == K_ART){
-        int lh = lv_font_get_line_height(ui_font_cjk(20));
-        lv_obj_add_flag(text(r, it->name, 44, (ROW_H - lh) / 2, 150, ui_font_cjk(20), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
+        int lh = lv_font_get_line_height(ui_font_cjk(22));
+        lv_obj_add_flag(text(r, it->name, 44, (ROW_H - lh) / 2, 150, ui_font_cjk(22), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_LEFT), LV_OBJ_FLAG_USER_2);
     } else if(k == K_ALB){
         char n[12]; snprintf(n, sizeof n, "%d", i + 1);
         picture(r, 42, (ROW_H - 46) / 2, 46, 0, it->path, k == K_ALB ? it->name : NULL, n);
@@ -558,17 +560,7 @@ static void item_row(lv_obj_t *list, int k, int i){
 
 /* ================================ swipe strips (period kind, period) ================================ */
 static lv_point_t g_press;
-static void strip_cb(lv_event_t *e){
-    lv_event_code_t code = lv_event_get_code(e);
-    int which = (int)(intptr_t)lv_event_get_user_data(e);                       /* 0: Week/Month/Year, 1: the period */
-    lv_indev_t *id = lv_indev_active(); if(!id) return;
-    lv_point_t p; lv_indev_get_point(id, &p);
-    if(code == LV_EVENT_PRESSED){ g_press = p; return; }
-    if(code != LV_EVENT_RELEASED) return;
-    int dx = p.x - g_press.x, dy = p.y - g_press.y, step = 0;
-    if(abs(dy) > 24 && abs(dy) > abs(dx)) return;                                /* the list scrolled */
-    if(abs(dx) >= 24) step = dx < 0 ? 1 : -1;                                    /* drag the strip: the next one comes in */
-    else if(p.x < 130) step = -1; else if(p.x > 230) step = 1;                   /* or tap a neighbour */
+static void period_step(int which, int step){                                   /* 0: Week/Month/Year, 1: the period */
     if(!step) return;
     if(which == 0){
         int t = g_ptype + step; if(t < P_WEEK || t > P_YEAR) return;
@@ -580,6 +572,21 @@ static void strip_cb(lv_event_t *e){
         g_poff += step;
     }
     stats_load(); rebuild();
+}
+static void strip_cb(lv_event_t *e){
+    lv_event_code_t code = lv_event_get_code(e);
+    int which = (int)(intptr_t)lv_event_get_user_data(e);                       /* 0: Week/Month/Year, 1: the period */
+    lv_indev_t *id = lv_indev_active(); if(!id) return;
+    lv_point_t p; lv_indev_get_point(id, &p);
+    if(code == LV_EVENT_PRESSED){ g_press = p; return; }
+    if(code != LV_EVENT_RELEASED) return;
+    int dx = p.x - g_press.x, dy = p.y - g_press.y, step = 0;
+    if(abs(dy) > 24 && abs(dy) > abs(dx)) return;                                /* the list scrolled */
+    if(abs(dx) >= 24) step = dx < 0 ? 1 : -1;                                    /* drag the strip: the next one comes in */
+    else if(which == 0){ step = (p.x - 180 + (p.x < 180 ? -36 : 36)) / 72 - (g_ptype - P_MONTH); }   /* tap a segment */
+    else if(p.x < 110) step = -1; else if(p.x > 250) step = 1;                   /* or tap an arrow */
+    if(which == 0){ int t = g_ptype + step; if(t < P_WEEK) step = P_WEEK - g_ptype; if(t > P_YEAR) step = P_YEAR - g_ptype; }
+    period_step(which, step);
 }
 static lv_obj_t *strip(lv_obj_t *p, int y, int h, int which){
     lv_obj_t *s = box(p, 0, y, 360, h, 0, TC(CANVAS), LV_OPA_TRANSP);
@@ -608,62 +615,45 @@ static void build_overview(void){
         if(g_s.prev_known && g_s.prev_ms > 0 && g_s.ms < g_s.prev_ms) deg = (int)(360 * g_s.ms / g_s.prev_ms);
         if(deg >= 4) arc(b, 180, 180, 179, 3, 270, 270 + deg, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
     }
-    /* Week / Month / Year round the top: the chosen one in the middle, lit; its neighbours turned along the arc */
+    /* Week / Month / Year: a straight segmented pill, the chosen one lit (tap a segment, or swipe it) */
     static const char *const P[3] = { "Week", "Month", "Year" };
-    arc(b, 180, 180, 168, 34, 270 - 60, 270 + 60, TC(SURFACE), LV_OPA_COVER, 1);
-    arc(b, 180, 180, 168, 34, 270 - 18, 270 + 18, TC(ACCENT_PRIMARY), LV_OPA_COVER, 1);
-    for(int i = 0; i < 3; i++){
-        int off = i - g_ptype; if(off < -1 || off > 1) continue;
-        arc_label(b, P[i], off * 36, 151, off ? TF(UI_16) : TF(UI_20), off ? TC(TEXT_SECONDARY) : TC(ON_ACCENT));
-    }
-    /* < > at the arc's ends: it can be swiped (or tapped) to the next kind; dim where there is none */
-    for(int sd = -1; sd <= 1; sd += 2){
-        int on = sd < 0 ? g_ptype > P_WEEK : g_ptype < P_YEAR, lh = lv_font_get_line_height(TF(UI_16));
-        float ang = sd * 53 * 3.14159265f / 180.0f;
-        int cx = 180 + (int)lroundf(sinf(ang) * 168), cy = 180 - (int)lroundf(cosf(ang) * 168);
-        text(b, sd < 0 ? LV_SYMBOL_LEFT : LV_SYMBOL_RIGHT, cx - 12, cy - lh / 2, 24, TF(UI_16),
-             on ? TC(ACCENT_PRIMARY) : TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
-    }
-    strip(b, 0, 64, 0);                                                          /* on top: drag or tap it */
-    /* the period, with the ones either side peeking in at the edges */
-    lv_obj_t *s1 = strip(b, 66, 40, 1);
+    { lv_obj_t *pill = box(b, 72, 44, 216, 34, 17, TC(SURFACE), LV_OPA_COVER);
+      box(pill, (g_ptype - P_WEEK) * 72 + 2, 2, 68, 30, 15, TC(ACCENT_PRIMARY), LV_OPA_COVER);
+      for(int i = 0; i < 3; i++)
+          text(pill, P[i], i * 72, (34 - lv_font_get_line_height(TF(UI_16))) / 2, 72, TF(UI_16), i == g_ptype - P_WEEK ? TC(ON_ACCENT) : TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER); }
+    strip(b, 40, 42, 0);                                                         /* on top: tap or drag it */
+    /* the period, bigger, with < > to step back and forward */
+    lv_obj_t *s1 = strip(b, 90, 44, 1);
     char name[48]; period_name(g_ptype, g_poff, name, sizeof name, 0);
-    centre(s1, name, (40 - lv_font_get_line_height(TF(UI_24))) / 2, 170, TF(UI_24), TC(TEXT_PRIMARY));
-    long long a, z; struct tm f; period_range(g_ptype, g_poff, &a, &z, &f);
-    int fy = (40 - lv_font_get_line_height(TF(UI_16))) / 2;
-    if(g_first_at && g_first_at < a){
-        char pv[48]; period_name(g_ptype, g_poff - 1, pv, sizeof pv, 0);
-        lv_obj_t *l = text(s1, pv, -40, fy, 128, TF(UI_16), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_RIGHT);
-        lv_obj_set_style_text_opa(l, LV_OPA_50, 0);
-    }
-    if(g_poff < 0){
-        char nx[48]; period_name(g_ptype, g_poff + 1, nx, sizeof nx, 0);
-        lv_obj_t *l = text(s1, nx, 272, fy, 128, TF(UI_16), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
-        lv_obj_set_style_text_opa(l, LV_OPA_50, 0);
-    }
-    /* the time: big figures, small units on the same baseline ("2h 40m") */
+    centre(s1, name, (44 - lv_font_get_line_height(TF(UI_28))) / 2, 220, TF(UI_28), TC(TEXT_PRIMARY));
+    { long long a0, z0; struct tm f0; period_range(g_ptype, g_poff, &a0, &z0, &f0);
+      int can[2] = { g_first_at && g_first_at < a0, g_poff < 0 }, ah = lv_font_get_line_height(TF(UI_22));
+      text(s1, LV_SYMBOL_LEFT, 44, (44 - ah) / 2, 36, TF(UI_22), can[0] ? TC(ACCENT_PRIMARY) : TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
+      text(s1, LV_SYMBOL_RIGHT, 280, (44 - ah) / 2, 36, TF(UI_22), can[1] ? TC(ACCENT_PRIMARY) : TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER); }
+    /* the time, on one line across the widest part: big figures, bigger units, then "of music" ("2h 40m of music") */
     long long m = g_s.ms / 60000;
     char n1[16], n2[16]; const char *u1, *u2 = NULL;
     if(m >= 60){ snprintf(n1, sizeof n1, "%lld", m / 60); u1 = "h"; snprintf(n2, sizeof n2, "%02lld", m % 60); u2 = "m"; }
     else { snprintf(n1, sizeof n1, "%lld", m); u1 = "m"; }
-    const lv_font_t *fb = &font_inter_bold_44, *fu = &font_inter_medium_20;
-    int ty = 108, gap = 3, sp = 12;
-    int w = text_w(n1, fb) + gap + text_w(u1, fu) + (u2 ? sp + text_w(n2, fb) + gap + text_w(u2, fu) : 0);
-    int x = 180 - w / 2, base = ty + fb->line_height - fb->base_line, uy = base - (fu->line_height - fu->base_line);
-    const char *part[4] = { n1, u1, u2 ? n2 : NULL, u2 };
+    const lv_font_t *fb = &font_inter_bold_44, *fu = TF(UI_28), *fo = TF(UI_22);
+    int ty = 148, gap = 2, sp = 10;
+    const char *om = g_s.empty ? NULL : "of music";
+    int w = text_w(n1, fb) + gap + text_w(u1, fu) + (u2 ? sp + text_w(n2, fb) + gap + text_w(u2, fu) : 0) + (om ? sp + 4 + text_w(om, fo) : 0);
+    int x = 180 - w / 2, base = ty + fb->line_height - fb->base_line;
+    const char *part[5] = { n1, u1, u2 ? n2 : NULL, u2, NULL };
     for(int i = 0; i < 4 && part[i]; i++){
         int big = !(i & 1); const lv_font_t *ff = big ? fb : fu; int pw = text_w(part[i], ff);
-        text(b, part[i], x, big ? ty : uy, pw + 2, ff, big ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
+        int py = big ? ty : base - (ff->line_height - ff->base_line);
+        text(b, part[i], x, py, pw + 2, ff, big ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
         x += pw + (big ? gap : sp);
     }
-    int y = ty + fb->line_height + 2;
+    if(om){ int pw = text_w(om, fo); text(b, om, x + 4, base - (fo->line_height - fo->base_line), pw + 2, fo, TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT); }
+    int y = ty + fb->line_height + 8;
     if(g_s.empty){
-        centre(b, g_poff == 0 ? "Nothing played yet" : "Nothing played then", y + 4, 260, TF(UI_18), TC(TEXT_SECONDARY));
-        centre(b, "A song counts once it has played\nfor 30 seconds. Your stats\nfill in as you listen.", y + 40, 250, TF(UI_16), TC(TEXT_MUTED));
+        centre(b, g_poff == 0 ? "Nothing played yet" : "Nothing played then", y + 4, 260, TF(UI_20), TC(TEXT_SECONDARY));
+        centre(b, "A song counts once it has played\nfor 30 seconds. Your stats\nfill in as you listen.", y + 40, 290, TF(UI_16), TC(TEXT_MUTED));
         return;
     }
-    centre(b, "of music", y, 200, TF(UI_16), TC(TEXT_SECONDARY));
-    y += lv_font_get_line_height(TF(UI_16)) + 8;
     if(g_s.prev_known){                                                          /* the comparison, in a soft accent chip */
         char d[24], prev[48], line[96]; long long diff = g_s.ms - g_s.prev_ms;
         fmt_dur_short(diff < 0 ? -diff : diff, d, sizeof d);
@@ -671,25 +661,27 @@ static void build_overview(void){
         if(llabs(diff) < 60000) snprintf(line, sizeof line, g_poff ? "About the same as %s" : "On a par with %s", prev);
         else if(g_poff) snprintf(line, sizeof line, "%s  %s %s than %s", diff > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN, d, diff > 0 ? "more" : "less", prev);
         else snprintf(line, sizeof line, "%s  %s %s %s", diff > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN, d, diff > 0 ? "ahead of" : "behind", prev);
-        int cw = text_w(line, TF(UI_14)) + 28; if(cw > 290) cw = 290;
-        lv_obj_t *chip = box(b, 180 - cw / 2, y, cw, 28, 14, TC(ACCENT_PRIMARY), LV_OPA_20);
-        text(chip, line, 0, (28 - lv_font_get_line_height(TF(UI_14))) / 2, cw, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
+        int cw = text_w(line, TF(UI_16)) + 28; if(cw > 300) cw = 300;
+        lv_obj_t *chip = box(b, 180 - cw / 2, y, cw, 30, 15, TC(ACCENT_PRIMARY), LV_OPA_20);
+        text(chip, line, 0, (30 - lv_font_get_line_height(TF(UI_16))) / 2, cw, TF(UI_16), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_CENTER);
     }
-    y += 28 + 12;
-    /* songs / albums / artists */
+    y += 30 + 14;
+    /* songs / albums / artists: no boxes, a soft vertical line fading out at both ends between them */
     char v[3][16]; const char *cap[3] = { g_s.songs == 1 ? "song" : "songs", g_s.albums == 1 ? "album" : "albums", g_s.artists == 1 ? "artist" : "artists" };
     snprintf(v[0], 16, "%d", g_s.songs); snprintf(v[1], 16, "%d", g_s.albums); snprintf(v[2], 16, "%d", g_s.artists);
     for(int i = 0; i < 3; i++){
-        lv_obj_t *c = box(b, 36 + i * 98, y, 92, 72, 20, TC(SURFACE), LV_OPA_COVER);
-        lv_obj_set_style_border_width(c, 1, 0); lv_obj_set_style_border_color(c, TC(BORDER), 0);
-        text(c, v[i], 0, 8, 92, TF(UI_28), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_CENTER);
-        text(c, cap[i], 0, 44, 92, &font_inter_medium_14, TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
+        text(b, v[i], 42 + i * 92, y, 92, TF(UI_32), TC(TEXT_PRIMARY), LV_TEXT_ALIGN_CENTER);
+        text(b, cap[i], 42 + i * 92, y + lv_font_get_line_height(TF(UI_32)), 92, TF(UI_16), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_CENTER);
+        if(i){ for(int hlf = 0; hlf < 2; hlf++){                                 /* two halves: clear -> line -> clear */
+            lv_obj_t *ln = box(b, 42 + i * 92 - 1, y + 2 + hlf * 28, 2, 28, 0, TC(TEXT_SECONDARY), LV_OPA_COVER);
+            lv_obj_set_style_bg_grad_color(ln, TC(TEXT_SECONDARY), 0); lv_obj_set_style_bg_grad_dir(ln, LV_GRAD_DIR_VER, 0);
+            lv_obj_set_style_bg_main_opa(ln, hlf ? 150 : 0, 0); lv_obj_set_style_bg_grad_opa(ln, hlf ? 0 : 150, 0); } }
     }
-    y += 72 + 10;
+    y += lv_font_get_line_height(TF(UI_32)) + lv_font_get_line_height(TF(UI_16)) + 8;
     const char *fav = "Your favourites";
-    int fw = text_w(fav, TF(UI_18)), aw = text_w(LV_SYMBOL_DOWN, TF(UI_14)) + 10;
-    text(b, LV_SYMBOL_DOWN, 180 - (fw + aw) / 2, y + 3, aw, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
-    text(b, fav, 180 - (fw + aw) / 2 + aw, y, fw + 2, TF(UI_18), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
+    int fw = text_w(fav, TF(UI_22)), aw = text_w(LV_SYMBOL_DOWN, TF(UI_18)) + 10;
+    text(b, LV_SYMBOL_DOWN, 180 - (fw + aw) / 2, y + 3, aw, TF(UI_18), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
+    text(b, fav, 180 - (fw + aw) / 2 + aw, y, fw + 2, TF(UI_22), TC(TEXT_SECONDARY), LV_TEXT_ALIGN_LEFT);
 }
 
 /* ================================ the three sections ================================ */
@@ -702,14 +694,14 @@ static void heading(int k){
     lv_obj_t *b = block(g_list, 58);
     char t[48]; snprintf(t, sizeof t, "%s", KIND_TITLE[k]);
     for(char *q = t; *q; q++) if(*q >= 'a' && *q <= 'z') *q = (char)(*q - 32);
-    const lv_font_t *f = TF(UI_18);
-    int tw = text_w(t, f), cw = text_w(LV_SYMBOL_RIGHT, TF(UI_14)), pw = tw + cw + 40;
+    const lv_font_t *f = TF(UI_20);
+    int tw = text_w(t, f), cw = text_w(LV_SYMBOL_RIGHT, TF(UI_16)), pw = tw + cw + 40;
     lv_obj_t *p = box(b, 180 - pw / 2, 12, pw, 38, 19, TC(SURFACE), LV_OPA_COVER);
     lv_obj_set_style_border_width(p, 1, 0); lv_obj_set_style_border_color(p, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_border_opa(p, LV_OPA_40, 0);
     lv_obj_set_style_bg_color(p, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
     lv_obj_set_ext_click_area(p, 8);
     text(p, t, 16, (38 - lv_font_get_line_height(f)) / 2, tw + 2, f, TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
-    text(p, LV_SYMBOL_RIGHT, pw - cw - 16, (38 - lv_font_get_line_height(TF(UI_14))) / 2, cw + 2, TF(UI_14), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
+    text(p, LV_SYMBOL_RIGHT, pw - cw - 16, (38 - lv_font_get_line_height(TF(UI_16))) / 2, cw + 2, TF(UI_16), TC(ACCENT_PRIMARY), LV_TEXT_ALIGN_LEFT);
     tap(p, sub_cb, k);
 }
 /* the #1: its artwork (tap: Wrapped), name, and how much */
@@ -723,11 +715,11 @@ static void hero(int k){
     tap(pic, wrap_cb, k);
     lv_obj_t *badge = box(h, 214, 84, 32, 32, LV_RADIUS_CIRCLE, TC(ACCENT_PRIMARY), LV_OPA_COVER);
     text(badge, "1", 0, (32 - lv_font_get_line_height(TF(UI_16))) / 2, 32, TF(UI_16), TC(ON_ACCENT), LV_TEXT_ALIGN_CENTER);
-    centre(h, top->name, 122, 290, ui_font_cjk(26), TC(TEXT_PRIMARY));
+    centre(h, top->name, 120, 290, ui_font_cjk(28), TC(TEXT_PRIMARY));
     char d[24], line[96]; fmt_dur(top->ms, d, sizeof d);
     if(k == K_ART) snprintf(line, sizeof line, "%d %s in %s", top->plays, top->plays == 1 ? "play" : "plays", d);
     else snprintf(line, sizeof line, "%s  \xC2\xB7  %d %s", top->sub[0] ? top->sub : d, top->plays, top->plays == 1 ? "play" : "plays");
-    centre(h, line, 156, 280, ui_font_cjk(16), TC(TEXT_SECONDARY));
+    centre(h, line, 156, 280, ui_font_cjk(18), TC(TEXT_SECONDARY));
 }
 static void build_section(int k){
     int n = kind_n(k); if(!n) return;
@@ -748,16 +740,16 @@ static void build_clock(void){
         if(g_s.hour_ms[h] > 0 && w < 4) w = 4;
         if(w) arc(b, 180, 180, 160, w, a0, a1, TC(ACCENT_PRIMARY), h == peak ? LV_OPA_COVER : LV_OPA_60, 0);
     }
-    const lv_font_t *fs = TF(UI_12); int lh = lv_font_get_line_height(fs);
+    const lv_font_t *fs = TF(UI_14); int lh = lv_font_get_line_height(fs);
     text(b, "0", 168, 64, 24, fs, TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
     text(b, "6", 272, 180 - lh / 2, 24, fs, TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
     text(b, "12", 168, 296 - lh, 24, fs, TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
     text(b, "18", 64, 180 - lh / 2, 24, fs, TC(TEXT_MUTED), LV_TEXT_ALIGN_CENTER);
     char hr[16]; fmt_hour(peak, hr, sizeof hr);
-    centre(b, "WHEN YOU LISTEN", 112, 170, TF(UI_12), TC(ACCENT_PRIMARY));
-    centre(b, "Most of all at", 140, 170, TF(UI_14), TC(TEXT_SECONDARY));
-    centre(b, hr, 162, 170, TF(UI_32), TC(TEXT_PRIMARY));
-    centre(b, persona(peak), 166 + lv_font_get_line_height(TF(UI_32)), 170, TF(UI_16), TC(ACCENT_PRIMARY));
+    centre(b, "WHEN YOU LISTEN", 106, 180, TF(UI_14), TC(ACCENT_PRIMARY));
+    centre(b, "Most of all at", 134, 180, TF(UI_16), TC(TEXT_SECONDARY));
+    centre(b, hr, 156, 180, TF(UI_36), TC(TEXT_PRIMARY));
+    centre(b, persona(peak), 160 + lv_font_get_line_height(TF(UI_36)), 190, TF(UI_18), TC(ACCENT_PRIMARY));
 }
 
 /* ================================ overlays: the top 15, Wrapped ================================ */
@@ -888,6 +880,27 @@ int stats_back_consumed(void){
     return 0;
 }
 
+/* highlights: the longest run of days, the busiest day, and how long a listening day lasts on average */
+static void build_highlights(void){
+    if(g_s.empty || g_s.days <= 0) return;
+    lv_obj_t *b = block(g_list, 290);
+    centre(b, "HIGHLIGHTS", 24, 200, TF(UI_14), TC(ACCENT_PRIMARY));
+    char v[3][32], d[24]; const char *cap[3];
+    snprintf(v[0], 32, "%d", g_s.streak); cap[0] = g_s.streak == 1 ? "day in a row" : "days in a row";
+    { time_t t = (time_t)((g_s.best_day - 2440587.5) * 86400.0) + 43200; struct tm tm; localtime_r(&t, &tm);
+      static const char *const WD[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+      static const char *const MO[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+      fmt_dur_short(g_s.best_day_ms, d, sizeof d); snprintf(v[1], 32, "%s", d);
+      static char cb[48]; snprintf(cb, sizeof cb, "on %s, %d %s", WD[tm.tm_wday], tm.tm_mday, MO[tm.tm_mon]); cap[1] = cb; }
+    fmt_dur_short(g_s.ms / g_s.days, d, sizeof d); snprintf(v[2], 32, "%s", d); cap[2] = "a day you listen";
+    static const char *const T[3] = { "Longest streak", "Busiest day", "On average" };
+    for(int i = 0; i < 3; i++){
+        int y = 54 + i * 76;
+        centre(b, T[i], y, 260, TF(UI_16), TC(TEXT_SECONDARY));
+        centre(b, v[i], y + 20, 260, TF(UI_28), TC(TEXT_PRIMARY));
+        centre(b, cap[i], y + 20 + lv_font_get_line_height(TF(UI_28)) - 2, 260, TF(UI_14), TC(TEXT_MUTED));
+    }
+}
 static void rebuild(void){
     if(!g_list) return;
     overlays_close();
@@ -898,6 +911,7 @@ static void rebuild(void){
     build_section(K_ALB);
     build_section(K_SONG);
     build_clock();
+    build_highlights();
     lv_obj_scroll_to_y(g_list, 0, LV_ANIM_OFF);
     curvelist_update(&g_cl);
     names_fit(g_list);

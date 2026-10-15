@@ -143,20 +143,53 @@ static int left_minutes(void){
     int pct = g_batt >= 0 ? g_batt : at(last)->pct;
     return (int)(pct / (drop / mins));
 }
-static void stat_block(lv_obj_t *root,int x,const char *cap,lv_obj_t **val){
-    lv_obj_t *b=lv_obj_create(root);lv_obj_remove_style_all(b);
-    lv_obj_set_pos(b,disco_mirror()?360-x-94:x,264);lv_obj_set_size(b,94,60);
-    lv_obj_set_style_radius(b,18,0);lv_obj_set_style_bg_color(b,TC(SURFACE),0);
-    lv_obj_set_style_bg_opa(b,th_disco()?150:LV_OPA_COVER,0);
-    lv_obj_clear_flag(b,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *c=lv_label_create(b);lv_label_set_text(c,cap);
-    lv_obj_set_style_text_font(c,TF(UI_18),0);lv_obj_set_style_text_color(c,TC(TEXT_SECONDARY),0);
-    lv_obj_align(c,LV_ALIGN_TOP_MID,0,5);
-    *val=lv_label_create(b);lv_label_set_text(*val,"-");
+/* minutes until full while charging, from the rise over the last unbroken charging stretch (-1 = not enough yet).
+ * "Full" is the Charging Limit's 80% when it's on, else 100%. */
+static int full_minutes(int target){
+    if(g_n < 2 || !(at(g_n - 1)->fl & FL_CHG)) return -1;
+    int last = g_n - 1; uint32_t tl = at(last)->t, lim = tl > 2 * 3600 ? tl - 2 * 3600 : 0;
+    int j = last;
+    while(j > 0){
+        const usmp_t *p = at(j - 1), *c = at(j);
+        if(!(p->fl & FL_CHG) || p->t < lim || c->t < p->t || c->t - p->t > US_GAP_S || p->pct > c->pct) break;
+        j--;
+    }
+    float mins = (tl - at(j)->t) / 60.0f, rise = (float)at(last)->pct - at(j)->pct;
+    if(mins < 10 || rise < 1) return -1;
+    int pct = g_batt >= 0 ? g_batt : at(last)->pct;
+    if(pct >= target) return 0;
+    return (int)((target - pct) / (rise / mins) + 0.5f);
+}
+/* "14:30" / "2:30 PM", with the weekday when it isn't today */
+static void fmt_clock(char *b, size_t n, time_t t){
+    struct tm tm, now_tm; time_t now = time(NULL); localtime_r(&t, &tm); localtime_r(&now, &now_tm);
+    static const char *const WD[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    char hm[16];
+    if(cfg_get_int("time_24h", 1)) snprintf(hm, sizeof hm, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    else snprintf(hm, sizeof hm, "%d:%02d %s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min, tm.tm_hour < 12 ? "AM" : "PM");
+    if(tm.tm_yday == now_tm.tm_yday && tm.tm_year == now_tm.tm_year) snprintf(b, n, "%s", hm);
+    else snprintf(b, n, "%s %s", WD[tm.tm_wday], hm);
+}
+/* one figure at the bottom: the time, a small caption under it (no pill: they crowded the ring) */
+static void figure(lv_obj_t *root, int cx, const char *cap, lv_obj_t **val){
+    *val=lv_label_create(root);lv_label_set_text(*val,"-");lv_obj_set_width(*val,110);
+    lv_obj_set_style_text_align(*val,LV_TEXT_ALIGN_CENTER,0);
     lv_obj_set_style_text_font(*val,TF(UI_20),0);lv_obj_set_style_text_color(*val,TC(TEXT_PRIMARY),0);
-    lv_obj_align(*val,LV_ALIGN_BOTTOM_MID,0,-5);
-    /* Pill fills sit below the gauge; the nav flyout is already above this root. */
-    lv_obj_move_to_index(b,lv_obj_get_index(g_ring));
+    lv_obj_align(*val,LV_ALIGN_TOP_MID,cx,246);
+    lv_obj_t *c=lv_label_create(root);lv_label_set_text(c,cap);lv_obj_set_width(c,110);
+    lv_obj_set_style_text_align(c,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_set_style_text_font(c,TF(UI_14),0);lv_obj_set_style_text_color(c,TC(TEXT_SECONDARY),0);
+    lv_obj_align(c,LV_ALIGN_TOP_MID,cx,274);
+}
+/* the glowing tip at the charge level: angle along the ring for pct */
+static lv_obj_t *g_tip, *g_sub2; static int g_left;
+static void place_tip(int pct, lv_color_t c){
+    if(!g_tip) return;
+    float deg = g_left ? 500.0f - 2.8f * pct : 40.0f + 2.8f * pct, a = deg * 3.14159265f / 180.0f;
+    int x = 180 + (int)lroundf(cosf(a) * 169), y = 180 + (int)lroundf(sinf(a) * 169);
+    lv_obj_set_pos(g_tip, x - 7, y - 7);
+    lv_obj_set_style_bg_color(g_tip, c, 0); lv_obj_set_style_shadow_color(g_tip, c, 0);
+    if(pct >= 0) lv_obj_remove_flag(g_tip, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_tip, LV_OBJ_FLAG_HIDDEN);
 }
 static void draw(void){
     if(!g_pct) return;
@@ -169,23 +202,37 @@ static void draw(void){
     lv_obj_set_style_arc_color(g_ring, c, LV_PART_INDICATOR);
     if(g_chg) lv_obj_remove_flag(g_chg_ic, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_chg_ic, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_text_color(g_chg_ic, c, 0);
-    if(g_chg) snprintf(b, sizeof b, "Charging");
-    else {
+    char b2[64]; b2[0] = 0;
+    if(g_chg){
+        int lim = cfg_get_int("charge_protect", 0), target = lim ? 80 : 100, m = full_minutes(target);
+        if(pct >= 0 && pct >= target - (lim ? 1 : 4)){ snprintf(b, sizeof b, "Charged"); snprintf(b2, sizeof b2, lim ? "Charging Limit: 80%%" : "Topping up"); }
+        else if(m < 0){ snprintf(b, sizeof b, "Charging"); snprintf(b2, sizeof b2, "Estimating time to full..."); }
+        else {
+            char d[24]; fmt_dur(d, sizeof d, m < 1 ? 1 : m); snprintf(b, sizeof b, "Full in ~%s", d);
+            char t[24]; fmt_clock(t, sizeof t, time(NULL) + (time_t)m * 60); snprintf(b2, sizeof b2, "%s at %s", lim ? "80%" : "Full", t);
+        }
+    } else {
         int m = left_minutes();
-        if(m == -1) snprintf(b, sizeof b, "Estimating...");
-        else if(m == -2) snprintf(b, sizeof b, "Low drain");
-        else if(m >= 48 * 60) snprintf(b, sizeof b, "~%d days left", (m / 60 + 12) / 24);
-        else if(m >= 120) snprintf(b, sizeof b, "~%d h left", (m + 30) / 60);
-        else { char d[24]; fmt_dur(d, sizeof d, m); snprintf(b, sizeof b, "~%s left", d); }
+        if(m == -1){ snprintf(b, sizeof b, "Estimating..."); snprintf(b2, sizeof b2, "Needs 30 min on battery"); }
+        else if(m == -2){ snprintf(b, sizeof b, "Low drain"); snprintf(b2, sizeof b2, "Barely used lately"); }
+        else {
+            if(m >= 48 * 60) snprintf(b, sizeof b, "~%d days left", (m / 60 + 12) / 24);
+            else if(m >= 120) snprintf(b, sizeof b, "~%d h left", (m + 30) / 60);
+            else { char d[24]; fmt_dur(d, sizeof d, m); snprintf(b, sizeof b, "~%s left", d); }
+            if(m < 48 * 60){ char t[24]; fmt_clock(t, sizeof t, time(NULL) + (time_t)m * 60); snprintf(b2, sizeof b2, "Until %s at this pace", t); }
+            else snprintf(b2, sizeof b2, "At your recent pace");
+        }
     }
+    lv_label_set_text(g_sub2, b2);
+    place_tip(pct, c);
     lv_label_set_text(g_sub, b);
     time_t nowt = time(NULL);
     if(nowt < 1600000000){ lv_label_set_text(g_play_v, "-"); lv_label_set_text(g_scr_v, "-"); return; }   /* clock not set: no "last 24 h" */
     if(g_cy.full_at && g_cy.full_at <= (uint32_t)nowt){         /* since the last full charge */
         uint32_t ago = (uint32_t)nowt - g_cy.full_at;
-        if(ago < 3600) snprintf(b, sizeof b, "Since full charge\njust now");
-        else if(ago < 48 * 3600) snprintf(b, sizeof b, "Since full charge\n%u h ago", ago / 3600);
-        else snprintf(b, sizeof b, "Since full charge\n%u days ago", ago / 86400);
+        if(ago < 3600) snprintf(b, sizeof b, "Since full charge, just now");
+        else if(ago < 48 * 3600) snprintf(b, sizeof b, "Since full charge, %u h ago", ago / 3600);
+        else snprintf(b, sizeof b, "Since full charge, %u days ago", ago / 86400);
         lv_label_set_text(g_cap, b);
         fmt_dur(b, sizeof b, (int)g_cy.play_min); lv_label_set_text(g_play_v, b);
         fmt_dur(b, sizeof b, (int)g_cy.scr_min);  lv_label_set_text(g_scr_v, b);
@@ -208,7 +255,7 @@ void usage_create(lv_obj_t *root){
     lv_obj_clear_flag(g_ring,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(g_ring,344,344);lv_obj_center(g_ring);
     lv_arc_set_rotation(g_ring,left?220:40);lv_arc_set_bg_angles(g_ring,0,280);
     lv_arc_set_mode(g_ring,left?LV_ARC_MODE_REVERSE:LV_ARC_MODE_NORMAL);lv_arc_set_range(g_ring,0,100);
-    lv_obj_set_style_arc_width(g_ring,9,LV_PART_MAIN);lv_obj_set_style_arc_width(g_ring,9,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(g_ring,6,LV_PART_MAIN);lv_obj_set_style_arc_width(g_ring,6,LV_PART_INDICATOR);g_left=left;
     lv_obj_set_style_arc_rounded(g_ring,true,LV_PART_MAIN);lv_obj_set_style_arc_rounded(g_ring,true,LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(g_ring,TC(CONTROL_TRACK),LV_PART_MAIN);
     lv_obj_t *title=lv_label_create(root);lv_label_set_text(title,"Battery");
@@ -220,16 +267,29 @@ void usage_create(lv_obj_t *root){
     lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,left?-78:78,109);
     g_sub=lv_label_create(root);lv_label_set_long_mode(g_sub,LV_LABEL_LONG_DOT);lv_obj_set_width(g_sub,230);
     lv_obj_set_style_text_align(g_sub,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub,TF(UI_22),0);
-    lv_obj_set_style_text_color(g_sub,TC(TEXT_PRIMARY),0);lv_obj_align(g_sub,LV_ALIGN_TOP_MID,dx,164);
+    lv_obj_set_style_text_color(g_sub,TC(TEXT_PRIMARY),0);lv_obj_align(g_sub,LV_ALIGN_TOP_MID,dx,158);
+    g_sub2=lv_label_create(root);lv_label_set_long_mode(g_sub2,LV_LABEL_LONG_DOT);lv_obj_set_width(g_sub2,230);
+    lv_obj_set_style_text_align(g_sub2,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub2,TF(UI_14),0);
+    lv_obj_set_style_text_color(g_sub2,TC(TEXT_SECONDARY),0);lv_obj_align(g_sub2,LV_ALIGN_TOP_MID,dx,188);
+    lv_obj_t *rule=lv_obj_create(root);lv_obj_remove_style_all(rule);lv_obj_set_size(rule,140,1);   /* a hairline above the totals */
+    lv_obj_set_style_bg_color(rule,TC(TEXT_SECONDARY),0);lv_obj_set_style_bg_opa(rule,LV_OPA_30,0);lv_obj_align(rule,LV_ALIGN_TOP_MID,dx,216);
     g_cap=lv_label_create(root);lv_label_set_text(g_cap,"Last 24 hours");lv_obj_set_width(g_cap,240);
-    lv_obj_set_style_text_align(g_cap,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_cap,TF(UI_16),0);
-    lv_obj_set_style_text_color(g_cap,TC(TEXT_SECONDARY),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,214);
-    stat_block(root,74,"Playback",&g_play_v);stat_block(root,178,"Screen on",&g_scr_v);
-    for(int k=0;k<2;k++){
-        lv_obj_t *l=lv_label_create(root);lv_label_set_text(l,k?"0%":"100%");lv_obj_set_size(l,48,20);
-        lv_obj_set_style_text_font(l,TF(UI_14),0);lv_obj_set_style_text_color(l,TC(TEXT_SECONDARY),0);
-        lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(l,left?28:284,k?291:53);
+    lv_obj_set_style_text_align(g_cap,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_cap,TF(UI_14),0);
+    lv_obj_set_style_text_color(g_cap,TC(TEXT_MUTED),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,222);
+    figure(root,dx-56,"playing",&g_play_v);figure(root,dx+56,"screen on",&g_scr_v);
+    for(int k=0;k<=4;k++){                                   /* ticks at 0 / 25 / 50 / 75 / 100% just inside the ring */
+        float deg=left?500.0f-70.0f*k:40.0f+70.0f*k,a=deg*3.14159265f/180.0f;
+        lv_obj_t *t=lv_obj_create(root);lv_obj_remove_style_all(t);lv_obj_set_size(t,4,4);
+        lv_obj_set_style_radius(t,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(t,TC(TEXT_SECONDARY),0);
+        lv_obj_set_style_bg_opa(t,k==0||k==4?LV_OPA_70:LV_OPA_40,0);
+        lv_obj_set_pos(t,180+(int)lroundf(cosf(a)*156)-2,180+(int)lroundf(sinf(a)*156)-2);
+        lv_obj_clear_flag(t,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     }
+    g_tip=lv_obj_create(root);lv_obj_remove_style_all(g_tip);lv_obj_set_size(g_tip,14,14);   /* the glowing tip at the level */
+    lv_obj_set_style_radius(g_tip,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(g_tip,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(g_tip,3,0);lv_obj_set_style_border_color(g_tip,TC(CANVAS),0);
+    lv_obj_set_style_shadow_width(g_tip,16,0);lv_obj_set_style_shadow_opa(g_tip,LV_OPA_70,0);
+    lv_obj_clear_flag(g_tip,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     if(!g_tmr)g_tmr=lv_timer_create(us_tick_cb,30000,NULL);draw();
 }
 void usage_refresh(void){ draw(); }
@@ -240,6 +300,7 @@ void usage_demo(int charging){
         uint8_t fl = (m % 90 < 50 ? FL_PLAY : 0) | (m % 120 < 12 ? FL_SCR : 0);
         push(now - (uint32_t)m * 60u, 82 - (360 - m) / 24, fl);
     }
+    if(charging) for(int m = 45; m > 0; m--) push(now - (uint32_t)m * 60u, 52 + (45 - m) / 3, FL_CHG);   /* charging for 45 min */
     g_batt = 67; g_chg = charging;
     if(getenv("USAGE_CYCLE")){ g_cy.full_at = now - 26u * 3600u; g_cy.play_min = 412; g_cy.scr_min = 75; }   /* since a full charge, 26 h ago */
     draw();

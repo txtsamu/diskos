@@ -652,12 +652,18 @@ int disco_nav_right(void){ return PK_X + PK_D; }                       /* the ci
 /* ---- the screen manager's hooks --------------------------------------------------------------------- */
 static int g_np_want;
 int disco_np_wanted(void){ return g_np_want; }
-void disco_open_np_immersive(void){
+void dhome_imm_leave(void (*done)(void)); void dhome_imm_return(void);
+static void np_immersive_now(void){
     /* Ask the overlay itself before navigating: it can refuse when the UI
      * has no track, even if IPC still carries the previous track. */
     ui_np_fsart_open();
-    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); return; }
+    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); if(screen_current() == SCR_HOME) dhome_imm_return(); return; }
+    if(screen_get_anim()) screen_skip_anim_once();                    /* the record drops in instead of the slide */
     g_np_want = 1; screen_show(SCR_NOWPLAYING); g_np_want = 0;
+}
+void disco_open_np_immersive(void){
+    if(screen_current() == SCR_HOME && screen_get_anim()) dhome_imm_leave(np_immersive_now);   /* Music's pieces step aside first */
+    else np_immersive_now();
 }
 
 void disco_init(lv_obj_t *parent){
@@ -762,7 +768,7 @@ static void ed_act_cb(lv_event_t *e){
     else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
     else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
     else if(act==4 && i<0){
-        if(g_edit_n>=(g_edit_qs?QS_MAX_ITEMS:MAXM)){ui_toast(g_edit_qs?"Remove an item first (eight maximum)":"The menu holds up to ten");return;}
+        if(g_edit_n>=(g_edit_qs?QS_MAX_ITEMS:MAXM)){ui_toast(g_edit_qs?"Remove an item first (seven maximum)":"The menu holds up to ten");return;}
         g_edit[g_edit_n++]=id;
     }else return;
     if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
@@ -813,7 +819,7 @@ static void editor_open(int qs){
     if(g_bd_ok)lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
     lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
     ui_header_cb(g_ed,qs?"Quick Items":"Disco Menu",ed_close_cb);
-    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?"Choose up to eight; arrows change order":"Music and Settings always stay");
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?"Choose up to seven; arrows change order":"Music and Settings always stay");
     lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
     g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
     lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);

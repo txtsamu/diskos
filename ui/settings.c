@@ -387,6 +387,9 @@ static void apply_disco_side_ok(int v){
 static void side_apply_cb(lv_event_t *e){ (void)e; apply_disco_side_ok(0); }
 static const char *OPT_NAV_ACTION[] = { "Music screen", "Search", "Queue", "Up Next", "Shortcuts", "Quick Settings", "Volume", "Screen off", "Play/Pause", "Next track", "Nothing" };
 static const char *OPT_DHOLD[] = { "Immersive", "Favourite", "Nothing" };
+static const char *OPT_DCTRL[] = { "Buttons", "Auto-hide", "Gestures" };
+void dhome_controls_apply(void);
+static void apply_disco_controls(int v){ (void)v; dhome_controls_apply(); }
 void dhome_title_apply(void);
 static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }
 static void apply_disco_hold(int v){ (void)v; }
@@ -810,9 +813,9 @@ static const setting_t TABLE[] = {
     { "Disco Options", "Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discolayout, 0,
       "Which side the navigation circle sits on, and how lists scroll.", NULL },
     { "Disco Options", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discoqs,0,
-      "Choose the button style and up to eight quick actions.", NULL },
+      "Choose the button style and up to seven quick actions.", NULL },
     { "Quick Settings", "Style", ST_CYCLER, "disco_qs_style",0,0,1,OPT_QS_STYLE,2,NULL,apply_disco_qs,0,
-      "Current keeps the rows. Arc uses up to eight round buttons. The music disc stays.", NULL },
+      "List keeps the rows. Arc puts seven round buttons along the edge, Wi-Fi in the middle. The music disc stays.", NULL },
     { "Quick Settings", "Items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
       "Add, remove and reorder quick actions with the Disco Menu editor.", NULL },
     { "Music Screen", "Show Clock", ST_TOGGLE, "disco_clock", 0,1,1, NULL,0, NULL, apply_disco_clock, 1,
@@ -827,6 +830,8 @@ static const setting_t TABLE[] = {
       "Where the title and artist sit on Music: centred, or from the left.", NULL },
     { "Music Screen", "Title Hold", ST_CYCLER, "disco_title_hold", 0,0,0, OPT_DHOLD, 3, NULL, apply_disco_hold, 0,
       "What holding the title on Music does: open the cover full screen, or favourite (or unfavourite) the song. A tap still opens the track menu.", NULL },
+    { "Music Screen", "Controls", ST_CYCLER, "disco_controls", 0,0,0, OPT_DCTRL, 3, NULL, apply_disco_controls, 0,
+      "Buttons as they are, buttons that fade after 5 seconds (a touch brings them back), or no buttons: double tap the bottom for play/pause, swipe right for next and left for previous.", NULL },
     { "Disco Colours", "Rim Sheen", ST_TOGGLE, "disco_sheen", 0,1,1, NULL,0, NULL, apply_disco_sheen, 1,
       "The faint CD rainbow around the edge of Music and playlists.", NULL },
     { "Disco Colours", "Equalizer", ST_CYCLER, "disco_eq", 0,0,0, OPT_DEQ, 2, NULL, apply_disco_eq, 0,
@@ -1478,7 +1483,7 @@ void setlist_refresh(void){
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;
-        if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold)) continue;   /* fork: Disco rows */
+        if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_controls)) continue;   /* fork: Disco rows */
 
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);

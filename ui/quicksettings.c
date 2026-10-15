@@ -49,16 +49,23 @@ static const qs_item_t CATALOG[Q_COUNT]={
 int quicksettings_item_count(void){return Q_COUNT;}
 const qs_item_t *quicksettings_item(int id){return id>=0 && id<Q_COUNT?&CATALOG[id]:NULL;}
 int quicksettings_items_load(int *out){
-    const char *code=cfg_get_str("disco_qs_items",NULL);int n=0;
-    if(code)for(const char *p=code;*p && n<QS_MAX_ITEMS;p++)for(int id=0;id<Q_COUNT;id++)if(*p==CATALOG[id].code[0]){
-        int duplicate=0;for(int k=0;k<n;k++)if(out[k]==id)duplicate=1;
-        if(!duplicate)out[n++]=id;
+    const char *code=cfg_get_str("disco_qs_items",NULL);int n=0,all[Q_COUNT];
+    if(code)for(const char *p=code;*p && n<Q_COUNT;p++)for(int id=0;id<Q_COUNT;id++)if(*p==CATALOG[id].code[0]){
+        int duplicate=0;for(int k=0;k<n;k++)if(all[k]==id)duplicate=1;
+        if(!duplicate)all[n++]=id;
         break;
     }
     if(!code || (code[0] && !n)){
-        static const int defaults[]={T_WIFI,T_BT,T_MODE,T_LIB,Q_EQ,Q_SEARCH,T_RESCAN,T_SET};
-        memcpy(out,defaults,sizeof defaults);n=sizeof defaults/sizeof defaults[0];
+        static const int defaults[]={T_WIFI,T_BT,T_MODE,T_LIB,Q_EQ,Q_SEARCH,T_SET};
+        memcpy(out,defaults,sizeof defaults);return sizeof defaults/sizeof defaults[0];
     }
+    while(n>QS_MAX_ITEMS){                                          /* an older, longer list: drop the last that isn't pinned */
+        int k=n-1;while(k>=0 && (all[k]==T_WIFI || all[k]==T_BT || all[k]==T_SET))k--;
+        if(k<0)break;
+        memmove(all+k,all+k+1,(size_t)(n-k-1)*sizeof *all);n--;
+    }
+    if(n>QS_MAX_ITEMS)n=QS_MAX_ITEMS;
+    memcpy(out,all,(size_t)n*sizeof *out);
     return n;
 }
 int quicksettings_items_save(const int *items,int count){
@@ -69,11 +76,11 @@ int quicksettings_items_save(const int *items,int count){
         for(int j=0;j<i;j++)if(items[j]==items[i])return -1;
         codes[i]=CATALOG[items[i]].code[0];
     }
-    codes[count]=0;snprintf(old,sizeof old,"%s",cfg_get_str("disco_qs_items","wbmlefrs"));
+    codes[count]=0;snprintf(old,sizeof old,"%s",cfg_get_str("disco_qs_items","wbmlefs"));
     if(cfg_set_str("disco_qs_items",codes)<0){cfg_set_str_deferred("disco_qs_items",old);cfg_flush();return -1;}
     return 0;
 }
-static int g_items[QS_MAX_ITEMS],g_nitems,g_style=-1;
+static int g_items[QS_MAX_ITEMS],g_nitems,g_style=-1,g_style_raw=-1;
 static char g_codes[48];static lv_obj_t *g_controls,*g_root;
 static orbit_t g_orb;
 static lv_obj_t *g_bright, *g_batt, *g_bg, *g_dim;
@@ -217,32 +224,37 @@ static const lv_font_t *row_font_list(const char *text,int width,int height){   
     }
     return fonts[2];
 }
+/* Arc: 76 px circles; six on a circle round the screen's centre (the rim's curve, inside the brightness and battery
+ * arcs), from upper right (285 degrees) round the left to lower right (75), and one in the middle beside the music */
+#define RING_D 76
+#define RING_R 113
+#define RING_A0 75
+#define RING_A1 285
+#define RING_CX 150
 static void controls_build(lv_obj_t *root){
     if(g_controls){lv_obj_delete(g_controls);g_controls=NULL;}
     memset(g_dq_row,0,sizeof g_dq_row);memset(g_dq_ico,0,sizeof g_dq_ico);memset(g_dq_val,0,sizeof g_dq_val);
     memset(g_dq_name,0,sizeof g_dq_name);memset(g_dq_badge,0,sizeof g_dq_badge);
-    g_nitems=quicksettings_items_load(g_items);g_style=cfg_get_int("disco_qs_style",1)==1;
-    snprintf(g_codes,sizeof g_codes,"%s",cfg_get_str("disco_qs_items","wbmlefrs"));
+    g_nitems=quicksettings_items_load(g_items);g_style_raw=cfg_get_int("disco_qs_style",1)==1;g_style=g_style_raw;
+    snprintf(g_codes,sizeof g_codes,"%s",cfg_get_str("disco_qs_items","wbmlefs"));
     for(int i=0;i<T_N;i++){lv_obj_add_flag(g_orb.btn[i],LV_OBJ_FLAG_HIDDEN);if(g_orb.cap[i])lv_obj_add_flag(g_orb.cap[i],LV_OBJ_FLAG_HIDDEN);}
     g_controls=lv_obj_create(root);lv_obj_remove_style_all(g_controls);lv_obj_set_size(g_controls,360,360);
     lv_obj_clear_flag(g_controls,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     if(g_sun){lv_obj_set_style_transform_scale(g_sun,176,0);lv_obj_set_style_transform_pivot_x(g_sun,lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_sun,lv_pct(50),0);
-        lv_obj_align(g_sun,LV_ALIGN_CENTER,disco_mirror()?-126:126,-100);}
-    if(g_batt_icon){lv_obj_set_style_text_font(g_batt_icon,TF(UI_20),0);lv_obj_align(g_batt_icon,LV_ALIGN_CENTER,disco_mirror()?-126:126,102);}
-    /* Six evenly spaced centres on a 122px arc; radios sit between arc and disc.
-     * Reserve radio positions by action, so reordering cannot hide their status. */
-    static const int arc_x[8]={164,164,180,108,64,64,108,180};
-    static const int arc_y[8]={144,216,58,81,142,218,279,302};
-    int positions[QS_MAX_ITEMS],used[QS_MAX_ITEMS]={0};
-    for(int i=0;i<g_nitems;i++){
-        positions[i]=g_items[i]==T_WIFI?0:g_items[i]==T_BT?1:-1;
-        if(positions[i]>=0)used[positions[i]]=1;
-    }
-    for(int i=0;i<g_nitems;i++)if(positions[i]<0){
-        int pos=2;while(pos<8 && used[pos])pos++;
-        if(pos==8){pos=0;while(pos<2 && used[pos])pos++;}
-        positions[i]=pos;used[pos]=1;
-    }
+        lv_obj_align(g_sun,LV_ALIGN_CENTER,disco_mirror()?-120:120,-107);}   /* centred between the field and the end of the brightness arc */
+    if(g_batt_icon){lv_obj_set_style_text_font(g_batt_icon,TF(UI_20),0);lv_obj_align(g_batt_icon,LV_ALIGN_CENTER,disco_mirror()?-120:120,107);}   /* and between the field and the end of the battery arc */
+    /* Arc: Wi-Fi in the middle beside the music; the rest on a circle round the screen's centre (the rim's curve, inside
+     * the brightness and battery arcs): Bluetooth first at the upper right, round the left, Settings last at the lower
+     * right. List: Wi-Fi and Bluetooth on top (the fixed pair), Settings the last row. */
+    int order[QS_MAX_ITEMS],no=0,centre=-1;
+    for(int i=0;i<g_nitems;i++)if(g_items[i]==T_WIFI)centre=i;
+    if(centre<0)for(int i=0;i<g_nitems;i++)if(g_items[i]!=T_BT && g_items[i]!=T_SET){centre=i;break;}   /* no Wi-Fi: the first free one */
+    for(int i=0;i<g_nitems;i++)if(g_items[i]==T_BT)order[no++]=i;
+    for(int i=0;i<g_nitems;i++)if(i!=centre && g_items[i]!=T_BT && g_items[i]!=T_SET)order[no++]=i;
+    for(int i=0;i<g_nitems;i++)if(g_items[i]==T_SET)order[no++]=i;
+    int arcpos[QS_MAX_ITEMS];for(int i=0;i<g_nitems;i++)arcpos[i]=-1;
+    for(int k=0;k<no;k++)arcpos[order[k]]=k;
+    int settings_last=-1;for(int i=0;i<g_nitems;i++)if(g_items[i]==T_SET)settings_last=i;
     int rows=0,row_index=0;
     for(int i=0;i<g_nitems;i++)if(g_items[i]!=T_WIFI && g_items[i]!=T_BT)rows++;
     /* The first gap below the fixed radios equals every inter-row gap.
@@ -253,10 +265,16 @@ static void controls_build(lv_obj_t *root){
     for(int slot=0;slot<g_nitems;slot++){
         int id=g_items[slot],radio=id==T_WIFI || id==T_BT;
         int x,y,w,h;
-        if(g_style){w=h=66;x=arc_x[positions[slot]]-33;y=arc_y[positions[slot]]-33;x=disco_mx(x,w);}
+        if(g_style){
+            w=h=RING_D;
+            if(slot==centre){x=RING_CX-RING_D/2;y=180-RING_D/2;}
+            else{float a=(no<2?RING_A1:RING_A1-(RING_A1-RING_A0)*(float)arcpos[slot]/(no-1))*0.0174533f;   /* even, both ends pinned */
+                 x=180+(int)lroundf(RING_R*cosf(a))-RING_D/2;y=180+(int)lroundf(RING_R*sinf(a))-RING_D/2;}
+            x=disco_mx(x,w);
+        }
         else{
             if(radio){h=38;y=42;x=id==T_WIFI?80:184;w=98;}
-            else{h=row_h;y=80+row_gap+row_index*(row_h+row_gap);row_index++;
+            else{h=row_h;int ri=slot==settings_last?rows-1:row_index++;y=80+row_gap+ri*(row_h+row_gap);
                 /* List: rows sit and curve like the Library's (curvelist Classic): a row is at most 268 px wide,
                  * centred, and narrows with the round screen; here its right end stops short of the music field. */
                 int dy=abs(y+h/2-180)+h/2;
@@ -519,7 +537,7 @@ void quicksettings_refresh(int playing)
 void quicksettings_build(void){
     if(!th_disco() || !g_root)return;
     int style=cfg_get_int("disco_qs_style",1)==1;
-    if(style!=g_style || strcmp(g_codes,cfg_get_str("disco_qs_items","wbmlefrs")))controls_build(g_root);
+    if(style!=g_style_raw || strcmp(g_codes,cfg_get_str("disco_qs_items","wbmlefs")))controls_build(g_root);
     dq_paint();
 }
 

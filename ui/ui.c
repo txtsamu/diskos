@@ -107,6 +107,8 @@ static int g_arc_rot = ARC_ROT, g_arc_sweep = ARC_SWEEP;   /* poster moves the s
 static int g_arc_rev = 0;   /* 1: progress runs against LVGL's clockwise angles (bottom rim, left -> right) */
 static lv_obj_t *poster_img, *poster_dim, *poster_top, *poster_fade, *np_scrim, *btn_imm, *vol_arc;
 static lv_obj_t *imm_spin, *imm_prog, *imm_hint, *imm_lyr[3], *imm_scrim;
+static int32_t imm_boost;      /* Disco: extra turn while the record lands (tenths of a degree, eases to 0) */
+static void imm_in_start(void);
 static lv_obj_t *imm_deco[6];  /* groove rings + label objects: only for the 148px fallback (baked otherwise) */
 static lv_obj_t *title_sh, *artist_sh;     /* poster: text drop shadows */
 static lv_obj_t *np_dots[2];                /* page dots (hidden in Poster: they sat on the volume arc) */
@@ -574,7 +576,7 @@ static void imm_render_frame(void){
         hooked = 1;
     }
     uint32_t started=lv_tick_get();
-    imm_record_render((const uint32_t *)g_spinbuf,g_spindsc.header.w,g_spindsc.header.h,imm_frame,imm_angle,imm_fade_height);
+    imm_record_render((const uint32_t *)g_spinbuf,g_spindsc.header.w,g_spindsc.header.h,imm_frame,((imm_angle+imm_boost)%3600+3600)%3600,imm_fade_height);
     uint32_t cost=lv_tick_elaps(started);
     /* Pace on running averages (x8 fixed point), never on one slow frame: a single hiccup must not lock the
      * record at 1 fps. Smoothing goes off only once the drawing average stays high. Rotation remains time-based. */
@@ -831,7 +833,7 @@ static void imm_tick(lv_timer_t *t){
         imm_last_spin = lv_tick_get();
         imm_spin_ms = (imm_spin_ms + el % 20000) % 20000;
         imm_angle = (int32_t)(imm_spin_ms * 3600 / 20000);
-        if(imm_fast) imm_render_frame(); else lv_image_set_rotation(imm_spin, imm_angle);
+        if(imm_fast) imm_render_frame(); else lv_image_set_rotation(imm_spin, imm_angle + imm_boost);
         /* Smoothing (bilinear) doubles the cost of a frame. Keep it while the device holds ~18 fps or
          * better (~18 fps); if the average interval stays above 55 ms, drop it once - the same frame then costs
          * about what the old 148px spin did, and the record keeps turning smoothly. */
@@ -912,13 +914,69 @@ void ui_np_fsart_open(void){
         imm_spin_ms=(uint32_t)imm_angle*20000/3600;
         imm_playing = g_np_is_playing;
         if(!imm_timer) imm_timer = lv_timer_create(imm_tick, imm_still() ? 250 : imm_frame_period, NULL);   /* initial render already measured its cost */
+        if(th_disco() && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)) imm_in_start();
     }
+}
+
+/* ---- Disco: into and out of Immersive ------------------------------------------------------------------
+ * In: the cover, a little larger than the record, drops onto it - shrinking to size while it spins in fast and
+ * slows to the record's own pace - and the lyrics, the progress ring and the shade fade up after it (750 ms).
+ * Out: the record lifts - growing and spinning off - then Music comes back with its pieces sliding in (240 ms).
+ * Only with Settings > Animations on. */
+static void imm_in_set(int v){                                      /* v 0..1000 along the ease-out */
+    float e = v / 1000.0f, r = 1.0f - e;
+    if(!imm_spin) return;
+    imm_boost = (int32_t)(-1100 * r * r);                              /* spins in fast, slows to its own pace */
+    uint32_t base = imm_fast ? 256 : g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP);
+    lv_image_set_scale(imm_spin, (uint32_t)(base * (1.0f + 0.16f * r)));   /* a little larger, settling to size */
+    if(imm_fast){ imm_render_frame(); lv_obj_invalidate(imm_spin); return; }   /* lyrics and ring are baked into the frame */
+    lv_image_set_rotation(imm_spin, imm_angle + imm_boost);
+    lv_opa_t o = (lv_opa_t)(e < 0.35f ? 0 : (e - 0.35f) / 0.65f * 255);  /* the plain renderer: they fade up after it */
+    if(imm_prog) lv_obj_set_style_opa(imm_prog, o, 0);
+    for(int j = 0; j < 3; j++) if(imm_lyr[j]) lv_obj_set_style_opa(imm_lyr[j], o, 0);
+}
+static void imm_in_exec(void *x, int32_t v){ (void)x; imm_in_set(v); }
+static void imm_in_done(lv_anim_t *a){ (void)a; imm_in_set(1000); imm_boost = 0; }
+static void imm_in_start(void){
+    if(!imm_spin) return;
+    static int tag; lv_anim_delete(&tag, NULL);
+    imm_in_set(0);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_in_exec);
+    lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, 750); lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, imm_in_done); lv_anim_start(&a);
+}
+void dhome_imm_return(void);
+static void imm_out_exec(void *x, int32_t v){
+    (void)x; float e = v / 1000.0f;
+    if(!imm_spin) return;
+    uint32_t base = imm_fast ? 256 : g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP);
+    lv_image_set_scale(imm_spin, (uint32_t)(base * (1.0f + 0.22f * e)));   /* lifts: grows */
+    imm_boost = (int32_t)(700 * e * e);                                   /* and spins off */
+    if(imm_fast){ imm_render_frame(); lv_obj_invalidate(imm_spin); return; }
+    lv_image_set_rotation(imm_spin, imm_angle + imm_boost);
+    lv_opa_t o = (lv_opa_t)((1.0f - e) * 255);
+    if(imm_prog) lv_obj_set_style_opa(imm_prog, o, 0);
+    for(int j = 0; j < 3; j++) if(imm_lyr[j]) lv_obj_set_style_opa(imm_lyr[j], o, 0);
+}
+static void imm_out_done(lv_anim_t *a){
+    (void)a;
+    imm_boost = 0; if(imm_spin) lv_image_set_scale(imm_spin, imm_fast || g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP));   /* rest for next time */
+    screen_skip_anim_once(); screen_home(); dhome_imm_return();
+    if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);
 }
 static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN); }
 void ui_np_fsart_close(void){
     if(!fsart || !fsart_on) return;
     fsart_on = 0;
     if(imm_timer){ lv_timer_delete(imm_timer); imm_timer = NULL; }
+    if(th_disco() && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
+        static int tag; lv_anim_delete(&tag, NULL);                  /* the record lifts off, then Music slides back in */
+        lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
+        lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_out_exec);
+        lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, 240); lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+        lv_anim_set_completed_cb(&a, imm_out_done); lv_anim_start(&a);
+        return;
+    }
     if(th_disco() && screen_current() == SCR_NOWPLAYING){
         /* The shared NP root uses Ring's layout. Keep it covered throughout
          * the 240ms return slide; hiding/fading first exposes that layout. */
@@ -3529,3 +3587,5 @@ int ui_np_mode_next(void){                          /* as the Now Playing play-m
     ui_toast(MODE_NAMES[wm]);
     return wm;
 }
+void ui_test_imm_in(int v){ imm_in_set(v); }                            /* host renders: a frame of the drop */
+void ui_test_imm_out(int v){ imm_out_exec(NULL, v); }                   /* host renders: a frame of the lift */

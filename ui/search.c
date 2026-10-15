@@ -114,7 +114,7 @@ static void res_row(const mdb_song_t *s){
     lv_obj_set_style_text_color(a, TC(TEXT_LYRICS), 0);
 }
 /* an artist hit: one line with the microphone; a tap opens the artist's albums */
-static char g_res_art[4][MDB_STR];
+static char g_res_art[5][MDB_STR];
 static void artist_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     if(i < 0 || i >= 4) return;
@@ -154,7 +154,7 @@ static void results_open(void){
     if(n <= 0) snprintf(cnt, sizeof cnt, "\xE2\x80\x9C%s\xE2\x80\x9D", g_query);
     else snprintf(cnt, sizeof cnt, "%s%d for \xE2\x80\x9C%s\xE2\x80\x9D", n > MAX_RESULTS ? "First " : "", shown, g_query);
     lv_label_set_text(g_res_count, cnt);
-    int na = mdb_search_artists(g_query, g_res_art, 4);            /* artists first, then the songs */
+    int na = mdb_search_artists(g_query, g_res_art, 5);            /* artists first, then the songs */
     for(int i = 0; i < na; i++) res_artist(i);
     if(na && shown) res_rule();
     if(n <= 0 && !na) res_note("No results\nGo back to change the search");
