@@ -1,3 +1,4 @@
+#include "null_theme.h"
 #include "battery.h"
 #include "quicksettings.h"
 #include "folderbrowser.h"
@@ -49,35 +50,36 @@ static const qs_item_t CATALOG[Q_COUNT]={
 int quicksettings_item_count(void){return Q_COUNT;}
 const qs_item_t *quicksettings_item(int id){return id>=0 && id<Q_COUNT?&CATALOG[id]:NULL;}
 int quicksettings_items_load(int *out){
-    const char *code=cfg_get_str("disco_qs_items",NULL);int n=0,all[Q_COUNT];
+    const char *code=cfg_get_str(th_null()?"null_qs_items":"disco_qs_items",NULL);int n=0,all[Q_COUNT],limit=th_null()?8:7;
     if(code)for(const char *p=code;*p && n<Q_COUNT;p++)for(int id=0;id<Q_COUNT;id++)if(*p==CATALOG[id].code[0]){
         int duplicate=0;for(int k=0;k<n;k++)if(all[k]==id)duplicate=1;
         if(!duplicate)all[n++]=id;
         break;
     }
     if(!code || (code[0] && !n)){
+        if(th_null()){static const int nd[]={T_WIFI,T_BT,T_MODE,Q_EQ,T_RESCAN,Q_SEARCH,Q_WEATHER,T_SET};memcpy(out,nd,sizeof nd);return 8;}
         static const int defaults[]={T_WIFI,T_BT,T_MODE,T_LIB,Q_EQ,Q_SEARCH,T_SET};
         memcpy(out,defaults,sizeof defaults);return sizeof defaults/sizeof defaults[0];
     }
-    while(n>QS_MAX_ITEMS){                                          /* an older, longer list: drop the last that isn't pinned */
+    while(n>limit){                                          /* an older, longer list: drop the last that isn't pinned */
         int k=n-1;while(k>=0 && (all[k]==T_WIFI || all[k]==T_BT || all[k]==T_SET))k--;
         if(k<0)break;
         memmove(all+k,all+k+1,(size_t)(n-k-1)*sizeof *all);n--;
     }
-    if(n>QS_MAX_ITEMS)n=QS_MAX_ITEMS;
+    if(n>limit)n=limit;
     memcpy(out,all,(size_t)n*sizeof *out);
     return n;
 }
 int quicksettings_items_save(const int *items,int count){
-    if(count<0 || count>QS_MAX_ITEMS)return -1;
+    if(count<0 || count>(th_null()?8:7))return -1;
     char codes[QS_MAX_ITEMS+1],old[48];
     for(int i=0;i<count;i++){
         if(items[i]<0 || items[i]>=Q_COUNT)return -1;
         for(int j=0;j<i;j++)if(items[j]==items[i])return -1;
         codes[i]=CATALOG[items[i]].code[0];
     }
-    codes[count]=0;snprintf(old,sizeof old,"%s",cfg_get_str("disco_qs_items","wbmlefs"));
-    if(cfg_set_str("disco_qs_items",codes)<0){cfg_set_str_deferred("disco_qs_items",old);cfg_flush();return -1;}
+    codes[count]=0;snprintf(old,sizeof old,"%s",cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
+    if(cfg_set_str(th_null()?"null_qs_items":"disco_qs_items",codes)<0){cfg_set_str_deferred(th_null()?"null_qs_items":"disco_qs_items",old);cfg_flush();return -1;}
     return 0;
 }
 static int g_items[QS_MAX_ITEMS],g_nitems,g_style=-1,g_style_raw=-1;
@@ -158,7 +160,7 @@ static void prog_tick(lv_timer_t *t){
 /* rescan: while the library scan runs, the Rescan icon turns red and spins (1 turn/s) */
 static void spin_exec(void *var, int32_t v){ lv_obj_set_style_transform_rotation((lv_obj_t *)var, v, 0); }
 static void rescan_show(int on){
-    if(th_disco()){g_scanning=on;return;}
+    if(th_disco()||th_null()){g_scanning=on;return;}
     if(on == g_scanning) return;
     g_scanning = on;
     lv_obj_t *ic = g_orb.icon[T_RESCAN];
@@ -236,7 +238,7 @@ static void controls_build(lv_obj_t *root){
     memset(g_dq_row,0,sizeof g_dq_row);memset(g_dq_ico,0,sizeof g_dq_ico);memset(g_dq_val,0,sizeof g_dq_val);
     memset(g_dq_name,0,sizeof g_dq_name);memset(g_dq_badge,0,sizeof g_dq_badge);
     g_nitems=quicksettings_items_load(g_items);g_style_raw=cfg_get_int("disco_qs_style",1)==1;g_style=g_style_raw;
-    snprintf(g_codes,sizeof g_codes,"%s",cfg_get_str("disco_qs_items","wbmlefs"));
+    snprintf(g_codes,sizeof g_codes,"%s",cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
     for(int i=0;i<T_N;i++){lv_obj_add_flag(g_orb.btn[i],LV_OBJ_FLAG_HIDDEN);if(g_orb.cap[i])lv_obj_add_flag(g_orb.cap[i],LV_OBJ_FLAG_HIDDEN);}
     g_controls=lv_obj_create(root);lv_obj_remove_style_all(g_controls);lv_obj_set_size(g_controls,360,360);
     lv_obj_clear_flag(g_controls,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
@@ -351,6 +353,7 @@ static void disco_layout(lv_obj_t *root){
 void quicksettings_create(lv_obj_t *root)
 {
     g_root=root;
+    if(th_null()){null_qs_create(root);return;}
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
@@ -535,9 +538,10 @@ void quicksettings_refresh(int playing)
  * Upstream's Quick Settings is user-configurable: a tile palette plus a config screen (SCR_QSCONFIG),
  * and the manager rebuilds the panel when that changes. Disco rebuilds only its configurable controls; other themes retain the fixed panel. */
 void quicksettings_build(void){
+    if(th_null()){null_qs_build();return;}
     if(!th_disco() || !g_root)return;
     int style=cfg_get_int("disco_qs_style",1)==1;
-    if(style!=g_style_raw || strcmp(g_codes,cfg_get_str("disco_qs_items","wbmlefs")))controls_build(g_root);
+    if(style!=g_style_raw || strcmp(g_codes,cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs")))controls_build(g_root);
     dq_paint();
 }
 
@@ -561,3 +565,5 @@ void qsconfig_refresh(void){ }
 /* Host regression seams; no hardware commands are issued by these helpers. */
 lv_obj_t *quicksettings_test_button(int slot){return slot>=0 && slot<g_nitems?g_dq_row[slot]:NULL;}
 lv_obj_t *quicksettings_test_disc(void){return g_cover_clip;}
+
+void quicksettings_null_action(int id,int hold){if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(!hold)pick_cb(id);}

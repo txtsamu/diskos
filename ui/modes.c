@@ -244,7 +244,7 @@ static void disco_paint(int slot, int pending){
     }
 }
 static void paint(int slot, const char *glyph){   /* slot = orbit index, or -1 for none */
-    if(th_disco()){ disco_paint(slot, glyph && !strcmp(glyph, LV_SYMBOL_REFRESH)); return; }
+    if((th_disco() || th_null())){ disco_paint(slot, glyph && !strcmp(glyph, LV_SYMBOL_REFRESH)); return; }
     int pending = (glyph && !strcmp(glyph, LV_SYMBOL_REFRESH));
     lv_color_t acc = TC(ACCENT_PRIMARY);
     if(pending){                                  /* the tapped mode gets a ring; the hub's ring spins */
@@ -350,7 +350,7 @@ void modes_create(lv_obj_t *root){
     /* back button (kept out of the clipped top-left corner) */
     /* no header: the wheel fills the panel and its hub is the way back */
 
-    if(th_disco()){
+    if((th_disco() || th_null())){
         disco_title(root, "Working mode");
         static const char *NM[N_MODES] = { "Playback", "USB DAC", "Bluetooth DAC", "BT streaming", "AirPlay", "USB storage" };
         memset(g_drow, 0, sizeof g_drow);

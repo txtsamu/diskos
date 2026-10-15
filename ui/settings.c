@@ -1,3 +1,4 @@
+#include "null_theme.h"
 #include "onboarding.h"
 #include "quicksettings.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
@@ -342,6 +343,15 @@ static void apply_eq_custom(int v){ (void)v; screen_show(SCR_EQ); }  /* opens Cu
 static void apply_disco_menu(int v){ (void)v; disco_menu_open(); }     /* fork: Disco theme only */
 /* Display > Disco Options: the "Disco" rows on the same list screen; back returns to Display (settings_back_consumed) */
 static void apply_disco_options(int v);
+static void apply_null_options(int v);
+static void apply_null_reload(int v){(void)v;theme_reload_or_revert("null_palette");}
+static void apply_null_live(int v){(void)v;null_options_changed();}
+static void apply_null_menu(int v){(void)v;disco_menu_open();}
+static void apply_null_qs(int v){(void)v;disco_qs_menu_open();}
+static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime"};
+static const char *OPT_NULLTEXT[]={"Center","Left"};
+static const char *OPT_NULLBG[]={"Black","Dark cover","Pixel cover"};
+static const char *OPT_NULLAUTO[]={"Off","5 seconds","10 seconds","30 seconds"};
 static void apply_grp_themecolours(int v);
 static void apply_grp_textlayout(int v);
 static void apply_grp_screenstandby(int v);
@@ -748,6 +758,17 @@ static const setting_t TABLE[] = {
       "Screen backlight level. While Outdoor Mode is on the screen stays at full brightness.", NULL },
     { "Display", "Theme", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_themecolours, 0,
       "Theme, Appearance (dark or light), Automatic Appearance, Outdoor Mode and the Accent colour.", NULL },
+    {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
+    {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
+    {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align Music and shared text blocks",NULL},
+    {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
+    {"Null Options","Album",ST_TOGGLE,"null_music_album",0,1,1,NULL,0,NULL,apply_null_live,1,"Show album on Music",NULL},
+    {"Null Options","Autohide",ST_CYCLER,"null_autohide",0,0,3,OPT_NULLAUTO,4,NULL,apply_null_live,2,"Navigation drawer timeout",NULL},
+    {"Null Options","Side",ST_CYCLER,"null_side",0,0,1,OPT_DSIDE,2,NULL,apply_null_live,0,"Navigation opener handedness",NULL},
+    {"Null Options","Controls",ST_CYCLER,"null_controls",0,0,2,OPT_DCTRL,3,NULL,apply_null_live,0,"Buttons, autofade or gestures",NULL},
+    {"Null Options","Arrow colours",ST_TOGGLE,"null_drawer_state_colours",0,1,1,NULL,0,NULL,apply_null_live,1,"Closed blue/red; open yellow/lime",NULL},
+    {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
+    {"Null Options","Quick items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Eight fields with Wi-Fi first and Settings last",NULL},
     { "Display",  "Disco Options", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_options, 0,
       "The Disco theme's own settings: the menu circle, clock, track times, rim sheen, equalizer and progress bar colours.", NULL },
     { "Display", "Text & Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_textlayout, 0,
@@ -1064,6 +1085,7 @@ static const setting_t *g_active;           /* setting shown in the detail scree
 static lv_obj_t *g_detail_root;
 static lv_obj_t *g_setlist_root;            /* SCR_SETLIST root: one category's rows, rebuilt per entry */
 static const char *g_active_group;          /* which category SCR_SETLIST is currently showing */
+static void apply_null_options(int v){(void)v;g_active_group="Null Options";setlist_refresh();}
 static void apply_disco_options(int v){ (void)v; g_active_group = "Disco Options"; setlist_refresh(); }
 /* Settings sub-groups (Display, Disco Options and System are split into short pages; back steps up one level) */
 static void apply_grp_themecolours(int v){ (void)v; g_active_group = "Theme Colours"; setlist_refresh(); }
@@ -1104,6 +1126,7 @@ static const struct { const char *child, *parent; } SUBGROUP[] = {
     { "About", "System" },
     { "Help", "System" },
     { "Disco Options", "Display" },
+    { "Null Options", "Display" },
     { "MA Sendspin", "Network" },
     { "Volume Keys", "Controls" } };
 int settings_back_consumed(void){
@@ -1216,7 +1239,7 @@ void setting_detail_refresh(void){
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
         /* Themes: Disco first, then Ring, Braun and Stone; the other presets stay in the code and keep working if
          * already selected, but are not offered here for now. Rows still carry the real preset index. */
-        int THEME_SHOWN[4] = { THEME_PRESET_DISCO, THEME_PRESET_RING, THEME_PRESET_BRAUN, -1 }, nshown = 3;
+        int THEME_SHOWN[5] = { THEME_PRESET_DISCO, THEME_PRESET_NULL, THEME_PRESET_RING, THEME_PRESET_BRAUN, -1 }, nshown = 4;
         for(int k = 0; k < THEME_PRESET_COUNT; k++) if(!strcmp(theme_preset_names[k], "stone")){ THEME_SHOWN[nshown++] = k; break; }
         int nrows = is_theme ? nshown : s->nopts;
         for(int r = 0; r < nrows; r++){
@@ -1418,7 +1441,7 @@ static void hub_cb(lv_event_t *e){ list_back_cb(e); }
 /* Disco: the categories as a curved list of rounded rows (as Quick Settings), clear of the navigation sliver */
 static void disco_cat_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) cat_pick((int)(intptr_t)lv_event_get_user_data(e)); }
 static void settings_disco_list(lv_obj_t *root){          /* styled like the submenus: curved rows, 4 in view, scroll dots */
-    lv_obj_t *t = lv_label_create(root); lv_label_set_text(t, "Settings");
+    lv_obj_t *t = lv_label_create(root); lv_label_set_text(t, th_null()?"STNGS":"Settings");
     lv_obj_set_style_text_font(t, TF(UI_20), 0); lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 28);
     static const char *GICON[] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE, LV_SYMBOL_WIFI, LV_SYMBOL_SETTINGS, LV_SYMBOL_BATTERY_3 };
@@ -1442,7 +1465,7 @@ static void settings_disco_list(lv_obj_t *root){          /* styled like the sub
 void settings_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
-    if(th_disco()){ settings_disco_list(root); return; }
+    if(th_disco() || th_null()){ settings_disco_list(root); return; }
     /* orbit: the five categories circle a grey-ringed hub; one sits at the bottom, the top holds the title */
     orbit_title(root, "Settings");
     static const char *GICON[N_GROUPS] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE,
@@ -1480,8 +1503,9 @@ void setlist_refresh(void){
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
         if(!th_disco() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s) || s->apply==apply_grp_help || !strcmp(s->group,"Help")))continue;
+        if(!th_null()&&(s->apply==apply_null_options||!strcmp(s->group,"Null Options")))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
-        if(th_disco() && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
+        if((th_disco()||th_null()) && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
         if(!th_disco() && s->apply == apply_disco_options) continue;
         if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_controls)) continue;   /* fork: Disco rows */
 

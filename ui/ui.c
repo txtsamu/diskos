@@ -2681,6 +2681,7 @@ const lv_font_t *ui_font_cjk(int size)
 /* fork: user text in lists (song / album / artist / file names) follows Settings > Display > Font Size like the rest
  * of the list text: Small one step down, Large one step up (titles and clocks keep their size, they don't use this) */
 const lv_font_t *ui_font_user(int size){
+    if(th_null())return theme_font((theme_font_role_t)(THEME_FONT_USER_14+(size>=20?3:size>=18?2:size>=16?1:0)));
     int fs = theme_font_size();
     if(fs == 0 && size > 14) size -= 2;
     else if(fs == 2 && size < 20) size += 2;

@@ -37,7 +37,9 @@ int         theme_variant(void);                    /* 0 dark, 1 light (the acti
 int         theme_outdoor(void);                    /* 1 = Outdoor mode (light variant + full backlight) this run */
 /* Built-in colour presets (cfg "theme_preset"): 0 = Default, then the generated ones (theme_presets.inc). Each has an
  * explicit dark and light palette; Appearance / Outdoor pick which of the two is active. */
-#define THEME_PRESET_COUNT 11
+#define THEME_PRESET_COUNT 12
+#define THEME_PRESET_NULL 11
+int th_null(void);
 #define THEME_PRESET_RING 8
 int theme_ring_light(void);
 int theme_auto_supported(void);

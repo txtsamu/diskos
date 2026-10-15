@@ -1,3 +1,4 @@
+#include "null_theme.h"
 #include "battery.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
@@ -353,6 +354,7 @@ void home_set_now_playing(const char *title, const char *artist,
                           lv_color_t accent, bool playing)
 {
     if(th_braun()){ bhome_set_now_playing(title, artist, playing); return; }
+    if(th_null()){ null_home_update(title,artist,playing);return; }
     if(th_disco()){ dhome_set_now_playing(title, artist, accent, playing); return; }
     g_accent = accent;
     ring_button_style(g_hb_lib); ring_button_style(g_hb_srch);   /* fork: the buttons follow the album colour */
@@ -395,7 +397,7 @@ void home_set_art_enabled(int on){ g_art_on=on; if(!on && g_np_art_img) lv_obj_a
 void home_set_backdrop_enabled(int on){ g_home_bg_on=on; if(!on) home_set_backdrop(NULL); }
 void home_set_backdrop(const void *src)
 {
-    if(th_braun() || th_disco()) return;
+    if(th_braun() || th_disco() || th_null()) return;
     if(!g_home_bg_on) src=NULL;
     if (g_home_bg) lv_image_set_src(g_home_bg, NULL);   /* same RAM buffer, new pixels: force a redraw */
     if (!g_home_bg || !g_home_scrim) return;
@@ -411,7 +413,7 @@ void home_set_backdrop(const void *src)
 
 void home_set_art_src(const void *src)
 {
-    if(th_braun() || th_disco()) return;
+    if(th_braun() || th_disco() || th_null()) return;
     if (!g_np_art_img || !g_np_thumb_glyph) return;
 
     if (src && g_art_on) {
@@ -461,6 +463,7 @@ static lv_obj_t *round_btn(lv_obj_t *root, const char *sym, int dx){
 
 void home_create(lv_obj_t *root)
 {
+    if(th_null()){ null_home_create(root); return; }
     if(th_disco()){ dhome_create(root); return; }   /* fork: Disco's Music screen (disco_home.c) */
     if(th_ringlike())lv_obj_add_flag(root,LV_OBJ_FLAG_USER_2);
     if(theme_kit()->home_build){ theme_kit()->home_build(root); home_shortcuts_create(root); return; }

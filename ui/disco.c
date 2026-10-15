@@ -1,3 +1,4 @@
+#include "null_theme.h"
 #include "onboarding.h"
 #include "quicksettings.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
@@ -181,11 +182,11 @@ static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(menu_se
 static const char CODE[] = "mlsoceFaudbwrgqMRBSAP";                /* one letter per SEC[] entry, same order (digits: apps) */
 static void menu_load(void){
     menu_apps_scan();
-    char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str("disco_menu", "music,library,settings,modes,shortcuts,eq"));
+    char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str(th_null()?"null_menu":"disco_menu", "music,library,settings,modes,shortcuts,eq"));
     g_nmenu = 0;
-    const char *codes = cfg_get_str("disco_mnu", "");
+    const char *codes = cfg_get_str(th_null()?"null_mnu":"disco_mnu", "");
     if(codes && codes[0]){                                        /* the compact form (since 1.2.5) */
-        for(const char *p = codes; *p && g_nmenu < MAXM; p++){ int s = menu_apps_decode(*p,CODE);
+        for(const char *p = codes; *p && g_nmenu < MAXM; p++){ int s = menu_apps_decode_named(*p,CODE,th_null()?"nm_app":"dm_app");
             if(s >= 0 && in_menu(s) < 0) g_menu[g_nmenu++] = s; }
         buf[0] = 0;
     }
@@ -369,7 +370,7 @@ static void sheen_show_cb(lv_timer_t *t){ (void)t; g_sh_tm = NULL; disco_sheen_a
 
 int disco_mirror(void){
     static int m = -1;
-    if(m < 0) m = th_disco() && cfg_get_int("disco_side", 0) == 1;
+    if(m < 0) m = th_null()?cfg_get_int("null_side",0)==1:th_disco() && cfg_get_int("disco_side", 0) == 1;
     return m;
 }
 /* ---- the navigation circle ------------------------------------------------------------------------- */
@@ -748,13 +749,13 @@ static int ed_in(int id){for(int i=0;i<g_edit_n;i++)if(g_edit[i]==id)return i;re
 static int ed_catalog_count(void){return g_edit_qs?quicksettings_item_count():NSEC+menu_apps_count();}
 static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name:menu_section(id).name;}
 static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:menu_section(id).icon;}
-static int ed_protected(int id){return !g_edit_qs && menu_section(id).prot;}
+static int ed_protected(int id){return g_edit_qs?(th_null()&&(id==0||id==5)):menu_section(id).prot;}
 static void ed_build_async(void *p){(void)p;ed_build();}
-static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();}}
+static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();if(th_null())null_menu_refresh();}}
 static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
 static int ed_save(void){
     if(g_edit_qs)return quicksettings_items_save(g_edit,g_edit_n);
-    if(menu_apps_save(g_edit,g_edit_n,CODE)<0)return -1;
+    if(menu_apps_save_named(g_edit,g_edit_n,CODE,th_null()?"null_mnu":"disco_mnu",th_null()?"nm_app":"dm_app")<0)return -1;
     memcpy(g_menu,g_edit,sizeof(int)*(size_t)g_edit_n);g_nmenu=g_edit_n;
     if(g_cur>=g_nmenu)g_cur=0;
     return 0;
@@ -768,7 +769,7 @@ static void ed_act_cb(lv_event_t *e){
     else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
     else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
     else if(act==4 && i<0){
-        if(g_edit_n>=(g_edit_qs?QS_MAX_ITEMS:MAXM)){ui_toast(g_edit_qs?"Remove an item first (seven maximum)":"The menu holds up to ten");return;}
+        if(g_edit_n>=(g_edit_qs?(th_null()?8:7):MAXM)){ui_toast(g_edit_qs?(th_null()?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
         g_edit[g_edit_n++]=id;
     }else return;
     if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
@@ -811,15 +812,15 @@ static void ed_build(void){
     lv_obj_update_layout(g_ed_list);lv_obj_scroll_to_y(g_ed_list,sy,LV_ANIM_OFF);
 }
 static void editor_open(int qs){
-    if(!th_disco()){ui_toast("This editor is part of Disco");return;}if(g_ed)return;
+    if(!th_disco()&&!th_null()){ui_toast("This editor is part of Disco or Null");return;}if(g_ed)return;
     onboarding_dismiss();g_edit_qs=qs;
     if(qs)g_edit_n=quicksettings_items_load(g_edit);else{menu_load();g_edit_n=g_nmenu;memcpy(g_edit,g_menu,sizeof(int)*(size_t)g_nmenu);}
     g_ed=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(g_ed);lv_obj_set_size(g_ed,360,360);
     lv_obj_set_style_bg_color(g_ed,TC(CANVAS),0);lv_obj_set_style_bg_opa(g_ed,LV_OPA_COVER,0);
     if(g_bd_ok)lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
     lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
-    ui_header_cb(g_ed,qs?"Quick Items":"Disco Menu",ed_close_cb);
-    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?"Choose up to seven; arrows change order":"Music and Settings always stay");
+    ui_header_cb(g_ed,qs?"Quick Items":th_null()?"Null Menu":"Disco Menu",ed_close_cb);
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?(th_null()?"Eight fields; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
     lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
     g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
     lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
@@ -847,7 +848,7 @@ lv_obj_t *disco_row(lv_obj_t *root, int y, int h, const char *glyph, const lv_fo
     int reach = dy + h / 2; if(reach > 170) reach = 170;
     int half = (int)sqrtf((float)(176 * 176 - reach * reach));
     int left = 180 - half + 14, right = 180 + half - 14;
-    int sl = sliver_left(y, y + h) - 8; if(right > sl) right = sl;
+    int sl = th_null()?360:sliver_left(y,y+h)-8; if(right>sl)right=sl;
     lv_obj_t *r = lv_obj_create(root); lv_obj_remove_style_all(r);
     lv_obj_set_pos(r, disco_mx(left, right - left), y); lv_obj_set_size(r, right - left, h);
     lv_obj_set_style_radius(r, LV_RADIUS_CIRCLE, 0);
@@ -889,3 +890,9 @@ void disco_test_nav_points(lv_point_t *icon,lv_point_t *tab){
 int disco_test_nav_open(void){return g_open;}
 
 void disco_test_editor_close(void){ed_close();}
+
+/* Null shares this action catalog and installed-app resolution, not Disco geometry. */
+int disco_catalog_load(void){menu_load();return g_nmenu;}
+const char *disco_catalog_id(int index){return index>=0&&index<g_nmenu?menu_section(g_menu[index]).id:"";}
+const char *disco_catalog_name(int index){return index>=0&&index<g_nmenu?menu_section(g_menu[index]).name:"";}
+void disco_catalog_open(int index){go_section(index,1);}

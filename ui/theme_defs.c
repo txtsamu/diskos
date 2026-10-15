@@ -24,7 +24,11 @@ extern const theme_kit_t theme_kit_ring, theme_kit_braun;
 extern const theme_kit_t theme_kit_something, theme_kit_hifi, theme_kit_term, theme_kit_bauh, theme_kit_blue,
                          theme_kit_stone, theme_kit_zine;
 
+extern const theme_kit_t theme_kit_null;
+LV_FONT_DECLARE(null_pixel_14) LV_FONT_DECLARE(null_pixel_21) LV_FONT_DECLARE(null_pixel_28) LV_FONT_DECLARE(null_pixel_56)
+LV_FONT_DECLARE(null_fine_12) LV_FONT_DECLARE(null_fine_14) LV_FONT_DECLARE(null_fine_16) LV_FONT_DECLARE(null_fine_18) LV_FONT_DECLARE(null_fine_20)
 static const theme_def_t DEFS[] = {
+ { .name="Null",.font={F(UI_10)=&null_fine_12,F(UI_12)=&null_fine_12,F(UI_14)=&null_fine_14,F(UI_16)=&null_fine_16,F(UI_18)=&null_fine_18,F(UI_20)=&null_fine_20,F(UI_22)=&null_pixel_21,F(UI_24)=&null_pixel_21,F(UI_28)=&null_pixel_28,F(UI_32)=&null_pixel_28,F(UI_36)=&null_pixel_28,F(UI_40)=&null_pixel_28,F(USER_14)=&null_fine_14,F(USER_16)=&null_fine_16,F(USER_18)=&null_fine_18,F(USER_20)=&null_fine_20,F(HEADER)=&null_pixel_21,F(HEADER_SM)=&null_pixel_14,F(CLOCK)=&null_pixel_28,F(SAVER_CLOCK)=&null_pixel_56,F(DATE)=&null_pixel_14},.traits=TRAIT(FLAT_LISTS),.title_case=THEME_CASE_UPPER,.texture=THEME_TEX_NONE,.kit=&theme_kit_null },
     { .name="Ring", .texture=THEME_TEX_NONE, .title_case=THEME_CASE_KEEP, .kit=&theme_kit_ring },
     { .name="Braun", .texture=THEME_TEX_NONE, .title_case=THEME_CASE_KEEP, .fixed_accent=1, .kit=&theme_kit_braun },
     { .name="Disco", .texture=THEME_TEX_NONE, .title_case=THEME_CASE_KEEP, .kit=&theme_kit_ring },   /* Ring's components */

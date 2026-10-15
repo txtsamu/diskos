@@ -1,0 +1,634 @@
+{
+  "schema": "diskos-theme-design-draft-v1",
+  "id": "null",
+  "name": "Null",
+  "base_commit": "005440795943c2af8865cc8e4b6a0f40e50febf9",
+  "tokens": {
+    "canvas": "#000000",
+    "panel": "#000000",
+    "palettes": {
+      "red_lime": {
+        "display": "#FF636B",
+        "reading": "#C5F56A",
+        "drawer_handle": "#FF3045",
+        "drawer_handle_closed": "#FF3045",
+        "drawer_handle_open": "#C5F56A",
+        "drawer_handle_off": "#FF3045",
+        "drawer_handle_on": "#C5F56A",
+        "music_title": "#C5F56A",
+        "music_artist": "#FF3045",
+        "music_album": "#FF3045",
+        "music_elapsed_total": "#C5F56A",
+        "music_format_bitrate": "#FF3045",
+        "progress_unfilled": "#FF3045",
+        "progress_filled": "#C5F56A",
+        "progress_pixel": "#C5F56A"
+      },
+      "cyan_yellow": {
+        "display": "#44E8F2",
+        "reading": "#F2E76B",
+        "drawer_handle": "#009FFF",
+        "drawer_handle_closed": "#009FFF",
+        "drawer_handle_open": "#FFE34D",
+        "drawer_handle_off": "#009FFF",
+        "drawer_handle_on": "#FFE34D",
+        "music_title": "#FFE34D",
+        "music_artist": "#009FFF",
+        "music_album": "#009FFF",
+        "music_elapsed_total": "#FFE34D",
+        "music_format_bitrate": "#009FFF",
+        "progress_unfilled": "#009FFF",
+        "progress_filled": "#FFE34D",
+        "progress_pixel": "#FFE34D"
+      }
+    },
+    "control_accent": "album with picked fallback; contrast-adjust for surface and foreground"
+  },
+  "geometry": {
+    "screen": [
+      360,
+      360
+    ],
+    "band": [
+      0,
+      135,
+      360,
+      90
+    ],
+    "min_target": 44,
+    "qs_band": [
+      72,
+      0,
+      216,
+      360
+    ]
+  },
+  "settings": {
+    "visible_when": "active_theme == null",
+    "keys": {
+      "null_palette": {
+        "values": [
+          "red_lime",
+          "cyan_yellow"
+        ],
+        "default": "cyan_yellow"
+      },
+      "null_autohide_s": {
+        "values": [
+          0,
+          5,
+          10,
+          30
+        ],
+        "default": 10,
+        "zero_means": "never automatically dismiss"
+      },
+      "null_qs_items": {
+        "count": "null_qs_count",
+        "fixed": {
+          "first": "wifi",
+          "last": "settings"
+        },
+        "default": [
+          "wifi",
+          "bluetooth",
+          "modes",
+          "equalizer",
+          "rescan",
+          "search",
+          "weather",
+          "settings"
+        ]
+      },
+      "null_menu_items": {
+        "catalog": "existing menu destinations and installed apps",
+        "protected": [
+          "music",
+          "settings"
+        ]
+      },
+      "null_side": {
+        "values": [
+          "right",
+          "left"
+        ],
+        "default": "right"
+      },
+      "null_drawer_state_colours": {
+        "values": [
+          false,
+          true
+        ],
+        "default": true,
+        "on": "closed blue/red; open yellow/lime",
+        "off": "closed palette colour used in both states"
+      },
+      "null_show_album": {
+        "values": [
+          false,
+          true
+        ],
+        "default": true
+      },
+      "null_music_album": {
+        "values": [
+          false,
+          true
+        ],
+        "default": true
+      },
+      "null_text_align": {
+        "label": "Text",
+        "values": [
+          "Left",
+          "Center"
+        ],
+        "default": "Center",
+        "scope": "Null only; all text blocks; drawer entries align within their touch cells; screen hit geometry unchanged"
+      },
+      "null_music_background": {
+        "label": "Music background",
+        "values": [
+          "black",
+          "cover",
+          "pixelated_cover"
+        ],
+        "default": "black",
+        "scope": "Null only"
+      },
+      "null_controls": {
+        "values": [
+          "Buttons",
+          "Autofade",
+          "Gestures"
+        ],
+        "default": "Buttons",
+        "scope": "Null only"
+      },
+      "null_qs_count": {
+        "values": [
+          8
+        ],
+        "default": 8,
+        "scope": "Null only"
+      }
+    }
+  },
+  "inherit": [
+    "player commands",
+    "screen stack",
+    "database",
+    "radio state",
+    "art accent",
+    "track menus",
+    "immersive media",
+    "apps"
+  ],
+  "override": [
+    "colour/font roles",
+    "component styling",
+    "Music layout",
+    "central nav band",
+    "six-slot QS band",
+    "Null-only options"
+  ],
+  "design_revision": 10,
+  "inspiration": "SanDisk Clip+ yellow/cyan visual direction",
+  "drawer": {
+    "content": "Two text-only menu items per page; no icons. Large 21px 5x7 block glyphs. Blue/red idle, yellow/lime during press; retained destination state must not pretend a pending navigation succeeded.",
+    "layer": "Persistent overlay above screen content",
+    "anchor": "right or left according to handedness",
+    "closed_arrow": "points toward center",
+    "open_arrow": "points toward anchor edge",
+    "open": "tap arrow or pull inward",
+    "close": "tap reversed arrow or swipe in its shown direction",
+    "main_screens": [
+      "Music",
+      "Library",
+      "Settings",
+      "Apps",
+      "Shortcuts"
+    ],
+    "secondary_screens": "Overlay remains available with faded chrome; exact opacity to be tuned",
+    "visual": "Opaque black; glow belongs to edge arrow; thin seams in study only",
+    "animation": "Translate band from anchored edge",
+    "height_px": 90,
+    "default_state_pairing": {
+      "off": "closed: blue (cyan/yellow) or red (red/lime)",
+      "on": "open: yellow (cyan/yellow) or lime (red/lime)",
+      "meaning": "open/closed visual state pair; not Wi-Fi or playback status"
+    },
+    "entry_style": {
+      "colour": "blue/red idle, yellow/lime pressed",
+      "glow": "light cached glow, crisp pixel foreground",
+      "min_touch_px": 44,
+      "icons": false,
+      "font": "5x7 block alphabet scaled 3x: 21px visible glyphs"
+    },
+    "pages": [
+      [
+        "MUSIC",
+        "LIBRY"
+      ],
+      [
+        "STNGS",
+        "MODES"
+      ],
+      [
+        "SHRTS",
+        "EQ"
+      ],
+      [
+        "SRCH",
+        "ALBMS"
+      ],
+      [
+        "UP NXT",
+        "FLDRS"
+      ],
+      [
+        "BOOKS",
+        "ARTST"
+      ],
+      [
+        "SONGS",
+        "QUEUE"
+      ],
+      [
+        "WTHR",
+        "SNDSPN"
+      ],
+      [
+        "ROULT",
+        "BOOM"
+      ],
+      [
+        "STATS",
+        "APPS"
+      ],
+      [
+        "SPHERE"
+      ]
+    ],
+    "label_map": [
+      {
+        "id": "music",
+        "full": "Music",
+        "label": "MUSIC"
+      },
+      {
+        "id": "library",
+        "full": "Library",
+        "label": "LIBRY"
+      },
+      {
+        "id": "settings",
+        "full": "Settings",
+        "label": "STNGS"
+      },
+      {
+        "id": "modes",
+        "full": "Modes",
+        "label": "MODES"
+      },
+      {
+        "id": "shortcuts",
+        "full": "Shortcuts",
+        "label": "SHRTS"
+      },
+      {
+        "id": "eq",
+        "full": "EQ",
+        "label": "EQ"
+      },
+      {
+        "id": "search",
+        "full": "Search",
+        "label": "SRCH"
+      },
+      {
+        "id": "albums",
+        "full": "Albums",
+        "label": "ALBMS"
+      },
+      {
+        "id": "queue",
+        "full": "Up Next",
+        "label": "UP NXT"
+      },
+      {
+        "id": "folders",
+        "full": "Folders",
+        "label": "FLDRS"
+      },
+      {
+        "id": "books",
+        "full": "Books",
+        "label": "BOOKS"
+      },
+      {
+        "id": "artists",
+        "full": "Artists",
+        "label": "ARTST"
+      },
+      {
+        "id": "songs",
+        "full": "Songs",
+        "label": "SONGS"
+      },
+      {
+        "id": "myqueue",
+        "full": "Queue",
+        "label": "QUEUE"
+      },
+      {
+        "id": "weather",
+        "full": "Weather",
+        "label": "WTHR"
+      },
+      {
+        "id": "ma",
+        "full": "Sendspin",
+        "label": "SNDSPN"
+      },
+      {
+        "id": "roulette",
+        "full": "Album Roulette",
+        "label": "ROULT"
+      },
+      {
+        "id": "boomshine",
+        "full": "Boomshine",
+        "label": "BOOM"
+      },
+      {
+        "id": "stats",
+        "full": "Stats",
+        "label": "STATS"
+      },
+      {
+        "id": "apps",
+        "full": "Apps",
+        "label": "APPS"
+      },
+      {
+        "id": "songsphere",
+        "full": "SongSphere",
+        "label": "SPHERE"
+      }
+    ],
+    "pagination": {
+      "gesture": "Horizontal drag over items scrolls continuously; drag the position handle to scrub the catalog. Outward-close reserved for arrow/edge, not text-drag surface.",
+      "touch_cells": "264x80px combined event surface; text area and lower handle area route separately; outward arrow excluded",
+      "selected_menu": "Preserve configurable existing catalog and installed-app entries; source Disco limit is 10 selected entries. 11 pages in study show the full 21-entry catalog, not a new default selection.",
+      "installed_apps": "append discovered apps; explicit saved short label or fit-to-width with fallback scrolling; never silently discard destination",
+      "handle": {
+        "track": [
+          60,
+          203,
+          228,
+          2
+        ],
+        "thumb_px": [
+          30,
+          6
+        ],
+        "input": "lower region of drawer; blue/red idle, yellow/lime touched",
+        "hold": "350ms at either end begins continuous scrolling at3items/sec; stops at first/last pair",
+        "release": "140ms snap to nearest pair; text flick includes momentum",
+        "drag_threshold_px": 8,
+        "reorder": "only TS Menu settings; no accidental reorder while browsing"
+      }
+    }
+  },
+  "music": {
+    "typography": {
+      "title": "Blocky 5x7 all-caps bitmap; 3px grid; 21px visible height",
+      "artist": "Same block alphabet; 2px grid; 14px visible height",
+      "metadata": "Finer one-bit pixel font, 14px nominal",
+      "long_titles": "Retain existing delayed scrolling/ellipsis and multilingual fallback"
+    },
+    "above_drawer": [
+      "Title",
+      "Artist"
+    ],
+    "below_drawer": [
+      "Album (optional)",
+      "Seek line",
+      "Elapsed / total + playback mode",
+      "Transport buttons or gesture field"
+    ],
+    "show_album": {
+      "key": "null_music_album",
+      "default": true
+    },
+    "progress": {
+      "bounds_closed": [
+        62,
+        255,
+        236,
+        3
+      ],
+      "bounds_open": [
+        62,
+        249,
+        236,
+        3
+      ],
+      "playhead_size": [
+        7,
+        7
+      ],
+      "fill": "Closed-state blue/red track is replaced by open-state yellow/lime behind the playhead",
+      "interaction": "Existing seek/scrub semantics; minimum 44px hit region; hit region follows animated control"
+    },
+    "geometry": {
+      "title_y_closed": 116,
+      "title_y_open": 70,
+      "artist_y_closed": 157,
+      "artist_y_open": 111,
+      "album_y_closed": 235,
+      "album_y_open": 229,
+      "elapsed_total_y_closed": 263,
+      "elapsed_total_y_open": 257
+    },
+    "animation": {
+      "duration_ms": 200,
+      "preview_duration_ms": 200,
+      "timing": "Cubic ease-out coordinated200ms lift and drawer translation; reverse from current position on interruption",
+      "title_artist_shift_up_px": 46,
+      "details_shift_up_px": 6,
+      "requirement": "Content stays visible throughout; no gesture or player-state reset; reverse current animation smoothly on interruption"
+    },
+    "behavior": "Existing title/artist tap and hold, track menus, scrubbing, playback actions and gesture behavior retained. Translate their existing objects or synchronize hit areas; no duplicate event handlers.",
+    "background": {
+      "cover_overlay": {
+        "colour": "#000000",
+        "opacity": 0.6,
+        "transparency": 0.4
+      },
+      "pixelated_cover": {
+        "grid": [
+          20,
+          20
+        ],
+        "cell_px": [
+          18,
+          18
+        ],
+        "sampling": "area average into 20x20, nearest-neighbour expand",
+        "overlay": "60% opaque black, followed by another 10% darkening; effective opacity 64%",
+        "cache": "rebuild once on artwork change, never each frame",
+        "no_art": "black",
+        "extra_dimming": 0.1
+      },
+      "fixture": "original synthetic geometric artwork for preview"
+    },
+    "transport": {
+      "buttons": "3 equal 48x48 invisible touch targets at x=96,156,216; blue/red idle, yellow/lime pressed; no border",
+      "playing": "pause glyph stays yellow/lime during playback; play glyph returns blue/red when paused",
+      "mode": "Pixel shuffle/repeat/sequential glyph immediately after elapsed/total time; all three shown in preview",
+      "autofade": "existing Disco semantics: 5s inactivity; touch wakes without triggering transport; mode glyph fades too; 400ms out, 180ms in",
+      "gestures": "Disco semantics: swipe left previous, swipe right next, double tap play/pause. Small pale-yellow pixel hints. Lower center region, curved screen clipping; bottom Home strip and back edge excluded.",
+      "gesture_zone": [
+        76,
+        282,
+        208,
+        60
+      ],
+      "minimum_swipe_px": 40,
+      "routing": "drawer gestures owned within band; scrubbing wins if started on seek control; mode button has priority inside its target; bottom Home strip remains reserved",
+      "geometry": "Footer compacted to fit: album y235\u2192229, progress255\u2192249, time263\u2192257, buttons288\u2192282. All footer controls lift 6px while opening; title/artist lift 46px."
+    }
+  },
+  "render_status": "Revision9 includes a working standalone LVGL menu event component and pointer-driven host demonstration. Null firmware theme integration, player dispatch binding, live device performance and QS animations remain integration work.",
+  "quick_settings": {
+    "entry": "Vertical centered column pulls down from y=-360 to 0; upward swipe dismisses",
+    "arrows": {
+      "when": "only fully extended",
+      "position": "bottom center",
+      "direction": "up",
+      "colour": "yellow/lime while open, same glowing treatment as main navigation arrow",
+      "action": "tap or swipe up closes QS",
+      "touch_target": [
+        156,
+        314,
+        48,
+        44
+      ]
+    },
+    "panel": [
+      72,
+      0,
+      216,
+      360
+    ],
+    "fields": {
+      "counts": [
+        8
+      ],
+      "layout": "four above and four below, each group a 2x2 grid",
+      "default": 8,
+      "six": [
+        "WIFI",
+        "BT",
+        "MODES",
+        "EQ",
+        "SCAN",
+        "STNGS"
+      ],
+      "eight": [
+        "WIFI",
+        "BT",
+        "MODES",
+        "EQ",
+        "SCAN",
+        "SRCH",
+        "WTHR",
+        "STNGS"
+      ],
+      "pins": "Wi-Fi first top-left; Settings last bottom-right",
+      "type": "14px block pixel text",
+      "state": "blue/red idle; yellow/lime pressed; radio states use existing behavior",
+      "hit_regions": "Eight fields in two 2x2 groups; 96x44px targets. Cover center48x48; previous/next44x44."
+    },
+    "cover": {
+      "bounds": [
+        132,
+        132,
+        96,
+        96
+      ],
+      "source": "current-track square artwork",
+      "center_control": "48x48 play/pause target centered on artwork",
+      "playing": "yellow/lime pause glyph with subtle yellow/lime glow around square cover",
+      "paused": "blue/red play glyph, cover glow off",
+      "fallback": "black square with transport control"
+    },
+    "lifecycle": "reuse cached artwork and cached glow; stop hidden panel work; player actions remain existing dispatch",
+    "replacement": "Supersedes horizontal QS panel; main side nav unchanged",
+    "background_motion": "Music/NP title, artist and metadata remain fixed; QS occludes them as it passes, never reflows them",
+    "transport": {
+      "previous_target": [
+        74,
+        158,
+        44,
+        44
+      ],
+      "next_target": [
+        242,
+        158,
+        44,
+        44
+      ],
+      "center_target": [
+        156,
+        156,
+        48,
+        48
+      ],
+      "style": "Borderless pixel glyphs; previous/next blue/red idle, yellow/lime pressed; pause yellow/lime while playing; square cover96x96 with theme-on glow"
+    }
+  },
+  "motion": {
+    "drawer_ms": 200,
+    "qs_ms": 200,
+    "settle_ms": 140,
+    "pressed_feedback": "immediate",
+    "drag": "finger-following; no easing while pointer is down",
+    "momentum": "exponential decay, bounded velocity; settles to nearest pair",
+    "target": "LVGL16ms update cadence; actual hardware frame delivery unmeasured",
+    "artwork": "cache artwork and glow; translation only during panel motion"
+  },
+  "transport_icons": {
+    "shared_by": [
+      "Music",
+      "Quick Settings"
+    ],
+    "names": [
+      "previous",
+      "play",
+      "pause",
+      "next"
+    ],
+    "grid": [
+      11,
+      11
+    ],
+    "scale": 2,
+    "rendered_px": [
+      22,
+      22
+    ],
+    "appearance": "hard-edged integer grid; no blur or antialiasing; skip is single stepped triangle plus boundary bar",
+    "colours": {
+      "idle": "blue/red",
+      "pressed": "yellow/lime",
+      "playing": "pause remains yellow/lime",
+      "paused": "play returns blue/red"
+    },
+    "targets": "48x48 main;44x44 QS previous/next;48x48 QS center; icon children do not consume pointer events",
+    "source": "null_transport_icons.c/.h; original SVG and transparent PNGs in4palette colours",
+    "status": "LVGL render/component assets; production firmware integration pending"
+  }
+}

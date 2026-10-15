@@ -12,12 +12,18 @@ headers=r'''
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <string.h>
 #define LV_SYMBOL_PAUSE "pause"
 #define LV_SYMBOL_PLAY "play"
 static int g_playing,local=1,book,send_fail,seeks,commands,cancelled,disarmed,hints;
 static int scan_busy,scan_fail,sd_allowed=1,scans;
 static uint32_t now;
+static _Atomic uint64_t perf_started, art_interactive_until;
+static uint64_t art_clock_ms(void){return now;}
+static void ui_perf_note(const char *s){(void)s;}
+static int ma_controls(void){return 0;}
+static void ma_send(const char *s){(void)s;}
 static long g_seek_target_ms,requested_seek;
 static uint32_t g_seek_hold_until;
 static char *btn_pp="";

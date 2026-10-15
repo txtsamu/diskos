@@ -73,21 +73,21 @@ void menu_apps_scan(void){
 }
 int menu_apps_count(void){return count;}
 const menu_app_t *menu_apps_get(int index){return index>=0&&index<count?&apps[index]:NULL;}
-static void map_key(char key[16],int i){snprintf(key,16,"dm_app%d",i);}
-int menu_apps_decode(char code,const char *builtins){
+static void map_key(char key[16],int i,const char *prefix){snprintf(key,16,"%s%d",prefix,i);}
+int menu_apps_decode_named(char code,const char *builtins,const char *prefix){
     const char *p=strchr(builtins,code);
     if(p&&code)return (int)(p-builtins);
     if(code<'0'||code>'9')return -1;
-    char key[16];map_key(key,code-'0');const char *id=cfg_get_str(key,"");
+    char key[16];map_key(key,code-'0',prefix);const char *id=cfg_get_str(key,"");
     for(int i=0;i<count;i++)if(!strcmp(apps[i].id,id))return (int)strlen(builtins)+i;
     return -1;
 }
-int menu_apps_save(const int *items,int n,const char *builtins){
+int menu_apps_save_named(const int *items,int n,const char *builtins,const char *config_key,const char *prefix){
     if(n<0||n>MAPS)return -1;
     int nb=(int)strlen(builtins);char codes[MAPS+1]={0},old[48];
     char maps[MAPS][48],prior[MAPS][48];
-    snprintf(old,sizeof old,"%s",cfg_get_str("disco_mnu",""));
-    for(int i=0;i<MAPS;i++){char key[16];map_key(key,i);snprintf(maps[i],sizeof maps[i],"%s",cfg_get_str(key,""));}
+    snprintf(old,sizeof old,"%s",cfg_get_str(config_key,""));
+    for(int i=0;i<MAPS;i++){char key[16];map_key(key,i,prefix);snprintf(maps[i],sizeof maps[i],"%s",cfg_get_str(key,""));}
     memcpy(prior,maps,sizeof prior);
     for(int i=0;i<n;i++){
         if(items[i]<0)return -1;
@@ -105,13 +105,16 @@ int menu_apps_save(const int *items,int n,const char *builtins){
     /* One atomic settings rewrite keeps app identities and ordering together. */
     cfg_begin();
     for(int i=0;i<MAPS;i++)if(strcmp(maps[i],prior[i])){
-        char key[16];map_key(key,i);cfg_set_str_deferred(key,maps[i]);
+        char key[16];map_key(key,i,prefix);cfg_set_str_deferred(key,maps[i]);
     }
-    cfg_set_str_deferred("disco_mnu",codes);
+    cfg_set_str_deferred(config_key,codes);
     if(cfg_commit()==0)return 0;
     cfg_begin();
     for(int i=0;i<MAPS;i++)if(strcmp(maps[i],prior[i])){
-        char key[16];map_key(key,i);cfg_set_str_deferred(key,prior[i]);
+        char key[16];map_key(key,i,prefix);cfg_set_str_deferred(key,prior[i]);
     }
-    cfg_set_str_deferred("disco_mnu",old);cfg_commit();return -1;
+    cfg_set_str_deferred(config_key,old);cfg_commit();return -1;
 }
+
+int menu_apps_decode(char code,const char*b){return menu_apps_decode_named(code,b,"dm_app");}
+int menu_apps_save(const int*i,int n,const char*b){return menu_apps_save_named(i,n,b,"disco_mnu","dm_app");}

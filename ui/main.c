@@ -1,3 +1,4 @@
+#include "null_theme.h"
 #include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
@@ -2705,6 +2706,7 @@ int ui_theme_reload(const char *screen){
 void ui_publish_art_surfaces(const track_state_t *st,int playing){
  home_set_art_src(ui_current_thumb_src());
  home_set_backdrop(ui_current_backdrop_img());
+ if(th_null()) null_art_changed();
  if(th_disco()) disco_art_changed();   /* fork: Disco's sharp cover + tinted backdrops */
  quicksettings_set_art(ui_current_cover_dsc(),ui_current_backdrop_img());
  quicksettings_set_now_playing(st->have_track?st->title:NULL,st->have_track?st->artist:NULL,playing);
@@ -3293,7 +3295,8 @@ int main(int argc, char **argv){
                     sleep_touch = ui_np_overlay_active()   /* latch: the sleep popover owns this whole gesture, */
                                || (screen_current()==SCR_EQ_EDITOR && eqcustom_owns_point(p.x, p.y))    /* and so does the EQ dial (fork) */
                                || (screen_current()==SCR_SPHERE && sphere_ui_owns_point(p.x, p.y));     /* and SongSphere's marker */
-                    seek_touch = dhome_owns_point(p.x, p.y);   /* fork: Disco Music's seek line / ring (no swipe to Apps) */
+                    seek_touch = dhome_owns_point(p.x, p.y);
+                    if(th_null() && null_owns_point(p.x,p.y))sleep_touch=1;   /* fork: Disco Music's seek line / ring (no swipe to Apps) */
                     if(fsart_touch || sleep_touch){
                         /* a modal overlay is up -> LVGL handles it; arm no ring seek / rim scroll here */
                     } else if(screen_current()==SCR_NOWPLAYING){

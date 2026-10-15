@@ -341,16 +341,17 @@ static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
 #include "theme_presets.inc"   /* generated: tools/gen_theme_presets.py */
 
 typedef struct { const char *name; const uint32_t *dark, *light; } theme_preset_t;
-static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], FORK_DISCO[2][THEME_CLR_COUNT];
+static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], FORK_DISCO[2][THEME_CLR_COUNT], FORK_NULL[2][THEME_CLR_COUNT];
 static const theme_preset_t PRESETS[] = {
     { "Default", DEFAULT_DARK, DEFAULT_LIGHT },
     THEME_PRESETS_GENERATED
     { "Ring", FORK_RING[0], FORK_RING[1] },
     { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
     { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
+    { "Null", FORK_NULL[0], FORK_NULL[1] },
 };
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
-const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco" };
+const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null" };
 static int g_preset;
 static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
 static int g_custom_on, g_custom_fixed_accent;
@@ -394,6 +395,7 @@ const lv_font_t *theme_font_smaller(const lv_font_t *f){   /* the theme's next s
     static const theme_font_role_t R[] = { THEME_FONT_UI_24, THEME_FONT_UI_20, THEME_FONT_UI_18, THEME_FONT_UI_16,
                                            THEME_FONT_UI_14, THEME_FONT_UI_12 };
     if(!g_def || !f) return NULL;
+    if(th_null()){const int px[]={14,16,18,20};for(int k=0;k<4;k++)if(f==ui_font_cjk(px[k]))return theme_font((theme_font_role_t)(THEME_FONT_USER_14+k));}
     int h = lv_font_get_line_height(f);
     for(unsigned i = 0; i < sizeof R / sizeof R[0]; i++)
         if(g_tfp[R[i]] && lv_font_get_line_height(g_tfp[R[i]]) < h) return g_tfp[R[i]];
@@ -410,6 +412,7 @@ const lv_font_t *theme_font_substitute(const lv_font_t *f){
         { &lv_font_montserrat_32, THEME_FONT_UI_24 }, { &lv_font_montserrat_36, THEME_FONT_UI_24 },
         { &lv_font_montserrat_40, THEME_FONT_UI_24 } };
     if(!g_def || !f) return NULL;
+    if(th_null()){const int px[]={14,16,18,20};for(int k=0;k<4;k++)if(f==ui_font_cjk(px[k]))return theme_font((theme_font_role_t)(THEME_FONT_USER_14+k));}
     for(unsigned i = 0; i < sizeof T / sizeof T[0]; i++)
         if(T[i].m == f && g_tfp[T[i].r]) return g_tfp[T[i].r];
     return NULL;
@@ -532,6 +535,27 @@ static void disco_palettes_init(void){
         }
     }
 }
+static void null_palettes_init(void){
+ int alt=cfg_get_int("null_palette",0)==1;uint32_t off=alt?0xFF3045:0x009FFF,on=alt?0xC5F56A:0xFFE34D;
+ for(int v=0;v<2;v++){uint32_t*p=FORK_NULL[v];memcpy(p,DEFAULT_DARK,sizeof FORK_NULL[v]);
+ for(int r=THEME_CLR_CANVAS;r<=THEME_CLR_RAISED_PRESSED;r++)p[r]=0;
+ p[THEME_CLR_BORDER]=p[THEME_CLR_BORDER_STRONG]=0x18232B;p[THEME_CLR_OUTLINE_BRIGHT]=on;
+ p[THEME_CLR_TEXT_PRIMARY]=on;p[THEME_CLR_TEXT_SECONDARY]=off;p[THEME_CLR_TEXT_MUTED]=off;
+ p[THEME_CLR_TEXT_DISABLED]=0x666B70;p[THEME_CLR_TEXT_FOOTNOTE]=p[THEME_CLR_TEXT_HINT]=0xC7BD76;
+ p[THEME_CLR_TEXT_LYRICS]=on;p[THEME_CLR_TEXT_SEPARATOR]=off;
+ p[THEME_CLR_ACCENT_PRIMARY]=p[THEME_CLR_ACCENT_EMPHASIS]=p[THEME_CLR_ACCENT_IDLE]=off;
+ p[THEME_CLR_CONTROL_TRACK]=p[THEME_CLR_CONTROL_TRACK_STRONG]=off;p[THEME_CLR_CONTROL_FILL]=p[THEME_CLR_CONTROL_KNOB]=on;
+ p[THEME_CLR_CONTROL_FILL_MUTED]=off;p[THEME_CLR_ON_CONTROL]=on;p[THEME_CLR_CONTROL_OFF]=0;
+ p[THEME_CLR_GRABBER]=off;p[THEME_CLR_PAGE_DOT_ACTIVE]=on;p[THEME_CLR_PAGE_DOT_INACTIVE]=off;
+ p[THEME_CLR_KEY_SURFACE]=0;p[THEME_CLR_KEY_SELECTED]=p[THEME_CLR_KEY_PRESSED]=0x15212B;p[THEME_CLR_KEY_TEXT]=off;
+ p[THEME_CLR_SWITCH_OFF]=off;p[THEME_CLR_SWITCH_ON]=on;p[THEME_CLR_SWITCH_KNOB]=0;
+ p[THEME_CLR_INPUT_CURSOR]=on;p[THEME_CLR_INPUT_PLACEHOLDER]=off;
+ p[THEME_CLR_ACTION_SURFACE]=0;p[THEME_CLR_ON_ACTION]=off;p[THEME_CLR_ACTION_SHADOW]=0;
+ p[THEME_CLR_WIDGET_PRIMARY]=on;p[THEME_CLR_WIDGET_TRACK]=off;p[THEME_CLR_ON_ACCENT]=0;
+ p[THEME_CLR_SIGNAL_ACTIVE]=p[THEME_CLR_STATUS_SUCCESS]=on;p[THEME_CLR_STATUS_INFO]=off;p[THEME_CLR_FOLDER_ICON]=off;
+ }
+}
+
 static void fork_config_migrate(void){
     if(cfg_get_int("fork_theme_migrated",0)) return;
     cfg_begin();
@@ -550,11 +574,13 @@ static void fork_config_migrate(void){
 void theme_init(void){
     fork_palettes_init();
     disco_palettes_init();
+    null_palettes_init();
     fork_config_migrate();
     int outdoor = cfg_get_int("outdoor", 0) == 1;
     g_outdoor = outdoor;
     g_variant = (outdoor || cfg_get_int("theme_variant", 1) == 1) ? 1 : 0;
     g_preset = cfg_get_int("theme_preset", THEME_PRESET_BRAUN);
+    if(g_preset==THEME_PRESET_NULL)g_variant=0;
     if(theme_auto_supported() && cfg_get_int("theme_auto",0) && !outdoor){
         time_t now=time(NULL); struct tm tm; localtime_r(&now,&tm);
         g_variant = !(tm.tm_hour >= 20 || tm.tm_hour < 7);
@@ -1005,5 +1031,6 @@ const theme_kit_t *theme_kit_for_active(void){ return (g_def && g_def->kit) ? g_
 
 int theme_ring_light(void){return (g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_DISCO) && g_variant==1;}
 int theme_auto_supported(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_BRAUN || g_preset==THEME_PRESET_DISCO;}
+int th_null(void){return g_preset==THEME_PRESET_NULL;}
 int th_disco(void){return g_preset==THEME_PRESET_DISCO;}
 int th_ringlike(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_DISCO;}

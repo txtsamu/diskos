@@ -1,3 +1,4 @@
+#include "null_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "lvgl/src/indev/lv_indev_private.h"   /* long_pr_sent: was the press that sent this click a long press? */
@@ -19,8 +20,8 @@ static int s_current = SCR_HOME;
 static int s_popping;
 static int s_stack[16];
 static int s_sp = 0;
-#define PUSH_MS 300   /* entrance (cubic ease-out: covers distance fast, settles gently) */
-#define POP_MS  240   /* exit faster than entrance - a premium-motion reflex */
+#define PUSH_MS (th_null()?200:300) //   /* entrance (cubic ease-out: covers distance fast, settles gently) */
+#define POP_MS (th_null()?180:240) //   /* exit faster than entrance - a premium-motion reflex */
 static int s_anim = 1;   /* slide transitions; disabled by /usr/data/anim_off */
 static int s_skip;       /* the next change shows at once: the caller animates it itself (Disco immersive) */
 
@@ -107,9 +108,20 @@ static void transition_core(int from, int to, int dir);
 void crash_crumb(int screen);
 static void transition(int from, int to, int dir)
 {
-    crash_crumb(to);                             /* the crash recorder's trail of screens */
+    crash_crumb(to);
+    if(th_null())null_screen_leaving();
+    if(th_null() && to==SCR_QUICK){
+      npmenu_close_transients();songmenu_close();fileops_close();ui_np_close_overlays();
+      quicksettings_build();lv_obj_remove_flag(s_roots[to],LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(s_roots[to]);
+      null_qs_slide(1);null_screen_entered(to);return;
+    }
+    if(th_null() && from==SCR_QUICK){
+      s_skip=1;transition_core(from,to,dir);root_rest(s_roots[from]);
+      lv_obj_remove_flag(s_roots[from],LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(s_roots[from]);null_qs_slide(0);null_screen_entered(to);return;
+    }                             /* the crash recorder's trail of screens */
     if (th_disco()) disco_screen_entering(to);   /* picker visibility first: the lists curve around it */
     transition_core(from, to, dir);
+    if(th_null())null_screen_entered(to);
     if (th_disco()) disco_screen_entered(to, (to >= 0 && to < SCR_COUNT) ? s_roots[to] : NULL);   /* backdrop, glass, picker on top */
 }
 static void transition_core(int from, int to, int dir)
@@ -419,6 +431,7 @@ void screens_init(void)
     bt_create(s_roots[SCR_BT]);
     bt_info_create(s_roots[SCR_BT_INFO]);
     lastfm_create(s_roots[SCR_LASTFM]);
+    if(th_null()) null_init(parent);
     if (th_disco()) disco_init(parent);   /* the cover backdrops, the sheen and the menu picker */
 
     screen_show(SCR_HOME);

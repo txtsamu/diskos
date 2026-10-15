@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
+#include "null_theme.h"
 #include "screens.h"
 #include "onboarding.h"
 #include "quicksettings.h"
@@ -85,6 +86,9 @@ static int find_sharp_image(lv_obj_t *root){
 }
 /* Fixture seams exist only in the host executable; device firmware gates remain intact. */
 static int fixture, send_result, send_count;
+static int null_transport_calls;static char null_last_command[24];
+int __real_ui_transport_command(const char*);
+int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
 int __real_ipc_send_cmd(const char *frame);
 int __wrap_ipc_send_cmd(const char *frame){send_count++;return fixture?send_result:__real_ipc_send_cmd(frame);}
 int __real_fw_custom_peq_writable(void);
@@ -146,6 +150,30 @@ static void nav_wait(int ms){for(int i=0;i<ms;i+=10){lv_tick_inc(10);lv_timer_ha
 static void nav_touch(lv_point_t point,int ms){
     nav_pointer.point=point;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(ms);
     nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
+}
+static void review_null(void){
+ assert(th_null()&&theme_variant()==0);
+ lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_indev_set_long_press_time(in,400);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+ screen_home();null_nav_set_open(1);nav_wait(250);
+ int before=screen_current();int commands=null_transport_calls;
+ nav_pointer=(lv_indev_data_t){.point={260,165},.state=LV_INDEV_STATE_PRESSED};nav_wait(40);
+ for(int x=260;x>=85;x-=7){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(500);
+ assert(screen_current()==before&&null_transport_calls==commands);
+ null_menu_refresh();nav_wait(30);nav_touch((lv_point_t){240,165},90);nav_wait(240);assert(screen_current()==SCR_LIBRARY);
+ screen_home();null_nav_set_open(0);nav_wait(250);
+ lv_obj_t*t=find_text(screen_get_root(SCR_HOME),"NORTHERN LIGHTS");assert(t);lv_area_t start,after;lv_obj_get_coords(t,&start);
+ screen_show(SCR_QUICK);nav_wait(250);lv_obj_get_coords(t,&after);assert(!memcmp(&start,&after,sizeof start));assert(screen_current()==SCR_QUICK);
+ int wifi=qs_wifi_taps;nav_touch((lv_point_t){120,42},80);assert(qs_wifi_taps==wifi+1);
+ commands=null_transport_calls;nav_touch((lv_point_t){96,180},80);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0002"));
+ commands=null_transport_calls;nav_touch((lv_point_t){264,180},80);assert(null_transport_calls==commands+1);
+ nav_touch((lv_point_t){180,336},90);nav_wait(250);assert(screen_current()==SCR_HOME);
+ // Navigation and seek gestures must not send playback commands when they merely move.
+ commands=null_transport_calls;nav_pointer=(lv_indev_data_t){.point={120,308},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);nav_pointer.point.x=190;nav_wait(30);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(null_transport_calls==commands);
+ for(int bg=0;bg<3;bg++){cfg_set_int_deferred("null_music_background",bg);null_options_changed();nav_wait(30);}
+ cfg_set_int_deferred("null_controls",2);null_options_changed();nav_wait(30);commands=null_transport_calls;nav_touch((lv_point_t){180,306},60);nav_wait(90);nav_touch((lv_point_t){180,306},60);assert(null_transport_calls==commands+1);
+ cfg_set_int_deferred("null_controls",1);null_options_changed();nav_wait(5300);commands=null_transport_calls;nav_touch((lv_point_t){120,308},80);assert(null_transport_calls==commands); // waking touch consumes the transport action
+ for(int i=0;i<8;i++){screen_show(SCR_QUICK);nav_wait(210);screen_back();nav_wait(210);assert(screen_current()==SCR_HOME);}
+ lv_indev_delete(in);puts("PASS: Null real-pointer drag suppression, menu destination, stationary NP under QS, radios, prev/next, close arrow, button swipe suppression, backgrounds, gesture double-tap, autofade wake and repeated QS lifecycle");
 }
 static void review_nav(void){
     void disco_test_nav_points(lv_point_t *,lv_point_t *);int disco_test_nav_open(void);
@@ -517,6 +545,11 @@ int main(int argc, char **argv){
     assert(!cfg_set_int_deferred("theme_variant",atoi(argv[2])));
     assert(!cfg_set_int_deferred("theme_auto",0));
     assert(!cfg_set_int_deferred("up_next",atoi(argv[4])));
+    if(getenv("NULL_PALETTE"))cfg_set_int_deferred("null_palette",atoi(getenv("NULL_PALETTE")));
+    if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
+    if(getenv("NULL_SIDE"))cfg_set_int_deferred("null_side",atoi(getenv("NULL_SIDE")));
+    if(getenv("NULL_TEXT"))cfg_set_int_deferred("null_text_align",atoi(getenv("NULL_TEXT")));
+    if(getenv("NULL_CTRL"))cfg_set_int_deferred("null_controls",atoi(getenv("NULL_CTRL")));
     theme_init();
     if(!strcmp(argv[3],"shutdown")){
         screen_set_anim(0); screens_init(); ui_shutdown_screen();
@@ -906,7 +939,7 @@ int main(int argc, char **argv){
         }
         ui_publish_art_surfaces(&st,1);
         home_set_now_playing(st.title,st.artist,ui_current_accent(),true);home_set_clock("10:09","Saturday, 3 October");
-        home_set_weather("\xEF\x86\x85  18\xC2\xB0C  Clear");
+        home_set_weather("\xEF\x86\x85  18\xC2\xB0" "C  Clear");
         home_set_status(67,0,1,1);quicksettings_set_battery(67,0);
         quicksettings_set_now_playing(st.title,st.artist,1);
         const char *page=argv[3]+(art_race?17:(long_names?13:8));int scr=SCR_HOME;
@@ -929,6 +962,7 @@ int main(int argc, char **argv){
             saver_set_weather("Clear 18°");
             scr=SCR_SAVER;
         }
+        if(th_null()&&!strcmp(page,"scr43"))appshelf_open();
         screen_show(scr);
         if(!strncmp(page,"immersive",9)){
             ui_np_fsart_open();assert(ui_np_fsart_active());
@@ -940,6 +974,7 @@ int main(int argc, char **argv){
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
             if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
         }
+        if(getenv("REVIEW_NULL")){review_null();return 0;}
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}
         if(getenv("REVIEW_QS")){review_qs();return 0;}
@@ -1336,6 +1371,7 @@ render:
     if(getenv("SETKEY")){ void settings_open_key(const char*); settings_open_key(getenv("SETKEY")); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("IDLE")){ void dhome_set_now_playing(const char*,const char*,lv_color_t,bool); void disco_art_changed(void);   /* Disco Music with nothing playing */
         dhome_set_now_playing(NULL,NULL,lv_color_hex(0x8080FF),false); for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();} }
+    if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
     FILE *f=fopen(argv[5],"wb"); if(!f) return 1;
     fprintf(f,"P6\n360 360\n255\n");

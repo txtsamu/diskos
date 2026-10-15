@@ -124,7 +124,7 @@ static void res_artist(int i){
     lv_obj_t *r = lv_obj_create(g_res_list); lv_obj_remove_style_all(r);
     lv_obj_set_size(r, RES_W, 44);
     lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);
-    lv_obj_set_style_radius(r, th_disco() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
+    lv_obj_set_style_radius(r, (th_disco() || th_null()) ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, LV_OPA_50, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE); lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
@@ -259,7 +259,7 @@ static void go_cb(lv_event_t *e){
     while(n && g_query[n-1] == ' ') g_query[--n] = 0;          /* a trailing space never matters */
     if(!n){ ui_toast("Type something to search for"); query_changed(); return; }
     query_changed();
-    if(th_disco()) recent_add(g_query);
+    if((th_disco() || th_null())) recent_add(g_query);
     results_open();
 }
 static void paint_keys(void){
@@ -400,7 +400,7 @@ void search_create(lv_obj_t *root){
     lv_obj_add_flag(g_res_page, LV_OBJ_FLAG_HIDDEN);
     g_digits = 0; paint_keys();
     g_query[0] = 0; query_changed();
-    if(th_disco()){
+    if((th_disco() || th_null())){
         g_land = lv_obj_create(root); lv_obj_remove_style_all(g_land);
         lv_obj_set_size(g_land, 360, 360);
         lv_obj_set_style_bg_color(g_land, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_land, LV_OPA_COVER, 0);

@@ -167,7 +167,7 @@ static int sc_describe(const char *key, const char **glyph, char *name, size_t n
     return 0;
 }
 static void apps_pick(int i){
-    int k = (g_all ? g_page * (th_disco() ? 5 : PER_PAGE) : 0) + i;
+    int k = (g_all ? g_page * ((th_disco() || th_null()) ? 5 : PER_PAGE) : 0) + i;
     if(k < 0 || k >= g_nitems) return;
     switch(g_items[k].kind){
         case 0: lastfm_open(); break;
@@ -179,7 +179,7 @@ static void apps_pick(int i){
 static void hub_cb(lv_event_t *e){
     (void)e;
     if(!g_all){ screen_back(); return; }
-    int per = th_disco() ? 5 : PER_PAGE;
+    int per = (th_disco() || th_null()) ? 5 : PER_PAGE;
     int pages = (g_nitems + per - 1) / per;
     if(pages > 1 && g_page + 1 < pages){ g_page++; build_page(); return; }
     g_all = 0; g_page = 0; apps_reload();                                  /* All apps: the last page's hub goes back to the shortcuts */
@@ -220,7 +220,7 @@ static void build_page(void){
     if(!g_box) return;
     lv_obj_clean(g_box);
     memset(&g_orb, 0, sizeof g_orb);
-    if(th_disco()){ disco_build(); return; }
+    if((th_disco() || th_null())){ disco_build(); return; }
     int per = g_all ? PER_PAGE : NSC;
     int pages = g_all ? (g_nitems + PER_PAGE - 1) / PER_PAGE : 1; if(pages < 1) pages = 1;
     if(g_page >= pages) g_page = 0;

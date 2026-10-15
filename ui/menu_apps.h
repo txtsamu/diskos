@@ -9,4 +9,6 @@ int menu_apps_count(void);
 const menu_app_t *menu_apps_get(int index);
 int menu_apps_decode(char code,const char *builtins);
 int menu_apps_save(const int *items,int count,const char *builtins);
+int menu_apps_decode_named(char code,const char *builtins,const char *prefix);
+int menu_apps_save_named(const int *items,int count,const char *builtins,const char *config_key,const char *prefix);
 #endif
