@@ -1,15 +1,15 @@
 {
-  "version": "2.3.0-Null.2",
-  "status": "development candidate; Ring/Null switching confirmation on physical Disc pending",
-  "source_commit": "450df4fae018cddabc89591b80263e8b53bb4304",
-  "base_commit": "ce126ea79d544c6c5bc24d1a6d4205d3de70be63",
+  "version": "2.3.0-Null.3",
+  "status": "development candidate; playback/Immersive routing regression passed on host; physical Disc confirmation pending",
+  "source_commit": "5969c2c92bd57b4eb0c4114e0b8c79807bc348be",
+  "base_commit": "2726fe4683ed991c657f9d76c505a958ff1a0297",
   "working_changes": false,
-  "ui_source_sha256": "b117097527a31ac98bf0027f02c972364926077b916e71282d7145d93bfd1068",
+  "ui_source_sha256": "a35c4c98af2a23b6424951e1815579c5f32dd7d5f8a9addbdc36d5b6d71b38e7",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "8914ebf0048c8f1bbc3e0c885aa23e8c8d485bf8c2f9cd3dea0d9ce0b341b166",
-    "md5": "528a7e71e320f2822b23ee46560cf962",
+    "sha256": "445143845d23bea11f57b6ee47c339ee2a19f180ae90dcf61656a5d016fd63de",
+    "md5": "b31320b1defbe89b3f77326f0d7c1f96",
     "bytes": 6248660
   }
 }
