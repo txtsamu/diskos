@@ -488,6 +488,7 @@ int dhome_owns_point(int x, int y){
 static lv_obj_t *g_ov, *g_ov_btn[6], *g_ov_cap[6];
 static void ov_close(void){ if(g_ov){ lv_obj_delete(g_ov); g_ov = NULL; } }
 void dhome_overlay_close(void){ ov_close(); }
+int disco_track_overlay_visible(void){ return g_ov != NULL; }
 static void ov_title_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) ov_close(); }
 enum { OV_FAV, OV_ALBUM, OV_ARTIST, OV_QUEUE, OV_LYRICS, OV_INFO, OV_N };
 void disco_open_np_immersive(void);
@@ -552,6 +553,10 @@ static void ov_mood_pill(lv_obj_t *p, int y){
     lv_obj_set_style_text_font(ch, TF(UI_14), 0); lv_obj_set_style_text_color(ch, TC(TEXT_SECONDARY), 0);
     lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -16, 0);
     ui_on(pl, ov_mood_cb, LV_EVENT_CLICKED, NULL, "disco.track.mood", UI_REACHABLE);
+    if(th_null()){
+        kit_keep(pl);
+        for(uint32_t i=0;i<lv_obj_get_child_count(pl);i++) kit_keep(lv_obj_get_child(pl,i));
+    }
 }
 static void ov_open(void){
     if(!g_have || g_ov) return;
@@ -568,11 +573,11 @@ static void ov_open(void){
     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT); lv_obj_set_size(t, 250, 28);
-    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, ui_font_cjk(22), 0);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, th_null() ? TF(UI_22) : ui_font_cjk(22), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
     lv_obj_t *ar = lv_label_create(tb); lv_label_set_text(ar, L_ARTIST.cur);
     lv_label_set_long_mode(ar, LV_LABEL_LONG_DOT); lv_obj_set_size(ar, 230, 22);
-    lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, ui_font_cjk(16), 0);
+    lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, th_null() ? TF(UI_16) : ui_font_cjk(16), 0);
     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
     static const struct { int x, y; const char *cap; } P[OV_N] = {          /* two gentle arcs of three */
         { 84, 146, "Favourite" }, { 180, 160, "Album" }, { 276, 146, "Artist" },
@@ -600,7 +605,18 @@ static void ov_open(void){
     }
     if(mood) ov_mood_pill(g_ov, 294);
     kit_pass(g_ov);
+    if(th_null()) lv_obj_set_style_bg_opa(g_ov, LV_OPA_COVER, 0);
     ov_paint();
+}
+/* Null shares the track popup without constructing or updating Disco's Home widgets. */
+void disco_track_overlay_open(void){
+    track_state_t st; ipc_get_state(&st);
+    if(!th_null() || !st.have_track) return;
+    g_have = 1;
+    g_acc = TC(TEXT_SECONDARY);
+    theme_upper(L_TITLE.cur, sizeof L_TITLE.cur, st.title);
+    theme_upper(L_ARTIST.cur, sizeof L_ARTIST.cur, st.artist);
+    ov_open();
 }
 /* a tap opens the overlay; a hold does Settings > Disco Options > Title Hold: 0 Immersive, 1 Favourite, 2 nothing */
 /* ---- idle: nothing playing (10 s after start, or at once with Resume Playback off) ------------------------------

@@ -1,21 +1,22 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Null: shared pixel system, persistent horizontal menu, Music and vertical QS.
- * All player/radio/library actions use existing diskOS dispatchers. No background I/O here.
+ * All player/radio/library actions use existing diskOS dispatchers. No
+ * background I/O here.
  */
 #include "null_theme.h"
+#include "config.h"
+#include "ipc.h"
 #include "null_menu.h"
 #include "null_transport_icons.h"
+#include "quicksettings.h"
+#include "scanner.h"
 #include "screens.h"
 #include "theme.h"
 #include "theme_kit.h"
-#include "config.h"
-#include "ipc.h"
-#include "quicksettings.h"
-#include "scanner.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int disco_catalog_load(void);
 const char *disco_catalog_id(int);
@@ -27,6 +28,10 @@ static lv_font_t pixel14;
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
     *buttons[3], *icons[3], *gesture, *hints[3];
 static lv_obj_t *nav, *band, *edge, *edge_line[5];
+static lv_obj_t *clock_box, *music_clock, *music_status;
+void disco_track_overlay_open(void);
+void dhome_overlay_close(void);
+int disco_track_overlay_visible(void);
 static lv_point_precise_t edge_points[3];
 static null_menu_t *menu;
 static char names[10][24];
@@ -80,7 +85,7 @@ static lv_obj_t *text(lv_obj_t *p, const char *s, int x, int y, int w, const lv_
     lv_obj_set_size(l, w, LV_SIZE_CONTENT);
     lv_obj_set_style_text_font(l, f, 0);
     lv_obj_set_style_text_color(l, c, 0);
-    lv_obj_set_style_text_align(l, alignment(), 0);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
     return l;
 }
@@ -167,7 +172,7 @@ static void track_event(lv_event_t *e)
         screen_show(SCR_NOWPLAYING);
         ui_np_fsart_open();
     } else if (lv_event_get_code(e) == LV_EVENT_CLICKED && !screen_press_was_long())
-        screen_show(SCR_NPMENU);
+        disco_track_overlay_open();
 }
 static void seek_event(lv_event_t *e)
 {
@@ -244,17 +249,19 @@ static void layout_music(void)
 {
     if (!home)
         return;
-    int lift = nav_value * 46 / 1000, foot = nav_value * 6 / 1000;
+    /* Split at the artist / album boundary, keeping both halves clear of the 90px
+     * menu band. */
+    int lift = nav_value * 46 / 1000, drop = nav_value * 51 / 1000;
     lv_obj_set_y(title, 116 - lift);
-    lv_obj_set_y(artist, 157 - lift);
-    lv_obj_set_y(album, 235 - foot);
-    lv_obj_set_y(seek, 234 - foot);
-    lv_obj_set_y(playhead, 253 - foot);
-    lv_obj_set_y(times, 263 - foot);
-    lv_obj_set_y(mode, 263 - foot);
+    lv_obj_set_y(artist, 154 - lift);
+    lv_obj_set_y(album, 180 + drop);
+    lv_obj_set_y(seek, 197 + drop);
+    lv_obj_set_y(playhead, 216 + drop);
+    lv_obj_set_y(times, 227 + drop);
+    lv_obj_set_y(mode, 227 + drop);
     for (int i = 0; i < 3; i++)
-        lv_obj_set_y(buttons[i], 288 - foot);
-    lv_obj_set_y(gesture, 282 - foot);
+        lv_obj_set_y(buttons[i], 254 + drop);
+    lv_obj_set_y(gesture, 248 + drop);
 }
 static void nav_paint(void)
 {
@@ -371,6 +378,38 @@ static void font_setup(void)
     pixel14 = null_pixel_14;
     pixel14.fallback = ui_font_cjk(14);
 }
+static void clock_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
+        int on = lv_obj_has_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
+        if (cfg_set_int("null_clock", on) < 0) {
+            ui_toast("Couldn't save settings");
+            return;
+        }
+        null_options_changed();
+    } else if (lv_event_get_code(e) == LV_EVENT_SHORT_CLICKED &&
+               !lv_obj_has_flag(clock_box, LV_OBJ_FLAG_HIDDEN))
+        weather_app_open();
+}
+void null_home_clock(const char *t) { text_set(music_clock, t ? t : "--:--"); }
+void null_home_status(int batt, int charging, int wifi, int bt)
+{
+    char b[64] = "";
+    size_t n = 0;
+    if (wifi)
+        n += (size_t)snprintf(b + n, sizeof b - n, LV_SYMBOL_WIFI "  ");
+    if (bt)
+        n += (size_t)snprintf(b + n, sizeof b - n, LV_SYMBOL_BLUETOOTH "  ");
+    const char *bs = charging     ? LV_SYMBOL_CHARGE
+                     : batt >= 90 ? LV_SYMBOL_BATTERY_FULL
+                     : batt >= 65 ? LV_SYMBOL_BATTERY_3
+                     : batt >= 40 ? LV_SYMBOL_BATTERY_2
+                     : batt >= 15 ? LV_SYMBOL_BATTERY_1
+                                  : LV_SYMBOL_BATTERY_EMPTY;
+    if (batt >= 0)
+        snprintf(b + n, sizeof b - n, "%s", bs);
+    text_set(music_status, b);
+}
 void null_home_create(lv_obj_t *r)
 {
     home = r;
@@ -379,9 +418,21 @@ void null_home_create(lv_obj_t *r)
     lv_obj_remove_flag(bg, LV_OBJ_FLAG_CLICKABLE);
     wash = box(r, 0, 0, 360, 360);
     lv_obj_set_style_bg_opa(wash, 153, 0);
+    lv_obj_t *clock_hit = box(r, 72, 10, 216, 58);
+    lv_obj_set_style_bg_opa(clock_hit, 0, 0);
+    lv_obj_add_flag(clock_hit, LV_OBJ_FLAG_CLICKABLE);
+    ui_on(clock_hit, clock_event, LV_EVENT_LONG_PRESSED, NULL, "null.clock.toggle", UI_REACHABLE);
+    lv_obj_add_event_cb(clock_hit, clock_event, LV_EVENT_SHORT_CLICKED, NULL);
+    clock_box = box(r, 72, 10, 216, 58);
+    lv_obj_set_style_bg_opa(clock_box, 0, 0);
+    music_status = text(clock_box, "", 0, 7, 216, TF(UI_14), TC(TEXT_SECONDARY));
+    music_clock = text(clock_box, "--:--", 0, 28, 216, TF(CLOCK), TC(TEXT_PRIMARY));
+    lv_obj_set_style_text_font(music_clock, TF(UI_22), 0);
+    lv_obj_set_style_text_align(music_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(music_clock, LV_TEXT_ALIGN_CENTER, 0);
     title = text(r, "NOT PLAYING", 36, 116, 288, TF(HEADER), TC(TEXT_PRIMARY));
     artist = text(r, "", 36, 157, 288, &pixel14, TC(TEXT_SECONDARY));
-    album = text(r, "", 36, 235, 288, TF(UI_14), TC(TEXT_SECONDARY));
+    album = text(r, "", 36, 180, 288, TF(UI_16), TC(TEXT_SECONDARY));
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
@@ -437,7 +488,8 @@ void null_home_update(const char *t, const char *a, int p)
     }
     controls_paint();
 }
-/* The cover decoder owns source pixels. Copy/average once per art publication into this theme's cache. */
+/* The cover decoder owns source pixels. Copy/average once per art publication
+ * into this theme's cache. */
 void null_art_changed(void)
 {
     if (!home)
@@ -591,6 +643,15 @@ static void qs_construct(void)
         return;
     qpanel = box(qroot, 72, -360, 216, 360);
     lv_obj_add_event_cb(qpanel, qdeleted, LV_EVENT_DELETE, NULL);
+    /* An inexpensive, static halo separates the black column from the black Music
+     * background. */
+    lv_obj_set_style_shadow_color(qpanel, TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_shadow_width(qpanel, 14, 0);
+    lv_obj_set_style_shadow_opa(qpanel, 65, 0);
+    lv_obj_set_style_border_side(qpanel, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_RIGHT, 0);
+    lv_obj_set_style_border_width(qpanel, 1, 0);
+    lv_obj_set_style_border_color(qpanel, TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_border_opa(qpanel, 45, 0);
     qcover = box(qpanel, 60, 132, 96, 96);
     lv_obj_set_style_shadow_color(qcover, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_shadow_width(qcover, 18, 0);
@@ -601,7 +662,8 @@ static void qs_construct(void)
     qpp = transport_button(qcover, 24, 24, 48, 1, &qicons[1]);
     lv_obj_set_style_bg_opa(qpp, 160, 0);
     qnext = transport_button(qpanel, 170, 158, 44, 2, &qicons[2]);
-    /* Four fields above and four below. Lower field hit boxes end before the close handle. */
+    /* Four fields above and four below. Lower field hit boxes end before the
+     * close handle. */
     for (int k = 0; k < 8; k++) {
         int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 20 + row * 48 : 226 + row * 44;
         qfields[k] = box(qpanel, 12 + col * 96, y, 96, 44);
@@ -631,7 +693,8 @@ static void qs_construct(void)
     }
     ui_on(qclose, qs_close_event, LV_EVENT_CLICKED, NULL, "qs.close", UI_CORE);
     lv_obj_add_flag(qclose, LV_OBJ_FLAG_HIDDEN);
-    /* Keep brightness reachable without changing the eight-field composition: a slim side slider. */
+    /* Keep brightness reachable without changing the eight-field composition: a
+     * slim side slider. */
     qbright = lv_slider_create(qroot);
     lv_obj_set_size(qbright, 6, 80);
     lv_obj_set_pos(qbright, 310, 140);
@@ -664,8 +727,8 @@ void null_qs_build(void)
     int items[QS_MAX_ITEMS];
     int count = quicksettings_items_load(items);
     qcount = 0;
-    /* Wi-Fi and Settings are pinned, duplicates are filtered by the loader. Fill unused slots
-     * deterministically. */
+    /* Wi-Fi and Settings are pinned, duplicates are filtered by the loader. Fill
+     * unused slots deterministically. */
     qids[qcount++] = 0;
     for (int k = 0; k < count && qcount < 7; k++)
         if (items[k] != 0 && items[k] != 5)
@@ -823,16 +886,18 @@ int null_owns_point(int x, int y)
 {
     if (!th_null())
         return 0;
-    if (screen_current() == SCR_QUICK)
+    if (screen_current() == SCR_QUICK || disco_track_overlay_visible())
         return 1;
     if (nav_value > 0 && y >= 135 && y <= 225)
         return 1;
     if (y >= 152 && y <= 208 && (left() ? x <= 48 : x >= 312))
         return 1;
     if (screen_current() == SCR_HOME) {
-        if (y >= 226 && y < 296 && x >= 60 && x <= 302)
+        if (y >= 188 && y < 310 && x >= 60 && x <= 302)
             return 1;
-        if (y >= 282 && y < 344 && x >= 76 && x <= 284)
+        if (y >= 248 && y < 360 && x >= 76 && x <= 284)
+            return 1;
+        if (y >= 10 && y < 68 && x >= 72 && x <= 288)
             return 1;
         if (y >= 64 && y <= 196 && x >= 36 && x <= 308)
             return 1;
@@ -841,13 +906,16 @@ int null_owns_point(int x, int y)
 }
 void null_screen_leaving(void)
 {
+    if (!th_null())
+        return;
+    dhome_overlay_close();
     if (nav)
         nav_set(0);
     seek_drag = 0;
 }
 void null_screen_entered(int which)
 {
-    if (!nav)
+    if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
     if (root && which != SCR_QUICK && which != SCR_HOME)
@@ -900,8 +968,14 @@ void null_init(lv_obj_t *parent)
 }
 void null_options_changed(void)
 {
-    if (!home)
+    if (!th_null() || !home)
         return;
+    if (clock_box) {
+        if (cfg_get_int("null_clock", 1))
+            lv_obj_remove_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
+    }
     last_ctl_mode = -1;
     last_ctl_visible = -1;
     wake_guard = 0;
@@ -957,10 +1031,13 @@ void null_saver_track(const char *t, const char *a)
     text_set(strack, t ? t : "");
     text_set(sartist, a ? a : "");
 }
-/* Shared screen grammar: black canvas, square controls, pixel headers, fine pixel reading text.
- * No screen is rebuilt here, so its action registry, list model, menus and keyboard remain intact. */
+/* Shared screen grammar: black canvas, square controls, pixel headers, fine
+ * pixel reading text. No screen is rebuilt here, so its action registry, list
+ * model, menus and keyboard remain intact. */
 static void null_style(lv_obj_t *o, kit_role_t role)
 {
+    if (!th_null())
+        return;
     if (role == KIT_SCREEN) {
         if (o != qroot) {
             lv_obj_set_style_bg_color(o, TC(CANVAS), 0);
@@ -1022,8 +1099,7 @@ static void null_style(lv_obj_t *o, kit_role_t role)
                                            : TF(UI_12);
             lv_obj_set_style_text_font(o, f, 0);
         }
-        if (!glyph && role != KIT_BACK && role != KIT_ROW_CHEVRON)
-            lv_obj_set_style_text_align(o, alignment(), 0);
+
         return;
     }
     if (role == KIT_SLIDER || role == KIT_BAR || role == KIT_TOGGLE) {
@@ -1038,6 +1114,8 @@ static void null_style(lv_obj_t *o, kit_role_t role)
 }
 static lv_obj_t *null_header(lv_obj_t *r, const char *t, lv_event_cb_t cb)
 {
+    if (!th_null())
+        return theme_kit_default.header(r, t, cb);
     lv_obj_t *l = theme_kit_default.header(r, t, cb);
     char b[192];
     theme_upper(b, sizeof b, t);

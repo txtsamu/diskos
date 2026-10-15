@@ -96,7 +96,7 @@ void curvelist_braun_watch(lv_obj_t *list){
 }
 /* Disco > Scroll: 0 Classic (the circle), 1 Straight (Braun-like, full width), 2 Disco (the rows' right ends
  * start on a circle round the navigation hub's centre, so they swing round that fixed point like spokes). */
-int curvelist_disco_scroll(void){ return th_disco() ? cfg_get_int("disco_scroll", 0) : 0; }
+int curvelist_disco_scroll(void){ return th_null() ? cfg_get_int("null_scroll", 0) : th_disco() ? cfg_get_int("disco_scroll", 0) : 0; }
 int curvelist_disco_geom(int mode, int y1, int y2, int full_w, int *w, int *shift){
     if(mode != 1 && mode != 2) return 0;
     int left = 180 - full_w / 2, right = 180 + full_w / 2;

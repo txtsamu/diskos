@@ -171,7 +171,7 @@ static void theme_reload_or_revert(const char *key){
     if(g_reload_tm){ lv_timer_delete(g_reload_tm); g_reload_tm = NULL; }
     snprintf(g_reload_key, sizeof g_reload_key, "%s", key); g_reload_prev = g_set_prev;
     ui_toast("Restarting the screen - your music keeps playing");
-    g_reload_tm = lv_timer_create(reload_go, 900, NULL);
+    g_reload_tm = lv_timer_create(reload_go, !strcmp(key,"theme_preset") ? 200 : 900, NULL);
     if(g_reload_tm) lv_timer_set_repeat_count(g_reload_tm, 1); else reload_go(NULL);
 }
 static void apply_appearance(int v){ (void)v; theme_reload_or_revert("theme_variant"); }
@@ -759,8 +759,10 @@ static const setting_t TABLE[] = {
     { "Display", "Theme", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_themecolours, 0,
       "Theme, Appearance (dark or light), Automatic Appearance, Outdoor Mode and the Accent colour.", NULL },
     {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
+    {"Null Options","Show Clock",ST_TOGGLE,"null_clock",0,1,1,NULL,0,NULL,apply_null_live,1,"Clock and Wi-Fi, Bluetooth and battery icons. Hold the top strip to show or hide them.",NULL},
+    {"Null Options","Scroll",ST_CYCLER,"null_scroll",0,0,0,OPT_DSCROLL,3,NULL,NULL,0,"Classic follows the screen edge; Straight keeps rows flat; Disco swings the rows. Stored separately for Null.",NULL},
     {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
-    {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align Music and shared text blocks",NULL},
+    {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align only Music title, artist, album and time",NULL},
     {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
     {"Null Options","Album",ST_TOGGLE,"null_music_album",0,1,1,NULL,0,NULL,apply_null_live,1,"Show album on Music",NULL},
     {"Null Options","Autohide",ST_CYCLER,"null_autohide",0,0,3,OPT_NULLAUTO,4,NULL,apply_null_live,2,"Navigation drawer timeout",NULL},
@@ -961,7 +963,9 @@ static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
      * leaves a stale eq_preset; every other setting persists up front here. */
     g_set_prev = get_val(s);
-    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset")) cfg_set_int(s->cfg_key, v);
+    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && cfg_set_int(s->cfg_key, v) < 0){
+        ui_toast("Couldn't save settings"); return;
+    }
     if(s->apply) s->apply(v);
 }
 /* battery/board temp from the fuel gauge; power-supply ABI = tenths of a degree C */
@@ -1185,8 +1189,15 @@ static lv_obj_t *setting_card(lv_obj_t *list);
 static void detail_choice_async(void *u){ (void)u; setting_detail_refresh(); }
 static void detail_choice_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
-    if(!g_active || i == get_val(g_active)) return;
+    if(!g_active) return;
+    /* Until exec, every widget still belongs to the running theme. Do not let a second
+     * tap on moving/rebuilt rows overwrite the pending theme selection. */
+    if(g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_preset")){
+        if(g_reload_tm) return;
+        if(i == theme_preset() && i == get_val(g_active)) return;
+    } else if(i == get_val(g_active)) return;
     set_val(g_active, i);                               /* a theme re-launches the UI from here */
+    if(g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_preset") && g_reload_tm) return;
     lv_async_call(detail_choice_async, NULL);           /* the tick moves after this event (rows can't delete themselves) */
 }
 

@@ -259,6 +259,7 @@ void home_set_settings_click_cb(home_settings_click_cb_t cb)
 void home_set_clock(const char *time_text, const char *sub_text)
 {
     if(th_braun()){ bhome_set_clock(time_text, sub_text); return; }
+    if(th_null()){ null_home_clock(time_text); return; }
     if(th_disco()){ dhome_set_clock(time_text, sub_text); return; }
     if (g_clock) lv_label_set_text(g_clock, time_text ? time_text : "--:--");
     if (g_clock_sub) lv_label_set_text(g_clock_sub, sub_text ? sub_text : "");
@@ -331,6 +332,7 @@ static void np_progress_tick(lv_timer_t *t){
 void home_set_status(int batt, int charging, int wifi, int bt)
 {
     if(th_braun()){ bhome_set_status(batt, charging, wifi, bt); return; }
+    if(th_null()){ null_home_status(batt, charging, wifi, bt); return; }
     if(th_disco()){ dhome_set_status(batt, charging, wifi, bt); return; }
     if (!g_status) return;
     char buf[80]; char *p = buf; *p = 0;

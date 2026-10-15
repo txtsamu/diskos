@@ -1371,6 +1371,7 @@ render:
     if(getenv("SETKEY")){ void settings_open_key(const char*); settings_open_key(getenv("SETKEY")); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("IDLE")){ void dhome_set_now_playing(const char*,const char*,lv_color_t,bool); void disco_art_changed(void);   /* Disco Music with nothing playing */
         dhome_set_now_playing(NULL,NULL,lv_color_hex(0x8080FF),false); for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();} }
+    if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
     FILE *f=fopen(argv[5],"wb"); if(!f) return 1;
