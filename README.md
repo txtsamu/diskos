@@ -80,6 +80,8 @@ Listening Stats, SongSphere and Album Roulette. [2.2.1 notes](docs/releases/v2.2
 
 **2.2.2** brings a surprise and fixes the album covers in Listening Stats. [2.2.2 notes](docs/releases/v2.2.2.md)
 
+**2.3.0** drops the record into Immersive, adds gesture controls and hold-to-scrub, puts Quick Settings round the edge and makes Listening Stats bigger and bolder, with Highlights. [2.3.0 notes](docs/releases/v2.3.0.md)
+
 <table><tr>
 <td align="center" width="25%"><img src="docs/disco/songsphere.png" width="190" alt="SongSphere"><br><sub><b>SongSphere</b>: play by mood</sub></td>
 <td align="center" width="25%"><img src="docs/disco/apps-shelf.png" width="190" alt="Apps"><br><sub><b>Apps</b> in the circle</sub></td>

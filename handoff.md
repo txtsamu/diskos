@@ -1,4 +1,17 @@
-# diskOS Disco handoff - 2.2.2 (2026-10-15)
+# diskOS Disco handoff - 2.3.0 (2026-10-15)
+
+## 2.3.0 specifics
+- usage.c: Battery page (full_minutes, fmt_clock, figure(), place_tip, tick dots).
+- musicdb.c mdb_search_artists: matches ranked by song count (one pass); search.c shows 5.
+- library.c: LEAN 12 px towards the free edge (lean_free_edge), list x22/w316; row_two measures the right value.
+- disco_home.c: hold-to-scrub bubble (zoom_*); Controls (cfg disco_controls 0/1/2: ctl_*, gz_* gesture zone, hit-test
+  leaves the Arc ring); Immersive leave/return (dhome_imm_leave/return).
+- ui.c: imm_in_set/imm_out_exec (record drop/lift; fast renderer uses imm_angle+imm_boost); screenmgr.c
+  screen_skip_anim_once / screen_get_anim; disco.c np_immersive_now.
+- quicksettings.c: QS_MAX_ITEMS 7, Arc = RING_* layout (Wi-Fi centre, BT first, Settings last), pinned list order.
+- stats.c: new overview (pill, period_step, one-line time, dividers), bigger sections, build_highlights.
+- Website rebuilt (hero splash + four screens, Make it yours, Form, Function, Thank you).
+
 
 ## 2.2.2 specifics
 - splash.c: own boot splash (CD spins up, hub becomes D, rolls out to "Disco!", Monoton font_splash_disco_72);

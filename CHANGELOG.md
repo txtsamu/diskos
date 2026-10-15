@@ -8,6 +8,27 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-15
+
+SD update from 1.4.1 or later (no reflash).
+
+- Added: Immersive (Disco): Music's pieces step aside and the cover drops onto the record, spinning in and slowing to
+  its pace; closing lifts it off and Music slides back. Only with Settings > Animations on.
+- Added: Disco Options > Music Screen > Controls: Buttons, Auto-hide (buttons and play mode fade after 5 s, a touch
+  brings them back) or Gestures (double tap play/pause, swipe right next, left previous, with faint hints).
+- Added: hold the progress line or arc to scrub, with the time shown large.
+- Added: Listening Stats Highlights: longest streak, busiest day and average listening day.
+- Changed: Listening Stats: a straight Week / Month / Year pill, a bigger period name with < > arrows, "2h 40m of music"
+  on one line, unboxed counts with fading dividers, and larger text throughout.
+- Changed: Quick Settings Arc: seven 76 px buttons along the screen's curve, Wi-Fi in the middle, Bluetooth first and
+  Settings last; List keeps Wi-Fi and Bluetooth on top and Settings at the bottom. Seven items at most (an older list
+  drops its last other item; the default drops Rescan). Sun and battery icons centred in their gaps.
+- Changed: Battery: the clock time it lasts until, time to full while charging, a thinner ring with a glowing tip and
+  tick marks, and two plain figures instead of pills.
+- Changed: Library (Disco): rows reach further into the free edge, and titles run up to the count or duration.
+- Changed: Search shows up to five artists, the ones with the most songs first.
+- Changed: the website: new hero, Form and Function chapters, new screenshots.
+
 ## [2.2.2] - 2026-10-15
 
 SD update from 1.4.1 or later (no reflash).
