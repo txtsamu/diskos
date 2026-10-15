@@ -1,16 +1,15 @@
 {
-  "version": "2.3.0",
-  "status": "release candidate; tested on the Disc by the owner (battery reset fixes added after); SD update from 1.4.1",
-  "source_commit": "34365493213e5f83f903bec03eb22aadaa3901d8",
-  "base_commit": "85e10be",
+  "version": "2.3.0-Null.1",
+  "status": "development candidate; physical Disc testing pending",
+  "source_commit": "60ef32ea26940d6ee73c9d1d93d4671c315f091e",
+  "base_commit": "005440795943c2af8865cc8e4b6a0f40e50febf9",
   "working_changes": false,
-  "ui_source_sha256": "c671b27d9e23ce1cbf20b0de22c9e0abc8be06594dc7d905512495807e2f5ca6",
+  "ui_source_sha256": "1fa600a3e6ca7a978e5537bf6f2bfa976425d2dfa17d2b92c61af6edaf94bd84",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "3cb49c4cc69be5be334ea95efb395bca765decfda8fa94de926db32722fdbc41",
-    "md5": "5216c60daa4bb7fdc13b0eaf84cb95d1",
-    "bytes": 6156560
-  },
-  "replaces_binary_sha256": "5f93bd5f08e44ec80cab134de08256a517674475c7913d22de489e418e7a5df2"
+    "sha256": "6cb0d92e959cf95c60abf3a31620455860e60e1a68ad8538ee7b4066f05a0743",
+    "md5": "66d14787cb7be63cd1d1e068391f75b1",
+    "bytes": 6248528
+  }
 }
