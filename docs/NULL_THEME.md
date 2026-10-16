@@ -85,3 +85,15 @@ have passed on the host; physical Disc validation remains pending.
   colours use the current Null palette.
 - Battery body text shifts 14 pixels right; title stays fixed. Full-charge age
   uses one compact line, including “ago”.
+
+## Radio and Track Info reskin preview
+
+Bluetooth and Wi-Fi use builder-owned flat headers, a connected device/network
+summary, rectangular scan action, enlarged toggle target and the original
+scrolling device/network rows. Track Info has a compact artwork/identity header
+and scrollable terminal key/value sheet. Actions and data workers remain shared.
+
+Fourth Null font option: Matrix. Dot Matrix headings and large Music title/clock,
+VT323 details at 18/21/24/27 pixels; existing international fallback chains remain.
+Original/Jersey/Handjet are retained. Choosing fonts reloads the themed UI.
+This is a native-render preview; the previously packaged 2.3.9 payload is unchanged.

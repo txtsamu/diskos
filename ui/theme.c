@@ -377,7 +377,19 @@ static void theme_fonts_install(void){
         g_tfp[r] = NULL;
         if(!g_def || !g_def->font[r]) continue;
         int px = role_px(r);
-        g_tf[r] = *g_def->font[r];
+        const lv_font_t *face=g_def->font[r];
+        if(th_null() && cfg_get_int("null_music_fonts",0)==3){
+            extern const lv_font_t null_dot_31,null_dot_36,null_vt323_18,null_vt323_21,null_vt323_24,null_vt323_27;
+            if(r==THEME_FONT_HEADER || r==THEME_FONT_CLOCK)face=&null_dot_31;
+            else if(r==THEME_FONT_HEADER_SM)face=&null_dot_31;
+            else if(px>=28)face=&null_dot_36;
+            else if(px>=22)face=&null_dot_31;
+            else if(px>=18)face=&null_vt323_27;
+            else if(px>=16)face=&null_vt323_24;
+            else if(px>=14)face=&null_vt323_21;
+            else face=&null_vt323_18;
+        }
+        g_tf[r] = *face;
         /* the chain of the role's size (the largest chain is 20 px); 12 px and under: Montserrat 12 (symbols) */
         g_tf[r].fallback = px <= 12 ? &lv_font_montserrat_12 : ui_font_cjk(px > 20 ? 20 : px);
         g_tfp[r] = &g_tf[r];

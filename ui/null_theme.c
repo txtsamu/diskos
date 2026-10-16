@@ -31,15 +31,15 @@ static lv_font_t pixel14;
 extern const lv_font_t null_pixel_16, null_pixel_24, null_dot_31, null_mono_27;
 extern const lv_font_t null_fine_16, null_fine_18, diskos_mono_16, diskos_mono_18;
 extern const lv_font_t null_jersey_42, null_pixelify_22, null_pixelify_20;
-extern const lv_font_t null_handjet_38, null_vt323_27, null_vt323_24;
-static lv_font_t music_fonts[3][5];
+extern const lv_font_t null_handjet_38, null_vt323_27, null_vt323_24, null_vt323_21, null_dot_36;
+static lv_font_t music_fonts[4][5];
 static lv_obj_t *qdate, *qbicon, *qsun, *track_hit, *album_hit, *gesture_feedback, *feedback_icon;
 static lv_timer_t *track_tap_timer;
 static lv_obj_t *music_weather,*saver_bg,*saver_wash;
 static char music_clock_text[32]="--:--";
 static const lv_font_t *music_font(int role)
 {
-    int set=cfg_get_int("null_music_fonts",0);if(set<0 || set>2)set=0;
+    int set=cfg_get_int("null_music_fonts",0);if(set<0 || set>3)set=0;
     return &music_fonts[set][role];
 }
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
@@ -449,12 +449,13 @@ static void font_setup(void)
 {
     pixel14 = null_pixel_14;
     pixel14.fallback = ui_font_cjk(14);
-    const lv_font_t *sets[3][5]={
+    const lv_font_t *sets[4][5]={
         {&null_pixel_24,&null_pixel_16,&null_fine_18,&null_fine_16,&null_pixel_24},
         {&null_jersey_42,&null_pixelify_22,&null_pixelify_20,&null_pixelify_20,&null_jersey_42},
-        {&null_handjet_38,&null_vt323_27,&null_vt323_24,&null_vt323_24,&null_handjet_38}
+        {&null_handjet_38,&null_vt323_27,&null_vt323_24,&null_vt323_24,&null_handjet_38},
+        {&null_dot_36,&null_vt323_27,&null_vt323_24,&null_vt323_21,&null_dot_36}
     };
-    for(int i=0;i<3;i++)for(int j=0;j<5;j++){
+    for(int i=0;i<4;i++)for(int j=0;j<5;j++){
         music_fonts[i][j]=*sets[i][j];music_fonts[i][j].fallback=ui_font_cjk(j==0 || j==4?20:16);
     }
 }
@@ -1063,7 +1064,7 @@ void null_screen_entered(int which)
     if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
-    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER)
+    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER && which != SCR_BT && which != SCR_WIFI && which != SCR_SONGINFO)
         kit_restyle(root);
     if(which==SCR_SAVER)null_art_changed();
     onboarding_screen(which,nav_open);
@@ -1130,7 +1131,8 @@ void null_options_changed(void)
     lv_obj_set_style_text_font(album,music_font(2),0);
     lv_obj_set_style_text_font(times,music_font(3),0);
     lv_obj_set_style_text_font(music_clock,music_font(4),0);
-    lv_obj_set_y(music_clock,34);
+    lv_obj_set_y(music_clock,cfg_get_int("null_music_fonts",0)==3?30:34);
+    if(music_weather)lv_obj_set_y(music_weather,cfg_get_int("null_music_fonts",0)==3?80:70);
     last_ctl_mode = -1;
     last_ctl_visible = -1;
     wake_guard = 0;
@@ -1518,4 +1520,24 @@ void null_volume_show(int value)
     }
     lv_timer_reset(volume_timer);
     lv_timer_resume(volume_timer);
+}
+
+/* Shared radio layout. Widgets retain the original scan/toggle/list dispatchers. */
+void null_radio_skin(lv_obj_t *root,const char *name,lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *device,lv_obj_t *status,lv_obj_t *toggle,lv_obj_t *scan,lv_obj_t *list){
+    if(!th_null())return;
+    lv_obj_add_flag(ring,LV_OBJ_FLAG_HIDDEN);lv_obj_add_flag(glyph,LV_OBJ_FLAG_HIDDEN);
+    text(root,name,46,28,268,TF(HEADER),TC(TEXT_PRIMARY));
+    lv_obj_set_style_text_font(device,TF(UI_20),0);lv_obj_set_width(device,268);lv_obj_align(device,LV_ALIGN_TOP_MID,0,81);
+    lv_obj_set_style_text_font(status,TF(UI_16),0);lv_obj_set_width(status,268);lv_obj_align(status,LV_ALIGN_TOP_MID,0,111);
+    lv_obj_t *rule=box(root,48,140,264,2);lv_obj_set_style_bg_color(rule,TC(TEXT_SECONDARY),0);
+    lv_obj_set_size(scan,112,46);lv_obj_align(scan,LV_ALIGN_TOP_MID,-68,151);
+    lv_obj_set_style_radius(scan,0,0);lv_obj_set_style_bg_opa(scan,0,0);
+    lv_obj_set_style_border_width(scan,1,0);lv_obj_set_style_border_color(scan,TC(TEXT_SECONDARY),0);
+    lv_obj_t *caption=lv_obj_get_child(scan,0);lv_label_set_text(caption,"SCAN");lv_obj_set_style_text_font(caption,TF(UI_18),0);lv_obj_set_style_text_color(caption,TC(TEXT_SECONDARY),0);lv_obj_center(caption);
+    lv_obj_set_size(toggle,54,28);lv_obj_align(toggle,LV_ALIGN_TOP_MID,84,160);lv_obj_set_ext_click_area(toggle,10);
+    lv_obj_set_style_bg_color(toggle,TC(TEXT_SECONDARY),LV_PART_MAIN);
+    lv_obj_set_style_bg_color(toggle,TC(TEXT_PRIMARY),LV_PART_INDICATOR|LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(toggle,TC(TEXT_PRIMARY),LV_PART_KNOB);
+    lv_obj_set_pos(list,46,210);lv_obj_set_size(list,268,134);lv_obj_set_style_pad_row(list,2,0);
+    keep_tree(root);
 }

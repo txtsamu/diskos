@@ -2,6 +2,7 @@
 #ifndef DISKOS_NULL_THEME_H
 #define DISKOS_NULL_THEME_H
 #include "lvgl/lvgl.h"
+void null_radio_skin(lv_obj_t *root,const char *name,lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *device,lv_obj_t *status,lv_obj_t *toggle,lv_obj_t *scan,lv_obj_t *list);
 void null_init(lv_obj_t *parent);
 void null_home_create(lv_obj_t *root);
 void null_saver_create(lv_obj_t *root);

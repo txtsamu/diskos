@@ -6,6 +6,7 @@
 #include "screens.h"
 #include "braun.h"
 #include "theme.h"
+#include "null_theme.h"
 #include "curvelist.h"
 #include "theme_kit.h"
 #include "config.h"       /* cfg_get_int/cfg_set_int: persist the BT on/off intent */
@@ -971,19 +972,19 @@ static void add_dev_row(const char *mac, const char *name, int connected, const 
     lv_label_set_text(ic, LV_SYMBOL_AUDIO);
     lv_obj_set_pos(ic, 14, 18);
     lv_obj_set_style_text_font(ic, TF(UI_16), 0);
-    lv_obj_set_style_text_color(ic, connected ? ui_current_accent() : TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_text_color(ic, connected ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : TC(TEXT_SECONDARY), 0);
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, name);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(t, 42, 6); lv_obj_set_size(t, BROW_W - 42 - (connected ? 40 : 16), 24);
-    lv_obj_set_style_text_font(t, ui_font_cjk(18), 0);       /* BT device names are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* BT device names are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_t *sl = lv_label_create(r);
     char st[40]; snprintf(st, sizeof st, "Connected%s%s", (codec && codec[0]) ? " - " : "", (codec && codec[0]) ? codec : "");
     lv_label_set_text(sl, connected ? st : "Tap to connect");
     lv_obj_set_pos(sl, 42, 31);
     lv_obj_set_style_text_font(sl, TH_F_DETAIL, 0);
-    lv_obj_set_style_text_color(sl, connected ? ui_current_accent() : TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_text_color(sl, connected ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : TC(TEXT_SECONDARY), 0);
     if(connected){ lv_obj_t *ch = lv_label_create(r); lv_label_set_text(ch, LV_SYMBOL_RIGHT);   /* opens its details */
                    lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -16, 0); lv_obj_set_style_text_color(ch, TC(TEXT_DISABLED), 0); }
 }
@@ -1346,6 +1347,7 @@ void bt_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     curvelist_attach(&g_bcl, g_list, root, BROW_W);
     hdr_set(BT_OFF, "Bluetooth", "");
+    if(th_null())null_radio_skin(root,"BLUETOOTH",g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_braun()){
         lv_obj_add_flag(g_hring, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_hglyph, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *pd = br_disc(root, 180, 80, 44, BR_PANEL); (void)pd;
@@ -1418,3 +1420,6 @@ void bt_open(void){
         hdr_set(BT_OFF, "Bluetooth is off", "");
     }
 }
+
+/* Host preview fixture: not called by device code. */
+void bt_preview_null(void){lv_obj_clean(g_list);hdr_set(BT_ON,"FiiO EH11","CONNECTED / SBC");lv_obj_add_state(g_sw,LV_STATE_CHECKED);add_dev_row("00:11:22:33:44:55","FiiO EH11",1,"SBC");add_dev_row("00:11:22:33:44:66","Living room",0,"");add_dev_row("00:11:22:33:44:77","Studio headphones",0,"");curvelist_update(&g_bcl);}

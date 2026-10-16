@@ -3,6 +3,7 @@
 #include "screens.h"
 #include "braun.h"
 #include "theme.h"
+#include "null_theme.h"
 #include "curvelist.h"
 #include <spawn.h>
 #include <poll.h>
@@ -843,14 +844,14 @@ static void add_net_row(const char *ssid, int signal, int secured, int connected
         lv_label_set_text(ck, LV_SYMBOL_OK);
         lv_obj_set_pos(ck, 14, 16);
         lv_obj_set_style_text_font(ck, TF(UI_14), 0);
-        lv_obj_set_style_text_color(ck, ui_current_accent(), 0);
+        lv_obj_set_style_text_color(ck, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         tx = 38;
     }
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, ssid);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(t, tx, 13); lv_obj_set_size(t, WROW_W - 78 - tx, 24);
-    lv_obj_set_style_text_font(t, ui_font_cjk(18), 0);       /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
     if(secured){
@@ -1131,6 +1132,7 @@ void wifi_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     curvelist_attach(&g_wcl, g_list, root, WROW_W);
     hdr_set(WS_OFF, "Wi-Fi", "", 0);
+    if(th_null())null_radio_skin(root,"WI-FI",g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_braun()){
         lv_obj_add_flag(g_hring, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_hglyph, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *pd = br_disc(root, 180, 80, 44, BR_PANEL); (void)pd;
@@ -1164,3 +1166,6 @@ void wifi_open(void){
     } else hdr_set(WS_OFF, "Wi-Fi is off", "", 0);
     start_scan();
 }
+
+/* Host preview fixture: not called by device code. */
+void wifi_preview_null(void){lv_obj_clean(g_list);hdr_set(WS_CONNECTED,"Disco Home","CONNECTED / -48 dBm",-48);lv_obj_add_state(g_sw,LV_STATE_CHECKED);add_net_row("Disco Home",-48,1,1);add_net_row("Guest network",-65,1,0);add_net_row("Studio",-75,1,0);curvelist_update(&g_wcl);}

@@ -47,6 +47,7 @@ for size in (16,24):
         data += [sum(v<<(7-j) for j,v in enumerate(bits[i:i+8])) for i in range(0,len(bits),8)]
     write(f'null_pixel_{size}',data,ds,size+2,0,1)
 emit('font_dot_28.c','null_dot_31',31/28)
+emit('font_dot_28.c','null_dot_36',36/28)
 emit('font_mono_24.c','null_mono_27',27/24)
 emit('font_weather16.c','null_weather_32',2)
 for i,line in enumerate(out):

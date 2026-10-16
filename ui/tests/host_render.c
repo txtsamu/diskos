@@ -964,7 +964,9 @@ int main(int argc, char **argv){
         home_set_status(67,0,1,1);quicksettings_set_battery(getenv("QS_BATT")?atoi(getenv("QS_BATT")):67,getenv("QS_CHARGE")?atoi(getenv("QS_CHARGE")):0);
         quicksettings_set_now_playing(st.title,st.artist,1);
         const char *page=argv[3]+(art_race?17:(long_names?13:8));int scr=SCR_HOME;
-        if(!strcmp(page,"quick"))scr=SCR_QUICK;else if(!strcmp(page,"np") || !strncmp(page,"immersive",9))scr=SCR_NOWPLAYING;else if(!strcmp(page,"eq"))scr=SCR_EQ;
+        if(!strcmp(page,"bt")){scr=SCR_BT;}
+        else if(!strcmp(page,"wifi")){scr=SCR_WIFI;}
+        else if(!strcmp(page,"quick"))scr=SCR_QUICK;else if(!strcmp(page,"np") || !strncmp(page,"immersive",9))scr=SCR_NOWPLAYING;else if(!strcmp(page,"eq"))scr=SCR_EQ;
         else if(!strcmp(page,"bands"))scr=SCR_EQ_EDITOR;else if(!strcmp(page,"display")){setlist_open("Display");scr=SCR_SETLIST;}else if(!strcmp(page,"network")){setlist_open("Network");scr=SCR_SETLIST;}else if(!strcmp(page,"system")){setlist_open("System");scr=SCR_SETLIST;}else if(!strcmp(page,"info")){songinfo_unpin();songinfo_set(&st);scr=SCR_SONGINFO;}else if(!strcmp(page,"group")){void settings_open_group(const char*);setlist_open("Display");scr=SCR_SETLIST;screen_show(scr);settings_open_group(getenv("SETGROUP"));}
         else if(!strcmp(page,"library") || !strcmp(page,"albums"))scr=SCR_LIBRARY;else if(!strcmp(page,"settings"))scr=SCR_SETTINGS;
         else if(!strcmp(page,"upnext"))scr=SCR_UPNEXT;else if(!strcmp(page,"modes"))scr=SCR_WORKMODE;
@@ -985,6 +987,8 @@ int main(int argc, char **argv){
         }
         if(th_null()&&!strcmp(page,"scr43"))appshelf_open();
         screen_show(scr);
+        if(!strcmp(page,"bt")){extern void bt_preview_null(void);bt_preview_null();}
+        if(!strcmp(page,"wifi")){extern void wifi_preview_null(void);wifi_preview_null();}
         if(!strncmp(page,"immersive",9)){
             if(th_disco() || th_null()) disco_open_np_immersive(); else ui_np_fsart_open();assert(ui_np_fsart_active());
             for(int i=0;i<100;i++){lyrics_poll(NULL);usleep(1000);}
