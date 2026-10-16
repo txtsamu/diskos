@@ -148,6 +148,7 @@ static void show_pill(int id){
         if(px<180-half)px=180-half;
         if(px+pw>180+half)px=180+half-pw;
         lv_obj_set_pos(pill,px,py);
+        if(id!=HINT_LOCK)lv_obj_align(pill,LV_ALIGN_CENTER,0,0);
     }
     hide_timer=lv_timer_create(timeout,id==HINT_LOCK?5000:6500,NULL);
     if(!hide_timer){lv_obj_delete(pill);pill=NULL;return;}

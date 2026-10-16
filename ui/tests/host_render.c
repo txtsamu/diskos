@@ -1020,7 +1020,7 @@ int main(int argc, char **argv){
         if(getenv("HANDLE_TIP")){
             onboarding_reset();onboarding_start();onboarding_context(HINT_HANDLE);nav_wait(900);
             lv_obj_t *tip=find_text(lv_layer_top(),onboarding_gesture_text(HINT_HANDLE));assert(tip);
-            lv_area_t a;lv_obj_get_coords(lv_obj_get_parent(tip),&a);assert(abs((a.y1+a.y2)/2-180)<3);
+            lv_obj_update_layout(lv_obj_get_parent(tip));lv_area_t a;lv_obj_get_coords(lv_obj_get_parent(tip),&a);assert(abs((a.y1+a.y2)/2-180)<3);
         }
         if(getenv("HOWTO_PAGE")){
             lv_obj_t *root=screen_get_root(SCR_SETLIST),*list=NULL;
