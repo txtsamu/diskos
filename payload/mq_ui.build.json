@@ -1,15 +1,15 @@
 {
   "version": "2.3.9",
-  "revision": "Null layout fixes; supersedes initial 2.3.9 test build",
-  "status": "focused checks and static MIPS ABI build passed; physical Disc test pending",
-  "source_commit": "fabb049aa74fd2e6582a02e483744d607b38b535",
+  "revision": "Cumulative Null and shared UI refinements, all changes through How to and gesture hints",
+  "status": "focused native renders and static MIPS ABI checks passed; physical Disc test pending",
+  "source_commit": "ccad92e35b4555fe0d513be061b6126db4963bfa",
   "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
-  "ui_source_sha256": "b6797e52cd84a0ee12c11df645a14adf0f0fcae95153b07fd84508c82af5fe54",
+  "ui_source_sha256": "d1d54cf480ab0346468749539242c0aab2581fa88bd640fcce61b1407c8fa63c",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "3f7c67c69f58a5158a30afc45a9c2349c896e2c83672c63c7a7037a88c0e230f",
-    "md5": "196d957c3672da56cfebb336307cc026",
-    "bytes": 6393332
+    "sha256": "26d14752fb82d7cd3570d80f1efe218928600ae7aa9db0f3295e3391b2b35bd7",
+    "md5": "79a4c6272afbb36f7102b53b87a0998f",
+    "bytes": 6447372
   }
 }
