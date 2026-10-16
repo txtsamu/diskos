@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "curvelist.h"
+#include "null_theme.h"
 #include "theme.h"
 #include "braun.h"
 #include "config.h"
@@ -171,6 +172,7 @@ static void curve(curvelist_t *c){
 static void dots(curvelist_t *c){
     if(th_braun()) return;                                       /* Braun: no position dots */
     int32_t sy = lv_obj_get_scroll_y(c->list), sb = lv_obj_get_scroll_bottom(c->list), tot = sy + sb;
+    if(th_null()){null_scroll_line(c->dot,11,sy,tot);return;}
     int idx = (tot <= 24) ? -1 : (int)((sy * 10 + tot / 2) / tot);
     if(idx > 10) idx = 10;
     if(idx == c->cur) return;

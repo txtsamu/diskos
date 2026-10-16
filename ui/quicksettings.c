@@ -505,6 +505,7 @@ void quicksettings_set_art(const void *cover_dsc, const void *backdrop_src)
 }
 void quicksettings_set_battery(int pct, int charging)
 {
+    if(th_null()){null_qs_battery(pct,charging);return;}
     if(!g_batt) return;
     if(pct < 0) return;
     if(pct > 100) pct = 100;

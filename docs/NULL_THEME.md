@@ -1,4 +1,4 @@
-# Null 2.3.0-Null.3 — Disc device-test build
+# Null 2.3.0-Null.4 — Disc device-test build
 
 Select Display > Theme > Null. Theme settings are under Display > Null Options.
 
@@ -32,3 +32,14 @@ use the shared record overlay and return to Music on close. Title hold, QS,
 Shortcuts and the track-menu full-art action use the same guarded entry path.
 A focused host regression passed for playback destinations and Immersive exit
 with animations both enabled and disabled. Physical Disc confirmation is pending.
+
+Null.4: The track popup uses pixel captions FAV / ALB / ART / QUE / LYR / INF.
+A-Z sits at the bottom, library position feedback sits below the header, and
+shared lists use a continuous palette-coloured scroll line with a pixel marker.
+The volume overlay is a draggable horizontal strip, without a full-screen scrim;
+it enters in 120 ms, dismisses on tap or timeout, and commits the final drag value.
+QS moves its upper group and square cover down 12 px and its lower group down;
+its close handle remains below the action hit areas. Brightness is 160 px tall,
+paired with a battery indicator at the left: 100% at top, red at 15% or less,
+green while charging, otherwise the palette's active colour.
+Focused host renders and the volume adjustment/dismiss/reopen/timeout check passed.

@@ -12,6 +12,7 @@
 #include "fwcaps.h"
 #include "artcache.h"
 #include "azjump.h"
+#include "null_theme.h"
 #include "ipc.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -207,6 +208,7 @@ static void pdots_update(void){
     if(!g_pdot[0] || !g_list) return;
     lv_obj_update_layout(g_list);
     int32_t sy = lv_obj_get_scroll_y(g_list), sb = lv_obj_get_scroll_bottom(g_list), tot = sy + sb;
+    if(th_null()){null_scroll_line(g_pdot,N_PDOTS,sy,tot);return;}
     int idx = (tot <= 24) ? -1 : (int)((sy * (N_PDOTS - 1) + tot / 2) / tot);   /* -1: fits on one screen */
     if(idx > N_PDOTS - 1) idx = N_PDOTS - 1;
     if(idx == g_pdot_cur) return;
@@ -1351,7 +1353,7 @@ void library_create(lv_obj_t *root){
     lv_label_set_text(g_lhint_lbl, "A");
     lv_obj_center(g_lhint_lbl);
     g_position=lv_obj_create(root);lv_obj_remove_style_all(g_position);
-    lv_obj_set_size(g_position,108,24);lv_obj_align(g_position,LV_ALIGN_TOP_MID,0,42);
+    lv_obj_set_size(g_position,108,24);lv_obj_align(g_position,LV_ALIGN_TOP_MID,0,th_null()?70:42);
     lv_obj_set_style_bg_color(g_position,TC(SURFACE),0);lv_obj_set_style_bg_opa(g_position,LV_OPA_COVER,0);
     lv_obj_set_style_radius(g_position,LV_RADIUS_CIRCLE,0);lv_obj_clear_flag(g_position,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
     g_position_label=lv_label_create(g_position);lv_label_set_text(g_position_label,"");

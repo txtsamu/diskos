@@ -940,7 +940,7 @@ int main(int argc, char **argv){
         ui_publish_art_surfaces(&st,1);
         home_set_now_playing(st.title,st.artist,ui_current_accent(),true);home_set_clock("10:09","Saturday, 3 October");
         home_set_weather("\xEF\x86\x85  18\xC2\xB0" "C  Clear");
-        home_set_status(67,0,1,1);quicksettings_set_battery(67,0);
+        home_set_status(67,0,1,1);quicksettings_set_battery(getenv("QS_BATT")?atoi(getenv("QS_BATT")):67,getenv("QS_CHARGE")?atoi(getenv("QS_CHARGE")):0);
         quicksettings_set_now_playing(st.title,st.artist,1);
         const char *page=argv[3]+(art_race?17:(long_names?13:8));int scr=SCR_HOME;
         if(!strcmp(page,"quick"))scr=SCR_QUICK;else if(!strcmp(page,"np") || !strncmp(page,"immersive",9))scr=SCR_NOWPLAYING;else if(!strcmp(page,"eq"))scr=SCR_EQ;
@@ -973,6 +973,20 @@ int main(int argc, char **argv){
             void disco_test_tap(int);disco_nav_set_open(1);nav_wait(300);
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
             if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
+        }
+        if(getenv("REVIEW_NULL_VOLUME")){
+            screen_set_anim(1);screen_home();nav_wait(300);
+            ui_show_volume(74);nav_wait(150);
+            lv_obj_t *slider=ui_action_find("null.volume.adjust"),*strip=ui_action_find("null.volume.dismiss");
+            assert(slider && strip && lv_obj_get_height(strip)==90 && lv_obj_get_y(strip)==135);
+            assert(lv_obj_get_x(strip)==0 && lv_obj_get_style_bg_opa(strip,0)==LV_OPA_COVER);
+            lv_slider_set_value(slider,92,LV_ANIM_OFF);lv_obj_send_event(slider,LV_EVENT_VALUE_CHANGED,NULL);
+            lv_obj_send_event(slider,LV_EVENT_RELEASED,NULL);assert(find_text(strip,"92"));
+            lv_obj_send_event(strip,LV_EVENT_CLICKED,NULL);nav_wait(150);
+            assert(lv_obj_has_flag(strip,LV_OBJ_FLAG_HIDDEN));
+            ui_show_volume(32);nav_wait(150);assert(find_text(strip,"32"));
+            nav_wait(1900);assert(lv_obj_has_flag(strip,LV_OBJ_FLAG_HIDDEN));
+            puts("PASS: Null volume strip adjusts, dismisses, reopens and times out");return 0;
         }
         if(getenv("REVIEW_NULL_ROUTES")){
             assert(th_null());

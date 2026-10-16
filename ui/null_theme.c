@@ -39,6 +39,12 @@ static const char *name_ptrs[10];
 static lv_obj_t *qroot, *qpanel, *qcover, *qart, *qpp, *qprev, *qnext, *qclose, *qbright, *qicons[3],
     *qfields[8], *qcaptions[8];
 static int qids[8], qcount;
+static lv_obj_t *qbattery, *qbfill, *qbhead;
+static int qbpercent = -1, qbcharging;
+static lv_obj_t *volume_panel, *volume_slider, *volume_value;
+static lv_timer_t *volume_timer;
+static int volume_pending, volume_suppress;
+static uint32_t volume_sent;
 static const void *last_sharp;
 static lv_image_dsc_t pixel_dsc;
 static uint8_t *pixel_buf;
@@ -651,21 +657,21 @@ static void qs_construct(void)
     lv_obj_set_style_border_width(qpanel, 1, 0);
     lv_obj_set_style_border_color(qpanel, TC(TEXT_SECONDARY), 0);
     lv_obj_set_style_border_opa(qpanel, 45, 0);
-    qcover = box(qpanel, 60, 132, 96, 96);
+    qcover = box(qpanel, 60, 144, 96, 96);
     lv_obj_set_style_shadow_color(qcover, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_shadow_width(qcover, 18, 0);
     lv_obj_set_style_shadow_opa(qcover, playing ? 85 : 0, 0);
     qart = lv_image_create(qcover);
     lv_obj_remove_flag(qart, LV_OBJ_FLAG_CLICKABLE);
-    qprev = transport_button(qpanel, 2, 158, 44, 0, &qicons[0]);
+    qprev = transport_button(qpanel, 2, 170, 44, 0, &qicons[0]);
     qpp = transport_button(qcover, 24, 24, 48, 1, &qicons[1]);
     lv_obj_set_style_bg_opa(qpp, 160, 0);
-    qnext = transport_button(qpanel, 170, 158, 44, 2, &qicons[2]);
+    qnext = transport_button(qpanel, 170, 170, 44, 2, &qicons[2]);
     /* Four fields above and four below. Lower field hit boxes end before the
      * close handle. */
     for (int k = 0; k < 8; k++) {
-        int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 20 + row * 48 : 226 + row * 44;
-        qfields[k] = box(qpanel, 12 + col * 96, y, 96, 44);
+        int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 32 + row * 48 : 244 + row * 42;
+        qfields[k] = box(qpanel, 12 + col * 96, y, 96, k < 4 ? 44 : 40);
         lv_obj_set_style_bg_opa(qfields[k], 0, 0);
         lv_obj_add_flag(qfields[k], LV_OBJ_FLAG_CLICKABLE);
         qcaptions[k] = text(qfields[k], "", 0, 12, 96, &pixel14, TC(TEXT_SECONDARY));
@@ -677,10 +683,10 @@ static void qs_construct(void)
         lv_obj_add_event_cb(qfields[k], qs_field_event, LV_EVENT_RELEASED, (void *)(intptr_t)k);
         lv_obj_add_event_cb(qfields[k], qs_field_event, LV_EVENT_PRESS_LOST, (void *)(intptr_t)k);
     }
-    qclose = box(qpanel, 84, 314, 48, 44);
+    qclose = box(qpanel, 84, 326, 48, 32);
     lv_obj_set_style_bg_opa(qclose, 0, 0);
     lv_obj_add_flag(qclose, LV_OBJ_FLAG_CLICKABLE);
-    static lv_point_precise_t points[3] = {{12, 27}, {24, 17}, {36, 27}};
+    static lv_point_precise_t points[3] = {{12, 17}, {24, 7}, {36, 17}};
     int widths[] = {19, 13, 9, 5, 3}, opas[] = {8, 17, 38, 80, 255};
     for (int i = 0; i < 5; i++) {
         lv_obj_t *l = lv_line_create(qclose);
@@ -695,15 +701,29 @@ static void qs_construct(void)
     /* Keep brightness reachable without changing the eight-field composition: a
      * slim side slider. */
     qbright = lv_slider_create(qroot);
-    lv_obj_set_size(qbright, 6, 80);
-    lv_obj_set_pos(qbright, 310, 140);
+    lv_obj_set_size(qbright, 6, 160);
+    lv_obj_set_pos(qbright, 310, 112);
     lv_obj_set_ext_click_area(qbright, 12);
     lv_slider_set_range(qbright, 4, 40);
     lv_slider_set_value(qbright, ui_get_brightness(), LV_ANIM_OFF);
     lv_obj_set_style_radius(qbright, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_color(qbright, TC(CONTROL_TRACK), LV_PART_MAIN);
     lv_obj_set_style_bg_color(qbright, TC(TEXT_PRIMARY), LV_PART_INDICATOR);
-    lv_obj_set_style_pad_all(qbright, 3, LV_PART_KNOB);
+    lv_obj_set_style_radius(qbright, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(qbright, 0, LV_PART_KNOB);
+    lv_obj_set_style_bg_opa(qbright, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(qbright, TC(TEXT_SECONDARY), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(qbright, TC(TEXT_PRIMARY), LV_PART_KNOB);
+    lv_obj_set_style_border_width(qbright, 0, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(qbright, 1, LV_PART_KNOB);
+    if (!qbattery) {
+        qbattery = box(qroot, 44, 112, 6, 160);
+        lv_obj_add_flag(qbattery, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+        lv_obj_set_style_bg_color(qbattery, TC(TEXT_SECONDARY), 0);
+        qbfill = box(qbattery, 0, 160, 6, 1);
+        qbhead = box(qbattery, -1, 153, 8, 7);
+    }
+    null_qs_battery(qbpercent, qbcharging);
     ui_on(qbright, qs_bright_event, LV_EVENT_VALUE_CHANGED, NULL, "qs.brightness", UI_CORE);
     lv_obj_add_event_cb(qbright, qs_bright_event, LV_EVENT_RELEASED, NULL);
     keep_tree(qroot);
@@ -885,6 +905,8 @@ int null_owns_point(int x, int y)
 {
     if (!th_null())
         return 0;
+    if (volume_panel && !lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN) && y >= 135 && y <= 225)
+        return 1;
     if (screen_current() == SCR_QUICK || disco_track_overlay_visible())
         return 1;
     if (nav_value > 0 && y >= 135 && y <= 225)
@@ -1143,4 +1165,181 @@ void null_nav_set_open(int open)
 {
     if (nav)
         nav_set(open);
+}
+
+/* The three parts reuse the former dots so existing list lifecycle remains unchanged. */
+void null_scroll_line(lv_obj_t **parts, int count, int position, int total)
+{
+    if (count < 3 || !parts[0])
+        return;
+    for (int i = 0; i < count; i++) {
+        if (total <= 24 || i >= 3)
+            lv_obj_add_flag(parts[i], LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_remove_flag(parts[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    if (total <= 24)
+        return;
+    if (position < 0)
+        position = 0;
+    if (position > total)
+        position = total;
+    int x = left() ? 327 : 30, value = (int)((long long)position * 140 / total);
+    for (int i = 0; i < 3; i++) {
+        lv_obj_set_style_radius(parts[i], 0, 0);
+        lv_obj_set_style_bg_opa(parts[i], LV_OPA_COVER, 0);
+        kit_keep(parts[i]);
+    }
+    lv_obj_set_pos(parts[0], x, 108);
+    lv_obj_set_size(parts[0], 3, 144);
+    lv_obj_set_style_bg_color(parts[0], TC(TEXT_SECONDARY), 0);
+    lv_obj_set_pos(parts[1], x, 108);
+    lv_obj_set_size(parts[1], 3, value ? value : 1);
+    lv_obj_set_style_bg_color(parts[1], TC(TEXT_PRIMARY), 0);
+    lv_obj_set_pos(parts[2], x - 2, 108 + value - 2);
+    lv_obj_set_size(parts[2], 7, 7);
+    lv_obj_set_style_bg_color(parts[2], TC(TEXT_PRIMARY), 0);
+}
+void null_qs_battery(int percent, int charging)
+{
+    if (percent >= 0) {
+        qbpercent = percent > 100 ? 100 : percent;
+        qbcharging = !!charging;
+    }
+    if (!qbattery || qbpercent < 0)
+        return;
+    int h = qbpercent * 160 / 100, y = 160 - h;
+    lv_color_t c = qbcharging ? TC(STATUS_SUCCESS) : qbpercent <= 15 ? TC(STATUS_DANGER) : TC(TEXT_PRIMARY);
+    lv_obj_set_pos(qbfill, 0, y);
+    lv_obj_set_size(qbfill, 6, h ? h : 1);
+    if (h)
+        lv_obj_remove_flag(qbfill, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(qbfill, LV_OBJ_FLAG_HIDDEN);
+    if (y > 153)
+        y = 153;
+    lv_obj_set_y(qbhead, y);
+    lv_obj_set_style_bg_color(qbfill, c, 0);
+    lv_obj_set_style_bg_color(qbhead, c, 0);
+}
+static void volume_x(void *o, int32_t x) { lv_obj_set_x(o, x); }
+static void volume_hidden(lv_anim_t *a) { lv_obj_add_flag(a->var, LV_OBJ_FLAG_HIDDEN); }
+static void volume_close(void)
+{
+    if (!volume_panel || lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN))
+        return;
+    if (volume_timer)
+        lv_timer_pause(volume_timer);
+    lv_anim_delete(volume_panel, NULL);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, volume_panel);
+    lv_anim_set_exec_cb(&a, volume_x);
+    lv_anim_set_values(&a, lv_obj_get_x(volume_panel), 360);
+    lv_anim_set_duration(&a, screen_get_anim() ? 100 : 1);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+    lv_anim_set_completed_cb(&a, volume_hidden);
+    lv_anim_start(&a);
+}
+static void volume_timeout(lv_timer_t *t)
+{
+    if (lv_obj_has_state(volume_slider, LV_STATE_PRESSED)) {
+        lv_timer_reset(t);
+        return;
+    }
+    volume_close();
+}
+static void volume_dismiss(lv_event_t *e)
+{
+    (void)e;
+    volume_close();
+}
+static void volume_event(lv_event_t *e)
+{
+    if (volume_suppress)
+        return;
+    lv_event_code_t code = lv_event_get_code(e);
+    int v = lv_slider_get_value(volume_slider);
+    char b[12];
+    snprintf(b, sizeof b, "%d", v);
+    text_set(volume_value, b);
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        if (lv_tick_elaps(volume_sent) >= 120) {
+            ui_set_volume(v);
+            volume_sent = lv_tick_get();
+            volume_pending = 0;
+        } else
+            volume_pending = 1;
+    } else if ((code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) && volume_pending) {
+        ui_set_volume(v);
+        volume_sent = lv_tick_get();
+        volume_pending = 0;
+    }
+    lv_timer_reset(volume_timer);
+    lv_timer_resume(volume_timer);
+}
+void null_volume_show(int value)
+{
+    if (!th_null())
+        return;
+    if (!volume_panel) {
+        volume_panel = box(lv_layer_top(), 360, 135, 360, 90);
+        lv_obj_add_flag(volume_panel, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_border_side(volume_panel, LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_BOTTOM, 0);
+        lv_obj_set_style_border_width(volume_panel, 1, 0);
+        lv_obj_set_style_border_color(volume_panel, TC(BORDER), 0);
+        ui_on(volume_panel, volume_dismiss, LV_EVENT_CLICKED, NULL, "null.volume.dismiss", UI_CORE);
+        lv_obj_t *badge = box(volume_panel, 140, 5, 80, 34);
+        lv_obj_set_style_bg_opa(badge, 0, 0);
+        volume_value = text(badge, "0", 0, 1, 80, TF(UI_28), TC(TEXT_PRIMARY));
+        volume_slider = lv_slider_create(volume_panel);
+        lv_obj_remove_style_all(volume_slider);
+        lv_obj_set_pos(volume_slider, 62, 55);
+        lv_obj_set_size(volume_slider, 236, 3);
+        lv_obj_set_ext_click_area(volume_slider, 18);
+        lv_slider_set_range(volume_slider, 0, VOL_MAX);
+        lv_obj_set_style_bg_color(volume_slider, TC(TEXT_SECONDARY), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(volume_slider, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(volume_slider, TC(TEXT_PRIMARY), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_opa(volume_slider, LV_OPA_COVER, LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(volume_slider, TC(TEXT_PRIMARY), LV_PART_KNOB);
+        lv_obj_set_style_bg_opa(volume_slider, LV_OPA_COVER, LV_PART_KNOB);
+        lv_obj_set_style_pad_all(volume_slider, 2, LV_PART_KNOB);
+        ui_on(volume_slider, volume_event, LV_EVENT_VALUE_CHANGED, NULL, "null.volume.adjust", UI_CORE);
+        lv_obj_add_event_cb(volume_slider, volume_event, LV_EVENT_RELEASED, NULL);
+        lv_obj_add_event_cb(volume_slider, volume_event, LV_EVENT_PRESS_LOST, NULL);
+        volume_timer = lv_timer_create(volume_timeout, 1800, NULL);
+        lv_timer_pause(volume_timer);
+        lv_obj_add_flag(volume_panel, LV_OBJ_FLAG_HIDDEN);
+        keep_tree(volume_panel);
+    }
+    if (value < 0)
+        value = 0;
+    if (value > VOL_MAX)
+        value = VOL_MAX;
+    if (!lv_obj_has_state(volume_slider, LV_STATE_PRESSED)) {
+        volume_suppress = 1;
+        lv_slider_set_value(volume_slider, value, LV_ANIM_OFF);
+        volume_suppress = 0;
+        char b[12];
+        snprintf(b, sizeof b, "%d", value);
+        text_set(volume_value, b);
+    }
+    int hidden = lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_anim_delete(volume_panel, NULL);
+    lv_obj_remove_flag(volume_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(volume_panel);
+    if (hidden) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, volume_panel);
+        lv_anim_set_exec_cb(&a, volume_x);
+        lv_anim_set_values(&a, 360, 0);
+        lv_anim_set_duration(&a, screen_get_anim() ? 120 : 1);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_start(&a);
+    } else
+        lv_obj_set_x(volume_panel, 0);
+    lv_timer_reset(volume_timer);
+    lv_timer_resume(volume_timer);
 }

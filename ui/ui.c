@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "imm_record.h"
+#include "null_theme.h"
 /* Copyright (C) 2026 diskOS contributors */
 #include "ui.h"
 #include "lvgl/src/core/lv_obj_draw_private.h"   /* lv_obj_get_ext_draw_size: the snapshot margin (fork perf) */
@@ -3382,6 +3383,7 @@ static void dvol_paint(int v){
 static void vol_tap_close_cb(lv_event_t *e){ (void)e; if(g_vol_panel) lv_obj_add_flag(g_vol_panel, LV_OBJ_FLAG_HIDDEN); if(g_vol_timer) lv_timer_pause(g_vol_timer); }
 void ui_show_volume(int vol)
 {
+    if(th_null()){null_volume_show(vol);return;}
     if(!g_vol_panel){
         /* the rim arc: a level on the right rim filling bottom -> top in the current accent, rounded ends,
          * a white handle, and the value at clock size in a badge beside it. The screen stays visible,

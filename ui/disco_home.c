@@ -524,7 +524,7 @@ static void ov_mood_cb(lv_event_t *e){                       /* SongSphere: wher
 static void ov_mood_pill(lv_obj_t *p, int y){
     track_state_t st; ipc_get_state(&st);
     float x = 0, yy = 0; int src = st.have_track ? sphere_ui_song_spot(st.path, NULL, NULL, &x, &yy) : 0;
-    char t[64]; const lv_font_t *f = TF(UI_18), *fs = TF(UI_14);
+    char t[64]; const lv_font_t *f = th_null() ? TF(HEADER_SM) : TF(UI_18), *fs = TF(UI_14);
     snprintf(t, sizeof t, "%s", src ? sphere_ui_mood_name(x, yy) : "Set mood");
     const char *from = src == 2 ? "album" : src == 3 ? "artist" : NULL;
     lv_point_t a, b = { 0, 0 }; lv_text_get_size(&a, t, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -573,12 +573,14 @@ static void ov_open(void){
     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT); lv_obj_set_size(t, 250, 28);
-    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, th_null() ? TF(UI_22) : ui_font_cjk(22), 0);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, th_null() ? TF(HEADER_SM) : ui_font_cjk(22), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
+    if(th_null()) kit_keep(t);
     lv_obj_t *ar = lv_label_create(tb); lv_label_set_text(ar, L_ARTIST.cur);
     lv_label_set_long_mode(ar, LV_LABEL_LONG_DOT); lv_obj_set_size(ar, 230, 22);
     lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, th_null() ? TF(UI_16) : ui_font_cjk(16), 0);
     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
+    if(th_null()){ lv_obj_set_style_text_font(ar, TF(HEADER_SM), 0); kit_keep(ar); }
     static const struct { int x, y; const char *cap; } P[OV_N] = {          /* two gentle arcs of three */
         { 84, 146, "Favourite" }, { 180, 160, "Album" }, { 276, 146, "Artist" },
         { 94, 250, "Queue" },     { 180, 270, "Lyrics" }, { 266, 250, "Info" } };
@@ -601,6 +603,12 @@ static void ov_open(void){
         g_ov_cap[i] = lv_label_create(g_ov); lv_label_set_text(g_ov_cap[i], P[i].cap);
         lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_18), 0); lv_obj_set_style_text_color(g_ov_cap[i], TC(TEXT_PRIMARY), 0);
         if(mood) lv_obj_set_style_text_font(g_ov_cap[i], TF(UI_16), 0);
+        if(th_null()){
+            static const char *const caps[OV_N]={"FAV","ALB","ART","QUE","LYR","INF"};
+            lv_label_set_text(g_ov_cap[i],caps[i]);
+            lv_obj_set_style_text_font(g_ov_cap[i],TF(HEADER_SM),0);
+            kit_keep(g_ov_cap[i]);
+        }
         ov_place_cap(i, P[i].x, py - (mood ? 7 : 0));
     }
     if(mood) ov_mood_pill(g_ov, 294);
