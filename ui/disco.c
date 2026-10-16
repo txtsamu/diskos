@@ -752,7 +752,7 @@ static int ed_in(int id){for(int i=0;i<g_edit_n;i++)if(g_edit[i]==id)return i;re
 static int ed_catalog_count(void){return g_edit_qs?quicksettings_item_count():NSEC+menu_apps_count();}
 static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name:menu_section(id).name;}
 static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:menu_section(id).icon;}
-static int ed_protected(int id){return g_edit_qs?(th_null()&&(id==0||id==5)):menu_section(id).prot;}
+static int ed_protected(int id){return g_edit_qs?0:menu_section(id).prot;}
 static void ed_build_async(void *p){(void)p;ed_build();}
 static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();if(th_null())null_menu_refresh();}}
 static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
@@ -823,7 +823,7 @@ static void editor_open(int qs){
     if(g_bd_ok)lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
     lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
     ui_header_cb(g_ed,qs?"Quick Items":th_null()?"Null Menu":"Disco Menu",ed_close_cb);
-    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?(th_null()?"Eight fields; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?(th_null()?"Choose up to eight; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
     lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
     g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
     lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);

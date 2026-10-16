@@ -1183,6 +1183,34 @@ int main(int argc, char **argv){
         if(getenv("REVIEW_NULL")){review_null();return 0;}
         if(getenv("REVIEW_NAV")){review_nav();return 0;}
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}
+        if(getenv("REVIEW_QS_PARITY")){
+            void disco_test_editor_close(void);lv_obj_t *null_test_qs_field(int);int null_test_qs_item(int);
+            const char *key=th_null()?"null_qs_items":"disco_qs_items",*other=th_null()?"disco_qs_items":"null_qs_items";
+            int initial[8]={0,1,4,2,6,7,3,5},items[QS_MAX_ITEMS],n=th_null()?8:7;
+            if(!th_null())initial[6]=5;
+            cfg_set_str(other,"rf");assert(quicksettings_items_save(initial,n)==0);
+            screen_show(SCR_SETTINGS);disco_qs_menu_open();qs_editor_click("Wi-Fi",LV_SYMBOL_DOWN);
+            assert(quicksettings_items_load(items)==n && items[0]==1 && items[1]==0);
+            qs_editor_click("Wi-Fi",LV_SYMBOL_CLOSE);qs_editor_click("Settings",LV_SYMBOL_CLOSE);
+            assert(quicksettings_items_load(items)==n-2);
+            for(int i=0;i<n-2;i++)assert(items[i]!=0 && items[i]!=5);
+            qs_editor_click("Queue",LV_SYMBOL_PLUS);qs_editor_click("Queue",LV_SYMBOL_UP);
+            int count=quicksettings_items_load(items);assert(count==n-1 && items[count-2]==8);
+            char saved[48];snprintf(saved,sizeof saved,"%s",cfg_get_str(key,""));
+            disco_test_editor_close();screen_show(SCR_QUICK);nav_wait(250);
+            if(th_null())for(int i=0;i<8;i++){
+                assert(null_test_qs_item(i)==(i<count?items[i]:-1));
+                assert(lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN)==(i>=count));
+            }
+            screen_show(SCR_SETTINGS);disco_qs_menu_open();assert(!strcmp(saved,cfg_get_str(key,"")));
+            while((count=quicksettings_items_load(items))>0)qs_editor_click(quicksettings_item(items[0])->name,LV_SYMBOL_CLOSE);
+            disco_test_editor_close();screen_show(SCR_QUICK);nav_wait(150);
+            assert(!strcmp(cfg_get_str(key,"?"),""));assert(!strcmp(cfg_get_str(other,""),"rf"));
+            if(th_null())for(int i=0;i<8;i++)assert(lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN));
+            assert(quicksettings_items_save(initial,n)==0);quicksettings_build();nav_wait(150);
+            if(th_null())for(int i=0;i<8;i++)assert(null_test_qs_item(i)==initial[i] && !lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN));
+            puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
+        }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
         if(getenv("REVIEW_DISCO_SETTINGS")){
             void settings_open_group(const char *);

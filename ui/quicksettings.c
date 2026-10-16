@@ -569,4 +569,4 @@ void qsconfig_refresh(void){ }
 lv_obj_t *quicksettings_test_button(int slot){return slot>=0 && slot<g_nitems?g_dq_row[slot]:NULL;}
 lv_obj_t *quicksettings_test_disc(void){return g_cover_clip;}
 
-void quicksettings_null_action(int id,int hold){if(hold && (id==T_WIFI || id==T_BT))onboarding_discovered(HINT_RADIO_HOLD);if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(!hold)pick_cb(id);}
+void quicksettings_null_action(int id,int hold){if(hold && (id==T_WIFI || id==T_BT))onboarding_discovered(HINT_RADIO_HOLD);if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(hold && id>=0 && id<Q_COUNT)ui_toast(CATALOG[id].name);else if(!hold)pick_cb(id);}

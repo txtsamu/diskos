@@ -127,3 +127,7 @@ Disco and Null both place Help directly below Battery in Settings. Its order is
 How to, First-use hints, Show hints again. Null no longer duplicates these in
 Null Options. Each theme retains its own saved hint mode and learning counters.
 Back from How to returns to Help; Back from Help returns to Settings.
+
+QS editing shares Disco’s add/remove/reorder behaviour. All items are editable;
+Null keeps up to eight, in saved order, with unused fields hidden. Changes are
+applied on editor close and survive reopening.

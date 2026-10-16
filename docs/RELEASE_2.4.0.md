@@ -50,3 +50,12 @@ Disco and Null both place Help directly below Battery in Settings. Its order is
 How to, First-use hints, Show hints again. Null no longer duplicates these in
 Null Options. Each theme retains its own saved hint mode and learning counters.
 Back from How to returns to Help; Back from Help returns to Settings.
+
+## QS editor parity fix
+
+Null now honours the saved quick-item selection and order exactly, like Disco.
+Wi-Fi and Settings can be moved or removed; deleted slots stay empty instead of
+being silently refilled. Add/remove/reorder persists independently per theme.
+Null retains eight available slots and its artwork/transport arrangement.
+Holding other quick items shows their full names, as in Disco; radio holds still
+open connection management.

@@ -860,29 +860,16 @@ void null_qs_build(void)
     text_set(qdate,music_clock_text);
     int items[QS_MAX_ITEMS];
     int count = quicksettings_items_load(items);
-    qcount = 0;
-    /* Wi-Fi and Settings are pinned, duplicates are filtered by the loader. Fill
-     * unused slots deterministically. */
-    qids[qcount++] = 0;
-    for (int k = 0; k < count && qcount < 7; k++)
-        if (items[k] != 0 && items[k] != 5)
-            qids[qcount++] = items[k];
-    static const int fallback[] = {1, 4, 6, 3, 7, 11, 2};
-    for (int i = 0; i < 7 && qcount < 7; i++) {
-        int found = 0;
-        for (int j = 0; j < qcount; j++)
-            if (qids[j] == fallback[i])
-                found = 1;
-        if (!found)
-            qids[qcount++] = fallback[i];
-    }
-    qids[qcount++] = 5;
+    qcount = count;
+    for(int i=0;i<8;i++)qids[i]=i<count?items[i]:-1;
     static const char *shorts[] = {"WIFI",  "BT",   "LIBRY", "SCAN",   "MODES", "STNGS",
                                    "EQ",    "SRCH", "QUEUE", "UP NXT", "SHRTS", "WTHR",
                                    "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS"};
     const lv_font_t *icons=TF(QS_ICON_28);
     int show_icons=cfg_get_int("null_qs_layout",0)==1;
     for(int i=0;i<8;i++){
+        if(i>=qcount){lv_obj_add_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);continue;}
+        lv_obj_remove_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);
         int id=qids[i];
         text_set(qcaptions[i],show_icons?quicksettings_item_glyph(id):(id>=0 && id<17?shorts[id]:"ITEM"));
         lv_obj_set_style_text_font(qcaptions[i],show_icons?icons:&pixel14,0);
@@ -1556,3 +1543,7 @@ void null_radio_skin(lv_obj_t *root,const char *name,lv_obj_t *ring,lv_obj_t *gl
 }
 
 int null_volume_visible(void){return volume_panel && !lv_obj_has_flag(volume_panel,LV_OBJ_FLAG_HIDDEN);}
+
+/* Native interaction checks inspect the real tiles, including empty slots. */
+lv_obj_t *null_test_qs_field(int slot){return slot>=0 && slot<8?qfields[slot]:NULL;}
+int null_test_qs_item(int slot){return slot>=0 && slot<qcount?qids[slot]:-1;}
