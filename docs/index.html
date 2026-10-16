@@ -89,7 +89,7 @@ figcaption b{display:block;color:var(--paper);font-weight:600;font-size:16px}
 
 
 /* ---- sections ---- */
-section{padding:110px 0}
+section{padding:84px 0}
 .head{max-width:760px;margin-bottom:56px}
 .stroke::after{content:"";display:block;width:56px;height:3px;border-radius:2px;background:var(--rainbow);margin-top:22px}
 .head p{margin-top:20px}
@@ -287,6 +287,12 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 .thanks h3{font-size:17px;margin-bottom:8px}.thanks .cols3 p{color:var(--mist);font-size:16px}
 @media (max-width:820px){.thanks .cols3{grid-template-columns:1fr}}
 
+/* The Null gallery: matched native screens, with short captions. */
+.null-gallery{margin-top:38px;gap:36px}
+.null-gallery .shot{max-width:300px;margin:0 auto}
+.null-gallery figcaption{max-width:32ch;margin:20px auto 0}
+#null .why{margin-top:48px}
+@media(max-width:680px){.null-gallery{grid-template-columns:1fr;gap:36px}.null-gallery .shot{max-width:260px}.null-gallery figcaption{text-align:center}}
 </style>
 </head>
 <body id="top">
@@ -307,8 +313,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
     <h1 class="wordmark" aria-label="Disco!">Disco!</h1>
     <p class="tagline">Your music. <span>Your way.</span></p>
-    <p class="lead">A new interface for the Snowsky Disc. The album cover fills the round screen, the record spins when you
-      want to just listen, and every detail, from the font to the buttons, is yours to choose.</p>
+    <p class="lead">A fresh look for your Snowsky Disc. Bigger artwork, clear controls and a screen that feels made for music.</p>
     <div class="stage5" aria-label="Screens from diskOS Disco!">
       <figure class="l o"><div class="shot"><img src="disco/library.png" alt="The Library, curving with the screen" width="360" height="360"></div><figcaption>Library</figcaption></figure>
       <figure class="l i"><div class="shot"><img src="disco/music.png" alt="Music: the cover is the interface" width="360" height="360"></div><figcaption>Music</figcaption></figure>
@@ -316,15 +321,14 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
       <figure class="r i"><div class="shot"><img src="disco/immersive.png" alt="Immersive: the cover as a spinning record" width="360" height="360"></div><figcaption>Immersive</figcaption></figure>
       <figure class="r o"><div class="shot"><img src="disco/stats-wrapped.png" alt="Listening Stats: your top artist" width="360" height="360"></div><figcaption>Stats</figcaption></figure>
     </div>
-    <p class="newline"><b>New in 2.3:</b> the record drops into Immersive, gestures instead of buttons, hold-to-scrub, a
-      roomier Library, Quick Settings round the edge, a new Battery page and a bigger, bolder Stats.
-      <a href="https://github.com/zmd22/diskos-disco/blob/main/docs/RELEASE_2.4.0.md">What's new</a></p>
+    <p class="newline"><b>New in 2.4:</b> Null, our new pixel theme. Larger text, calmer lists and helpful gesture tips.
+      <a href="https://github.com/zmd22/diskos-disco/blob/main/docs/RELEASE_2.4.0.md">See what’s new</a></p>
     <div class="ctas" style="justify-content:center;margin-top:30px">
       <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
       <a class="pill line" href="#install">Linux and SD updates</a>
-      <a class="pill line" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Take the tour</a>
+      <a class="pill line" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md">Explore the features</a>
     </div>
-    <p class="small" style="margin:22px auto 0;text-align:center">Free and open source. A testing release, provided as is. Built on b0hemia's diskOS; not affiliated with FiiO or Snowsky.</p>
+    <p class="small" style="margin:22px auto 0;text-align:center">Free and open source. Built on b0hemia's diskOS. Testing release; not affiliated with FiiO or Snowsky.</p>
   </div>
 </section>
 
@@ -332,8 +336,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap mixer">
     <div>
       <h2 class="stroke">Make it yours.</h2>
-      <p class="lead" style="margin-top:22px">Try it: each choice below is one setting on the Disc. They all mix, and you can change
-        your mind any time.</p>
+      <p class="lead" style="margin-top:22px">Pick a look. Try the controls. Find your favourite combination.</p>
       <div class="groups" id="mixer" style="margin-top:30px">
         <div class="group"><span>Theme</span><div class="chips" data-group="theme">
           <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
@@ -345,7 +348,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
         </div></div>
         <div class="group"><span>Controls</span><div class="chips" data-group="controls">
           <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Buttons, as they've always been.">Buttons</button>
-          <button type="button" aria-pressed="false" data-img="disco/music-gestures.png" data-note="Gestures: double tap to pause, swipe to skip, faint hints along the bottom.">Gestures</button>
+          <button type="button" aria-pressed="false" data-img="disco/music-gestures.png" data-note="Double-tap to pause. Swipe to change track.">Gestures</button>
           <button type="button" aria-pressed="false" data-img="disco/music-scrub.png" data-note="Hold the line to scrub, with the time large under your finger.">Scrub</button>
         </div></div>
         <div class="group"><span>Title font</span><div class="chips" data-group="font">
@@ -378,21 +381,20 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 
 <section id="null" class="band">
   <div class="wrap">
-    <span class="eyebrow">New in 2.4.0 · Theme 02</span>
-    <h2 class="stroke">Null. Pixels with purpose.</h2>
-    <p class="lead">Big, readable pixel type. Blue and yellow, or red and lime, on deep black.
-      A complete theme across Music, Library, connections and settings, with smooth sliding navigation
-      and room for your album cover.</p>
-    <div class="row r3" style="margin-top:36px">
-      <figure><div class="shot"><img src="null/music.png" alt="Null Music with large pixel track text" width="360" height="360" loading="lazy"></div><figcaption><b>Choose your voice</b>Original, Jersey, Handjet or Matrix: dot-matrix titles with terminal details. Black, dark artwork or a pixelated cover behind it. Long names scroll three times, then rest.</figcaption></figure>
-      <figure><div class="shot"><img src="null/quick.png" alt="Null Quick Settings with shared Disco icons" width="360" height="360" loading="lazy"></div><figcaption><b>Everything within reach</b>Pull down for text or icon Quick Settings, track artwork and transport. Battery and brightness stay at the sides; charging flows green. Tap radios to toggle, hold to manage connections.</figcaption></figure>
-      <figure><div class="shot"><img src="null/howto.png" alt="Null How to page with large text and a next-page arrow" width="360" height="360" loading="lazy"></div><figcaption><b>Learn as you go</b>Centred contextual tooltips explain gestures when you need them. How to gives each topic its own page, with larger type and a bottom arrow. Both Disco and Null include this guidance.</figcaption></figure>
+    <span class="for">New in 2.4 · Theme 02</span>
+    <h2 class="stroke">Meet Null.</h2>
+    <p class="lead" style="margin-top:22px">Bold pixels. Bright colour. A darker kind of Disco.</p>
+    <div class="row r3 null-gallery">
+      <figure><div class="shot"><img src="null/music.png" alt="Null Music: default pixel font over pixelated album artwork" width="360" height="360" loading="lazy"></div><figcaption><b>Your music, in pixels</b>Big track text over a pixelated cover. Prefer a quieter look? Choose dark artwork or black.</figcaption></figure>
+      <figure><div class="shot"><img src="null/quick.png" alt="Null Quick Settings with artwork, playback controls and side bars" width="360" height="360" loading="lazy"></div><figcaption><b>A quick pull away</b>Connections, shortcuts and playback together. Choose icons or text; adjust brightness at the side.</figcaption></figure>
+      <figure><div class="shot"><img src="null/drawer.png" alt="Null Music with its sliding navigation drawer open" width="360" height="360" loading="lazy"></div><figcaption><b>Slide into your library</b>Open the drawer, drag to browse and tap to go. Your track details stay in view.</figcaption></figure>
     </div>
     <div class="why">
-      <div><h3>A menu that moves with you</h3><p>Open the side drawer, drag its text or handle to browse, then tap. Hold either handle end to keep scrolling. Double-tap or hold the centre for your chosen shortcuts.</p></div>
-      <div><h3>Polish you can feel</h3><p>Larger touch targets, centred selectors and clear help text. Library names stay still until focused, so browsing feels calmer. No guessing which gesture does what.</p></div>
-      <div><h3>Make it yours</h3><p>Choose the palette, background, fonts, text alignment and playback controls. Reorder navigation and quick items. Null is right-handed, with its own settings collected in one place.</p></div>
+      <div><h3>Make it your own</h3><p>Two palettes, four font combinations and your choice of backgrounds. Arrange the menu and quick items to suit you.</p></div>
+      <div><h3>Small screen. Clear choices.</h3><p>Large touch targets, readable settings and quieter lists. Names scroll when focused, then give the screen a rest.</p></div>
+      <div><h3>A little help, when needed</h3><p>Gesture tips explain the less obvious moves. Settings → Help brings How to and first-use hints together, in both Disco and Null.</p></div>
     </div>
+    <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/NULL_THEME.md">Explore Null’s settings</a>
   </div>
 </section>
 
@@ -432,42 +434,29 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap">
     <div class="split">
       <div>
-        <h2 class="stroke">Every detail, a setting.</h2>
-        <p class="lead" style="margin-top:22px">Settings, Display, Disco Options gathers everything about the Disco look in four short
-          pages: Music Screen, Colours, Layout and the Disco Menu.</p>
+        <h2 class="stroke">Your player. Your preferences.</h2>
+        <p class="lead" style="margin-top:22px">Choose your fonts, colours, controls and menu items. The theme settings keep everything together.</p>
       </div>
       <div class="row r2">
         <figure><div class="shot plain"><img src="disco/disco-options.png" alt="Disco Options" width="360" height="360" loading="lazy"></div></figure>
         <figure style="margin-top:60px"><div class="shot plain"><img src="disco/menu-editor.png" alt="The Disco Menu editor" width="360" height="360" loading="lazy"></div></figure>
       </div>
     </div>
-    <dl class="opts" style="margin-top:70px">
-      <div><dt>Disco Menu</dt><dd>The sections of the navigation circle: reorder, add, remove. Music and Settings always stay.</dd></div>
-      <div><dt>Side</dt><dd>Right or left: the navigation circle and everything around it, for either hand.</dd></div>
-      <div><dt>Show Clock and Track Times</dt><dd>Time, status icons and weather over the cover; elapsed and remaining time.</dd></div>
-      <div><dt>Scroll</dt><dd>Classic, Straight, or Disco: rows that swing round the circle like a CD.</dd></div>
-      <div><dt>Progress Bar and Shape</dt><dd>Rainbow, accent or off; a line under the title, or an arc around the rim.</dd></div>
-      <div><dt>Rim Sheen</dt><dd>The faint CD rainbow around the edge.</dd></div>
-      <div><dt>Track Font and Title Position</dt><dd>Original, Inter Semibold or Nunito Bold; centred, or from the left.</dd></div>
-      <div><dt>Immersive</dt><dd>The full-screen cover as Vinyl, CD or still, with or without lyrics.</dd></div>
-      <div><dt>Controls</dt><dd>Buttons, buttons that hide after 5 seconds, or gestures: double tap, swipe left and right.</dd></div>
-      <div><dt>Quick Settings</dt><dd>A list, or seven round buttons along the edge; choose and order the items.</dd></div>
-      <div><dt>Title Hold</dt><dd>Hold the title for the full-screen cover, to favourite the song, or nothing.</dd></div>
-      <div><dt>Equalizer and Volume</dt><dd>Rainbow colours, or your accent colour.</dd></div>
+    <dl class="opts" style="margin-top:48px">
+      <div><dt>Look</dt><dd>Choose a theme, fonts, colours and artwork background.</dd></div>
+      <div><dt>Playback</dt><dd>Use buttons, fading controls or gestures.</dd></div>
+      <div><dt>Navigation</dt><dd>Choose and reorder destinations, apps and quick items.</dd></div>
+      <div><dt>Music screen</dt><dd>Set text alignment, clock, track times and progress style.</dd></div>
+      <div><dt>Immersive</dt><dd>Vinyl, CD or still artwork, with optional lyrics.</dd></div>
+      <div><dt>Help</dt><dd>Browse How to pages or bring gesture hints back.</dd></div>
     </dl>
-    <div class="trio">
-      <div><h3>Safe SD updates</h3><p>Signed builds from the card install as a trial and roll back by themselves if they don't start.</p></div>
-      <div><h3>Stock is never far</h3><p>FiiO's own interface is one setting, or one held key at power-on, away.</p></div>
-      <div><h3>Hold for more</h3><p>Hold any song, album, artist, genre, file or folder for its actions. A tap still plays.</p></div>
-    </div>
   </div>
 </section>
 <section id="screens">
   <div class="wrap">
     <div class="head" style="margin-bottom:40px">
-      <h2 class="stroke">Made for a circle, all the way through.</h2>
-      <p class="lead">Lists follow the curve, nothing hides behind the menu, and every popup speaks the same language.
-        Dark, light, or automatic by the time of day.</p>
+      <h2 class="stroke">Made for the round screen.</h2>
+      <p class="lead">Readable lists, roomy controls and a consistent look. Explore Disco in dark or light.</p>
       <div class="toggle" role="group" aria-label="Appearance">
         <button type="button" data-look="dark" aria-pressed="true">Dark</button>
         <button type="button" data-look="light" aria-pressed="false">Light</button>
@@ -487,7 +476,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
       <figure><div class="shot plain"><img src="disco/standby.png" alt="Standby" width="360" height="360" loading="lazy"></div><figcaption><b>Standby</b>Redraws once a minute</figcaption></figure>
       <figure><div class="shot plain"><img data-dark="disco/shortcuts.png" data-light="disco/shortcuts-light.png" src="disco/shortcuts.png" alt="Shortcuts" width="360" height="360" loading="lazy"></div><figcaption><b>Shortcuts</b>Five readable pills</figcaption></figure>
     </div>
-    <div class="split" style="margin-top:110px">
+    <div class="split" style="margin-top:64px">
       <div>
         <h3 style="font-size:clamp(24px,2.6vw,32px)">A Music Assistant speaker</h3>
         <p class="muted" style="margin-top:14px;max-width:52ch">With MA Sendspin the Disc joins <a href="https://www.music-assistant.io/">Music Assistant</a>
@@ -500,16 +489,14 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 
 <div class="chapter" id="function"><div class="wrap">
   <div class="kicker">Function</div>
-  <p class="lead">Looks get you in; what it does keeps you. These are the choices that make the Disc nicer to live with,
-    including a few you'll only notice because nothing goes wrong.</p>
+  <p class="lead">Find your next album. Shape the sound. Settle in and listen.</p>
 </div></div>
 
 <section id="immersive" style="padding-top:60px">
   <div class="wrap imm">
     <div>
       <h2 class="stroke">Drop the needle.</h2>
-      <p class="lead" style="margin-top:22px">Hold the title and Music steps aside: the clock floats up, the buttons sink, and the
-        cover drops onto the turntable, spinning in and slowing to its own pace. Synced lyrics run underneath.</p>
+      <p class="lead" style="margin-top:22px">Hold the track title to enter Immersive: a spinning record, your album artwork and synced lyrics. Tap to return.</p>
       <ul class="points">
         <li><b>Vinyl, CD or still:</b> your full-screen cover, with or without lyrics.</li>
         <li><b>Lyrics</b> from an .lrc file, the song's tags, or online if you allow it.</li>
@@ -553,21 +540,17 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 
 <section class="band">
   <div class="wrap">
-    <div class="head"><h2 class="stroke">The things that just work.</h2>
-      <p class="lead">Built around albums and the way people actually listen, and fixed where the stock player wasn't.</p></div>
+    <div class="head"><h2 class="stroke">More ways to listen.</h2>
+      <p class="lead">Useful features, close at hand.</p></div>
     <div class="lovers">
-      <div><h3>Search that knows you</h3><p>Artists first, the ones you have the most songs by on top, then songs, albums and recent searches.</p></div>
+      <div><h3>Search that knows you</h3><p>Find artists, songs and albums. Recent searches are one tap away.</p></div>
       <div><h3>Ten bands of EQ</h3><p>Presets or ten of your own, on rainbow faders you drag; tap a band, double-tap to reset.</p></div>
-      <div><h3>Working modes that work</h3><p>USB DAC, Bluetooth, AirPlay and Music Assistant speakers, switched cleanly. USB DAC plays on the latest firmware again.</p></div>
-      <div><h3>The auto-tagger</h3><p>On Wi-Fi, a song missing synced lyrics or artwork gets them added to its tags after it plays. Or fix a whole album with one hold.</p></div>
-      <div><h3>Albums, played right</h3><p>Track order, artists or album artists, compilations as Various Artists, and audiobooks with chapters kept apart.</p></div>
-      <div><h3>A queue that listens</h3><p>Added songs play next, Up Next shows what's coming, and hold any song, album or folder for its actions.</p></div>
+      <div><h3>Your music, connected</h3><p>Switch between local playback, USB DAC, Bluetooth, AirPlay and Music Assistant.</p></div>
+      <div><h3>The auto-tagger</h3><p>Fetch missing artwork and synced lyrics over Wi-Fi, for a song or an album.</p></div>
+      <div><h3>Albums, played right</h3><p>Browse by artist or album artist, keep compilations together and follow audiobook chapters.</p></div>
+      <div><h3>A queue that listens</h3><p>See what's next, add a song or queue an album. Hold an item for more actions.</p></div>
     </div>
-    <div class="why">
-      <div><h3>Safe updates</h3><p>Signed SD updates install as a trial and roll back on their own if they don't start.</p></div>
-      <div><h3>Stock is never far</h3><p>FiiO's own interface is one setting, or one held key at power-on, away.</p></div>
-      <div><h3>Kind to the battery</h3><p>Cover art is prepared in the background, paced by temperature, and the screen draws nothing nobody sees.</p></div>
-    </div>
+
   </div>
 </section>
 
@@ -576,12 +559,10 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     <div class="split">
       <div>
         <h2 class="stroke">Play by mood.</h2>
-        <p class="lead" style="margin-top:22px">Place your music on a sphere, from Calm to Energetic and from Dark to Bright.
-          Then drag to the mood you're in and play up to 40 songs from near that spot, in Shuffle, kept as a
-          playlist if you like.</p>
+        <p class="lead" style="margin-top:22px">Give your albums a mood. Pick a spot on the sphere and let SongSphere build a mix around it.</p>
         <div class="how">
-          <div><h3>Place it where you are</h3><p>Hold an album or an artist in the Library and choose Mood, or tap the mood pill while a song plays. Drag the marker, save.</p></div>
-          <div><h3>Play what fits</h3><p>Open SongSphere, drag to a spot and play: a few songs per album and artist, recent plays less likely.</p></div>
+          <div><h3>Place it where you are</h3><p>Hold an album or artist and choose Mood. Move the marker and save.</p></div>
+          <div><h3>Play what fits</h3><p>Choose a mood and play a varied mix, with fewer recent repeats.</p></div>
         </div>
         <p class="small" style="margin-top:26px">Built in since 2.2. Placements stay on your Disc; turn it off in Settings, Playback, SongSphere.</p>
         <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/DISCO_TOUR.md#songsphere">How SongSphere works</a>
@@ -592,7 +573,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
         </div>
       </div>
     </div>
-    <div class="row r3" style="margin-top:110px">
+    <div class="row r3" style="margin-top:64px">
       <figure><div class="shot plain"><img src="disco/songsphere-landing.png" alt="SongSphere's first page" width="360" height="360" loading="lazy"></div><figcaption><b>Play or place</b>How much of your music is placed.</figcaption></figure>
       <figure><div class="shot plain"><img src="disco/songsphere-list.png" alt="Albums to place, most played first" width="360" height="360" loading="lazy"></div><figcaption><b>Most played first</b>Albums or artists; a coloured dot when placed.</figcaption></figure>
       <figure><div class="shot plain"><img src="disco/songsphere-place.png" alt="Placing an album" width="360" height="360" loading="lazy"></div><figcaption><b>Drag the marker</b>Only the marker moves; nothing else does.</figcaption></figure>
@@ -604,9 +585,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     <div class="split rev">
       <div>
         <h2 class="stroke">A player with apps.</h2>
-        <p class="lead" style="margin-top:22px">Games, discovery, your server, your stats: the Disc runs apps, and they live right
-          in the navigation circle. Add Apps and pick up to five, each with its icon. Every app opens on a landing page
-          first, so stepping through the circle never starts anything by accident.</p>
+        <p class="lead" style="margin-top:22px">Add games, music discovery and your own server. Keep up to five favourites in Apps, or give an installed app its own menu shortcut.</p>
         <ul class="points">
           <li><b>Choose apps:</b> tap to add or remove; the number is the order.</li>
           <li><b>Any installed app</b> can also sit in the circle on its own, or in Shortcuts.</li>
@@ -684,7 +663,7 @@ icon=icon.bmp</pre>
 <section id="windows">
   <div class="wrap">
     <div class="head">
-      <h2 class="stroke">From Windows to your Disc, in four clicks.</h2>
+      <h2 class="stroke">Install from Windows.</h2>
       <p class="lead">An app checks your PC, sets up everything it needs, flashes the Disc and later puts new versions
         on your SD card, signed with your own keys.</p>
     </div>
