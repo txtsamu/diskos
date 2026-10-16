@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* The Queue: songs you enqueue play right after the current song (after the last enqueued one, if any), in
@@ -267,7 +268,7 @@ void queue_tick(const track_state_t *st, int playing){
         if(g_back_at && lv_tick_elaps(g_back_at) < 4000) back = 1;          /* the on-screen Previous */
         g_back_at = 0;
         if(!natural && before && current==before) back = 1;     /* returned to the song heard before */
-        if(!natural && !back && cfg_get_int("work_mode", 0) != 1){           /* not Shuffle: the list order says it */
+        if(!natural && !back && simple_cfg_get_int("work_mode", 0) != 1){           /* not Shuffle: the list order says it */
             if(g_active) back = idx_of(g_copy, g_ncopy, current) >= 0 && idx_of(g_copy, g_ncopy, current) < idx_of(g_copy, g_ncopy, prev);
             else { int *rows = malloc(sizeof(*rows) * RMAX); int nr = rows ? mdb_queue_live_ids(rows, RMAX) : 0;
                    int a = idx_of(rows, nr, current), b = idx_of(rows, nr, prev); back = a >= 0 && b >= 0 && a < b; free(rows); }
@@ -365,7 +366,7 @@ static lv_obj_t *qrow(const char *t, const char *a, int now, int idx){
     lv_obj_remove_style_all(r);
     lv_obj_set_size(r, QW, 70);
     lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);
-    lv_obj_set_style_radius(r, th_disco() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
+    lv_obj_set_style_radius(r, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
     lv_obj_set_style_bg_color(r, now ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);

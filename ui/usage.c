@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* Battery & usage: an open charge gauge around the navigation side.
@@ -107,7 +108,7 @@ void usage_tick(int screen_on, int playing){
     if(m != g_cur_min) read_gauge();                       /* a fresh level for the minute being closed */
     /* a full charge: reached full while charging, then unplugged -> the totals start again from here */
     if(g_batt >= 0){
-        int target = cfg_get_int("charge_protect", 0) ? 80 : 96;   /* full = 95% or more (the gauge seldom reaches 100); 79+ with the limit */
+        int target = simple_cfg_get_int("charge_protect", 0) ? 80 : 96;   /* full = 95% or more (the gauge seldom reaches 100); 79+ with the limit */
         /* Seen charging at full: remember it. Unplugged at full: a full charge, also when the charge itself wasn't
          * watched - the Disc asleep or switched off while it charged - which shows as the level having risen 5 points
          * or more since the last minute we recorded, or that minute having been on the charger. */
@@ -183,7 +184,7 @@ static void fmt_clock(char *b, size_t n, time_t t){
     struct tm tm, now_tm; time_t now = time(NULL); localtime_r(&t, &tm); localtime_r(&now, &now_tm);
     static const char *const WD[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
     char hm[16];
-    if(cfg_get_int("time_24h", 1)) snprintf(hm, sizeof hm, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    if(simple_cfg_get_int("time_24h", 1)) snprintf(hm, sizeof hm, "%02d:%02d", tm.tm_hour, tm.tm_min);
     else snprintf(hm, sizeof hm, "%d:%02d %s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min, tm.tm_hour < 12 ? "AM" : "PM");
     if(tm.tm_yday == now_tm.tm_yday && tm.tm_year == now_tm.tm_year) snprintf(b, n, "%s", hm);
     else snprintf(b, n, "%s %s", WD[tm.tm_wday], hm);
@@ -222,7 +223,7 @@ static void draw(void){
     lv_obj_set_style_text_color(g_chg_ic, c, 0);
     char b2[64]; b2[0] = 0;
     if(g_chg){
-        int lim = cfg_get_int("charge_protect", 0), target = lim ? 80 : 100, m = full_minutes(target);
+        int lim = simple_cfg_get_int("charge_protect", 0), target = lim ? 80 : 100, m = full_minutes(target);
         if(pct >= 0 && pct >= target - (lim ? 1 : 4)){ snprintf(b, sizeof b, "Charged"); snprintf(b2, sizeof b2, lim ? "Charging Limit: 80%%" : "Topping up"); }
         else if(m < 0){ snprintf(b, sizeof b, "Charging"); snprintf(b2, sizeof b2, "Estimating time to full..."); }
         else {

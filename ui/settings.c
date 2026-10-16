@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "null_theme.h"
 #include "onboarding.h"
 #include "quicksettings.h"
@@ -163,7 +164,7 @@ static lv_timer_t *g_reload_tm; static char g_reload_key[32]; static int g_reloa
 static void reload_go(lv_timer_t *t){
     (void)t; g_reload_tm = NULL;
     if(ui_theme_reload("settings") == 0) return;        /* not reached on success: the exec replaced us */
-    cfg_set_int(g_reload_key, g_reload_prev);
+    simple_cfg_set_int(g_reload_key, g_reload_prev);
     lv_async_call(detail_refresh_async, NULL);
 }
 static void theme_reload_or_revert(const char *key){
@@ -190,7 +191,7 @@ static void apply_upnext(int v){ (void)v; home_shortcuts_refresh(); }
 /* ---- Date & Time (parity with stock: automatic time switch, set by hand, time zone) ---------------------------- */
 static void apply_auto_time(int v){
     if(mdb_sysconfig_set_auto_time(v) != 0){           /* the player may hold its database: put the switch back */
-        cfg_set_int("auto_time", g_set_prev);
+        simple_cfg_set_int("auto_time", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
         return;
@@ -201,7 +202,7 @@ static void apply_auto_time(int v){
  * at startup); a send that fails puts the choice back so the menu never shows a grouping the player isn't using. */
 static void apply_artist_class(int v){
     if(ui_set_artist_class(v) != 0){
-        cfg_set_int("artist_class", g_set_prev);
+        simple_cfg_set_int("artist_class", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     }
@@ -210,7 +211,7 @@ static void apply_artist_class(int v){
  * puts the switch back. */
 static void apply_folder_jump(int v){
     if(ui_set_folder_jump(v) != 0){
-        cfg_set_int("folder_jump", g_set_prev);
+        simple_cfg_set_int("folder_jump", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     }
@@ -222,15 +223,15 @@ static void apply_folder_jump(int v){
  * send puts the choice back so the menu never shows what the player isn't using. */
 static void apply_screen_rot(int v){
     if(ui_set_screen_rot(v) != 0){
-        cfg_set_int(CTL_CFG_ROT, g_set_prev);
+        simple_cfg_set_int(CTL_CFG_ROT, g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     } else if(ctl_rotation_pending())
-        cfg_set_int(CTL_CFG_ROT, g_set_prev);   /* stored only when the user taps Keep (controls.c); the row keeps the old one till then */
+        simple_cfg_set_int(CTL_CFG_ROT, g_set_prev);   /* stored only when the user taps Keep (controls.c); the row keeps the old one till then */
 }
 static void key_act_apply(int key, const char *cfg_key, int v){
     if(ui_set_volume_key(key, v) != 0){
-        cfg_set_int(cfg_key, g_set_prev);
+        simple_cfg_set_int(cfg_key, g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     }
@@ -240,7 +241,7 @@ static void apply_key_double(int v){ key_act_apply(CTL_KEY_DOUBLE, "key_double",
 static void apply_key_long(int v){   key_act_apply(CTL_KEY_LONG, "key_long", v); }
 static void apply_charge_protect(int v){
     if(power_apply_charge(v) != 0){
-        cfg_set_int("charge_protect", g_set_prev);
+        simple_cfg_set_int("charge_protect", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     }
@@ -308,7 +309,7 @@ static int tz_install(const char *zone){
 }
 static void apply_timezone(int v){
     if(v > 0 && v < TZ_COUNT && tz_install(TZ_ZONE[v]) != 0){
-        cfg_set_int("tz_idx", g_set_prev);
+        simple_cfg_set_int("tz_idx", g_set_prev);
         ui_toast("Couldn't set the time zone");
         lv_async_call(detail_refresh_async, NULL);
         return;
@@ -387,14 +388,15 @@ static const char *OPT_DPROG[] = { "Disco", "Accent", "Off" };
 static const char *OPT_DEQ[] = { "Disco", "Accent" };
 static const char *OPT_DSHAPE[] = { "Linear", "Arc" };
 static const char *OPT_DTAL[] = { "Centred", "Left" };
+static const char *OPT_SIMPLE_BG[]={"Plain","Blur","Cover"};
 static const char *OPT_DSCROLL[] = { "Classic", "Straight", "Disco" };
 static const char *OPT_DSIDE[] = { "Right", "Left" };
 /* Side: pick with the arrows, then Apply (on the Side page) - the interface restarts with the hub (and everything around it) on that side */
 static void apply_disco_side_ok(int v){
     (void)v;
-    int pick = cfg_get_int("disco_side_pick", cfg_get_int("disco_side", 0)), cur = cfg_get_int("disco_side", 0);
+    int pick = simple_cfg_get_int("disco_side_pick", simple_cfg_get_int("disco_side", 0)), cur = simple_cfg_get_int("disco_side", 0);
     if(pick == cur){ ui_toast(cur ? "Already on the left" : "Already on the right"); return; }
-    g_set_prev = cur; cfg_set_int("disco_side", pick);
+    g_set_prev = cur; simple_cfg_set_int("disco_side", pick);
     theme_reload_or_revert("disco_side");
 }
 static void side_apply_cb(lv_event_t *e){ (void)e; apply_disco_side_ok(0); }
@@ -617,44 +619,44 @@ static void apply_brightness(int v){ if(v < 1) v = 1; ui_backlight(v); }
 void settings_apply_startup(void){
     apply_brightness(ui_effective_brightness());
     { int at = mdb_sysconfig_auto_time();              /* mirror the player's switch (it owns the value) */
-      if(at >= 0 && at != cfg_get_int("auto_time", 1)) cfg_set_int("auto_time", at); }
+      if(at >= 0 && at != simple_cfg_get_int("auto_time", 1)) simple_cfg_set_int("auto_time", at); }
     { int ac = mdb_artist_class_type();                 /* the player's Artist / Album Artist grouping (it owns it) */
-      if(ac >= 0 && ac != cfg_get_int("artist_class", 0)) cfg_set_int("artist_class", ac);
+      if(ac >= 0 && ac != simple_cfg_get_int("artist_class", 0)) simple_cfg_set_int("artist_class", ac);
       mdb_set_artist_mode(ac == 1); }                   /* unknown -> by artist, as the player's queue can't be matched */
     { int fj = mdb_sysconfig_folder_jump();             /* the player's Play Through Folders switch (it owns it) */
-      if(fj >= 0 && fj != cfg_get_int("folder_jump", 0)) cfg_set_int("folder_jump", fj); }
+      if(fj >= 0 && fj != simple_cfg_get_int("folder_jump", 0)) simple_cfg_set_int("folder_jump", fj); }
     power_startup_mirror();        /* the player's own Idle poweroff / Charging optimization values */
     controls_startup_mirror();     /* the player's Screen rotation and volume-key actions */
-    cfg_set_int("sleep_idx", 0);   /* never auto-arm a sleep timer across reboots */
-    apply_boot_default(cfg_get_int("boot_default", 0));  /* keep the boot-hook flag in sync */
+    simple_cfg_set_int("sleep_idx", 0);   /* never auto-arm a sleep timer across reboots */
+    apply_boot_default(simple_cfg_get_int("boot_default", 0));  /* keep the boot-hook flag in sync */
     /* Supply fork defaults only for absent preferences; upstream and user choices survive. */
     cfg_begin();
-    if(!cfg_get_int("np_poster_v1", 0)){          /* this fork's Now Playing is the Poster style, once */
-        if(cfg_get_int("np_style", -1)<0) cfg_set_int("np_style", 2);
-        cfg_set_int("np_poster_v1", 1);
+    if(!simple_cfg_get_int("np_poster_v1", 0)){          /* this fork's Now Playing is the Poster style, once */
+        if(simple_cfg_get_int("np_style", -1)<0) simple_cfg_set_int("np_style", 2);
+        simple_cfg_set_int("np_poster_v1", 1);
     }
-    if(!cfg_get_int("saver_ring_v1", 0)){             /* the Dim Ring clock becomes the screensaver once */
-        if(cfg_get_int("saver_style", -1)<0) cfg_set_int("saver_style", 5);
-        cfg_set_int("saver_ring_v1", 1);
+    if(!simple_cfg_get_int("saver_ring_v1", 0)){             /* the Dim Ring clock becomes the screensaver once */
+        if(simple_cfg_get_int("saver_style", -1)<0) simple_cfg_set_int("saver_style", 5);
+        simple_cfg_set_int("saver_ring_v1", 1);
     }
-    if(!cfg_get_int("accent_red_v1", 0)){
-        if(cfg_get_int("accent_mode", -1)<0) cfg_set_int("accent_mode", 1);
-        if(cfg_get_int("accent_color", -1)<0) cfg_set_int("accent_color", UI_RED);
-        cfg_set_int("accent_red_v1", 1);
+    if(!simple_cfg_get_int("accent_red_v1", 0)){
+        if(simple_cfg_get_int("accent_mode", -1)<0) simple_cfg_set_int("accent_mode", 1);
+        if(simple_cfg_get_int("accent_color", -1)<0) simple_cfg_set_int("accent_color", UI_RED);
+        simple_cfg_set_int("accent_red_v1", 1);
     }
     if(cfg_commit()) fprintf(stderr,"settings: fork defaults save failed\n");
-    ui_set_accent_config(cfg_get_int("accent_mode", 1), cfg_get_int("accent_color", UI_RED));
-    apply_artcache(cfg_get_int("artcache", 0));          /* prewarm off by default */
+    ui_set_accent_config(simple_cfg_get_int("accent_mode", 1), simple_cfg_get_int("accent_color", UI_RED));
+    apply_artcache(simple_cfg_get_int("artcache", 0));          /* prewarm off by default */
 }
 
 /* shared brightness API (used by Quick Settings too) - persists the value */
 void ui_set_brightness(int v){
     if(v < 1) v = 1; if(v > 40) v = 40;
     apply_brightness(v);
-    cfg_set_int("brightness", v);
+    simple_cfg_set_int("brightness", v);
 }
 int ui_get_brightness(void){
-    int v = cfg_get_int("brightness", 16);
+    int v = simple_cfg_get_int("brightness", 16);
     return v < 1 ? 16 : v;   /* never 0/negative: wake paths pass this to ui_backlight,
                               * and 0 would power the panel DOWN while logically awake */
 }
@@ -836,6 +838,7 @@ static const setting_t TABLE[] = {
       "Choose up to five shortcuts for the panel opened by swiping left from Home.", NULL },
     { "Online & Extras",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
       "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
+    { "Disco Options", "Background", ST_CYCLER, "simple_background",0,0,0,OPT_SIMPLE_BG,3,NULL,apply_theme_preset,0,"Plain, blurred art, or cover with a dark/light wash.",NULL },
     { "Disco Options", "Disco Menu", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_menu, 0,
       "Add, remove and reorder menu destinations. Music and Settings stay available.", NULL },
     { "Disco Options", "Music Screen", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_musicscreen, 0,
@@ -970,12 +973,12 @@ static int nav_setting(const setting_t *s){return s->cfg_key && (!strcmp(s->cfg_
 static const char *setting_key(const setting_t *s){
     return th_null() && s->cfg_key && !strcmp(s->cfg_key,"disco_hints")?"null_hints":s->cfg_key;
 }
-static int get_val(const setting_t *s){const char *key=setting_key(s);return key?cfg_get_int(key,s->def):0;}
+static int get_val(const setting_t *s){const char *key=setting_key(s);return key?simple_cfg_get_int(key,s->def):0;}
 static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
      * leaves a stale eq_preset; every other setting persists up front here. */
     g_set_prev = get_val(s);
-    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && cfg_set_int(setting_key(s), v) < 0){
+    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && simple_cfg_set_int(setting_key(s), v) < 0){
         ui_toast("Couldn't save settings"); return;
     }
     if(s->apply) s->apply(v);
@@ -1044,7 +1047,7 @@ static const char *val_text_value(const setting_t *s, char *buf, int n){
      * stays untouched and comes back when Outdoor Mode is turned off) */
     if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))return "Dark";
     if(theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "theme_variant")) return "Light (Outdoor)";
-    if(theme_auto_supported() && cfg_get_int("theme_auto",0) && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))
+    if(theme_auto_supported() && simple_cfg_get_int("theme_auto",0) && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))
         return theme_variant() ? "Light (Auto)" : "Dark (Auto)";
     if(theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "brightness")) return "Full (Outdoor)";
     int v = get_val(s);
@@ -1174,7 +1177,7 @@ static int outdoor_holds(const setting_t *s){ return theme_outdoor() && s->cfg_k
 static void detail_slider_release_cb(lv_event_t *e){
     lv_obj_t *sl = lv_event_get_target(e);
     if(outdoor_holds(g_active)) return;                 /* Outdoor keeps the user's own level untouched */
-    if(g_active->cfg_key) cfg_set_int(g_active->cfg_key, lv_slider_get_value(sl));
+    if(g_active->cfg_key) simple_cfg_set_int(g_active->cfg_key, lv_slider_get_value(sl));
     if(g_active->cfg_key && !strcmp(g_active->cfg_key, "ma_delay_ms")) ma_delay_changed();   /* restart with the saved value */
 }
 static void detail_cycle_cb(lv_event_t *e){
@@ -1184,7 +1187,7 @@ static void detail_cycle_cb(lv_event_t *e){
         ui_toast("Outdoor Mode keeps Light on");   /* a Dark/Light change could not show until Outdoor Mode is off */
         return;
     }
-    if(theme_auto_supported() && cfg_get_int("theme_auto",0) && g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_variant")){
+    if(theme_auto_supported() && simple_cfg_get_int("theme_auto",0) && g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_variant")){
         ui_toast("Turn Automatic Appearance off first"); return;
     }
     int dir = (int)(uintptr_t)lv_event_get_user_data(e);
@@ -1218,7 +1221,7 @@ static void detail_choice_cb(lv_event_t *e){
 
 static void nav_apply_cb(lv_event_t *e){
     (void)e;if(!g_active || !nav_setting(g_active))return;
-    if(cfg_set_int(g_active->cfg_key,g_nav_pending)<0){ui_toast("Couldn't save settings");return;}
+    if(simple_cfg_set_int(g_active->cfg_key,g_nav_pending)<0){ui_toast("Couldn't save settings");return;}
     ui_toast("Saved");screen_back();
 }
 void setting_detail_refresh(void){
@@ -1266,7 +1269,7 @@ void setting_detail_refresh(void){
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
         /* Themes: Disco first, then Ring, Braun and Stone; the other presets stay in the code and keep working if
          * already selected, but are not offered here for now. Rows still carry the real preset index. */
-        int THEME_SHOWN[5] = { THEME_PRESET_DISCO, THEME_PRESET_NULL, THEME_PRESET_RING, THEME_PRESET_BRAUN, -1 }, nshown = 4;
+        int THEME_SHOWN[6] = { THEME_PRESET_DISCO, THEME_PRESET_NULL, THEME_PRESET_SIMPLE, THEME_PRESET_RING, THEME_PRESET_BRAUN, -1 }, nshown = 5;
         for(int k = 0; k < THEME_PRESET_COUNT; k++) if(!strcmp(theme_preset_names[k], "stone")){ THEME_SHOWN[nshown++] = k; break; }
         int nrows = is_theme ? nshown : s->nopts;
         for(int r = 0; r < nrows; r++){
@@ -1451,7 +1454,7 @@ static lv_obj_t *setting_card(lv_obj_t *list){
     lv_obj_t *row = lv_button_create(list);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, 288, TH_ROW_H);
-    lv_obj_set_style_radius(row, th_disco() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);   /* Disco: rounded line containers */
+    lv_obj_set_style_radius(row, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);   /* Disco: rounded line containers */
     lv_obj_set_style_bg_color(row, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_70, 0);
     lv_obj_set_style_bg_color(row, TC(SURFACE_RAISED), LV_STATE_PRESSED);
@@ -1471,7 +1474,7 @@ __attribute__((unused)) static void cat_cb(lv_event_t *e){
 
 static orbit_t g_set_orb;
 static void cat_pick(int gi){
-    if(gi==N_GROUPS+1 && (th_disco() || th_null())){g_active_group="Help";screen_show(SCR_SETLIST);return;}
+    if(gi==N_GROUPS+1 && (th_disco_family() || th_null())){g_active_group="Help";screen_show(SCR_SETLIST);return;}
     if(gi == N_GROUPS){ screen_show(SCR_USAGE); return; }   /* Battery */
     if(gi < 0 || gi >= N_GROUPS) return; g_active_group = GROUPS[gi]; screen_show(SCR_SETLIST); }
 void setlist_open(const char *group){
@@ -1483,7 +1486,7 @@ static void hub_cb(lv_event_t *e){ list_back_cb(e); }
 static void disco_cat_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) cat_pick((int)(intptr_t)lv_event_get_user_data(e)); }
 static void settings_disco_list(lv_obj_t *root){          /* styled like the submenus: curved rows, 4 in view, scroll dots */
     lv_obj_t *t = lv_label_create(root); lv_label_set_text(t, "Settings");
-    lv_obj_set_style_text_font(t, TF(UI_20), 0); lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
+    lv_obj_set_style_text_font(t, th_simple()?TF(HEADER):TF(UI_20), 0); lv_obj_set_style_text_color(t, th_simple()?TC(ACCENT_PRIMARY):TC(TEXT_PRIMARY), 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 28);
     static const char *GICON[] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE, LV_SYMBOL_WIFI, LV_SYMBOL_SETTINGS, LV_SYMBOL_BATTERY_3, LV_SYMBOL_FILE };
     lv_obj_t *list = make_list(root);
@@ -1506,7 +1509,7 @@ static void settings_disco_list(lv_obj_t *root){          /* styled like the sub
 void settings_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
-    if(th_disco() || th_null()){ settings_disco_list(root); return; }
+    if(th_disco_family() || th_null()){ settings_disco_list(root); return; }
     /* orbit: the five categories circle a grey-ringed hub; one sits at the bottom, the top holds the title */
     orbit_title(root, "Settings");
     static const char *GICON[N_GROUPS] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE,
@@ -1540,7 +1543,7 @@ void settings_row_values_refresh(void){
 /* ---- one category's rows (SCR_SETLIST), rebuilt on every entry so values are always live ---- */
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 
-void settings_open_howto(void){if(th_disco() || th_null()){g_active_group="How to";screen_show(SCR_SETLIST);}}
+void settings_open_howto(void){if(th_disco_family() || th_null()){g_active_group="How to";screen_show(SCR_SETLIST);}}
 static void howto_next(lv_event_t *e){
     lv_obj_t *list=lv_event_get_user_data(e);
     int page=(lv_obj_get_scroll_y(list)+120)/240;
@@ -1550,13 +1553,18 @@ static void howto_next(lv_event_t *e){
 static void howto_body(lv_obj_t *root){
     static const char *titles[]={"Navigate","Navigation menu","Music","Seek / artwork","Quick Settings","Library","Clock / volume","More shortcuts"};
     char music[256],nav[256],quick[256],more[256];
-    int hold=cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
-    int mode=cfg_get_int(th_null()?"null_controls":"disco_controls",0);
+    int hold=simple_cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
+    int mode=simple_cfg_get_int(th_null()?"null_controls":"disco_controls",0);
     snprintf(nav,sizeof nav,"%s",th_null()?"Side arrow: open menu. Drag text or handle. Hold handle ends to scroll; double-tap / hold its centre for your shortcuts.":"Side tab: open menu. Arrows: browse. Centre icon: open. Double-tap / hold the centre for your chosen shortcuts.");
     snprintf(music,sizeof music,"Title tap: track actions / Mood. Hold: %s. %s",hold==0?"Immersive":hold==1?"favourite / unfavourite":"no action",mode==2?"Double-tap the gesture field: play/pause. Swipe right: next; left: previous.":mode==1?"Auto-fade: tap once to reveal controls, then tap a button.":"Use the previous, play/pause and next buttons.");
     snprintf(quick,sizeof quick,"Tap Wi-Fi / BT to toggle; hold for connections. Drag brightness. %s",th_null()?"Tap outside / bottom arrow, or swipe up beside the panel to close.":"Swipe up to close.");
     snprintf(more,sizeof more,"%s EQ: tap a band; drag or use +/-. Tap gain/frequency to switch. Power button: pocket lock.",onboarding_gesture_text(HINT_SHORTCUTS));
     const char *bodies[]={disco_mirror()?"Swipe left from the right edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.":"Swipe right from the left edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.",nav,music,th_null()?"Tap or drag progress to seek. Tap full-screen artwork to return. Back swipe closes the track popup.":"Tap / drag progress to seek; hold for precise seeking. Tap full-screen artwork to return. Back swipe closes the track popup.",quick,"Hold songs / albums for actions. Tap A-Z, then a letter. Drag the rim to scroll. Cover flow: drag to browse; tap for tracks; hold to play.","Clock: tap for Weather; hold the top strip to hide/show. Drag volume to adjust; tap outside to dismiss.",more};
+    if(th_simple()){
+        snprintf(nav,sizeof nav,"Tap D! to open. Drag the wheel to browse; release to snap. Tap the icon to open. D! closes; double-tap / hold it for your shortcuts.");
+        snprintf(quick,sizeof quick,"Eight icon slots. Tap Wi-Fi / Bluetooth to toggle; hold for connections. Hold other icons for names. Drag the sun arc for brightness; battery arc shows charge.");
+        bodies[1]=nav;bodies[2]="Tap track text for actions / Mood. Double-tap: play/pause. Swipe right: next; left: previous. Hold uses your Title hold setting.";bodies[4]=quick;
+    }
     lv_obj_t *list=lv_obj_create(root);lv_obj_remove_style_all(list);
     lv_obj_set_pos(list,42,72);lv_obj_set_size(list,276,240);
     lv_obj_set_flex_flow(list,LV_FLEX_FLOW_COLUMN);lv_obj_set_scroll_dir(list,LV_DIR_VER);
@@ -1594,19 +1602,21 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(!th_disco() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
-        if(!th_disco() && !th_null() && !strcmp(s->group,"Help"))continue;
+        if(!th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"simple_background"))continue;
+        if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_prog_shape")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
+        if(!th_disco_family() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
+        if(!th_disco_family() && !th_null() && !strcmp(s->group,"Help"))continue;
         if(!th_null()&&(s->apply==apply_null_options||!strcmp(s->group,"Null Options")))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
-        if((th_disco()||th_null()) && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
-        if(!th_disco() && s->apply == apply_disco_options) continue;
-        if(!th_disco() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_controls)) continue;   /* fork: Disco rows */
+        if((th_disco_family()||th_null()) && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
+        if(!th_disco_family() && s->apply == apply_disco_options) continue;
+        if(!th_disco_family() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_controls)) continue;   /* fork: Disco rows */
 
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
 
         lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, s->label);
+        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Simple Options":th_simple()&&!strcmp(s->label,"Disco Menu")?"Menu items":s->label);
         lv_obj_set_pos(lbl,18,16);
         lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);

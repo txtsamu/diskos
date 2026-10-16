@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -465,7 +466,7 @@ __attribute__((unused)) static void hub_eq_cb(lv_event_t *e){ if(lv_event_get_co
 static void fsart_deferred_cb(lv_timer_t *t){ lv_timer_delete(t); ui_np_fsart_open(); }
 static void hub_fsart_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
-    if(th_disco() || th_null()){ disco_open_np_immersive(); return; }
+    if(th_disco_family() || th_null()){ disco_open_np_immersive(); return; }
     screen_show(SCR_NOWPLAYING);   /* fsart lives on the NP root -> make NP the active screen first */
     /* open after the NP slide-in settles so the transition can't stomp the overlay's z-order/opacity */
     lv_timer_t *t = lv_timer_create(fsart_deferred_cb, 360, NULL);
@@ -495,19 +496,19 @@ static int g_tune_built = 0;
  * so without this the labels go stale on re-open. Called on SCR_TUNE show. */
 void tune_refresh(void){
     if(!g_tune_built) return;
-    int m = cfg_get_int("work_mode", 0); if(m<0||m>4) m=0;
-    int q = cfg_get_int("eq_preset", 0); if(q<0||q>20) q=0;
+    int m = simple_cfg_get_int("work_mode", 0); if(m<0||m>4) m=0;
+    int q = simple_cfg_get_int("eq_preset", 0); if(q<0||q>20) q=0;
     if(g_mode_val) lv_label_set_text(g_mode_val, T_MODE[m]);
     if(g_eq_val)   lv_label_set_text(g_eq_val,   T_EQ[q]);
 }
 
 static void cyc_apply(const char *key, const char *const *opts, int n, void *valobj, int dir){
-    int base = cfg_get_int(key, 0); if(base < 0 || base >= n) base = 0;   /* normalize a corrupt stored value BEFORE stepping (no signed overflow, no OOB) */
+    int base = simple_cfg_get_int(key, 0); if(base < 0 || base >= n) base = 0;   /* normalize a corrupt stored value BEFORE stepping (no signed overflow, no OOB) */
     int v = base + dir;
     if(v<0) v=n-1; else if(v>=n) v=0;
-    if(strcmp(key,"eq_preset")) cfg_set_int(key, v);   /* EQ persists on a successful send via ui_eq_select */
+    if(strcmp(key,"eq_preset")) simple_cfg_set_int(key, v);   /* EQ persists on a successful send via ui_eq_select */
     if(!strcmp(key,"work_mode")){ if(!ui_book_active()) ui_set_workmode(v); }   /* an active book stays in Single; cfg still updates so music later uses the chosen mode */
-    else if(!strcmp(key,"eq_preset")){ if(ui_eq_select(v) < 0){ v = cfg_get_int("eq_preset", 0); if(v<0||v>=n) v=0; } }   /* failed send -> label keeps the real preset (clamped: a corrupt stored value must not index opts[] OOB) */
+    else if(!strcmp(key,"eq_preset")){ if(ui_eq_select(v) < 0){ v = simple_cfg_get_int("eq_preset", 0); if(v<0||v>=n) v=0; } }   /* failed send -> label keeps the real preset (clamped: a corrupt stored value must not index opts[] OOB) */
     if(valobj) lv_label_set_text((lv_obj_t*)valobj, opts[v]);
 }
 static void mode_dir_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) cyc_apply("work_mode", T_MODE, 5, g_mode_val, (int)(intptr_t)lv_event_get_user_data(e)); }
@@ -551,8 +552,8 @@ static lv_obj_t *cyc_row(lv_obj_t *parent, int y, const char *label,
 
 void tune_create(lv_obj_t *root){
     panel_header(root, "Playback");
-    int m = cfg_get_int("work_mode", 0); if(m<0||m>4) m=0;
-    int q = cfg_get_int("eq_preset", 0); if(q<0||q>20) q=0;
+    int m = simple_cfg_get_int("work_mode", 0); if(m<0||m>4) m=0;
+    int q = simple_cfg_get_int("eq_preset", 0); if(q<0||q>20) q=0;
     cyc_row(root, 84,  "PLAY MODE",  mode_dir_cb, &g_mode_val, T_MODE[m]);
     cyc_row(root, 158, "EQUALIZER",  eq_dir_cb,   &g_eq_val,   T_EQ[q]);
     g_tune_built = 1;

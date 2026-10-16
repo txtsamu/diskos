@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "screens.h"
 #include "braun.h"
@@ -15,10 +16,10 @@ static lv_obj_t *name_label,*edit_button,*rename_button,*switch_button,*switch_l
 static int rename_preset;
 static lv_obj_t *switch_pointer;
 static const char *const names[]={"Off","Jazz","Rock","R&B","Hip-Hop","Pop","Dance","Classical","Retro","Sibilance 1","Sibilance 2"};
-static int selected(void){int p=cfg_get_int("eq_preset",0);return p<0?0:p>20?20:p;}
+static int selected(void){int p=simple_cfg_get_int("eq_preset",0);return p<0?0:p>20?20:p;}
 static void name_for(int p,char *b,size_t n){
  if(p<=10){snprintf(b,n,"%s",names[p]);return;}
- char key[24];snprintf(key,sizeof key,"eq_name%d",p);const char *s=cfg_get_str(key,NULL);
+ char key[24];snprintf(key,sizeof key,"eq_name%d",p);const char *s=simple_cfg_get_str(key,NULL);
  if(s && *s)snprintf(b,n,"%s",s);else snprintf(b,n,"USER%d",p-10);
 }
 static unsigned profile_ticket;
@@ -55,11 +56,11 @@ void eqpreset_refresh(void){
 }
 static void cycle(lv_event_t *e){int dir=(int)(intptr_t)lv_event_get_user_data(e);int p=(selected()+dir+21)%21;
  if(ui_eq_select(p)<0){ui_toast("Couldn't switch EQ");return;}eqpreset_refresh();}
-static void toggle(lv_event_t *e){(void)e;int p=0;if(!selected()){p=cfg_get_int("eq_last",1);if(p<1||p>20)p=1;}
+static void toggle(lv_event_t *e){(void)e;int p=0;if(!selected()){p=simple_cfg_get_int("eq_last",1);if(p<1||p>20)p=1;}
  if(ui_eq_select(p)<0){ui_toast("Couldn't switch EQ");return;}eqpreset_refresh();}
 static void edit(lv_event_t *e){(void)e;screen_show(SCR_EQ_EDITOR);}
 static void renamed(const char *text){if(!text||!*text)return;char key[24];snprintf(key,sizeof key,"eq_name%d",rename_preset);
- if(cfg_set_str(key,text)){ui_toast("Couldn't save profile name");return;}eqpreset_refresh();}
+ if(simple_cfg_set_str(key,text)){ui_toast("Couldn't save profile name");return;}eqpreset_refresh();}
 static void rename_cb(lv_event_t *e){(void)e;rename_preset=selected();char b[80];name_for(rename_preset,b,sizeof b);kbinput_open("Rename EQ",b,renamed);}
 static lv_obj_t *button(lv_obj_t *root,const char *text,int x,int y,int w,int h,lv_event_cb_t cb,void *data,const char *action){
  lv_obj_t *b=lv_button_create(root);lv_obj_set_size(b,w,h);lv_obj_align(b,LV_ALIGN_TOP_MID,x,y);
@@ -80,7 +81,7 @@ void eqpreset_create(lv_obj_t *root){
  lv_obj_set_size(switch_pointer,3,9);lv_obj_align(switch_pointer,LV_ALIGN_TOP_MID,10,4);
  lv_obj_set_style_bg_opa(switch_pointer,LV_OPA_COVER,0);lv_obj_set_style_radius(switch_pointer,1,0);
  lv_obj_set_style_transform_rotation(switch_pointer,300,0);lv_obj_clear_flag(switch_pointer,LV_OBJ_FLAG_CLICKABLE);
- if(th_disco()){   /* fork: Disco keeps the navigation circle's sliver on the right rim - the controls step left of it */
+ if(th_disco_family()){   /* fork: Disco keeps the navigation circle's sliver on the right rim - the controls step left of it */
   for(uint32_t k=0;k<lv_obj_get_child_count(root);k++){
    lv_obj_t *o=lv_obj_get_child(root,(int32_t)k);
    if(o==name_label||o==edit_button||o==rename_button||o==note_label||o==switch_button) lv_obj_set_style_translate_x(o,disco_mirror()?20:-20,0);   /* Left: step right of it */

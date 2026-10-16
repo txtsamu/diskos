@@ -260,7 +260,7 @@ void home_set_clock(const char *time_text, const char *sub_text)
 {
     if(th_braun()){ bhome_set_clock(time_text, sub_text); return; }
     if(th_null()){ null_home_clock(time_text); return; }
-    if(th_disco()){ dhome_set_clock(time_text, sub_text); return; }
+    if(th_disco_family()){ dhome_set_clock(time_text, sub_text); return; }
     if (g_clock) lv_label_set_text(g_clock, time_text ? time_text : "--:--");
     if (g_clock_sub) lv_label_set_text(g_clock_sub, sub_text ? sub_text : "");
 }
@@ -277,7 +277,7 @@ void home_set_weather(const char *text)
     char s[96]; wx_short(text, s, sizeof s);
     if(th_braun()){ const char *p = s; while(*p == ' ') p++; bhome_set_weather(p); return; }
     if(th_null()){ null_home_weather(s); return; }
-    if(th_disco()){ dhome_set_weather(s); return; }
+    if(th_disco_family()){ dhome_set_weather(s); return; }
     if (g_weather) lv_label_set_text(g_weather, s);          /* icon + temperature, above the clock */
 }
 
@@ -334,7 +334,7 @@ void home_set_status(int batt, int charging, int wifi, int bt)
 {
     if(th_braun()){ bhome_set_status(batt, charging, wifi, bt); return; }
     if(th_null()){ null_home_status(batt, charging, wifi, bt); return; }
-    if(th_disco()){void dsaver_set_status(int,int,int,int);dsaver_set_status(batt,charging,wifi,bt);dhome_set_status(batt, charging, wifi, bt); return; }
+    if(th_disco_family()){void dsaver_set_status(int,int,int,int);dsaver_set_status(batt,charging,wifi,bt);dhome_set_status(batt, charging, wifi, bt); return; }
     if (!g_status) return;
     char buf[80]; char *p = buf; *p = 0;
     if (wifi) { p += sprintf(p, LV_SYMBOL_WIFI "  "); }
@@ -358,7 +358,7 @@ void home_set_now_playing(const char *title, const char *artist,
 {
     if(th_braun()){ bhome_set_now_playing(title, artist, playing); return; }
     if(th_null()){ null_home_update(title,artist,playing);return; }
-    if(th_disco()){ dhome_set_now_playing(title, artist, accent, playing); return; }
+    if(th_disco_family()){ dhome_set_now_playing(title, artist, accent, playing); return; }
     g_accent = accent;
     ring_button_style(g_hb_lib); ring_button_style(g_hb_srch);   /* fork: the buttons follow the album colour */
 
@@ -385,7 +385,7 @@ void home_set_now_playing(const char *title, const char *artist,
 void home_set_accent(lv_color_t accent)
 {
     if(th_braun()) return;                                   /* Braun: orange only, no album colour */
-    if(th_disco()){ dhome_set_accent(accent); return; }
+    if(th_disco_family()){ dhome_set_accent(accent); return; }
     g_accent = accent;
     if (g_ring) lv_obj_set_style_arc_color(g_ring, accent, LV_PART_INDICATOR);
     if (g_np_title) lv_obj_set_style_text_color(g_np_title, accent, 0);
@@ -400,7 +400,7 @@ void home_set_art_enabled(int on){ g_art_on=on; if(!on && g_np_art_img) lv_obj_a
 void home_set_backdrop_enabled(int on){ g_home_bg_on=on; if(!on) home_set_backdrop(NULL); }
 void home_set_backdrop(const void *src)
 {
-    if(th_braun() || th_disco() || th_null()) return;
+    if(th_braun() || th_disco_family() || th_null()) return;
     if(!g_home_bg_on) src=NULL;
     if (g_home_bg) lv_image_set_src(g_home_bg, NULL);   /* same RAM buffer, new pixels: force a redraw */
     if (!g_home_bg || !g_home_scrim) return;
@@ -416,7 +416,7 @@ void home_set_backdrop(const void *src)
 
 void home_set_art_src(const void *src)
 {
-    if(th_braun() || th_disco() || th_null()) return;
+    if(th_braun() || th_disco_family() || th_null()) return;
     if (!g_np_art_img || !g_np_thumb_glyph) return;
 
     if (src && g_art_on) {
@@ -467,7 +467,7 @@ static lv_obj_t *round_btn(lv_obj_t *root, const char *sym, int dx){
 void home_create(lv_obj_t *root)
 {
     if(th_null()){ null_home_create(root); return; }
-    if(th_disco()){ dhome_create(root); return; }   /* fork: Disco's Music screen (disco_home.c) */
+    if(th_disco_family()){ dhome_create(root); return; }   /* fork: Disco's Music screen (disco_home.c) */
     if(th_ringlike())lv_obj_add_flag(root,LV_OBJ_FLAG_USER_2);
     if(theme_kit()->home_build){ theme_kit()->home_build(root); home_shortcuts_create(root); return; }
     g_accent = TC(ACCENT_PRIMARY);

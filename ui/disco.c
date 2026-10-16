@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "null_theme.h"
 #include "onboarding.h"
 #include "quicksettings.h"
@@ -182,9 +183,9 @@ static int menu_has_screen(int scr){ for(int i = 0; i < g_nmenu; i++) if(menu_se
 static const char CODE[] = "mlsoceFaudbwrgqMRBSAP";                /* one letter per SEC[] entry, same order (digits: apps) */
 static void menu_load(void){
     menu_apps_scan();
-    char buf[256]; snprintf(buf, sizeof buf, "%s", cfg_get_str(th_null()?"null_menu":"disco_menu", "music,library,settings,modes,shortcuts,eq"));
+    char buf[256]; snprintf(buf, sizeof buf, "%s", simple_cfg_get_str(th_null()?"null_menu":"disco_menu", "music,library,settings,modes,shortcuts,eq"));
     g_nmenu = 0;
-    const char *codes = cfg_get_str(th_null()?"null_mnu":"disco_mnu", "");
+    const char *codes = simple_cfg_get_str(th_null()?"null_mnu":"disco_mnu", "");
     if(codes && codes[0]){                                        /* the compact form (since 1.2.5) */
         for(const char *p = codes; *p && g_nmenu < MAXM; p++){ int s = menu_apps_decode_named(*p,CODE,th_null()?"nm_app":"dm_app");
             if(s >= 0 && in_menu(s) < 0) g_menu[g_nmenu++] = s; }
@@ -228,7 +229,7 @@ static uint32_t g_baked_canvas;
 static int g_baked_variant, g_baked_idle, g_baked_seen;
 extern unsigned ui_art_revision(void);
 void disco_backdrop_prepared(const uint8_t *pixels, uint32_t canvas, int variant){
-    if(!th_disco() || canvas != theme_rgb(THEME_CLR_CANVAS) || variant != theme_variant() || dhome_idle()) return;
+    if(!th_disco_family() || canvas != theme_rgb(THEME_CLR_CANVAS) || variant != theme_variant() || dhome_idle()) return;
     memcpy(g_bd, pixels, sizeof g_bd);
     memset(&g_bd_dsc, 0, sizeof g_bd_dsc);
     g_bd_dsc.header.magic = LV_IMAGE_HEADER_MAGIC; g_bd_dsc.header.cf = LV_COLOR_FORMAT_XRGB8888;
@@ -271,7 +272,7 @@ static void backdrop_bake(void){
 /* ---- long-press menus (song / album / file / folder holds): Disco's own look - the tinted cover backdrop, glass
  * buttons with a fine light ring (as on Music), icons in the accent, a glass Cancel hub. Called once a menu is built. */
 void disco_menu_glass(orbit_t *o, lv_obj_t *ov){
-    if(!th_disco() || !o || !ov) return;
+    if(!th_disco_family() || !o || !ov) return;
     if(g_bd_ok){ lv_obj_set_style_bg_image_src(ov, &g_bd_dsc, 0); lv_obj_set_style_bg_opa(ov, LV_OPA_COVER, 0); }
     lv_color_t acc = ui_current_accent();
     for(int i = 0; i < o->n; i++){
@@ -313,7 +314,7 @@ static lv_obj_t *g_sheen;
 static int g_sheen_scr = -1;
 void disco_sheen_apply(void){                                          /* Settings > Display > Rim Sheen */
     if(!g_sheen) return;
-    if((g_sheen_scr == SCR_HOME || g_sheen_scr == SCR_PLVIEW) && cfg_get_int("disco_sheen", 1)){ lv_obj_remove_flag(g_sheen, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_sheen); }
+    if((g_sheen_scr == SCR_HOME || g_sheen_scr == SCR_PLVIEW) && simple_cfg_get_int("disco_sheen", 1)){ lv_obj_remove_flag(g_sheen, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_sheen); }
     else lv_obj_add_flag(g_sheen, LV_OBJ_FLAG_HIDDEN);
 }
 /* The sheen is drawn ONCE into eight small images (one per 45-degree slice of the rim, each just the size of its
@@ -370,7 +371,7 @@ static void sheen_show_cb(lv_timer_t *t){ (void)t; g_sh_tm = NULL; disco_sheen_a
 
 int disco_mirror(void){
     static int m = -1;
-    if(m < 0) m = th_null()?0:th_disco() && cfg_get_int("disco_side", 0) == 1;
+    if(m < 0) m = th_null()?0:th_disco_family() && simple_cfg_get_int("disco_side", 0) == 1;
     return m;
 }
 /* ---- the navigation circle ------------------------------------------------------------------------- */
@@ -401,14 +402,14 @@ static void nav_cancel_tap(void){
 }
 /* 1.4.1 inserted Volume, Screen off, Play/Pause and Next track before Nothing: a saved 6 meant Nothing then */
 void disco_nav_migrate(void){
-    if(cfg_get_int("disco_nav_v",1)>=2)return;
+    if(simple_cfg_get_int("disco_nav_v",1)>=2)return;
     const char *keys[2]={"disco_nav_double","disco_nav_hold"};
-    for(int i=0;i<2;i++)if(cfg_get_int(keys[i],-1)==6)cfg_set_int(keys[i],DISCO_NAV_NONE);
-    cfg_set_int("disco_nav_v",2);
+    for(int i=0;i<2;i++)if(simple_cfg_get_int(keys[i],-1)==6)simple_cfg_set_int(keys[i],DISCO_NAV_NONE);
+    simple_cfg_set_int("disco_nav_v",2);
 }
 static int nav_action(const char *key,int fallback){
     disco_nav_migrate();
-    int action=cfg_get_int(key,fallback);
+    int action=simple_cfg_get_int(key,fallback);
     return action>=0 && action<DISCO_NAV_COUNT?action:fallback;
 }
 void disco_nav_action_run(int action){
@@ -532,6 +533,7 @@ static void nav_show(void){                                             /* show 
 static void slide_cb(void *o, int32_t v){ lv_obj_set_x((lv_obj_t *)o, v); }
 static void slide_in_done(lv_anim_t *a){ (void)a; if(!g_open) nav_show(); }   /* closed: hide the oval, show the shard */
 void disco_nav_set_open(int open){
+    if(th_simple()){simple_nav_open(open);return;}
     if(!open)nav_cancel_tap();
     if(!g_pk || g_open == !!open) return;
     int visible = !lv_obj_has_flag(g_pk, LV_OBJ_FLAG_HIDDEN);
@@ -661,16 +663,17 @@ static void np_immersive_now(void){
     /* Ask the overlay itself before navigating: it can refuse when the UI
      * has no track, even if IPC still carries the previous track. */
     ui_np_fsart_open();
-    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); if(th_disco() && screen_current() == SCR_HOME) dhome_imm_return(); return; }
+    if(!ui_np_fsart_active()){ ui_toast("Play a track first"); if(th_disco_family() && screen_current() == SCR_HOME) dhome_imm_return(); return; }
     if(screen_get_anim()) screen_skip_anim_once();                    /* the record drops in instead of the slide */
     g_np_want = 1; screen_show(SCR_NOWPLAYING); g_np_want = 0;
 }
 void disco_open_np_immersive(void){
-    if(th_disco() && screen_current() == SCR_HOME && screen_get_anim()) dhome_imm_leave(np_immersive_now);   /* Music's pieces step aside first */
+    if(th_disco_family() && !th_simple() && screen_current() == SCR_HOME && screen_get_anim()) dhome_imm_leave(np_immersive_now);   /* Music's pieces step aside first */
     else np_immersive_now();
 }
 
 void disco_init(lv_obj_t *parent){
+    if(th_simple()){g_parent=parent;menu_load();simple_nav_init(parent);return;}
     disco_nav_migrate();                                           /* before Settings reads the gesture choices */
     g_parent = parent;
     menu_load();
@@ -690,11 +693,12 @@ static void recurve(lv_obj_t *o, int depth){
     }
 }
 int search_landing_active(void); void search_landing_reset(void);
-void disco_nav_refresh(void){ if(g_pk) nav_show(); }
+void disco_nav_refresh(void){ if(th_simple()){simple_nav_refresh();return;} if(g_pk) nav_show(); }
 static void ed_close(void);
 void dhome_overlay_close(void);
 int screen_popping(void);
 void disco_screen_entering(int which){
+    if(th_simple()){simple_nav_screen(which);dhome_overlay_close();ed_close();return;}
     onboarding_dismiss();
     nav_cancel_tap();
     if(which == SCR_SEARCH && !screen_popping()) search_landing_reset();  /* Menu > Search: the landing page first; back keeps results */
@@ -703,6 +707,7 @@ void disco_screen_entering(int which){
     g_cur_scr = which; nav_show();
 }
 void disco_screen_entered(int which, lv_obj_t *root){
+    if(th_simple()){simple_nav_screen(which);return;}
     if(!g_parent) return;
     int sec_scr = which;                                                /* sub-screens keep their section's heading */
     if(which == SCR_SETLIST || which == SCR_SETTING_DETAIL) sec_scr = SCR_SETTINGS;
@@ -717,13 +722,14 @@ void disco_screen_entered(int which, lv_obj_t *root){
     }
     g_sheen_scr = which;
     if(g_sheen){ lv_obj_add_flag(g_sheen, LV_OBJ_FLAG_HIDDEN);
-                 if((which == SCR_HOME || which == SCR_PLVIEW) && cfg_get_int("disco_sheen", 1) && !g_sh_tm){
+                 if((which == SCR_HOME || which == SCR_PLVIEW) && simple_cfg_get_int("disco_sheen", 1) && !g_sh_tm){
                      g_sh_tm = lv_timer_create(sheen_show_cb, 260, NULL); if(g_sh_tm) lv_timer_set_repeat_count(g_sh_tm, 1); } }
     if(g_pk){ g_cur_scr = which; picker_paint(); nav_show(); }
     onboarding_screen(which,g_open);
 }
 void disco_art_changed(void){
-    if(!th_disco() || !g_parent) return;
+    if(th_simple()){dhome_art_changed();return;}
+    if(!th_disco_family() || !g_parent) return;
     /* Track identity and position frames can republish unchanged art. Re-bake
      * only when pixels, appearance or idle state actually changed. */
     extern unsigned ui_art_revision(void);
@@ -754,7 +760,7 @@ static const char *ed_name(int id){return g_edit_qs?quicksettings_item(id)->name
 static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon:menu_section(id).icon;}
 static int ed_protected(int id){return g_edit_qs?0:menu_section(id).prot;}
 static void ed_build_async(void *p){(void)p;ed_build();}
-static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(g_edit_qs)quicksettings_build();if(th_null())null_menu_refresh();}}
+static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(th_simple())simple_nav_refresh();if(g_edit_qs)quicksettings_build();if(th_null())null_menu_refresh();}}
 static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
 static int ed_save(void){
     if(g_edit_qs)return quicksettings_items_save(g_edit,g_edit_n);
@@ -772,7 +778,7 @@ static void ed_act_cb(lv_event_t *e){
     else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
     else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
     else if(act==4 && i<0){
-        if(g_edit_n>=(g_edit_qs?(th_null()?8:7):MAXM)){ui_toast(g_edit_qs?(th_null()?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
+        if(g_edit_n>=(g_edit_qs?((th_null()||th_simple())?8:7):MAXM)){ui_toast(g_edit_qs?(th_null()?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
         g_edit[g_edit_n++]=id;
     }else return;
     if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
@@ -815,7 +821,7 @@ static void ed_build(void){
     lv_obj_update_layout(g_ed_list);lv_obj_scroll_to_y(g_ed_list,sy,LV_ANIM_OFF);
 }
 static void editor_open(int qs){
-    if(!th_disco()&&!th_null()){ui_toast("This editor is part of Disco or Null");return;}if(g_ed)return;
+    if(!th_disco_family()&&!th_null()){ui_toast("This editor is part of Disco or Null");return;}if(g_ed)return;
     onboarding_dismiss();g_edit_qs=qs;
     if(qs)g_edit_n=quicksettings_items_load(g_edit);else{menu_load();g_edit_n=g_nmenu;memcpy(g_edit,g_menu,sizeof(int)*(size_t)g_nmenu);}
     g_ed=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(g_ed);lv_obj_set_size(g_ed,360,360);
@@ -899,3 +905,5 @@ int disco_catalog_load(void){menu_load();return g_nmenu;}
 const char *disco_catalog_id(int index){return index>=0&&index<g_nmenu?menu_section(g_menu[index]).id:"";}
 const char *disco_catalog_name(int index){return index>=0&&index<g_nmenu?menu_section(g_menu[index]).name:"";}
 void disco_catalog_open(int index){go_section(index,1);}
+
+const char *disco_catalog_icon(int index){return index>=0&&index<g_nmenu?menu_section(g_menu[index]).icon:LV_SYMBOL_FILE;}

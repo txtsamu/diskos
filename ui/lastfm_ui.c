@@ -58,7 +58,7 @@ static lv_obj_t *body_button(const char *txt, lv_event_cb_t cb){
     lv_obj_set_height(b, 44); lv_obj_set_width(b, 190);
     lv_obj_set_style_radius(b, 22, 0);
     lv_obj_set_style_shadow_width(b, 0, 0);     /* no LVGL default-theme drop shadow: every other button is flat */
-    lv_obj_set_style_bg_color(b, th_disco() ? ui_current_accent() : TC(FIXED_LASTFM), 0);   /* Disco: the accent, not Last.fm red */
+    lv_obj_set_style_bg_color(b, th_disco_family() ? ui_current_accent() : TC(FIXED_LASTFM), 0);   /* Disco: the accent, not Last.fm red */
     lv_obj_set_ext_click_area(b, 6);
     ui_on(b, cb, LV_EVENT_CLICKED, NULL, "lastfm_ui.cb", UI_CORE);
     lv_obj_t *l = lv_label_create(b);

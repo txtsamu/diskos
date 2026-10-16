@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Contextual first-use hints. Only short-lived timers; no idle polling. */
 #include "onboarding.h"
@@ -26,20 +27,22 @@ _Static_assert(sizeof limits/sizeof *limits==HINT_COUNT,"hint limits");
 _Static_assert(sizeof text/sizeof *text==HINT_COUNT,"hint text");
 const char *onboarding_gesture_text(int id){
     if(id<0 || id>=HINT_COUNT)return "";
+    if(th_simple()&&(id==HINT_MENU||id==HINT_NAV))return "Tap D! for the launcher. Drag to rotate; tap the icon to open. Back closes it.";
+    if(th_simple()&&id==HINT_MUSIC_GESTURES)return "Double-tap track text: play/pause. Swipe right: next; left: previous.";
     if(id==HINT_BACK)return disco_mirror()?"Swipe left from the right edge to go back.":"Swipe right from the left edge to go back.";
     if(id==HINT_QUICK)return th_null()?"Pull down from the top for QS. Swipe up beside the panel, tap outside, or tap its bottom arrow to close.":"Pull down from the top for QS; swipe up to close.";
     if(id==HINT_NAV)return th_null()?"Tap the side arrow for the menu. Drag text or the handle to browse; tap an item to open.":"Tap the side tab for the menu. Arrows browse; centre icon opens. Double-tap / hold shortcuts are configurable.";
     if(id==HINT_HANDLE){
         static const char *names[]={"Music","Search","Queue","Up Next","Shortcuts","Quick Settings","Volume","Screen off","Play/Pause","Next track","Nothing"};
         static char tip[192];
-        int tap=cfg_get_int("null_nav_double",DISCO_NAV_SEARCH),hold=cfg_get_int("null_nav_hold",DISCO_NAV_MUSIC);
+        int tap=simple_cfg_get_int("null_nav_double",DISCO_NAV_SEARCH),hold=simple_cfg_get_int("null_nav_hold",DISCO_NAV_MUSIC);
         if(tap<0 || tap>=DISCO_NAV_COUNT)tap=DISCO_NAV_SEARCH;
         if(hold<0 || hold>=DISCO_NAV_COUNT)hold=DISCO_NAV_MUSIC;
         snprintf(tip,sizeof tip,"Double-tap: %s\nHold centre: %s\nDrag to browse.\nHold ends to scroll.",names[tap],names[hold]);
         return tip;
     }
     if(id==HINT_MUSIC){
-        int action=cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
+        int action=simple_cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
         return action==0?"Tap the title for track actions and Mood. Hold for Immersive.":action==1?"Tap the title for track actions and Mood. Hold to favourite / unfavourite.":"Tap the title for track actions and Mood. Title hold is disabled.";
     }
     if(id==HINT_SHORTCUTS)return disco_mirror()?"Swipe right across Music to open Shortcuts.":"Swipe left across Music to open Shortcuts.";
@@ -59,12 +62,12 @@ void onboarding_dismiss(void){
     if(pill){lv_obj_delete(pill);pill=NULL;}
 }
 static int eligible(int id){
-    int mode=cfg_get_int(hint_key("disco_hints"),0);
-    if(!started || (!th_disco() && !th_null()) || mode==2 || (shown & (1u<<id)))return 0;
+    int mode=simple_cfg_get_int(hint_key("disco_hints"),0);
+    if(!started || (!th_disco_family() && !th_null()) || mode==2 || (shown & (1u<<id)))return 0;
     if(mode==1)return 1; /* explicitly On: once per context per session, even after learning */
-    if(id<HINT_BACK && id!=HINT_LOCK && cfg_get_int(hint_key("hint_starts"),0)>=5)return 0;   /* the lock tip is new in 2.1.0: also for settled users */
-    int fallback=id==HINT_MENU && cfg_get_int(hint_key("disco_nav_hint"),0)?2:0;
-    return cfg_get_int(hint_key(keys[id]),fallback)<limits[id];
+    if(id<HINT_BACK && id!=HINT_LOCK && simple_cfg_get_int(hint_key("hint_starts"),0)>=5)return 0;   /* the lock tip is new in 2.1.0: also for settled users */
+    int fallback=id==HINT_MENU && simple_cfg_get_int(hint_key("disco_nav_hint"),0)?2:0;
+    return simple_cfg_get_int(hint_key(keys[id]),fallback)<limits[id];
 }
 static void show_pill(int id);
 static void onboarding_discovered_quiet(int id);
@@ -94,7 +97,7 @@ static void offer(lv_timer_t *t){
                 int h=choices[i];
                 if((h==HINT_MUSIC || h==HINT_SEEK || h==HINT_PRECISION) && !st.have_track)continue;
                 if(h==HINT_PRECISION && th_null())continue;
-                if(h==HINT_MUSIC_GESTURES && cfg_get_int(th_null()?"null_controls":"disco_controls",0)!=2)continue;
+                if(h==HINT_MUSIC_GESTURES && simple_cfg_get_int(th_null()?"null_controls":"disco_controls",0)!=2)continue;
                 if(eligible(h)){id=h;break;}
             }
         }
@@ -119,10 +122,12 @@ static void show_pill(int id){
     const char *message=onboarding_gesture_text(id);
     if(id==HINT_MENU){w=158;h=42;y=159;x=disco_mirror()?54:148;message=disco_mirror()?LV_SYMBOL_LEFT " Tap for menu":"Tap for menu " LV_SYMBOL_RIGHT;}
     if(id==HINT_MUSIC){y=104;x=82;w=196;
-        if(cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0)==0)message="Tap title for more\nHold it for full screen";}   /* Title Hold: Immersive */
+        if(simple_cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0)==0)message="Tap title for more\nHold it for full screen";}   /* Title Hold: Immersive */
     if(id==HINT_SHORTCUTS){y=104;x=82;w=196;message=disco_mirror()?"Swipe right for shortcuts":"Swipe left for shortcuts";}
     if(th_null() && id==HINT_NAV)message="Drag text to browse\nHandle: double tap / hold";
     if(th_null() && id==HINT_MENU){x=disco_mirror()?54:148;message=disco_mirror()?LV_SYMBOL_LEFT " Open drawer":"Open drawer " LV_SYMBOL_RIGHT;}
+    if(th_simple()&&id==HINT_MENU){x=90;y=205;w=180;h=50;message="Tap D! below for menu";}
+    if(th_simple()&&id==HINT_NAV)message="Drag wheel to browse.\nTap icon to open.";
     if(id==HINT_LOCK){y=262;x=60;w=240;}
     if(id==HINT_MENU){lv_obj_add_flag(pill,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(pill,menu_hint_cb,LV_EVENT_CLICKED,NULL);}
     lv_obj_t *label=lv_label_create(pill);lv_label_set_text(label,message);
@@ -156,7 +161,7 @@ static void show_pill(int id){
     if(id>=HINT_BACK)onboarding_discovered_quiet(id);
 }
 static void schedule(void){
-    if(!started || (!th_disco() && !th_null()) || cfg_get_int(hint_key("disco_hints"),0)==2)return;
+    if(!started || (!th_disco_family() && !th_null()) || simple_cfg_get_int(hint_key("disco_hints"),0)==2)return;
     if(current==SCR_SAVER)return;
     cancel(&offer_timer);offer_timer=lv_timer_create(offer,800,NULL);
 }
@@ -167,17 +172,17 @@ void onboarding_screen(int screen,int nav_open){
 void onboarding_context(int id){if(id<0 || id>=HINT_COUNT || !eligible(id))return;onboarding_dismiss();requested=id;schedule();}
 void onboarding_library(int actionable){library_actions=actionable;if(current==SCR_LIBRARY && !menu_open){onboarding_dismiss();schedule();}}
 static void onboarding_discovered_quiet(int id){     /* count it as seen without taking the pill away */
-    int count=cfg_get_int(hint_key(keys[id]),0);if(count>=limits[id])return;
-    cfg_begin();cfg_set_int_deferred(hint_key(keys[id]),count+1);
-    if(cfg_commit()<0){cfg_set_int_deferred(hint_key(keys[id]),count);cfg_flush();}
+    int count=simple_cfg_get_int(hint_key(keys[id]),0);if(count>=limits[id])return;
+    cfg_begin();simple_cfg_set_int_deferred(hint_key(keys[id]),count+1);
+    if(cfg_commit()<0){simple_cfg_set_int_deferred(hint_key(keys[id]),count);cfg_flush();}
 }
 void onboarding_discovered(int id){
-    if(!started || (!th_disco() && !th_null()) || id<0 || id>=HINT_COUNT)return;
+    if(!started || (!th_disco_family() && !th_null()) || id<0 || id>=HINT_COUNT)return;
     onboarding_dismiss();
-    int fallback=id==HINT_MENU && cfg_get_int(hint_key("disco_nav_hint"),0)?2:0;
-    int count=cfg_get_int(hint_key(keys[id]),fallback);if(count>=limits[id])return;
-    cfg_begin();cfg_set_int_deferred(hint_key(keys[id]),count+1);
-    if(cfg_commit()<0){cfg_set_int_deferred(hint_key(keys[id]),count);cfg_flush();}
+    int fallback=id==HINT_MENU && simple_cfg_get_int(hint_key("disco_nav_hint"),0)?2:0;
+    int count=simple_cfg_get_int(hint_key(keys[id]),fallback);if(count>=limits[id])return;
+    cfg_begin();simple_cfg_set_int_deferred(hint_key(keys[id]),count+1);
+    if(cfg_commit()<0){simple_cfg_set_int_deferred(hint_key(keys[id]),count);cfg_flush();}
 }
 static void lock_offer(lv_timer_t *t){ offer_timer=NULL; lv_timer_delete(t); if(!pill && eligible(HINT_LOCK)){ show_pill(HINT_LOCK); onboarding_discovered_quiet(HINT_LOCK); } }
 void onboarding_woke_by_touch(void){
@@ -188,12 +193,12 @@ void onboarding_woke_by_touch(void){
 static void input_cb(lv_event_t *e){if(!pill || lv_event_get_param(e)!=pill)onboarding_dismiss();}
 static void healthy_start(lv_timer_t *t){
     startup_timer=NULL;lv_timer_delete(t);
-    int n=cfg_get_int(hint_key("hint_starts"),0);
-    if(n<5){cfg_begin();cfg_set_int_deferred(hint_key("hint_starts"),n+1);if(cfg_commit()<0){cfg_set_int_deferred(hint_key("hint_starts"),n);cfg_flush();}}
-    if(cfg_get_int(hint_key("disco_hints"),0)==0 && cfg_get_int(hint_key("hint_starts"),0)>=5)onboarding_dismiss();
+    int n=simple_cfg_get_int(hint_key("hint_starts"),0);
+    if(n<5){cfg_begin();simple_cfg_set_int_deferred(hint_key("hint_starts"),n+1);if(cfg_commit()<0){simple_cfg_set_int_deferred(hint_key("hint_starts"),n);cfg_flush();}}
+    if(simple_cfg_get_int(hint_key("disco_hints"),0)==0 && simple_cfg_get_int(hint_key("hint_starts"),0)>=5)onboarding_dismiss();
 }
 void onboarding_start(void){
-    if(started || (!th_disco() && !th_null()))return;
+    if(started || (!th_disco_family() && !th_null()))return;
     started=1;current=screen_current();
     for(lv_indev_t *in=lv_indev_get_next(NULL);in;in=lv_indev_get_next(in))lv_indev_add_event_cb(in,input_cb,LV_EVENT_PRESSED,NULL);
     /* Count only after 30 seconds of event-loop uptime; an immediate crash/restart consumes nothing. */
@@ -202,16 +207,16 @@ void onboarding_start(void){
 void onboarding_mode_changed(void){onboarding_dismiss();shown=0;requested=-1;schedule();}
 int onboarding_reset(void){
     int old[HINT_COUNT+3];
-    old[0]=cfg_get_int(hint_key("hint_starts"),0);old[1]=cfg_get_int(hint_key("disco_nav_hint"),0);old[2]=cfg_get_int(hint_key("disco_hints"),0);
-    for(int i=0;i<HINT_COUNT;i++)old[i+3]=cfg_get_int(hint_key(keys[i]),i==HINT_MENU && old[1]?2:0);
+    old[0]=simple_cfg_get_int(hint_key("hint_starts"),0);old[1]=simple_cfg_get_int(hint_key("disco_nav_hint"),0);old[2]=simple_cfg_get_int(hint_key("disco_hints"),0);
+    for(int i=0;i<HINT_COUNT;i++)old[i+3]=simple_cfg_get_int(hint_key(keys[i]),i==HINT_MENU && old[1]?2:0);
     cfg_begin();int error=0;
-    error|=cfg_set_int_deferred(hint_key("hint_starts"),0);error|=cfg_set_int_deferred(hint_key("disco_nav_hint"),0);
-    error|=cfg_set_int_deferred(hint_key("disco_hints"),0);
-    for(int i=0;i<HINT_COUNT;i++)error|=cfg_set_int_deferred(hint_key(keys[i]),0);
+    error|=simple_cfg_set_int_deferred(hint_key("hint_starts"),0);error|=simple_cfg_set_int_deferred(hint_key("disco_nav_hint"),0);
+    error|=simple_cfg_set_int_deferred(hint_key("disco_hints"),0);
+    for(int i=0;i<HINT_COUNT;i++)error|=simple_cfg_set_int_deferred(hint_key(keys[i]),0);
     int result=cfg_commit();
     if(error<0 || result<0){
-        cfg_set_int_deferred(hint_key("hint_starts"),old[0]);cfg_set_int_deferred(hint_key("disco_nav_hint"),old[1]);cfg_set_int_deferred(hint_key("disco_hints"),old[2]);
-        for(int i=0;i<HINT_COUNT;i++)cfg_set_int_deferred(hint_key(keys[i]),old[i+3]);
+        simple_cfg_set_int_deferred(hint_key("hint_starts"),old[0]);simple_cfg_set_int_deferred(hint_key("disco_nav_hint"),old[1]);simple_cfg_set_int_deferred(hint_key("disco_hints"),old[2]);
+        for(int i=0;i<HINT_COUNT;i++)simple_cfg_set_int_deferred(hint_key(keys[i]),old[i+3]);
         cfg_flush();return -1;
     }
     onboarding_mode_changed();return 0;

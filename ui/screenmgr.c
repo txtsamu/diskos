@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "onboarding.h"
 #include "null_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
@@ -120,11 +121,11 @@ static void transition(int from, int to, int dir)
       s_skip=1;transition_core(from,to,dir);root_rest(s_roots[from]);
       lv_obj_remove_flag(s_roots[from],LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(s_roots[from]);null_qs_slide(0);null_screen_entered(to);return;
     }                             /* the crash recorder's trail of screens */
-    if (th_disco()) disco_screen_entering(to);   /* picker visibility first: the lists curve around it */
+    if (th_disco_family()) disco_screen_entering(to);   /* picker visibility first: the lists curve around it */
     transition_core(from, to, dir);
-    if(th_disco() || th_null())onboarding_screen(to,0);
+    if(th_disco_family() || th_null())onboarding_screen(to,0);
     if(th_null())null_screen_entered(to);
-    if (th_disco()) disco_screen_entered(to, (to >= 0 && to < SCR_COUNT) ? s_roots[to] : NULL);   /* backdrop, glass, picker on top */
+    if (th_disco_family()) disco_screen_entered(to, (to >= 0 && to < SCR_COUNT) ? s_roots[to] : NULL);   /* backdrop, glass, picker on top */
 }
 static void transition_core(int from, int to, int dir)
 {
@@ -233,7 +234,7 @@ static void transition_core(int from, int to, int dir)
 void screen_show(int which)
 {
     if (which < 0 || which >= SCR_COUNT) return;
-    if ((th_disco() || th_null()) && which == SCR_NOWPLAYING && !disco_np_wanted()) { screen_home(); return; }   /* Disco/Null: ordinary playback routes to Music; only explicit Immersive enters the shared NP root. */
+    if ((th_disco_family() || th_null()) && which == SCR_NOWPLAYING && !disco_np_wanted()) { screen_home(); return; }   /* Disco/Null: ordinary playback routes to Music; only explicit Immersive enters the shared NP root. */
     int from = s_current;
     if (which != s_current) {
         int cap = (int)(sizeof(s_stack)/sizeof(s_stack[0]));
@@ -271,6 +272,7 @@ void screen_home(void)
  * input event, so they always step back one screen. */
 void screen_back(void)
 {
+    if(th_simple()&&simple_nav_is_open()){simple_nav_open(0);return;}
     if(disco_track_overlay_visible()){dhome_overlay_close();return;}
     if (s_current != SCR_SAVER && screen_press_was_long()) { screen_home(); return; }
     if (s_current == SCR_SEARCH && (search_back_consumed() || search_back_to_landing())) return;   /* fork: results page -> back to the keyboard */
@@ -313,7 +315,7 @@ void screens_init(void)
         return;
     }
 
-    s_anim = cfg_get_int("anim", 1);
+    s_anim = simple_cfg_get_int("anim", 1);
     if (access("/usr/data/anim_off", 0) == 0) s_anim = 0;   /* legacy override */
 
     kit_install();                                   /* the theme's styling pass, before any screen is shown */
@@ -435,7 +437,7 @@ void screens_init(void)
     bt_info_create(s_roots[SCR_BT_INFO]);
     lastfm_create(s_roots[SCR_LASTFM]);
     if(th_null()) null_init(parent);
-    if (th_disco()) disco_init(parent);   /* the cover backdrops, the sheen and the menu picker */
+    if (th_disco_family()) disco_init(parent);   /* the cover backdrops, the sheen and the menu picker */
 
     screen_show(SCR_HOME);
 }

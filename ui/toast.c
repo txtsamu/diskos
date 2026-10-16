@@ -105,7 +105,7 @@ void ui_scan_orbit(int on){
         }
     }
     for(int k = 0; k < ORB_N; k++){
-        if(th_disco()){                     /* Disco: over a bright cover the small grey dot got lost - bigger, glowing, CD-white */
+        if(th_disco_family()){                     /* Disco: over a bright cover the small grey dot got lost - bigger, glowing, CD-white */
             int sz = k == 0 ? 14 : 11 - k; if(sz < 4) sz = 4;
             lv_obj_set_size(g_orb[k], sz, sz);
                         lv_obj_set_style_border_width(g_orb[k], k == 0 ? 2 : 0, 0); lv_obj_set_style_border_color(g_orb[k], ui_current_accent(), 0);

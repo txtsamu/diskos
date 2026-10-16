@@ -71,7 +71,7 @@ static void un_add_row(int i){
     lv_obj_t *r = lv_button_create(g_un_list);
     lv_obj_remove_style_all(r);
     lv_obj_set_size(r, 288, 62);
-    lv_obj_set_style_radius(r, th_disco() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
+    lv_obj_set_style_radius(r, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
     lv_obj_set_style_bg_color(r, (cur ? TC(SURFACE_RAISED) : TC(SURFACE)), 0);
     lv_obj_set_style_bg_opa(r, cur ? LV_OPA_COVER : LV_OPA_50, 0);
     lv_obj_set_style_bg_color(r, TC(RAISED_PRESSED), LV_STATE_PRESSED);

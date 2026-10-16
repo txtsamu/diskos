@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "null_theme.h"
 #include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
@@ -114,10 +115,10 @@ void ui_apply_swipe_thresh(int px){   /* live, no flash write */
 }
 void ui_set_swipe_thresh(int px){     /* live + persist */
     ui_apply_swipe_thresh(px);
-    cfg_set_int("swipe_thresh", g_swipe_thresh);
+    simple_cfg_set_int("swipe_thresh", g_swipe_thresh);
 }
 static void swipe_thresh_load(void){
-    ui_apply_swipe_thresh(cfg_get_int("swipe_thresh", SWIPE_THRESH_DEFAULT));   /* clamped: a bad value can't divide by 0 */
+    ui_apply_swipe_thresh(simple_cfg_get_int("swipe_thresh", SWIPE_THRESH_DEFAULT));   /* clamped: a bad value can't divide by 0 */
 }
 
 static void dbgdot_init(void){
@@ -146,7 +147,7 @@ static void clock_tick(lv_timer_t *t){
     time_t now = time(NULL);
     struct tm lt; localtime_r(&now, &lt);
     char hm[12], date[24];
-    int h24 = cfg_get_int("time_24h", 1);
+    int h24 = simple_cfg_get_int("time_24h", 1);
     if(h24){
         strftime(hm, sizeof hm, "%H:%M", &lt);
     } else {
@@ -261,8 +262,8 @@ int ui_eq_select(int preset){
     if(ui_apply_eq(preset) < 0) return -1;
     /* One atomic flash write keeps the selected and last-used presets together. */
     cfg_begin();
-    if(preset > 0) cfg_set_int_deferred("eq_last",preset);
-    cfg_set_int_deferred("eq_preset",preset);
+    if(preset > 0) simple_cfg_set_int_deferred("eq_last",preset);
+    simple_cfg_set_int_deferred("eq_preset",preset);
     cfg_commit(); /* save errors remain visible through cfg_take_save_error() */
     return 0;
 }
@@ -674,7 +675,7 @@ static int send_play_mode(int mode){
 int ui_play_mode_now(void){
     if(g_mode_applied >= 0) return g_mode_applied;
     if(book_session_active()) return -1;
-    int wm = cfg_get_int("work_mode", -1);
+    int wm = simple_cfg_get_int("work_mode", -1);
     if(wm < 0) return mdb_sysconfig_play_mode();
     if(g_mode_applied == -2 && wm <= 4) return wm;
     return -1;
@@ -721,26 +722,26 @@ static void reapply_audio_body(void){
     modes_output_reset();  /* a fresh or reconnected player is on the internal DAC: the SPDIF setting mirrors that */
 }
 static void reapply_sends(void){
-    ui_set_dre(cfg_get_int("audio_dre",    1));
-    ui_set_gain(cfg_get_int("audio_gain",  0));
+    ui_set_dre(simple_cfg_get_int("audio_dre",    1));
+    ui_set_gain(simple_cfg_get_int("audio_gain",  0));
     /* Output route (raw 0666) is deliberately NOT reapplied here: this also runs on player
      * RECONNECT, and sending 0666 to a freshly-booted player can wedge it (see the reconnect
      * warning below). Analog is the boot default; SPDIF / USB audio are chosen per player run
      * (modes.c, never persisted), so there is no output route to restore here. */
-    ui_set_dac_filter(cfg_get_int("audio_filter", 1));
-    ui_set_replay_gain(cfg_get_int("replay_gain", 0));
+    ui_set_dac_filter(simple_cfg_get_int("audio_filter", 1));
+    ui_set_replay_gain(simple_cfg_get_int("replay_gain", 0));
     /* The rest of the managed settings, reapplied so a player restart/reconnect can't leave the
      * player out of sync with what Settings shows. Each is sent ONLY when
      * a real value is stored - the setters have inconsistent unmanaged handling, so guard here
      * rather than trust their internal clamps (e.g. ui_set_maxvol(-1) would send volume 0). */
     {
-        int wm = cfg_get_int("work_mode", -1);
+        int wm = simple_cfg_get_int("work_mode", -1);
         if(book_session_active()) send_play_mode(4);                      /* an active book must stay in Single mode across a reconnect, not be reset to the music mode */
         else if(wm >= 0 && wm <= 4) ui_set_workmode(wm);                  /* stored play mode; don't let a garbage cfg get rewritten to 0 */
-        int mp = cfg_get_int("memory_play", -1); if(mp >= 0)             ui_set_memory(mp);    /* Resume Playback */
-        int gp = cfg_get_int("gapless", -1);     if(gp >= 0)             ui_set_gapless(gp);
-        int mv = cfg_get_int("max_vol", -1);     if(mv >= 10)            ui_set_maxvol(mv);    /* <10 or unset = skip */
-        int bl = cfg_get_int("balance", -100);   if(bl >= -10 && bl<=10) ui_set_balance(bl);   /* -1 is a VALID balance */
+        int mp = simple_cfg_get_int("memory_play", -1); if(mp >= 0)             ui_set_memory(mp);    /* Resume Playback */
+        int gp = simple_cfg_get_int("gapless", -1);     if(gp >= 0)             ui_set_gapless(gp);
+        int mv = simple_cfg_get_int("max_vol", -1);     if(mv >= 10)            ui_set_maxvol(mv);    /* <10 or unset = skip */
+        int bl = simple_cfg_get_int("balance", -100);   if(bl >= -10 && bl<=10) ui_set_balance(bl);   /* -1 is a VALID balance */
     }
 }
 /* When a play triggers a full list rebuild (seconds), we show "Starting..." and
@@ -946,7 +947,7 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
     ui_disarm_book_eoc();      /* explicit navigation disarms any end-of-chapter sleep (so a later path change can only be an auto-rollover) */
     g_book_noadopt_until = lv_tick_get() + 4000;   /* the player may still report the OLD book while this play loads -> don't adopt it */
     if(list_type != 5 && g_book_single_mode){   /* leaving book playback for music -> restore the user's play-mode (a book forced Single) */
-        send_play_mode(cfg_get_int("work_mode", 0));
+        send_play_mode(simple_cfg_get_int("work_mode", 0));
         g_book_single_mode = 0;
     }
     if(pos1 < 1) pos1 = 1;
@@ -1010,7 +1011,7 @@ int ui_play_context(int *type, char *name, int cap, long *pid){
 int ui_play_restore(int type, const char *name, long pid, int pos){
     if(modes_output_busy() || !ui_local_playback_allowed()) return 0;
     int was=g_q_internal, sent=0; g_q_internal=1;
-    char mode[16]; snprintf(mode,sizeof mode,"0102000C%04X",cfg_get_int("work_mode",0)&0xFFFF);
+    char mode[16]; snprintf(mode,sizeof mode,"0102000C%04X",simple_cfg_get_int("work_mode",0)&0xFFFF);
     if(type==5 && pid>0) sent=ui_play_playlist(pid,pos);
     else if(ipc_send_cmd(mode)>=0){
         if(type>=0 && type!=5){ ui_invalidate_play_scope(); sent=ui_play_list(type,name,pos); }
@@ -1098,7 +1099,7 @@ int ui_play_playlist(long pid, int pos){
     int n = mdb_reserved_slot_set_playlist(pid);
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;                                 /* not a book */
-    send_play_mode(cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
+    send_play_mode(simple_cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
     if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);      /* the tapped row in the player's read of the slot */
@@ -1138,7 +1139,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         int pos = mdb_plan_pos(plan, song_id);
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
-        send_play_mode(cfg_get_int("work_mode", 0));
+        send_play_mode(simple_cfg_get_int("work_mode", 0));
         if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");
         return ui_play_list_ex(5, "", pos, -1);
     }
@@ -1450,9 +1451,9 @@ void ui_set_workmode(int mode){
     /* Persist here so cfg is the single source of truth: every play path that sets the
      * mode (Playlist Play/Shuffle, Library long-press, NP toggle, Settings, Tune) goes
      * through here, so the NP icon / Settings / Tune (all read cfg) can't drift from the
-     * mode the player is actually using. Redundant cfg_set_int() at other call sites are
+     * mode the player is actually using. Redundant simple_cfg_set_int() at other call sites are
      * harmless. */
-    cfg_set_int("work_mode", mode);
+    simple_cfg_set_int("work_mode", mode);
     int rc = send_play_mode(mode);
     fprintf(stderr,"workmode %d -> 0102000C%04X (rc=%d)\n", mode, mode, rc); fflush(stderr);
 }
@@ -1600,7 +1601,7 @@ void ui_app_play_ids(int *ids, int n, int shuffle, const char *name, int play, i
     if(play){
         mdb_plan_t plan; memset(&plan, 0, sizeof plan);
         plan.list_type = 5; plan.ids = ids; plan.count = n; ids = NULL;            /* the plan owns them now */
-        if(shuffle){ cfg_set_int("work_mode", 1); ui_set_workmode(1); }         /* start in Shuffle, as asked */
+        if(shuffle){ simple_cfg_set_int("work_mode", 1); ui_set_workmode(1); }         /* start in Shuffle, as asked */
         int start = plan.ids[shuffle ? rand() % plan.count : 0];
         if(ui_play_plan(&plan, start)) screen_show(SCR_NOWPLAYING);   /* it toasts its own failures */
         mdb_plan_free(&plan);
@@ -2707,7 +2708,7 @@ void ui_publish_art_surfaces(const track_state_t *st,int playing){
  home_set_art_src(ui_current_thumb_src());
  home_set_backdrop(ui_current_backdrop_img());
  if(th_null()) null_art_changed();
- if(th_disco()) disco_art_changed();   /* fork: Disco's sharp cover + tinted backdrops */
+ if(th_disco_family()) disco_art_changed();   /* fork: Disco's sharp cover + tinted backdrops */
  quicksettings_set_art(ui_current_cover_dsc(),ui_current_backdrop_img());
  quicksettings_set_now_playing(st->have_track?st->title:NULL,st->have_track?st->artist:NULL,playing);
  saver_set_track(st->have_track?st->title:NULL,st->have_track?st->artist:NULL,ui_current_backdrop_src(),st->have_track?st->path:NULL);
@@ -2949,7 +2950,7 @@ int main(int argc, char **argv){
     status_poll_cb(NULL);                        /* populate immediately */
     bt_boot_restore();                           /* re-enable BT + arm auto-route if it was on (persist like WiFi) */
     g_t_wx  = lv_timer_create(weather_poll, 1000, NULL);  /* apply weather + retry/refresh */
-    if(cfg_get_int("weather_on", 1)) weather_fetch_async();   /* first fetch - only with Weather on (Settings off = no network use) */
+    if(simple_cfg_get_int("weather_on", 1)) weather_fetch_async();   /* first fetch - only with Weather on (Settings off = no network use) */
     g_t_lyr = lv_timer_create(lyrics_poll, 500, NULL);    /* apply finished lyrics fetch */
     lastfm_init();                                        /* load Last.fm config + offline queue */
     lv_timer_create(lastfm_tick, 1000, NULL);            /* watch play-state + drive scrobbles */
@@ -3182,7 +3183,7 @@ int main(int argc, char **argv){
             ui_update(&st);
             /* Disco Options > Track Number: "3. Title" (the number from the tags, looked up once per track) */
             const char *np_title = st.have_track ? st.title : NULL; static char np_numbered[200];
-            if(np_title && ((th_disco() && cfg_get_int("disco_trackno",0)) || (th_null() && cfg_get_int("null_trackno",0)))){
+            if(np_title && ((th_disco_family() && simple_cfg_get_int("disco_trackno",0)) || (th_null() && simple_cfg_get_int("null_trackno",0)))){
                 static char tn_path[256]; static int tn_posid = -1, tn_no;
                 if(strcmp(tn_path, st.path) || tn_posid != st.pos_id){
                     snprintf(tn_path, sizeof tn_path, "%s", st.path); tn_posid = st.pos_id; tn_no = 0;
@@ -3295,7 +3296,7 @@ int main(int argc, char **argv){
                     sleep_touch = ui_np_overlay_active()   /* latch: the sleep popover owns this whole gesture, */
                                || (screen_current()==SCR_EQ_EDITOR && eqcustom_owns_point(p.x, p.y))    /* and so does the EQ dial (fork) */
                                || (screen_current()==SCR_SPHERE && sphere_ui_owns_point(p.x, p.y));     /* and SongSphere's marker */
-                    seek_touch = dhome_owns_point(p.x, p.y);
+                    seek_touch = dhome_owns_point(p.x, p.y) || simple_owns_point(p.x,p.y);
                     if(th_null() && null_owns_point(p.x,p.y))sleep_touch=1;   /* fork: Disco Music's seek line / ring (no swipe to Apps) */
                     if(fsart_touch || sleep_touch){
                         /* a modal overlay is up -> LVGL handles it; arm no ring seek / rim scroll here */
@@ -3427,14 +3428,14 @@ int main(int argc, char **argv){
         int sleep_guarded = lv_tick_get() < g_sleep_seek_guard;
         /* sleep timer: pause when it elapses */
         switch(power_sleep_decide(g_sleep_ms, g_sleep_ms ? lv_tick_elaps(g_sleep_start) : 0, sleep_guarded, playing,
-                                  cfg_get_int("sleep_action", POWER_SLEEP_PAUSE))){
+                                  simple_cfg_get_int("sleep_action", POWER_SLEEP_PAUSE))){
         case PW_SLEEP_SHUTDOWN:        /* stock "sleep" powers off: close the card, sync, then the player's own power-off */
-            g_sleep_ms = 0; cfg_set_int("sleep_idx", 0);
+            g_sleep_ms = 0; simple_cfg_set_int("sleep_idx", 0);
             power_shutdown_request();
             break;
-        case PW_SLEEP_DISARM: g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); break;                 /* already stopped -> just disarm */
+        case PW_SLEEP_DISARM: g_sleep_ms = 0; simple_cfg_set_int("sleep_idx", 0); break;                 /* already stopped -> just disarm */
         case PW_SLEEP_PAUSE:
-            if(ipc_send_cmd("0201000C0000") == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
+            if(ipc_send_cmd("0201000C0000") == 0){ g_sleep_ms = 0; simple_cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
             /* else: send failed -> keep armed, retry next loop */
             break;
         case PW_SLEEP_WAIT: break;
@@ -3507,7 +3508,7 @@ int main(int argc, char **argv){
                 if(!d) pk_seen_up = 1;
                 if(d && !pk_down && pk_seen_up){ pk_down = 1; pk_since = lv_tick_get(); }
                 else if(!d && pk_down){ pk_down = 0; pk_rel = lv_tick_get(); }
-                int hold = cfg_get_int("pwr_hold_ms", 5000); if(hold < 300) hold = 300;
+                int hold = simple_cfg_get_int("pwr_hold_ms", 5000); if(hold < 300) hold = 300;
                 if(pk_down && !pk_shown && lv_tick_elaps(pk_since) >= (uint32_t)hold){
                     pk_shown = 1;
                     if(bl_state){ ui_backlight(ui_effective_brightness()); bl_state = 0; player_blanked = 0; }   /* lit, so it can be seen */
@@ -3522,7 +3523,7 @@ int main(int argc, char **argv){
         /* screensaver + backlight power saving (the screen is the biggest drain):
          * idle > saver_timeout       -> show saver, dim backlight
          * idle > saver+screenoff      -> backlight off entirely */
-        int si = cfg_get_int("saver_idx", 2), oi = cfg_get_int("screenoff_idx", 3);
+        int si = simple_cfg_get_int("saver_idx", 2), oi = simple_cfg_get_int("screenoff_idx", 3);
         int saver_timeout   = (si>=0 && si<5) ? TMAP[si] : 60;
         int screenoff_extra = (oi>=0 && oi<5) ? TMAP[oi] : 120;
         /* Never sleep while the on-screen keyboard is open: it owns all touch, so a
@@ -3559,7 +3560,7 @@ int main(int argc, char **argv){
          * something is playing; with nothing playing they're pointless (and were showing when
          * they shouldn't). Time/info savers (analog=1, minim=2, weather=3) stay useful idle.
          * A suppressed art saver still power-saves the backlight below. */
-        int sstyle    = cfg_get_int("saver_style", 0);
+        int sstyle    = simple_cfg_get_int("saver_style", 0);
         int art_saver = (sstyle == 0 || sstyle == 4);
         int saver_ok  = (!art_saver || playing);
         if(saver_timeout > 0 || manual){
@@ -3624,7 +3625,7 @@ int main(int argc, char **argv){
         polls_set_paused(bl_state == 2);
         g_screen_off = (bl_state == 2);   /* publish for the slow polls (skip the hcitool spawn while off) */
         /* A's day/night appearance switches at an idle boundary, preserving the user's manual variant. */
-        if(bl_state==2 && theme_auto_supported() && cfg_get_int("theme_auto",0) && !theme_outdoor()){
+        if(bl_state==2 && theme_auto_supported() && simple_cfg_get_int("theme_auto",0) && !theme_outdoor()){
             static uint32_t checked; uint32_t tick=lv_tick_get();
             if(!checked || lv_tick_elaps(checked)>=60000){
                 checked=tick ? tick : 1;

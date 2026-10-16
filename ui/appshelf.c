@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Apps (a Disco menu section): up to five apps you pick, each with its icon, opening its landing page.
  *
@@ -65,13 +66,13 @@ static void scan(void){
 static int find_id(const char *id){ for(int i = 0; i < g_nall; i++) if(id[0] && !strcmp(g_all[i].id, id)) return i; return -1; }
 static void pins_load(void){
     g_npin = 0;
-    if(!cfg_get_str("apps_p1", NULL)){                                            /* never chosen: the first five */
+    if(!simple_cfg_get_str("apps_p1", NULL)){                                            /* never chosen: the first five */
         for(int i = 0; i < g_nall && g_npin < NPIN; i++) g_pin[g_npin++] = i;
         return;
     }
     for(int s = 0; s < NPIN; s++){
         char k[12]; snprintf(k, sizeof k, "apps_p%d", s + 1);
-        int i = find_id(cfg_get_str(k, ""));                                      /* an app since removed: skipped */
+        int i = find_id(simple_cfg_get_str(k, ""));                                      /* an app since removed: skipped */
         if(i >= 0) g_pin[g_npin++] = i;
     }
 }
@@ -79,7 +80,7 @@ static int pins_save(void){
     cfg_begin();
     for(int s = 0; s < NPIN; s++){
         char k[12]; snprintf(k, sizeof k, "apps_p%d", s + 1);
-        cfg_set_str_deferred(k, s < g_npin ? g_all[g_pin[s]].id : "");
+        simple_cfg_set_str_deferred(k, s < g_npin ? g_all[g_pin[s]].id : "");
     }
     return cfg_commit();
 }

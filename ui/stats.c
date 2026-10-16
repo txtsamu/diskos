@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Listening Stats (built in, opened from its landing page like Boomshine).
  *
@@ -302,7 +303,7 @@ static void fmt_dur_short(long long ms, char *out, size_t n){       /* "4h" / "3
     else snprintf(out, n, "%lldm", m);
 }
 static void fmt_hour(int h, char *out, size_t n){
-    if(cfg_get_int("time_24h", 1)) snprintf(out, n, "%02d:00", h);
+    if(simple_cfg_get_int("time_24h", 1)) snprintf(out, n, "%02d:00", h);
     else snprintf(out, n, "%d %s", h % 12 ? h % 12 : 12, h < 12 ? "am" : "pm");
 }
 static const char *persona(int h){

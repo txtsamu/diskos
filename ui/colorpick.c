@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -56,8 +57,8 @@ static void slider_cb(lv_event_t *e){
 static void slider_release_cb(lv_event_t *e){
     (void)e;
     if(g_loading) return;
-    cfg_set_int("accent_mode", 1);
-    cfg_set_int("accent_color", g_pending_rgb);
+    simple_cfg_set_int("accent_mode", 1);
+    simple_cfg_set_int("accent_color", g_pending_rgb);
 }
 
 
@@ -111,14 +112,14 @@ static void swatch_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     if(i < 0 || i >= NSW) return;
     g_mode = 1; g_rgb = (int)SW_RGB[i];
-    cfg_set_int("accent_mode", 1); cfg_set_int("accent_color", g_rgb);
+    simple_cfg_set_int("accent_mode", 1); simple_cfg_set_int("accent_color", g_rgb);
     ui_set_accent_config(1, g_rgb);
     paint();
 }
 static void follow_cb(lv_event_t *e){
     (void)e;
     g_mode = 0;
-    cfg_set_int("accent_mode", 0);
+    simple_cfg_set_int("accent_mode", 0);
     ui_set_accent_config(0, 0);
     paint();
 }
@@ -127,13 +128,13 @@ static void custom_open_cb(lv_event_t *e){ (void)e; if(g_custom) lv_obj_remove_f
 static void custom_done_cb(lv_event_t *e){
     (void)e;
     if(g_custom) lv_obj_add_flag(g_custom, LV_OBJ_FLAG_HIDDEN);
-    g_mode = cfg_get_int("accent_mode", 1); g_rgb = cfg_get_int("accent_color", UI_RED);
+    g_mode = simple_cfg_get_int("accent_mode", 1); g_rgb = simple_cfg_get_int("accent_color", UI_RED);
     paint();
 }
 
 void colorpick_open(void){
-    g_mode = cfg_get_int("accent_mode", 1);
-    g_rgb  = cfg_get_int("accent_color", UI_RED);
+    g_mode = simple_cfg_get_int("accent_mode", 1);
+    g_rgb  = simple_cfg_get_int("accent_color", UI_RED);
     int h,s,v; rgb2hsv((g_rgb>>16)&0xFF,(g_rgb>>8)&0xFF,g_rgb&0xFF,&h,&s,&v);
     g_loading = 1;                                            /* seed the Custom sliders */
     if(g_hsl) lv_slider_set_value(g_hsl, h, LV_ANIM_OFF);
@@ -225,6 +226,6 @@ void colorpick_create(lv_obj_t *root){
     lv_obj_t *dl = lv_label_create(dn); lv_label_set_text(dl, "Done");
     lv_obj_set_style_text_color(dl, TC(TEXT_PRIMARY), 0); lv_obj_center(dl);
     lv_obj_add_flag(g_custom, LV_OBJ_FLAG_HIDDEN);
-    g_mode = cfg_get_int("accent_mode", 1); g_rgb = cfg_get_int("accent_color", UI_RED);
+    g_mode = simple_cfg_get_int("accent_mode", 1); g_rgb = simple_cfg_get_int("accent_color", UI_RED);
     paint();
 }

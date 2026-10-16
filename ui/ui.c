@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "imm_record.h"
 #include "null_theme.h"
@@ -666,13 +667,13 @@ static void imm_bind_record(void){
 /* Display > Text & Layout > Immersive (every theme): 0 Vinyl (grooves + label), 1 CD (clear hub, still rainbow sheen +
  * spokes), 2 None (the plain cover, standing still). Taken over once from Disco's own older setting. */
 static int imm_style(void){
-    int s = cfg_get_int("imm_style", -1);
-    if(s < 0){ s = cfg_get_int("disco_imm", 0) == 1 ? 1 : 0; cfg_set_int("imm_style", s); }
+    int s = simple_cfg_get_int("imm_style", -1);
+    if(s < 0){ s = simple_cfg_get_int("disco_imm", 0) == 1 ? 1 : 0; simple_cfg_set_int("imm_style", s); }
     return s >= 0 && s <= 2 ? s : 0;
 }
 static int imm_cd_mode(void){ return imm_style() == 1; }
 static int imm_still(void){ return imm_style() == 2; }
-static int imm_lyrics_on(void){ return cfg_get_int("imm_lyrics", 1) != 0; }   /* Immersive Lyrics: the lines and their shade */
+static int imm_lyrics_on(void){ return simple_cfg_get_int("imm_lyrics", 1) != 0; }   /* Immersive Lyrics: the lines and their shade */
 static void spin_from_poster(void);
 static uint32_t imm_spin_ms;                              /* (defined with the immersive state below) */
 static void imm_lyrics_reload(void);
@@ -885,7 +886,7 @@ void ui_np_fsart_open(void){
     lv_obj_set_style_opa(fsart, LV_OPA_TRANSP, 0);
     lv_obj_remove_flag(fsart, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(fsart);
-    if(th_disco() || th_null()) lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
+    if(th_disco_family() || th_null()) lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
     else anim_fade(fsart, LV_OPA_TRANSP, LV_OPA_COVER, 240, NULL);
     fsart_on = 1;
     if(g_np_poster || g_np_ring){                       /* Ring and Braun share this immersive path */
@@ -916,7 +917,7 @@ void ui_np_fsart_open(void){
         imm_spin_ms=(uint32_t)imm_angle*20000/3600;
         imm_playing = g_np_is_playing;
         if(!imm_timer) imm_timer = lv_timer_create(imm_tick, imm_still() ? 250 : imm_frame_period, NULL);   /* initial render already measured its cost */
-        if((th_disco() || th_null()) && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)) imm_in_start();
+        if((th_disco_family() || th_null()) && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)) imm_in_start();
     }
 }
 
@@ -963,7 +964,7 @@ static void imm_out_exec(void *x, int32_t v){
 static void imm_out_done(lv_anim_t *a){
     (void)a;
     imm_boost = 0; if(imm_spin) lv_image_set_scale(imm_spin, imm_fast || g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP));   /* rest for next time */
-    screen_skip_anim_once(); screen_home(); if(th_disco()) dhome_imm_return();
+    screen_skip_anim_once(); screen_home(); if(th_disco_family()) dhome_imm_return();
     if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);
 }
 static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN); }
@@ -971,7 +972,7 @@ void ui_np_fsart_close(void){
     if(!fsart || !fsart_on) return;
     fsart_on = 0;
     if(imm_timer){ lv_timer_delete(imm_timer); imm_timer = NULL; }
-    if((th_disco() || th_null()) && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
+    if((th_disco_family() || th_null()) && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
         static int tag; lv_anim_delete(&tag, NULL);                  /* the record lifts off, then Music slides back in */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
         lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_out_exec);
@@ -979,7 +980,7 @@ void ui_np_fsart_close(void){
         lv_anim_set_completed_cb(&a, imm_out_done); lv_anim_start(&a);
         return;
     }
-    if((th_disco() || th_null()) && screen_current() == SCR_NOWPLAYING){
+    if((th_disco_family() || th_null()) && screen_current() == SCR_NOWPLAYING){
         /* The shared NP root uses Ring's layout. Keep it covered throughout
          * the 240ms return slide; hiding/fading first exposes that layout. */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
@@ -1058,7 +1059,7 @@ static void np_accent_from_track(const char *path){
 }
 int ui_accent_is_static(void);   /* fork: a colour picked in Accent wins over the album colour everywhere */
 static lv_color_t np_col(void){ if(th_braun()) return TC(ACCENT_PRIMARY); return ((g_np_poster || g_np_ring) && np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }
-lv_color_t ui_media_accent(void){ if(th_braun()) return TC(ACCENT_PRIMARY); return (np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }   /* theme.h: media surfaces (Braun: orange) */
+lv_color_t ui_media_accent(void){ if(th_simple())return TC(ACCENT_PRIMARY); if(th_braun()) return TC(ACCENT_PRIMARY); return (np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }   /* theme.h: media surfaces (Braun: orange) */
 static void apply_accent(void)
 {
     if(ring) {
@@ -1103,7 +1104,8 @@ static void apply_accent(void)
 /* Disco: an accent that reads on the cover - a too-dark one is lifted on the dark theme, a too-pale one darkened on the
  * light theme (hue kept; only the brightness moves, in a few small steps toward white / black) */
 lv_color_t ui_disco_fit_accent(lv_color_t c){
-    if(!th_disco()) return c;
+    if(th_simple())return TC(ACCENT_PRIMARY);
+    if(!th_disco_family()) return c;
     int light = theme_variant();
     for(int k = 0; k < 12; k++){
         int l = (c.red * 77 + c.green * 150 + c.blue * 29) >> 8;
@@ -1113,7 +1115,7 @@ lv_color_t ui_disco_fit_accent(lv_color_t c){
     }
     return c;
 }
-lv_color_t ui_current_accent(void){ return th_braun() ? TC(ACCENT_PRIMARY) : ui_disco_fit_accent(accent); }   /* Braun: orange everywhere */
+lv_color_t ui_current_accent(void){ if(th_simple())return TC(ACCENT_PRIMARY); return th_braun() ? TC(ACCENT_PRIMARY) : ui_disco_fit_accent(accent); }   /* Braun: orange everywhere */
 
 /* ---- shared standard header (back chevron + centred title) ------------------------------------- */
 static void ui_header_home_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && screen_press_was_long()) screen_home(); }
@@ -1299,8 +1301,8 @@ static void mode_click_cb(lv_event_t *e)
             int dx = p.x - g_mode_px, dy = p.y - g_mode_py;
             if((dx<0?-dx:dx) > 18 || (dy<0?-dy:dy) > 18) return;   /* was a swipe (cst816t wobble tolerance) */
         }
-        int wm = (cfg_get_int("work_mode", 0) + 1) % WORKMODE_COUNT;
-        cfg_set_int("work_mode", wm);
+        int wm = (simple_cfg_get_int("work_mode", 0) + 1) % WORKMODE_COUNT;
+        simple_cfg_set_int("work_mode", wm);
         ui_set_workmode(wm);
         mode_refresh(wm);
         static const char *const MODE_NAMES[WORKMODE_COUNT] =
@@ -1351,7 +1353,7 @@ static void np_settle_cb(lv_timer_t *t){                  /* after 15 s: stop sc
 /* A long title scrolls when the track changes or Now Playing appears, then settles: an endless scroll
  * redraws its strip ~30x/s for as long as the screen is on. */
 static void queue_click_cb(lv_event_t *e){ (void)e; queue_open(); }
-static void queue_long_cb(lv_event_t *e){ (void)e; if(cfg_get_int("up_next",0)) screen_show(SCR_UPNEXT); else queue_open(); }
+static void queue_long_cb(lv_event_t *e){ (void)e; if(simple_cfg_get_int("up_next",0)) screen_show(SCR_UPNEXT); else queue_open(); }
 static void np_queue_place(void){ if(btn_queue && btn_mode) lv_obj_align_to(btn_queue, btn_mode, LV_ALIGN_OUT_BOTTOM_MID, 0, 0); }
 void ui_queue_changed(void){                                  /* the badge: the queue's size, hidden when empty */
     if(!queue_badge) return;
@@ -2341,13 +2343,13 @@ static void update_cover_for_path(const track_state_t *st)
     int nidx = displayed_idx ^ 1;
     art_req_t job; memset(&job, 0, sizeof job);
     job.idx = nidx;
-    job.disco = th_disco(); job.canvas = theme_rgb(THEME_CLR_CANVAS); job.variant = theme_variant();
+    job.disco = th_disco_family(); job.canvas = theme_rgb(THEME_CLR_CANVAS); job.variant = theme_variant();
     copy_cstr(job.track, sizeof job.track, st->path);
     copy_cstr(job.art_key, sizeof job.art_key, art_key);
     copy_cstr(job.artist,sizeof job.artist,st->artist);
     copy_cstr(job.album,sizeof job.album,st->album);
     copy_cstr(job.title,sizeof job.title,st->title);
-    job.online=cfg_get_int("online_art",0);
+    job.online=simple_cfg_get_int("online_art",0);
     snprintf(job.out,  sizeof job.out,  "/tmp/cover%d.bmp",    nidx);
     snprintf(job.tout, sizeof job.tout, "/tmp/thumb%d.bmp",    nidx);
     snprintf(job.bout, sizeof job.bout, "/tmp/backdrop%d.bmp", nidx);
@@ -2383,7 +2385,7 @@ void ui_art_poll(lv_timer_t *t)
 {
     (void)t;
     { char got[512];                        /* Online Album Art saved a picture: redo that song's cover if it's on */
-      if(netart_take_ready(got, sizeof got) && cfg_get_int("online_art", 0) && strcmp(got, last_path) == 0) ui_art_retry(); }
+      if(netart_take_ready(got, sizeof got) && simple_cfg_get_int("online_art", 0) && strcmp(got, last_path) == 0) ui_art_retry(); }
     int ready = 0, rc = -1, inflight; art_req_t res; unsigned done_req = 0, cur_req = 0;
     pthread_mutex_lock(&g_art_mu);
     inflight = g_art_inflight;
@@ -2397,7 +2399,7 @@ void ui_art_poll(lv_timer_t *t)
     if(!ready) return;
     if(done_req != cur_req){ art_pixels_free(res.pixels); return; }        /* superseded - a newer decode is in flight */
     if(res.is_clear)      clear_art_state();/* main already cleared; idempotent */
-    else if(rc == 0 && res.from_net && !cfg_get_int("online_art", 0)){
+    else if(rc == 0 && res.from_net && !simple_cfg_get_int("online_art", 0)){
         clear_art_state();                  /* an online picture that landed after the setting was turned off */
     }
     else if(rc == 0){
@@ -2415,7 +2417,7 @@ void ui_art_poll(lv_timer_t *t)
          * obsolete failure must never clear the current album's artwork. */
         clear_art_state();
         /* no cover of its own: look it up online in the background (Settings > Display > Online Album Art) */
-        if(rc != -2 && res.online && cfg_get_int("online_art", 0) && strcmp(res.art_key, want_art_key) == 0)
+        if(rc != -2 && res.online && simple_cfg_get_int("online_art", 0) && strcmp(res.art_key, want_art_key) == 0)
             netart_request(res.track, res.artist, res.album, res.title);
     }
     art_pixels_free(res.pixels);
@@ -2947,7 +2949,7 @@ void ui_create(lv_obj_t *root)
     lv_label_set_text(mode_one, "1");
     lv_obj_center(mode_one);   /* sits between the loop arrows */
     lv_obj_add_flag(mode_one, LV_OBJ_FLAG_HIDDEN);
-    mode_refresh(cfg_get_int("work_mode", 0));
+    mode_refresh(simple_cfg_get_int("work_mode", 0));
 
     /* Poster: immersive (spinning cover + synced lyrics) shortcut, left side opposite the heart */
     btn_imm = lv_button_create(scr);
@@ -3148,7 +3150,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_clear_flag(fsart_artist, LV_OBJ_FLAG_CLICKABLE);
 
     apply_accent();
-    ui_set_np_style(cfg_get_int("np_style", 0));
+    ui_set_np_style(simple_cfg_get_int("np_style", 0));
 }
 
 static void np_shadow_sync(void){                                    /* keep the drop shadows' text in step */
@@ -3169,7 +3171,7 @@ void ui_update(const track_state_t *st)
     long remain;
     int32_t progress;
 
-    mode_refresh(cfg_get_int("work_mode", 0));   /* keep in sync with Tune menu */
+    mode_refresh(simple_cfg_get_int("work_mode", 0));   /* keep in sync with Tune menu */
 
     if(st == NULL || !st->have_track) {
         last_path[0] = '\0';
@@ -3366,7 +3368,7 @@ static lv_obj_t *g_dv_seg[DV_N], *g_dv_cap;
 static void dvol_paint(int v){
     if(!g_dv_seg[0]) return;
     static const uint32_t IRI[DV_N] = { 0xFF5AA0, 0xFF8A78, 0xFFB45A, 0xFFE070, 0x9AF07A, 0x62F2B0, 0x4AD8FF, 0x5AA8FF, 0x7A8CFF, 0xB36BFF };
-    int acc = cfg_get_int("disco_vol", 0) == 1;
+    int acc = simple_cfg_get_int("disco_vol", 0) == 1;
     float lvl = DV_A0 - DV_SPAN * (float)v / VOL_MAX;   /* the level's angle */
     for(int k = 0; k < DV_N; k++){
         float s0 = DV_A0 - DV_SPAN * (k + 1) / (float)DV_N, s1 = DV_A0 - DV_SPAN * k / (float)DV_N;   /* s0 above s1 */
@@ -3508,7 +3510,7 @@ void ui_show_volume(int vol)
             lv_obj_clear_flag(g_vol_needle, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_move_foreground(g_vol_needle);                      /* over the band and its marks (the number box is clear of it) */
         }
-        if(th_disco()){
+        if(th_disco_family()){
             lv_obj_add_flag(g_vol_panel, LV_OBJ_FLAG_CLICKABLE);               /* over everything; a tap off the arc closes it */
             lv_obj_add_event_cb(g_vol_panel, vol_tap_close_cb, LV_EVENT_CLICKED, NULL);
             lv_obj_set_style_bg_opa(g_vol_panel, 90, 0);
@@ -3584,9 +3586,9 @@ void ui_np_fav_toggle(void){                       /* as the Now Playing heart *
     ui_toast(g_np_fav ? "Added to Favourites" : "Removed from Favourites");
 }
 int ui_np_mode_next(void){                          /* as the Now Playing play-mode button; returns the new mode */
-    int cur = cfg_get_int("work_mode", 0); if(cur < 0 || cur >= WORKMODE_COUNT) cur = 0;   /* a bad stored value never indexes out of range */
+    int cur = simple_cfg_get_int("work_mode", 0); if(cur < 0 || cur >= WORKMODE_COUNT) cur = 0;   /* a bad stored value never indexes out of range */
     int wm = (cur + 1) % WORKMODE_COUNT;
-    cfg_set_int("work_mode", wm);
+    simple_cfg_set_int("work_mode", wm);
     ui_set_workmode(wm);
     mode_refresh(wm);
     static const char *const MODE_NAMES[WORKMODE_COUNT] = { "Sequential", "Shuffle", "Repeat One", "Repeat All", "Single" };

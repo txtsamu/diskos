@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "curvelist.h"
 #include "null_theme.h"
@@ -97,7 +98,7 @@ void curvelist_braun_watch(lv_obj_t *list){
 }
 /* Disco > Scroll: 0 Classic (the circle), 1 Straight (Braun-like, full width), 2 Disco (the rows' right ends
  * start on a circle round the navigation hub's centre, so they swing round that fixed point like spokes). */
-int curvelist_disco_scroll(void){ return th_null() ? cfg_get_int("null_scroll", 0) : th_disco() ? cfg_get_int("disco_scroll", 0) : 0; }
+int curvelist_disco_scroll(void){ return th_null() ? simple_cfg_get_int("null_scroll", 0) : th_disco_family() ? simple_cfg_get_int("disco_scroll", 0) : 0; }
 int curvelist_disco_geom(int mode, int y1, int y2, int full_w, int *w, int *shift){
     if(mode != 1 && mode != 2) return 0;
     int left = 180 - full_w / 2, right = 180 + full_w / 2;
@@ -132,7 +133,7 @@ static void curve(curvelist_t *c){
         return;
     }
     uint32_t n = lv_obj_get_child_count(c->list);
-    int mode = c->disco_style ? cfg_get_int("disco_scroll",0) : curvelist_disco_scroll();
+    int mode = c->disco_style ? simple_cfg_get_int("disco_scroll",0) : curvelist_disco_scroll();
     for(uint32_t i = 0; i < n; i++){
         lv_obj_t *r = lv_obj_get_child(c->list, i);
         if(!lv_obj_has_flag(r, LV_OBJ_FLAG_USER_1)) continue;

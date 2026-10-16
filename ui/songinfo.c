@@ -245,7 +245,7 @@ void songinfo_create(lv_obj_t *root)
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    g_header = th_disco() ? NULL : ui_header(root, "Song Info");
+    g_header = th_disco_family() ? NULL : ui_header(root, "Song Info");
     if(g_header) lv_obj_add_flag(g_header, LV_OBJ_FLAG_HIDDEN);
     /* the cover inside its progress ring, then title and artist */
     g_ring = lv_arc_create(root);
@@ -314,7 +314,7 @@ void songinfo_create(lv_obj_t *root)
         g_val[i] = v;
         if(i == F_TITLE || i == F_ARTIST) lv_obj_add_flag(cell, LV_OBJ_FLAG_HIDDEN);   /* shown in the header instead */
     }
-    if(th_disco()){
+    if(th_disco_family()){
         /* Album back sleeve: a compact artwork stamp and a roomy metadata panel.
          * The existing metadata worker and pinned-track handling stay shared. */
         lv_obj_add_flag(g_ring, LV_OBJ_FLAG_HIDDEN);
@@ -401,7 +401,7 @@ static void header_update(const track_state_t *st){         /* cover (the playin
     const void *dsc = current ? ui_current_cover_dsc() : NULL;
     lv_image_set_src(g_cover_img, NULL);
     if(dsc){ const lv_image_dsc_t *d = dsc; lv_image_set_src(g_cover_img, dsc);
-             if(d->header.w > 0) lv_image_set_scale(g_cover_img, (uint32_t)(((th_disco() || th_null()) ? (th_null()?56:52) : 88) * 256 / d->header.w) + 2);
+             if(d->header.w > 0) lv_image_set_scale(g_cover_img, (uint32_t)(((th_disco_family() || th_null()) ? (th_null()?56:52) : 88) * 256 / d->header.w) + 2);
              lv_obj_center(g_cover_img); lv_obj_remove_flag(g_cover_img, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_cover_note, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_add_flag(g_cover_img, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(g_cover_note, LV_OBJ_FLAG_HIDDEN); }
 }

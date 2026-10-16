@@ -16,7 +16,7 @@ static void btn_cb(lv_event_t *e){
 /* Disco: on a screen (not a popup on the top layer) the navigation circle's sliver owns 3 o'clock, so the buttons
  * spread over the rest of the ring, from 45 degrees below it round to 45 degrees above it */
 static int disco_screen_menu(lv_obj_t *root){
-    if(!th_disco()) return 0;
+    if(!th_disco_family()) return 0;
     for(lv_obj_t *p = root; p; p = lv_obj_get_parent(p)) if(p == lv_layer_top() || p == lv_layer_sys()) return 0;
     return 1;
 }

@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
@@ -190,7 +191,7 @@ static void curve_rows(void){
         shift = 0; int L = disco_clear_left(a.y1, a.y2);
         { int R = disco_clear_right(a.y1, a.y2);                              /* Disco: clear of the closed sliver */
           if(R && 180 + w / 2 > R){ int lft = 180 - w / 2; w = R - lft; shift = (lft + R) / 2 - 180; } }
-        if(th_disco()) lean_free_edge(a.y1, a.y2, &w, &shift);
+        if(th_disco_family()) lean_free_edge(a.y1, a.y2, &w, &shift);
         if(L && 180 - w / 2 < L){ int right = 180 + w / 2; int nw = right - L; if(nw < 120) nw = 120; shift = L + nw / 2 - 180; w = nw; }   /* Disco: start right of the picker (never narrower than 120) */
         }
         intptr_t key = ((intptr_t)w << 16 | (unsigned)(shift + 32768)) + 1; /* exact width and translation */
@@ -462,7 +463,7 @@ static void menu_cb(lv_event_t *e){
     int v=(int)(uintptr_t)lv_event_get_user_data(e);
     if(v==CAT_FOLDERS){ folderbrowser_open(); return; }   /* opens a screen, not a library view */
     if(v==CAT_BOOKS){ books_open(); return; }             /* audiobooks: a screen, not a library view */
-    if(v==VIEW_ALBUMS && cfg_get_int("album_view", 0)==1){ screen_show(SCR_ALBUMWALL); return; }  /* cover flow */
+    if(v==VIEW_ALBUMS && simple_cfg_get_int("album_view", 0)==1){ screen_show(SCR_ALBUMWALL); return; }  /* cover flow */
     g_view=v;
     g_drill_kind=0; library_reload();
 }
@@ -633,7 +634,7 @@ static void add_row(int i){
              * SHORT_CLICKED above so the hold doesn't also start playback on release */
             ui_on(r, song_long_cb, LV_EVENT_LONG_PRESSED, (void*)(uintptr_t)g_buf[i]->id, "library.song.long", UI_CORE);
             fmt_dur(dur,sizeof dur,g_buf[i]->dur_ms);
-            if(g_view==VIEW_GROUP && (g_drill_kind==1 || g_scope_lvl==2) && g_buf[i]->track > 0 && cfg_get_int("track_numbers", 0)){
+            if(g_view==VIEW_GROUP && (g_drill_kind==1 || g_scope_lvl==2) && g_buf[i]->track > 0 && simple_cfg_get_int("track_numbers", 0)){
                 char num[MDB_STR + 16];                    /* album list + Track Numbers on: "3 Title" (stock "%d %s") */
                 snprintf(num, sizeof num, "%d %s", g_buf[i]->track, g_buf[i]->title[0]?g_buf[i]->title:"Untitled");
                 row_two(r, num, g_buf[i]->artist, dur);
@@ -849,13 +850,13 @@ static int current_list_context(int *lt, char *name, int cap){
  * Play-mode = 0102 (ground-truth captured 2026-06-25); ui_set_workmode applies it. */
 static void play_list_mode(int mode){
     if(g_view==VIEW_GROUP && g_drill_kind!=1 && g_scope_lvl==2){     /* one album of an artist / genre: its own stock queue */
-        cfg_set_int("work_mode", mode); ui_set_workmode(mode);
+        simple_cfg_set_int("work_mode", mode); ui_set_workmode(mode);
         if(scope_play_album(g_scope_album, mode == 1 ? -2 : -1)) screen_show(SCR_NOWPLAYING);
         return;
     }
     int lt; char nm[160];
     if(!current_list_context(&lt, nm, sizeof nm)) return;
-    cfg_set_int("work_mode", mode); ui_set_workmode(mode);
+    simple_cfg_set_int("work_mode", mode); ui_set_workmode(mode);
     int pos = 1;
     /* shuffle: start on a random track (not always the first). Skip artist lists (lt==2):
      * the UI's split-artist count can exceed the player's exact ARTIST=? list -> out-of-range pos. */

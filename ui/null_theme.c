@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Null: shared pixel system, persistent horizontal menu, Music and vertical QS.
  * All player/radio/library actions use existing diskOS dispatchers. No
@@ -39,7 +40,7 @@ static lv_obj_t *music_weather,*saver_bg,*saver_wash;
 static char music_clock_text[32]="--:--";
 static const lv_font_t *music_font(int role)
 {
-    int set=cfg_get_int("null_music_fonts",0);if(set<0 || set>3)set=0;
+    int set=simple_cfg_get_int("null_music_fonts",0);if(set<0 || set>3)set=0;
     return &music_fonts[set][role];
 }
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
@@ -79,7 +80,7 @@ static char last_title[192], last_artist[192], last_album[192], last_times[64];
 static int left(void) { return 0; }
 static lv_text_align_t alignment(void)
 {
-    return cfg_get_int("null_text_align", 0) == 1 ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER;
+    return simple_cfg_get_int("null_text_align", 0) == 1 ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER;
 }
 static lv_obj_t *box(lv_obj_t *p, int x, int y, int w, int h)
 {
@@ -207,11 +208,11 @@ static void track_event(lv_event_t *e)
     lv_event_code_t c=lv_event_get_code(e);
     if(c==LV_EVENT_LONG_PRESSED){
         cancel_track_tap();gz_last=0;
-        int action=cfg_get_int("null_title_hold",0);
+        int action=simple_cfg_get_int("null_title_hold",0);
         if(action==0)disco_open_np_immersive();else if(action==1)ui_np_fav_toggle();
         return;
     }
-    if(cfg_get_int("null_controls",0)==2){gesture_event(e);return;}
+    if(simple_cfg_get_int("null_controls",0)==2){gesture_event(e);return;}
     if(c==LV_EVENT_CLICKED && !screen_press_was_long())disco_track_overlay_open();
 }
 static void feedback_opa(void *o,int32_t v){lv_obj_set_style_opa(o,v,0);}
@@ -272,7 +273,7 @@ static void gesture_event(lv_event_t *e)
     if (c == LV_EVENT_PRESSED) {
         gz_start = p;
         gz_t0 = now;
-        if (cfg_get_int("null_controls", 0) == 1 && !ctl_shown) {
+        if (simple_cfg_get_int("null_controls", 0) == 1 && !ctl_shown) {
             ctl_shown = 1;
             wake_guard = 1;
             lv_obj_move_foreground(gesture);
@@ -284,7 +285,7 @@ static void gesture_event(lv_event_t *e)
         return;
     }
     if(c==LV_EVENT_PRESS_LOST){cancel_track_tap();gz_last=0;return;}
-    if (c != LV_EVENT_RELEASED || cfg_get_int("null_controls", 0) != 2)
+    if (c != LV_EVENT_RELEASED || simple_cfg_get_int("null_controls", 0) != 2)
         return;
     int dx = p.x - gz_start.x, dy = p.y - gz_start.y;
     if (abs(dx) >= 40 && abs(dx) > 2 * abs(dy) && now - gz_t0 < 700) {
@@ -339,7 +340,7 @@ static void nav_paint(void)
     edge_points[1] = (lv_point_precise_t){cx + dir * 5, 180};
     edge_points[2] = (lv_point_precise_t){cx - dir * 5, 192};
     lv_color_t col =
-        nav_open && cfg_get_int("null_drawer_state_colours", 1) ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY);
+        nav_open && simple_cfg_get_int("null_drawer_state_colours", 1) ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY);
     for (int i = 0; i < 5; i++) {
         lv_line_set_points(edge_line[i], edge_points, 3);
         lv_obj_set_style_line_color(edge_line[i], col, 0);
@@ -408,7 +409,7 @@ static void menu_selected(int index, void *u)
 }
 static void menu_shortcut(int hold){
     const char *key=hold?"null_nav_hold":"null_nav_double";
-    int action=cfg_get_int(key,hold?DISCO_NAV_MUSIC:DISCO_NAV_SEARCH);
+    int action=simple_cfg_get_int(key,hold?DISCO_NAV_MUSIC:DISCO_NAV_SEARCH);
     if(action==DISCO_NAV_NONE)return;
     nav_set(0);disco_nav_action_run(action);
 }
@@ -463,7 +464,7 @@ static void clock_event(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
         int on = lv_obj_has_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
-        if (cfg_set_int("null_clock", on) < 0) {
+        if (simple_cfg_set_int("null_clock", on) < 0) {
             ui_toast("Couldn't save settings");
             return;
         }
@@ -589,7 +590,7 @@ void null_art_changed(void)
         return;
     const void *src = ui_current_sharp_img();
     last_sharp = src;
-    int kind = cfg_get_int("null_music_background", 0);
+    int kind = simple_cfg_get_int("null_music_background", 0);
     if (src && lv_image_src_get_type(src) == LV_IMAGE_SRC_VARIABLE && kind == 2) {
         const lv_image_dsc_t *d = src;
         int bpp = d->header.cf == LV_COLOR_FORMAT_RGB888                                                 ? 3
@@ -866,7 +867,7 @@ void null_qs_build(void)
                                    "EQ",    "SRCH", "QUEUE", "UP NXT", "SHRTS", "WTHR",
                                    "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS"};
     const lv_font_t *icons=TF(QS_ICON_28);
-    int show_icons=cfg_get_int("null_qs_layout",0)==1;
+    int show_icons=simple_cfg_get_int("null_qs_layout",0)==1;
     for(int i=0;i<8;i++){
         if(i>=qcount){lv_obj_add_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);continue;}
         lv_obj_remove_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);
@@ -887,7 +888,7 @@ static void radio_state(void)
     if (!qs_open || !qpanel)
         return;
     for (int i = 0; i < qcount; i++) {
-        if(cfg_get_int("null_qs_layout",0)==1)text_set(qcaptions[i],quicksettings_item_glyph(qids[i]));
+        if(simple_cfg_get_int("null_qs_layout",0)==1)text_set(qcaptions[i],quicksettings_item_glyph(qids[i]));
         int on = qids[i] == 0   ? wifi_radio_live()
                  : qids[i] == 1 ? bt_state() == BT_ON
                  : qids[i] == 3 ? scanner_active()
@@ -1000,7 +1001,7 @@ static void heartbeat(lv_timer_t *t)
         if (m < 0 || m > 4)
             m = 0;
         text_set(lv_obj_get_child(mode, 0), md[m]);
-        int cm = cfg_get_int("null_controls", 0),
+        int cm = simple_cfg_get_int("null_controls", 0),
             shown = cm != 1 || lv_display_get_inactive_time(NULL) < 5000;
         controls_visibility(cm, shown);
         if (cm == 1 && (!shown || wake_guard)) {
@@ -1012,7 +1013,7 @@ static void heartbeat(lv_timer_t *t)
     radio_state();
     if (nav_open) {
         static const int secs[] = {0, 5, 10, 30};
-        int a = cfg_get_int("null_autohide", 2);
+        int a = simple_cfg_get_int("null_autohide", 2);
         if (a < 0 || a > 3)
             a = 2;
         uint32_t idle = lv_display_get_inactive_time(NULL);
@@ -1121,7 +1122,7 @@ void null_options_changed(void)
     if (!th_null() || !home)
         return;
     if (clock_box) {
-        if (cfg_get_int("null_clock", 1))
+        if (simple_cfg_get_int("null_clock", 1))
             lv_obj_remove_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
         else
             lv_obj_add_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
@@ -1131,8 +1132,8 @@ void null_options_changed(void)
     lv_obj_set_style_text_font(album,music_font(2),0);
     lv_obj_set_style_text_font(times,music_font(3),0);
     lv_obj_set_style_text_font(music_clock,music_font(4),0);
-    lv_obj_set_y(music_clock,cfg_get_int("null_music_fonts",0)==3?30:34);
-    if(music_weather)lv_obj_set_y(music_weather,cfg_get_int("null_music_fonts",0)==3?80:70);
+    lv_obj_set_y(music_clock,simple_cfg_get_int("null_music_fonts",0)==3?30:34);
+    if(music_weather)lv_obj_set_y(music_weather,simple_cfg_get_int("null_music_fonts",0)==3?80:70);
     last_ctl_mode = -1;
     last_ctl_visible = -1;
     wake_guard = 0;
@@ -1140,11 +1141,11 @@ void null_options_changed(void)
     lv_obj_set_style_text_align(artist, alignment(), 0);
     lv_obj_set_style_text_align(album, alignment(), 0);
     lv_obj_set_style_text_align(times, alignment(), 0);
-    if (cfg_get_int("null_music_album", 1))
+    if (simple_cfg_get_int("null_music_album", 1))
         lv_obj_remove_flag(album, LV_OBJ_FLAG_HIDDEN);
     else
         lv_obj_add_flag(album, LV_OBJ_FLAG_HIDDEN);
-    int cm = cfg_get_int("null_controls", 0);
+    int cm = simple_cfg_get_int("null_controls", 0);
     lv_obj_add_flag(gesture, LV_OBJ_FLAG_HIDDEN);
     cancel_track_tap();gz_last=0;
     for (int i = 0; i < 3; i++) {

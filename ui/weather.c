@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -232,7 +233,7 @@ static void forecast_fetch_async(void){
     if(!g_fc_inflight){ g_fc_inflight = 1; g_fc_ready = 0; go = 1; }
     pthread_mutex_unlock(&g_fc_mu);
     if(!go) return;
-    wx_urlenc(cfg_get_str("weather_loc", ""), g_floc, sizeof g_floc);   /* main thread: cfg isn't thread-safe */
+    wx_urlenc(simple_cfg_get_str("weather_loc", ""), g_floc, sizeof g_floc);   /* main thread: cfg isn't thread-safe */
     int use_f = 0;
     pthread_mutex_lock(&g_wx_mu); use_f = strstr(g_wbuf, "\xC2\xB0" "F") != NULL; pthread_mutex_unlock(&g_wx_mu);
     g_fc_last = lv_tick_get();
@@ -253,7 +254,7 @@ void weather_fetch_async(void)
      * percent-encode it so it's URL-safe AND can't break out of the single-quoted
      * wget command. Empty => wttr.in auto-geolocates by IP. Set before pthread_create,
      * whose barrier publishes it to the worker. */
-    wx_urlenc(cfg_get_str("weather_loc", ""), g_loc, sizeof g_loc);
+    wx_urlenc(simple_cfg_get_str("weather_loc", ""), g_loc, sizeof g_loc);
     g_last = lv_tick_get();
     pthread_t th;
     if (pthread_create(&th, NULL, weather_thread, NULL) == 0) pthread_detach(th);
@@ -286,7 +287,7 @@ void weather_poll(lv_timer_t *t)
         pthread_mutex_unlock(&g_fc_mu);
         if(r) weather_app_refresh();
     }
-    if (!cfg_get_int("weather_on", 1)) {
+    if (!simple_cfg_get_int("weather_on", 1)) {
         /* weather off -> no fetch, no display. But DRAIN any in-flight worker result so a fetch that
          * completes while disabled can't flash a stale reading the instant it's re-enabled. */
         pthread_mutex_lock(&g_wx_mu);
@@ -371,7 +372,7 @@ static void weather_app_refresh(void)
     lv_obj_set_style_text_color(g_wd_cicon, wd_col(icon), 0);
     set_if(g_wd_ctemp, g_have ? temp : (wfail ? "n/a" : "..."));
     set_if(g_wd_cond, g_have ? cond : (wfail ? "Weather unavailable" : "Fetching..."));
-    const char *l = cfg_get_str("weather_loc", "");
+    const char *l = simple_cfg_get_str("weather_loc", "");
     char loc[64]; snprintf(loc, sizeof loc, "%.60s", (l && l[0]) ? l : (have_fc && fc.loc[0] ? fc.loc : "Auto (by IP)"));
     set_if(g_wd_loc, loc);
     char hl[40] = "";
@@ -388,7 +389,7 @@ static void weather_app_refresh(void)
         const char *ic = wd_icon(fc.s[i].code, night);
         set_if(g_wd_icon[k], ic); lv_obj_set_style_text_color(g_wd_icon[k], wd_col(ic), 0);
         char b[16]; snprintf(b, sizeof b, "%d\xC2\xB0", fc.s[i].t); set_if(g_wd_temp[k], b);
-        snprintf(b, sizeof b, th_disco() ? "%02d:00" : "%02d", fc.s[i].hour); set_if(g_wd_hour[k], b);
+        snprintf(b, sizeof b, th_disco_family() ? "%02d:00" : "%02d", fc.s[i].hour); set_if(g_wd_hour[k], b);
     }
     set_if(g_wd_hint, (have_fc && fc.ok) ? "" : (fc_state ? "Loading forecast..." : "Forecast unavailable"));
 }
@@ -402,7 +403,7 @@ void weather_demo(void){
     memset(&g_fc, 0, sizeof g_fc); g_fc.ok = 1; g_fc.hi = 21; g_fc.lo = 11; g_fc.n = 10;
     for(int i = 0; i < 10; i++){ int h = (lt.tm_hour / 3 + 1 + i) * 3; g_fc.s[i].day = h / 24; g_fc.s[i].hour = h % 24; g_fc.s[i].t = T[i]; g_fc.s[i].code = CODE[i]; }
     g_fc_have = 1; pthread_mutex_unlock(&g_fc_mu);
-    cfg_set_str("weather_loc", "Amsterdam");
+    simple_cfg_set_str("weather_loc", "Amsterdam");
     weather_app_refresh();
 }
 #ifdef WX_TEST
@@ -412,7 +413,7 @@ void wx_test_refresh(void){ weather_app_refresh(); }
 static void loc_done(const char *text)
 {
     if(!text) return;
-    cfg_set_str("weather_loc", text ? text : "");
+    simple_cfg_set_str("weather_loc", text ? text : "");
     g_wgen++;                   /* invalidate any in-flight fetch for the old location */
     g_have = 0;                 /* force a fresh fetch + show "Fetching" */
     g_last = 0;
@@ -422,12 +423,12 @@ static void loc_done(const char *text)
 static void set_loc_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    kbinput_open("City / location", cfg_get_str("weather_loc", ""), loc_done);
+    kbinput_open("City / location", simple_cfg_get_str("weather_loc", ""), loc_done);
 }
 static void auto_loc_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    cfg_set_str("weather_loc", "");
+    simple_cfg_set_str("weather_loc", "");
     g_wgen++;                   /* invalidate any in-flight fetch for the old location */
     g_have = 0; g_last = 0;
     weather_fetch_async();
@@ -489,7 +490,7 @@ void weather_app_create(lv_obj_t *root)
     g_wd_hint = wlabel(root, TF(UI_10), TC(TEXT_HINT));
     lv_obj_align(g_wd_hint, LV_ALIGN_CENTER, 0, 80);
     weather_app_refresh();
-    if(th_disco()){        /* Disco: laid out like Quick Settings: now in the navigation hub's field, the next 12 h as rows */
+    if(th_disco_family()){        /* Disco: laid out like Quick Settings: now in the navigation hub's field, the next 12 h as rows */
         lv_obj_add_flag(ring, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *f = lv_obj_create(root); lv_obj_remove_style_all(f);          /* the hub's shape, its right end cut by the rim */
         lv_obj_set_pos(f, disco_mx(196, 230), 90); lv_obj_set_size(f, 230, 180);   /* Disco Left: on the left */

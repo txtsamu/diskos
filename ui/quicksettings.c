@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 #include "onboarding.h"
 #include "null_theme.h"
 #include "battery.h"
@@ -51,14 +52,14 @@ static const qs_item_t CATALOG[Q_COUNT]={
 int quicksettings_item_count(void){return Q_COUNT;}
 const qs_item_t *quicksettings_item(int id){return id>=0 && id<Q_COUNT?&CATALOG[id]:NULL;}
 int quicksettings_items_load(int *out){
-    const char *code=cfg_get_str(th_null()?"null_qs_items":"disco_qs_items",NULL);int n=0,all[Q_COUNT],limit=th_null()?8:7;
+    const char *code=simple_cfg_get_str(th_null()?"null_qs_items":"disco_qs_items",NULL);int n=0,all[Q_COUNT],limit=(th_null()||th_simple())?8:7;
     if(code)for(const char *p=code;*p && n<Q_COUNT;p++)for(int id=0;id<Q_COUNT;id++)if(*p==CATALOG[id].code[0]){
         int duplicate=0;for(int k=0;k<n;k++)if(all[k]==id)duplicate=1;
         if(!duplicate)all[n++]=id;
         break;
     }
     if(!code || (code[0] && !n)){
-        if(th_null()){static const int nd[]={T_WIFI,T_BT,T_MODE,Q_EQ,T_RESCAN,Q_SEARCH,Q_WEATHER,T_SET};memcpy(out,nd,sizeof nd);return 8;}
+        if(th_null()||th_simple()){static const int nd[]={T_WIFI,T_BT,T_MODE,Q_EQ,T_RESCAN,Q_SEARCH,Q_WEATHER,T_SET};memcpy(out,nd,sizeof nd);return 8;}
         static const int defaults[]={T_WIFI,T_BT,T_MODE,T_LIB,Q_EQ,Q_SEARCH,T_SET};
         memcpy(out,defaults,sizeof defaults);return sizeof defaults/sizeof defaults[0];
     }
@@ -72,15 +73,15 @@ int quicksettings_items_load(int *out){
     return n;
 }
 int quicksettings_items_save(const int *items,int count){
-    if(count<0 || count>(th_null()?8:7))return -1;
+    if(count<0 || count>((th_null()||th_simple())?8:7))return -1;
     char codes[QS_MAX_ITEMS+1],old[48];
     for(int i=0;i<count;i++){
         if(items[i]<0 || items[i]>=Q_COUNT)return -1;
         for(int j=0;j<i;j++)if(items[j]==items[i])return -1;
         codes[i]=CATALOG[items[i]].code[0];
     }
-    codes[count]=0;snprintf(old,sizeof old,"%s",cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
-    if(cfg_set_str(th_null()?"null_qs_items":"disco_qs_items",codes)<0){cfg_set_str_deferred(th_null()?"null_qs_items":"disco_qs_items",old);cfg_flush();return -1;}
+    codes[count]=0;snprintf(old,sizeof old,"%s",simple_cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
+    if(simple_cfg_set_str(th_null()?"null_qs_items":"disco_qs_items",codes)<0){simple_cfg_set_str_deferred(th_null()?"null_qs_items":"disco_qs_items",old);cfg_flush();return -1;}
     return 0;
 }
 static int g_items[QS_MAX_ITEMS],g_nitems,g_style=-1,g_style_raw=-1;
@@ -113,7 +114,7 @@ static const char *mode_glyph(void){
 }
 const char *quicksettings_item_glyph(int id){const qs_item_t *item=quicksettings_item(id);return id==T_MODE?mode_glyph():item?item->icon:LV_SYMBOL_SETTINGS;}
 static void paint_radios(void){
-    if(th_disco()){dq_paint();return;}
+    if(th_disco_family()){dq_paint();return;}
     lv_color_t acc = th_ringlike()?ui_current_accent():TC(ACCENT_PRIMARY);
     orbit_set_on(&g_orb, T_WIFI, wifi_radio_live(), acc);           /* the real radio, not the saved intent */
     int bs = bt_state();                                        /* the real radio, not the saved intent */
@@ -162,7 +163,7 @@ static void prog_tick(lv_timer_t *t){
 /* rescan: while the library scan runs, the Rescan icon turns red and spins (1 turn/s) */
 static void spin_exec(void *var, int32_t v){ lv_obj_set_style_transform_rotation((lv_obj_t *)var, v, 0); }
 static void rescan_show(int on){
-    if(th_disco()||th_null()){g_scanning=on;return;}
+    if(th_disco_family()||th_null()){g_scanning=on;return;}
     if(on == g_scanning) return;
     g_scanning = on;
     lv_obj_t *ic = g_orb.icon[T_RESCAN];
@@ -191,7 +192,7 @@ static lv_obj_t *g_dq_row[QS_MAX_ITEMS], *g_dq_ico[QS_MAX_ITEMS], *g_dq_val[QS_M
 static void set_text_if(lv_obj_t *l, const char *t){ if(l && strcmp(lv_label_get_text(l), t)) lv_label_set_text(l, t); }
 static void set_col_if(lv_obj_t *l, lv_color_t c){ if(l && !lv_color_eq(lv_obj_get_style_text_color(l, 0), c)) lv_obj_set_style_text_color(l, c, 0); }
 static void dq_paint(void){
-    if(!th_disco())return;
+    if(!th_disco_family())return;
     lv_color_t acc=ui_current_accent();
     for(int i=0;i<g_nitems;i++){
         int id=g_items[i],on=id==T_WIFI?wifi_radio_live():id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():0;
@@ -239,8 +240,8 @@ static void controls_build(lv_obj_t *root){
     if(g_controls){lv_obj_delete(g_controls);g_controls=NULL;}
     memset(g_dq_row,0,sizeof g_dq_row);memset(g_dq_ico,0,sizeof g_dq_ico);memset(g_dq_val,0,sizeof g_dq_val);
     memset(g_dq_name,0,sizeof g_dq_name);memset(g_dq_badge,0,sizeof g_dq_badge);
-    g_nitems=quicksettings_items_load(g_items);g_style_raw=cfg_get_int("disco_qs_style",1)==1;g_style=g_style_raw;
-    snprintf(g_codes,sizeof g_codes,"%s",cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
+    g_nitems=quicksettings_items_load(g_items);g_style_raw=simple_cfg_get_int("disco_qs_style",1)==1;g_style=g_style_raw;
+    snprintf(g_codes,sizeof g_codes,"%s",simple_cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs"));
     for(int i=0;i<T_N;i++){lv_obj_add_flag(g_orb.btn[i],LV_OBJ_FLAG_HIDDEN);if(g_orb.cap[i])lv_obj_add_flag(g_orb.cap[i],LV_OBJ_FLAG_HIDDEN);}
     g_controls=lv_obj_create(root);lv_obj_remove_style_all(g_controls);lv_obj_set_size(g_controls,360,360);
     lv_obj_clear_flag(g_controls,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
@@ -355,6 +356,7 @@ static void disco_layout(lv_obj_t *root){
 void quicksettings_create(lv_obj_t *root)
 {
     g_root=root;
+    if(th_simple()){simple_qs_create(root);return;}
     if(th_null()){null_qs_create(root);return;}
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
@@ -413,7 +415,7 @@ void quicksettings_create(lv_obj_t *root)
         { LV_SYMBOL_WIFI, "Wi-Fi" }, { LV_SYMBOL_BLUETOOTH, "Bluetooth" }, { LV_SYMBOL_DIRECTORY, "Library" },
         { LV_SYMBOL_REFRESH, "Rescan" }, { LV_SYMBOL_SD_CARD, "Mode" }, { LV_SYMBOL_SETTINGS, "Settings" } };
     orbit_create(&g_orb, root, it, T_N, -60, pick_cb);
-    if(th_disco()) for(int i = 0; i < T_N; i++){
+    if(th_disco_family()) for(int i = 0; i < T_N; i++){
         /* Also cover the optional icon-arcs layout. No timer or animation. */
         lv_obj_set_style_bg_opa(g_orb.btn[i], LV_OPA_COVER, LV_STATE_PRESSED);
         lv_obj_set_style_border_width(g_orb.btn[i], 2, LV_STATE_PRESSED);
@@ -476,7 +478,7 @@ void quicksettings_create(lv_obj_t *root)
     lv_obj_center(g_pp_glyph);
 
     if(!g_prog_timer) g_prog_timer = lv_timer_create(prog_tick, 1000, NULL);
-    if(th_disco()) disco_layout(root);
+    if(th_disco_family()) disco_layout(root);
     if(th_braun()){ br_face(root); if(g_dim) lv_obj_add_flag(g_dim, LV_OBJ_FLAG_HIDDEN);   /* Braun: the grille face, no dimming veil */
                     lv_obj_set_style_text_color(g_batt_icon, TC(TEXT_SECONDARY), 0);
                     for(uint32_t k = 0; k < lv_obj_get_child_count(root); k++){ lv_obj_t *o = lv_obj_get_child(root, k);   /* the sun marker */
@@ -507,6 +509,7 @@ void quicksettings_set_art(const void *cover_dsc, const void *backdrop_src)
 }
 void quicksettings_set_battery(int pct, int charging)
 {
+    if(th_simple()){simple_qs_battery(pct,charging);return;}
     if(th_null()){null_qs_battery(pct,charging);return;}
     if(!g_batt) return;
     if(pct < 0) return;
@@ -522,6 +525,7 @@ void quicksettings_set_battery(int pct, int charging)
 }
 void quicksettings_set_now_playing(const char *title, const char *artist, int playing)
 {
+    if(th_simple()){simple_qs_track(title,artist,playing);return;}
     (void)title; (void)artist;
     if(g_pp_glyph) lv_label_set_text(g_pp_glyph, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
     if(g_prog) lv_obj_set_style_arc_color(g_prog, th_braun() ? TC(ACCENT_PRIMARY) : ui_media_accent(), LV_PART_INDICATOR);
@@ -529,6 +533,7 @@ void quicksettings_set_now_playing(const char *title, const char *artist, int pl
 void quicksettings_set_volume(int vol){ (void)vol; }       /* the volume arc gave way to the battery */
 void quicksettings_refresh(int playing)
 {
+    if(th_simple()){simple_qs_refresh(playing);return;}
     if(!g_prog)return;
     if(g_pp_glyph) lv_label_set_text(g_pp_glyph, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
     if(g_bright && !lv_obj_has_state(g_bright, LV_STATE_PRESSED))   /* don't fight an active drag */
@@ -541,10 +546,11 @@ void quicksettings_refresh(int playing)
  * Upstream's Quick Settings is user-configurable: a tile palette plus a config screen (SCR_QSCONFIG),
  * and the manager rebuilds the panel when that changes. Disco rebuilds only its configurable controls; other themes retain the fixed panel. */
 void quicksettings_build(void){
+    if(th_simple()){simple_qs_build();return;}
     if(th_null()){null_qs_build();return;}
-    if(!th_disco() || !g_root)return;
-    int style=cfg_get_int("disco_qs_style",1)==1;
-    if(style!=g_style_raw || strcmp(g_codes,cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs")))controls_build(g_root);
+    if(!th_disco_family() || !g_root)return;
+    int style=simple_cfg_get_int("disco_qs_style",1)==1;
+    if(style!=g_style_raw || strcmp(g_codes,simple_cfg_get_str(th_null()?"null_qs_items":"disco_qs_items","wbmlefs")))controls_build(g_root);
     dq_paint();
 }
 
@@ -555,7 +561,7 @@ void qsconfig_create(lv_obj_t *root){
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     ui_header(root, "Quick Settings");
     lv_obj_t *m = lv_label_create(root);
-    lv_label_set_text(m, th_disco()?"Choose Style and Items in\nDisplay > Disco Options >\nQuick Settings.":"This theme uses a fixed panel:\n"
+    lv_label_set_text(m, th_disco_family()?"Choose Style and Items in\nDisplay > Disco Options >\nQuick Settings.":"This theme uses a fixed panel:\n"
                          "brightness and battery arcs,\nthe cover and six toggles.");
     lv_label_set_long_mode(m, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(m, 50, 120); lv_obj_set_size(m, 260, 120);

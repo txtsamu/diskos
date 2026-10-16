@@ -1,9 +1,10 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* The standby screen in the Disco theme: the Music screen at rest. The sharp cover stays, dimmed under a dark veil;
  * the status icons, a large clock and the weather sit in the middle, the track below, and the progress runs round
  * the rim as a thin arc (rainbow, accent or none, like Settings > Display > Progress Bar). Nothing moves between
- * minutes: it redraws once a minute. saver.c forwards here when th_disco(). */
+ * minutes: it redraws once a minute. saver.c forwards here when th_disco_family(). */
 #include "screens.h"
 #include "theme.h"
 #include "config.h"
@@ -58,7 +59,7 @@ static lv_obj_t *rim_arc(lv_obj_t *root, lv_color_t c, int w, int opa){
 }
 static void progress(void){                                       /* once a minute */
     if(!g_seg[0]) return;
-    int m = cfg_get_int("disco_progress", 0); if(m < 0 || m > 2) m = 0;
+    int m = simple_cfg_get_int("disco_progress", 0); if(m < 0 || m > 2) m = 0;
     track_state_t st; ipc_get_state(&st);
     int deg = (st.have_track && st.duration_ms > 0) ? (int)((long long)st.position_ms * 360 / st.duration_ms) : 0;
     if(deg > 360) deg = 360;

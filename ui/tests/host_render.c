@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
+#include "simple_theme.h"
 #include "null_theme.h"
 #include "screens.h"
 #include "onboarding.h"
@@ -545,6 +546,8 @@ int main(int argc, char **argv){
     assert(!cfg_set_int_deferred("theme_variant",atoi(argv[2])));
     assert(!cfg_set_int_deferred("theme_auto",0));
     assert(!cfg_set_int_deferred("up_next",atoi(argv[4])));
+    if(atoi(argv[1])==THEME_PRESET_SIMPLE){cfg_set_int_deferred("simple_clock",1);cfg_set_str_deferred("simple_qs_items","wbmerfhs");}
+    if(getenv("SIMPLE_BG"))cfg_set_int_deferred("simple_background",atoi(getenv("SIMPLE_BG")));
     if(getenv("NULL_PALETTE"))cfg_set_int_deferred("null_palette",atoi(getenv("NULL_PALETTE")));
     if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
     if(getenv("NULL_SIDE"))cfg_set_int_deferred("null_side",atoi(getenv("NULL_SIDE")));
@@ -1611,6 +1614,21 @@ render:
         dhome_set_now_playing(NULL,NULL,lv_color_hex(0x8080FF),false); for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
+    lv_refr_now(d);
+    if(th_simple()&&getenv("REVIEW_SIMPLE")){
+        assert(simple_test_qs_count()==8);int ids[8];assert(quicksettings_items_load(ids)==8);
+        int old=cfg_get_int("disco_clock",1);assert(simple_cfg_set_int_deferred("disco_clock",0)==0);assert(cfg_get_int("disco_clock",1)==old);assert(cfg_get_int("simple_clock",-1)==0);
+        int chosen[]={7,0,5,1,6,4,3,2};assert(quicksettings_items_save(chosen,8)==0);simple_qs_build();assert(quicksettings_items_load(ids)==8);for(int i=0;i<8;i++)assert(ids[i]==chosen[i]);
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+        simple_nav_open(1);nav_wait(250);assert(simple_nav_is_open());
+        nav_pointer=(lv_indev_data_t){.point={240,162},.state=LV_INDEV_STATE_PRESSED};nav_wait(40);
+        for(int x=240;x>=145;x-=5){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(250);assert(simple_test_selection()==1);assert(screen_current()==SCR_HOME);
+        nav_touch((lv_point_t){180,160},50);nav_wait(250);assert(screen_current()==SCR_LIBRARY);
+        screen_home();simple_nav_open(1);nav_wait(250);screen_back();nav_wait(180);assert(!simple_nav_is_open()&&screen_current()==SCR_HOME);
+        puts("PASS: Simple eight-slot QS order persists; Disco settings unchanged; bottom-hub wheel drags, snaps, opens Library and closes with Back");return 0;
+    }
+    if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);for(int i=0;i<35;i++){lv_tick_inc(10);lv_timer_handler();}}
+    if(th_simple()&&getenv("SIMPLE_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     lv_refr_now(d);
     FILE *f=fopen(argv[5],"wb"); if(!f) return 1;
     fprintf(f,"P6\n360 360\n255\n");

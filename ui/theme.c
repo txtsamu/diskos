@@ -341,7 +341,7 @@ static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
 #include "theme_presets.inc"   /* generated: tools/gen_theme_presets.py */
 
 typedef struct { const char *name; const uint32_t *dark, *light; } theme_preset_t;
-static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], FORK_DISCO[2][THEME_CLR_COUNT], FORK_NULL[2][THEME_CLR_COUNT];
+static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], FORK_DISCO[2][THEME_CLR_COUNT], FORK_NULL[2][THEME_CLR_COUNT], FORK_SIMPLE[2][THEME_CLR_COUNT];
 static const theme_preset_t PRESETS[] = {
     { "Default", DEFAULT_DARK, DEFAULT_LIGHT },
     THEME_PRESETS_GENERATED
@@ -349,9 +349,10 @@ static const theme_preset_t PRESETS[] = {
     { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
     { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
     { "Null", FORK_NULL[0], FORK_NULL[1] },
+    { "Simple", FORK_SIMPLE[0], FORK_SIMPLE[1] },
 };
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
-const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null" };
+const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null", "Simple" };
 static int g_preset;
 static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
 static int g_custom_on, g_custom_fixed_accent;
@@ -568,6 +569,21 @@ static void null_palettes_init(void){
  }
 }
 
+static void simple_palettes_init(void){
+ for(int v=0;v<2;v++){
+  uint32_t *p=FORK_SIMPLE[v];memcpy(p,v?DEFAULT_LIGHT:DEFAULT_DARK,sizeof FORK_SIMPLE[v]);
+  p[THEME_CLR_CANVAS]=v?0xF3F0E8:0x202124;
+  p[THEME_CLR_SURFACE]=v?0xE8E4DC:0x2A2B2E;p[THEME_CLR_SURFACE_RAISED]=v?0xDEDAD2:0x343538;
+  p[THEME_CLR_TEXT_PRIMARY]=v?0x17181A:0xFAFAF7;p[THEME_CLR_TEXT_SECONDARY]=v?0x51504B:0xC9C7C1;
+  p[THEME_CLR_TEXT_MUTED]=v?0x62605A:0xA8A7A0;
+  p[THEME_CLR_ACCENT_PRIMARY]=p[THEME_CLR_ACCENT_EMPHASIS]=p[THEME_CLR_ACCENT_IDLE]=cfg_get_int("simple_accent_color",v?0xB84C0C:0xF28A32);
+  p[THEME_CLR_BORDER]=p[THEME_CLR_BORDER_STRONG]=v?0xC75B17:0xF28A32;
+  p[THEME_CLR_CONTROL_FILL]=p[THEME_CLR_CONTROL_KNOB]=p[THEME_CLR_ACCENT_PRIMARY];
+  p[THEME_CLR_CONTROL_TRACK]=v?0xC9C5BD:0x505154;
+  p[THEME_CLR_SURFACE_SELECTED]=p[THEME_CLR_LIST_PRESSED]=v?0xF0D8C3:0x493628;
+  p[THEME_CLR_ON_ACCENT]=v?0xFFFFFF:0x17181A;
+ }
+}
 static void fork_config_migrate(void){
     if(cfg_get_int("fork_theme_migrated",0)) return;
     cfg_begin();
@@ -586,7 +602,7 @@ static void fork_config_migrate(void){
 void theme_init(void){
     fork_palettes_init();
     disco_palettes_init();
-    null_palettes_init();
+    null_palettes_init(); simple_palettes_init();
     fork_config_migrate();
     int outdoor = cfg_get_int("outdoor", 0) == 1;
     g_outdoor = outdoor;
@@ -1054,4 +1070,6 @@ int theme_ring_light(void){return (g_preset==THEME_PRESET_RING || g_preset==THEM
 int theme_auto_supported(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_BRAUN || g_preset==THEME_PRESET_DISCO;}
 int th_null(void){return g_preset==THEME_PRESET_NULL;}
 int th_disco(void){return g_preset==THEME_PRESET_DISCO;}
-int th_ringlike(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_DISCO;}
+int th_simple(void){return g_preset==THEME_PRESET_SIMPLE;}
+int th_disco_family(void){return th_disco() || th_simple();}
+int th_ringlike(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_DISCO || th_simple();}

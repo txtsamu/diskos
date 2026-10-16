@@ -1765,7 +1765,7 @@ static void ring_btn_ink(lv_obj_t *o, lv_color_t c){
 lv_color_t ring_border_color(void){ return ui_accent_is_static() ? ui_current_accent() : TC(ACCENT_PRIMARY); }
 void ring_button_style(lv_obj_t *b){            /* fork: one Ring button - accent ring, glyph in the album colour */
  if(!b || !th_ringlike()) return;
- if(th_disco()){                                 /* Disco: glass buttons - a fine light ring, glyphs in the text colour */
+ if(th_disco_family()){                                 /* Disco: glass buttons - a fine light ring, glyphs in the text colour */
   lv_obj_set_style_border_width(b,1,0);lv_obj_set_style_border_opa(b,60,0);lv_obj_set_style_border_color(b,TC(TEXT_PRIMARY),0);
   lv_obj_set_style_border_side(b,LV_BORDER_SIDE_FULL,0);return; }
  lv_obj_set_style_border_width(b,2,0);lv_obj_set_style_border_opa(b,LV_OPA_COVER,0);

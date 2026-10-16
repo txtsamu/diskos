@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -116,7 +117,7 @@ static char g_sckey[NSC][80];
 static void build_page(void);
 static const char *sc_key(int slot){                                         /* the stored choice ("" = empty) */
     char k[8]; snprintf(k, sizeof k, "sc%d", slot + 1);
-    const char *v = cfg_get_str(k, NULL);
+    const char *v = simple_cfg_get_str(k, NULL);
     return v ? v : SC_DEFAULT[slot];
 }
 static int app_index(const char *name){
@@ -143,7 +144,7 @@ void shortcut_run(const char *key){
         return;
     }
     if(!strcmp(key, "weather")) weather_app_open();
-    else if(!strcmp(key, "immersive")){ if(th_disco() || th_null()) disco_open_np_immersive(); else { screen_show(SCR_NOWPLAYING); ui_np_fsart_open(); } }   /* Disco: Now Playing redirects to Music unless asked for */
+    else if(!strcmp(key, "immersive")){ if(th_disco_family() || th_null()) disco_open_np_immersive(); else { screen_show(SCR_NOWPLAYING); ui_np_fsart_open(); } }   /* Disco: Now Playing redirects to Music unless asked for */
     else if(!strcmp(key, "eq")) screen_show(SCR_EQ);
     else if(!strcmp(key, "folders")) folderbrowser_open();
     else if(!strcmp(key, "lyrics")) lyrics_open();
@@ -167,7 +168,7 @@ static int sc_describe(const char *key, const char **glyph, char *name, size_t n
     return 0;
 }
 static void apps_pick(int i){
-    int k = (g_all ? g_page * ((th_disco() || th_null()) ? 5 : PER_PAGE) : 0) + i;
+    int k = (g_all ? g_page * ((th_disco_family() || th_null()) ? 5 : PER_PAGE) : 0) + i;
     if(k < 0 || k >= g_nitems) return;
     switch(g_items[k].kind){
         case 0: lastfm_open(); break;
@@ -179,7 +180,7 @@ static void apps_pick(int i){
 static void hub_cb(lv_event_t *e){
     (void)e;
     if(!g_all){ screen_back(); return; }
-    int per = (th_disco() || th_null()) ? 5 : PER_PAGE;
+    int per = (th_disco_family() || th_null()) ? 5 : PER_PAGE;
     int pages = (g_nitems + per - 1) / per;
     if(pages > 1 && g_page + 1 < pages){ g_page++; build_page(); return; }
     g_all = 0; g_page = 0; apps_reload();                                  /* All apps: the last page's hub goes back to the shortcuts */
@@ -220,7 +221,7 @@ static void build_page(void){
     if(!g_box) return;
     lv_obj_clean(g_box);
     memset(&g_orb, 0, sizeof g_orb);
-    if((th_disco() || th_null())){ disco_build(); return; }
+    if((th_disco_family() || th_null())){ disco_build(); return; }
     int per = g_all ? PER_PAGE : NSC;
     int pages = g_all ? (g_nitems + PER_PAGE - 1) / PER_PAGE : 1; if(pages < 1) pages = 1;
     if(g_page >= pages) g_page = 0;
@@ -313,7 +314,7 @@ static void slot_cb(lv_event_t *e){ g_cfg_slot = (int)(intptr_t)lv_event_get_use
 static void opt_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     char k[8]; snprintf(k, sizeof k, "sc%d", g_cfg_slot + 1);
-    if(cfg_set_str(k, i < 0 ? "" : g_opt_keys[i]) != 0){ ui_toast("Couldn't save shortcut"); return; }
+    if(simple_cfg_set_str(k, i < 0 ? "" : g_opt_keys[i]) != 0){ ui_toast("Couldn't save shortcut"); return; }
     g_cfg_slot = -1; cfg_build();
     if(g_box){ g_all = 0; apps_reload(); }
 }

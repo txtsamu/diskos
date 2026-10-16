@@ -41,7 +41,7 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
     lv_obj_add_event_cb(a->btn, btn_cb, LV_EVENT_CLICKED, a);
     lv_obj_t *azl = lv_label_create(a->btn); lv_label_set_text(azl, "A-Z");
     lv_obj_set_style_text_font(azl, TF(UI_14), 0);
-    if(th_disco() || th_null()){ lv_obj_set_pos(a->btn, 138, 316); lv_obj_set_size(a->btn, 84, 36); lv_label_set_text(azl, "A - Z");
+    if(th_disco_family() || th_null()){ lv_obj_set_pos(a->btn, 138, 316); lv_obj_set_size(a->btn, 84, 36); lv_label_set_text(azl, "A - Z");
                     lv_obj_set_style_text_font(azl, TF(UI_16), 0); }
     lv_obj_set_style_text_color(azl, TC(TEXT_PRIMARY), 0); lv_obj_center(azl);
     lv_obj_add_flag(a->btn, LV_OBJ_FLAG_HIDDEN);

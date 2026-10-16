@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
@@ -76,7 +77,7 @@ static int g_rec = 0; static unsigned g_rec_gen = 0; static lv_timer_t *g_rec_tm
 
 static void out_set_state(int r){
     g_out_route = r; g_out_gen = ipc_generation();
-    if(cfg_get_int("spdif", 0) != (r == OUT_SPDIF)) cfg_set_int("spdif", r == OUT_SPDIF);   /* the Settings toggle mirrors the real route, never a wish */
+    if(simple_cfg_get_int("spdif", 0) != (r == OUT_SPDIF)) simple_cfg_set_int("spdif", r == OUT_SPDIF);   /* the Settings toggle mirrors the real route, never a wish */
 }
 int modes_output_route(void){
     if(g_out_route != OUT_INTERNAL && g_out_gen != ipc_generation()){ out_set_state(OUT_INTERNAL); }   /* a restarted player is back on the internal DAC */
@@ -244,7 +245,7 @@ static void disco_paint(int slot, int pending){
     }
 }
 static void paint(int slot, const char *glyph){   /* slot = orbit index, or -1 for none */
-    if((th_disco() || th_null())){ disco_paint(slot, glyph && !strcmp(glyph, LV_SYMBOL_REFRESH)); return; }
+    if((th_disco_family() || th_null())){ disco_paint(slot, glyph && !strcmp(glyph, LV_SYMBOL_REFRESH)); return; }
     int pending = (glyph && !strcmp(glyph, LV_SYMBOL_REFRESH));
     lv_color_t acc = TC(ACCENT_PRIMARY);
     if(pending){                                  /* the tapped mode gets a ring; the hub's ring spins */
@@ -350,7 +351,7 @@ void modes_create(lv_obj_t *root){
     /* back button (kept out of the clipped top-left corner) */
     /* no header: the wheel fills the panel and its hub is the way back */
 
-    if((th_disco() || th_null())){
+    if((th_disco_family() || th_null())){
         disco_title(root, "Working mode");
         static const char *NM[N_MODES] = { "Playback", "USB DAC", "Bluetooth DAC", "BT streaming", "AirPlay", "USB storage" };
         memset(g_drow, 0, sizeof g_drow);

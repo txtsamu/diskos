@@ -1,3 +1,4 @@
+#include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* Search, laid out for the round panel (fork rework):
@@ -124,7 +125,7 @@ static void res_artist(int i){
     lv_obj_t *r = lv_obj_create(g_res_list); lv_obj_remove_style_all(r);
     lv_obj_set_size(r, RES_W, 44);
     lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);
-    lv_obj_set_style_radius(r, (th_disco() || th_null()) ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
+    lv_obj_set_style_radius(r, (th_disco_family() || th_null()) ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, LV_OPA_50, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE); lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
@@ -200,7 +201,7 @@ static void recent_get(char out[RECENT_N][96], int *n){
     *n = 0;
     for(int i = 0; i < RECENT_N; i++){
         char k[16]; snprintf(k, sizeof k, "search_r%d", i + 1);
-        const char *v = cfg_get_str(k, "");
+        const char *v = simple_cfg_get_str(k, "");
         if(v && v[0]) snprintf(out[(*n)++], 96, "%s", v);
     }
 }
@@ -216,7 +217,7 @@ static void recent_add(const char *q){
     for(int i = 0; i < n && m < RECENT_N; i++) if(strcasecmp(r[i], nq)) list[m++] = r[i];   /* the newest copy only */
     for(int i = 0; i < RECENT_N; i++){
         char k[16]; snprintf(k, sizeof k, "search_r%d", i + 1);
-        cfg_set_str_deferred(k, i < m ? list[i] : "");
+        simple_cfg_set_str_deferred(k, i < m ? list[i] : "");
     }
     cfg_flush();
 }
@@ -260,7 +261,7 @@ static void go_cb(lv_event_t *e){
     while(n && g_query[n-1] == ' ') g_query[--n] = 0;          /* a trailing space never matters */
     if(!n){ ui_toast("Type something to search for"); query_changed(); return; }
     query_changed();
-    if((th_disco() || th_null())) recent_add(g_query);
+    if((th_disco_family() || th_null())) recent_add(g_query);
     results_open();
 }
 static void paint_keys(void){
@@ -401,7 +402,7 @@ void search_create(lv_obj_t *root){
     lv_obj_add_flag(g_res_page, LV_OBJ_FLAG_HIDDEN);
     g_digits = 0; paint_keys();
     g_query[0] = 0; query_changed();
-    if((th_disco() || th_null())){
+    if((th_disco_family() || th_null())){
         g_land = lv_obj_create(root); lv_obj_remove_style_all(g_land);
         lv_obj_set_size(g_land, 360, 360);
         lv_obj_set_style_bg_color(g_land, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_land, LV_OPA_COVER, 0);
