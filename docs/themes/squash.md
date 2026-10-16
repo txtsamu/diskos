@@ -228,3 +228,5 @@ still need hardware measurement.
 ## 2.4.0 final refinement
 
 Music metadata uses fixed Nunito Bold 36/32/28 px (title/artist/album), shared with standby metadata. Read-only playback and mode indicators flank the time cells. Gesture hints disappear after ten seconds without touch. Menu items and Quick settings lead every Disco-family theme options list; Music and Settings remain protected. Squash retains preset 12 and the existing `simple_*` configuration keys for upgrade compatibility.
+
+The configured Hold shortcut works on both the large launcher icon and the D! logo. It fires once per hold, ignores dragging, and Nothing leaves the launcher open. Double tap retains its own action; both shortcuts share validation and legacy action migration.

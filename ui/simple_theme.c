@@ -114,22 +114,32 @@ void simple_nav_open(int open){
  lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_set_completed_cb(&a,nav_closed);lv_anim_start(&a);nav_paint();onboarding_screen(SCR_HOME,nav_on);
 }
 int simple_nav_is_open(void){return nav_on;}
+/* Both launcher icons and the D! hub use the same saved shortcut settings. */
+static void simple_nav_shortcut(const char*key,int fallback){
+ disco_nav_migrate();int action=simple_cfg_get_int(key,fallback);
+ if(action<0||action>=DISCO_NAV_COUNT)action=fallback;
+ hub_timer_cancel();hub_last=0;
+ if(action==DISCO_NAV_NONE)return;
+ simple_nav_open(0);disco_nav_action_run(action);
+}
 static void outside(lv_event_t*e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)simple_nav_open(0);}
 static void nav_event(lv_event_t*e){
  lv_event_code_t c=lv_event_get_code(e);lv_indev_t*in=lv_indev_active();lv_point_t p={0,0};if(in)lv_indev_get_point(in,&p);
  if(c==LV_EVENT_PRESSED){nav_down=p;nav_start=nav_phase;dragged=0;nav_pressed=1;lv_anim_delete(nav_panel,nav_move);}
  if(c==LV_EVENT_PRESSING&&nav_pressed){int dx=p.x-nav_down.x,dy=p.y-nav_down.y;if(abs(dx)+abs(dy)>10)dragged=1;
   if(dragged){nav_phase=nav_start+(abs(dx)>abs(dy)?-dx:dy)/86.f;nav_paint();}}
- if(c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST){nav_pressed=0;if(dragged)nav_snap();}
+ if(c==LV_EVENT_LONG_PRESSED&&nav_pressed&&!dragged){nav_pressed=0;dragged=1;simple_nav_shortcut("disco_nav_hold",DISCO_NAV_MUSIC);return;}
+ if(c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST){nav_pressed=0;if(dragged&&nav_on)nav_snap();}
  if(c==LV_EVENT_SHORT_CLICKED&&!dragged){int index=nav_selected;simple_nav_open(0);disco_catalog_open(index);simple_action_feedback();}
 }
 static void hub_event(lv_event_t*e){
  lv_event_code_t c=lv_event_get_code(e);
- if(c==LV_EVENT_LONG_PRESSED){hub_timer_cancel();hub_last=0;simple_nav_open(0);disco_nav_action_run(simple_cfg_get_int("disco_nav_hold",DISCO_NAV_MUSIC));return;}
+ if(c==LV_EVENT_PRESSED)hub_timer_cancel();
+ if(c==LV_EVENT_LONG_PRESSED){simple_nav_shortcut("disco_nav_hold",DISCO_NAV_MUSIC);return;}
  if(c!=LV_EVENT_SHORT_CLICKED)return;
  if(!nav_on){hub_last=0;simple_nav_open(1);onboarding_discovered(HINT_MENU);return;}
  uint32_t now=lv_tick_get();
- if(hub_last&&now-hub_last<330){hub_timer_cancel();hub_last=0;simple_nav_open(0);disco_nav_action_run(simple_cfg_get_int("disco_nav_double",DISCO_NAV_SEARCH));return;}
+ if(hub_last&&now-hub_last<330){simple_nav_shortcut("disco_nav_double",DISCO_NAV_SEARCH);return;}
  hub_last=now;hub_timer_cancel();hub_timer=lv_timer_create(hub_close,330,NULL);
 }
 void simple_nav_refresh(void){nav_count=disco_catalog_load();for(int j=0;j<3;j++)nav_content[j]=-1;if(nav_on)nav_paint();}

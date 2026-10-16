@@ -92,7 +92,7 @@ static int find_sharp_image(lv_obj_t *root){
 static int fixture, send_result, send_count;
 static int null_transport_calls;static char null_last_command[24];
 int __real_ui_transport_command(const char*);
-int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")||getenv("REVIEW_SIMPLE")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
+int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")||getenv("REVIEW_SQUASH_HOLD")||getenv("REVIEW_SIMPLE")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
 int __real_ipc_send_cmd(const char *frame);
 int __wrap_ipc_send_cmd(const char *frame){send_count++;return fixture?send_result:__real_ipc_send_cmd(frame);}
 int __real_fw_custom_peq_writable(void);
@@ -1629,6 +1629,19 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(th_simple()&&getenv("REVIEW_SQUASH_HOLD")){
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);simple_cfg_set_int_deferred("disco_nav_v",2);
+        const lv_point_t targets[]={{180,160},{180,310}};
+        for(int target=0;target<2;target++){
+            screen_home();simple_cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_SEARCH);simple_nav_open(1);nav_wait(250);nav_touch(targets[target],850);nav_wait(400);assert(screen_current()==SCR_SEARCH&&!simple_nav_is_open());
+            screen_home();simple_cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_QUICK);simple_nav_open(1);nav_wait(250);nav_touch(targets[target],850);nav_wait(400);assert(screen_current()==SCR_QUICK&&!simple_nav_is_open());
+            screen_home();simple_cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_PLAYPAUSE);simple_nav_open(1);nav_wait(250);int before=null_transport_calls;nav_touch(targets[target],850);nav_wait(400);assert(null_transport_calls==before+1&&!strcmp(null_last_command,"0201000C0000"));assert(!simple_nav_is_open());
+            simple_cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_NONE);simple_nav_open(1);nav_wait(250);before=null_transport_calls;nav_touch(targets[target],850);nav_wait(400);assert(screen_current()==SCR_HOME&&simple_nav_is_open()&&null_transport_calls==before);simple_nav_open(0);nav_wait(250);
+        }
+        simple_cfg_set_int_deferred("disco_nav_hold",DISCO_NAV_SEARCH);simple_nav_open(1);nav_wait(250);nav_pointer=(lv_indev_data_t){.point={240,162},.state=LV_INDEV_STATE_PRESSED};nav_wait(40);for(int x=240;x>=145;x-=5){nav_pointer.point.x=x;nav_wait(10);}nav_wait(850);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(250);assert(screen_current()==SCR_HOME&&simple_nav_is_open());simple_nav_open(0);nav_wait(250);
+        simple_cfg_set_int_deferred("disco_nav_double",DISCO_NAV_QUICK);simple_nav_open(1);nav_wait(250);nav_touch((lv_point_t){180,310},40);nav_wait(80);nav_touch((lv_point_t){180,310},40);nav_wait(250);assert(screen_current()==SCR_QUICK);
+        puts("PASS: Squash real hold on launcher icon and logo runs saved Search/QS/Play-Pause/Nothing, fires once, ignores drag; configured double tap retained");return 0;
+    }
     if(getenv("REVIEW_SQUASH_240")){
         if(th_simple()){
             track_state_t st;ipc_get_state(&st);lv_obj_t*root=screen_get_root(SCR_HOME);
