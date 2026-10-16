@@ -3370,7 +3370,7 @@ int main(int argc, char **argv){
                         /* swallow - LVGL handled (or will handle) the open/close */
                     } else if(!seek_consumed){
                     if(cur==SCR_QUICK && vert && dy<0 && ady>=g_swipe_thresh && dt<700){
-                        screen_back();                       /* swipe up closes quick settings */
+                        onboarding_discovered(HINT_QUICK);screen_back();                       /* swipe up closes quick settings */
                     } else if(cur!=SCR_HOME && cur!=SCR_SAVER && cur!=SCR_NOWPLAYING && sy>320 &&
                               vert && dy<0 && ady>=g_swipe_thresh*2 && dt<700){
                         /* fork: swipe UP from the bottom edge = go Home. Mirrors the top-edge pull-down.
@@ -3379,7 +3379,7 @@ int main(int argc, char **argv){
                         screen_show(SCR_HOME);
                     } else if(cur!=SCR_QUICK && cur!=SCR_SAVER && sy<40 &&
                               vert && dy>0 && dy>=g_swipe_thresh && dt<700){
-                        screen_show(SCR_QUICK);              /* pull down from top edge */
+                        onboarding_discovered(HINT_QUICK);screen_show(SCR_QUICK);              /* pull down from top edge */
                         quicksettings_refresh(playing);
                     } else if(cur==SCR_NOWPLAYING){
                         /* On Now Playing a nav swipe must be a LONG, STRAIGHT,
@@ -3409,6 +3409,7 @@ int main(int argc, char **argv){
                         }
                     } else if(horiz && SIDE_DX(dx)>0 && adx>=g_swipe_thresh && dt<700 &&
                               BACK_EDGE(sx)){
+                        onboarding_discovered(HINT_BACK);
                         fprintf(stderr,"BACK swipe sx=%d dx=%d dy=%d dt=%u\n",sx,dx,dy,dt); fflush(stderr);
                         /* inside Library, step through its sub-views first */
                         if(!(cur==SCR_LIBRARY && library_back())) screen_back();

@@ -99,7 +99,7 @@ static void open_menu(const char *title, const int *acts, int n){
     orbit_hub_create(&g_orb, g_ov, hub_cb, g_gcol[0] ? LV_SYMBOL_LIST : g_is_dir ? LV_SYMBOL_DIRECTORY : LV_SYMBOL_AUDIO, "Cancel");
     lv_obj_t *t = lv_label_create(g_ov);
     lv_label_set_text(t, title);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(t, 220);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(t, ui_font_cjk(18), 0);

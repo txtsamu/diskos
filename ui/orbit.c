@@ -98,7 +98,7 @@ void orbit_popup_polish(orbit_t *o){
         lv_obj_set_style_text_font(o->icon[i], old==&font_theme_20?&font_theme_24:TF(UI_24), 0);
         if(o->cap[i]){
             lv_obj_set_style_text_font(o->cap[i], TF(UI_16), 0);
-            lv_label_set_long_mode(o->cap[i], LV_LABEL_LONG_DOT);
+            lv_label_set_long_mode(o->cap[i], LV_LABEL_LONG_SCROLL_CIRCULAR);
             lv_obj_set_size(o->cap[i], 96, lv_font_get_line_height(TF(UI_16)));
             lv_obj_set_style_text_align(o->cap[i], LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_align(o->cap[i], LV_ALIGN_CENTER, cx, cy + 29);
@@ -110,7 +110,7 @@ void orbit_cap_width(orbit_t *o, int w, const lv_font_t *font){
         if(!o->cap[i]) continue;
         float a = orbit_deg(o, i) * 3.14159265f / 180.0f;
         int cx = (int)lroundf(ORBIT_R * cosf(a)), cy = (int)lroundf(ORBIT_R * sinf(a));
-        lv_label_set_long_mode(o->cap[i], LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(o->cap[i], LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(o->cap[i], LV_TEXT_ALIGN_CENTER, 0);
         if(font) lv_obj_set_style_text_font(o->cap[i], font, 0);
         lv_obj_set_size(o->cap[i], w, lv_font_get_line_height(lv_obj_get_style_text_font(o->cap[i], 0)) + 2);   /* one line: longer names end in ... */

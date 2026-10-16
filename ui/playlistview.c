@@ -74,13 +74,13 @@ static void plv_add_row(int i){
         lv_obj_t *t = lv_label_create(r);
         lv_label_set_text(t, g_pl_songs[i].title);
         if(g_pl_songs[i].id == g_cur_id) lv_obj_set_style_text_color(t, ui_current_accent(), 0);   /* the playing song */
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(t, 12, 5); lv_obj_set_size(t, 256, 19);
         lv_obj_set_style_text_font(t, ui_font_user(16), 0);   /* CJK titles like Library/Search */
         lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
         lv_obj_t *a = lv_label_create(r);
         lv_label_set_text(a, g_pl_songs[i].artist);
-        lv_label_set_long_mode(a, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(a, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(a, 12, 25); lv_obj_set_size(a, 256, 16);
         lv_obj_set_style_text_font(a, ui_font_user(14), 0);
         lv_obj_set_style_text_color(a, TC(TEXT_LYRICS), 0);
@@ -316,7 +316,7 @@ static lv_obj_t *icon_btn(lv_obj_t *root, int x, int y, int w, const char *sym,
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, sym);
     lv_obj_set_width(l, w - 8);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(l, fg, 0);
     lv_obj_center(l);

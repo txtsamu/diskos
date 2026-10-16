@@ -96,15 +96,18 @@ and scrollable terminal key/value sheet. Actions and data workers remain shared.
 Fourth Null font option: Matrix. Dot Matrix headings and large Music title/clock,
 VT323 details at 18/21/24/27 pixels; existing international fallback chains remain.
 Original/Jersey/Handjet are retained. Choosing fonts reloads the themed UI.
-This is a native-render preview; the previously packaged 2.3.9 payload is unchanged.
+Included in the cumulative 2.3.9 device-test build.
 
 ## QS layout preview
 
-Null Options > QS layout: Text (default) or Icons. The icon option uses the
-Font Awesome 4.7 catalogue, rendered at 30px in the same 2-column / 4-row grid.
-All 17 quick actions have a dedicated icon, including the Equalizer sliders.
-The original 104x50 targets, tap/hold callbacks, item ordering, artwork and
-transport remain unchanged. Blue/red idle ink becomes yellow/lime when
-pressed; active radios and scanning retain the active colour.
-The setting applies live and persists independently of Disco. Font source and
-generator: ui/fonts/null/qs, licence: licenses/OFL-1.1-FontAwesome.txt.
+Null Options > QS layout: Text (default) or Icons. The icon option shares Disco’s glyph catalogue and live playback-source icon,
+using Null’s idle/active palette in a two-column, four-row grid. Existing touch
+targets, ordering, tap/hold callbacks and transport remain unchanged.
+
+## Settings and guidance
+
+Shared settings use separate selector and description areas. Editable detail
+rows show a chevron; On/Off and read-only values remain visible. Overflow text
+scrolls. Null options prioritize menu items, quick items, palette and background;
+Autohide is now Close nav bar. Both themes have Settings > How to below Battery,
+with eight compact sections and contextual gesture hints with independent counters.

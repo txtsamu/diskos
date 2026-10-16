@@ -716,7 +716,7 @@ void eqcustom_create(lv_obj_t *root){
         lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_color(pill, TC(SURFACE), 0); lv_obj_set_style_bg_opa(pill, 170, 0);
         lv_obj_set_style_border_width(pill, 1, 0); lv_obj_set_style_border_color(pill, TC(TEXT_PRIMARY), 0); lv_obj_set_style_border_opa(pill, 60, 0);
         lv_obj_set_style_text_font(g_pill_lbl, TF(UI_18), 0);
-        lv_obj_set_width(g_pill_lbl, 148); lv_label_set_long_mode(g_pill_lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(g_pill_lbl, 148); lv_label_set_long_mode(g_pill_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(g_pill_lbl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(g_pill_lbl, LV_ALIGN_CENTER, -10, 0);
         lv_obj_set_style_text_font(chev, TF(UI_18), 0);

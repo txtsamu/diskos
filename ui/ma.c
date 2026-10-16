@@ -290,7 +290,7 @@ static lv_obj_t *label(lv_obj_t *root, const lv_font_t *font, uint32_t col, int 
     lv_label_set_text(l, "");
     lv_obj_set_style_text_font(l, font, 0); lv_obj_set_style_text_color(l, theme_color_from_rgb(col), 0);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(l, w); lv_obj_align(l, LV_ALIGN_CENTER, 0, y);
     return l;
 }

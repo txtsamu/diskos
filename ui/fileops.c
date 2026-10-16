@@ -217,7 +217,7 @@ static void confirm(const char *title, const char *detail, const char *yes, void
     g_yes = on_yes;
     lv_obj_t *t = lv_label_create(o);
     lv_label_set_text(t, title);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_size(t, 260, 54);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(t, ui_font_cjk(20), 0);
@@ -226,7 +226,7 @@ static void confirm(const char *title, const char *detail, const char *yes, void
     if(detail && detail[0]){
         lv_obj_t *d = lv_label_create(o);
         lv_label_set_text(d, detail);
-        lv_label_set_long_mode(d, LV_LABEL_LONG_DOT);lv_obj_set_size(d,260,24);
+        lv_label_set_long_mode(d, LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_set_size(d,260,24);
         lv_obj_set_style_text_align(d,LV_TEXT_ALIGN_CENTER,0);
         lv_obj_set_style_text_font(d, TF(UI_16), 0);
         lv_obj_set_style_text_color(d, TC(TEXT_SECONDARY), 0);
@@ -345,7 +345,7 @@ static void pick_fill(void){
         lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, LV_SYMBOL_DIRECTORY);
         lv_obj_set_style_text_color(ic, TC(FOLDER_ICON), 0); lv_obj_align(ic, LV_ALIGN_LEFT_MID, 12, 0);
         lv_obj_t *l = lv_label_create(r); lv_label_set_text(l, g_sub[i]);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT); lv_obj_set_width(l, 190);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(l, 190);
         lv_obj_set_style_text_font(l, ui_font_cjk(16), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
         lv_obj_align(l, LV_ALIGN_LEFT_MID, 40, 0);
     }
@@ -382,7 +382,7 @@ static void open_picker(int op){
     lv_obj_set_style_text_font(h, TH_F_CAPTION, 0); lv_obj_set_style_text_color(h, TC(TEXT_SECONDARY), 0);
     lv_obj_align(h, LV_ALIGN_TOP_MID, 0, 22);
     g_pick_title = lv_label_create(o);
-    lv_label_set_long_mode(g_pick_title, LV_LABEL_LONG_DOT); lv_obj_set_width(g_pick_title, 200);
+    lv_label_set_long_mode(g_pick_title, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_pick_title, 200);
     lv_obj_set_style_text_align(g_pick_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_pick_title, ui_font_cjk(18), 0); lv_obj_set_style_text_color(g_pick_title, TC(TEXT_PRIMARY), 0);
     lv_obj_align(g_pick_title, LV_ALIGN_TOP_MID, 0, 40);
@@ -435,7 +435,7 @@ void fileops_open(const char *dir, const char *name, int is_dir, void (*done)(vo
     disco_menu_glass(&g_orb, o);                                      /* Disco: glass over the cover backdrop */
     lv_obj_t *n = lv_label_create(o);                                 /* what it's about, at the top */
     lv_label_set_text(n, name);
-    lv_label_set_long_mode(n, LV_LABEL_LONG_DOT); lv_obj_set_width(n, 220);
+    lv_label_set_long_mode(n, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(n, 220);
     lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(n, ui_font_cjk(16), 0); lv_obj_set_style_text_color(n, TC(TEXT_PRIMARY), 0);
     lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 24);

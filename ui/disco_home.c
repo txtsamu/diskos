@@ -25,7 +25,7 @@ extern const lv_font_t font_weather16;
  * flips between light-on-dark and dark-on-light with the brightness of the cover behind it (decided once per album) */
 typedef struct { lv_obj_t *sh, *fg; int dim, scroll, ink; char cur[192]; } dlabel_t;   /* ink: last dark/light (-1 unset) */   /* cur: the text as set (an ellipsis edits the label's own copy) */
 /* a long title / artist scrolls five times, then settles on an ellipsis (again on the next track) */
-static void scroll_done(lv_anim_t *a){ lv_label_set_long_mode((lv_obj_t *)a->var, LV_LABEL_LONG_DOT); }
+static void scroll_done(lv_anim_t *a){ lv_label_set_long_mode((lv_obj_t *)a->var, LV_LABEL_LONG_SCROLL_CIRCULAR); }
 const lv_anim_t *disco_scroll5(void){
     static lv_anim_t t; static int init;
     if(!init){ lv_anim_init(&t); lv_anim_set_repeat_count(&t, 5); lv_anim_set_repeat_delay(&t, 1200); lv_anim_set_completed_cb(&t, scroll_done); init = 1; }
@@ -46,7 +46,7 @@ static lv_obj_t *dl_make(lv_obj_t *par, dlabel_t *d, const lv_font_t *f, int w, 
     for(int k = 0; k < 2; k++){
         lv_obj_t *l = lv_label_create(par); lv_label_set_text(l, "");
         lv_obj_set_style_text_font(l, f, 0); lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        if(w > 0){ lv_label_set_long_mode(l, LV_LABEL_LONG_DOT); lv_obj_set_size(l, w, h); }
+        if(w > 0){ lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(l, w, h); }
         lv_obj_align(l, al, x + (k ? 0 : 1), y + (k ? 0 : 1));
         lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE);
         if(k) d->fg = l; else { d->sh = l; lv_obj_set_style_text_opa(l, 150, 0); }
@@ -501,7 +501,7 @@ static void ov_swipe_cb(lv_event_t *e){
     int mirrored=disco_mirror(),edge=mirrored?ov_swipe_start.x>=296:ov_swipe_start.x<=64;
     extern int ui_get_swipe_thresh(void);
     if(edge && (mirrored?-dx:dx)>=ui_get_swipe_thresh() && abs(dx)>2*abs(dy) && lv_tick_elaps(ov_swipe_at)<700){
-        lv_indev_wait_release(in);ov_close();
+        onboarding_discovered(HINT_POPUP);lv_indev_wait_release(in);ov_close();
     }
 }
 static void ov_swipe_bubble(lv_obj_t *o){
@@ -562,7 +562,7 @@ static void ov_mood_pill(lv_obj_t *p, int y){
     if(src){ lv_color_t c = sphere_ui_mood_colour(x, yy); lv_obj_set_style_bg_color(d, c, 0); lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
              lv_obj_set_style_shadow_width(d, 10, 0); lv_obj_set_style_shadow_color(d, c, 0); lv_obj_set_style_shadow_opa(d, LV_OPA_50, 0); }
     else { lv_obj_set_style_border_width(d, 2, 0); lv_obj_set_style_border_color(d, g_acc, 0); }
-    lv_obj_t *l = lv_label_create(pl); lv_label_set_text(l, t); lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_t *l = lv_label_create(pl); lv_label_set_text(l, t); lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(l, w - 42 - 30 - (from ? 8 + b.x : 0)); lv_obj_set_style_text_font(l, f, 0);
     lv_obj_set_style_text_color(l, src ? TC(TEXT_PRIMARY) : g_acc, 0); lv_obj_align(l, LV_ALIGN_LEFT_MID, 42, 0);
     if(from){ lv_obj_t *fl = lv_label_create(pl); lv_label_set_text(fl, from);
@@ -591,12 +591,12 @@ static void ov_open(void){
     lv_obj_add_flag(tb, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(tb, 10);
     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT); lv_obj_set_size(t, 250, 28);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(t, 250, 28);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, th_null() ? TF(HEADER_SM) : ui_font_cjk(22), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
     if(th_null()) kit_keep(t);
     lv_obj_t *ar = lv_label_create(tb); lv_label_set_text(ar, L_ARTIST.cur);
-    lv_label_set_long_mode(ar, LV_LABEL_LONG_DOT); lv_obj_set_size(ar, 230, 22);
+    lv_label_set_long_mode(ar, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(ar, 230, 22);
     lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, th_null() ? TF(UI_16) : ui_font_cjk(16), 0);
     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
     if(th_null()){ lv_obj_set_style_text_font(ar, TF(HEADER_SM), 0); kit_keep(ar); }
@@ -634,6 +634,7 @@ static void ov_open(void){
     kit_pass(g_ov);
     if(th_null()) lv_obj_set_style_bg_opa(g_ov, LV_OPA_COVER, 0);
     ov_paint();
+    onboarding_context(HINT_POPUP);
     ov_swipe_bubble(g_ov);
     lv_obj_add_event_cb(g_ov,ov_swipe_cb,LV_EVENT_ALL,NULL);
 }

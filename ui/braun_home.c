@@ -69,10 +69,10 @@ void bhome_create(lv_obj_t *root){
     lv_obj_remove_style_all(trk); lv_obj_set_size(trk, 244, 52); lv_obj_align(trk, LV_ALIGN_TOP_MID, 0, 250);
     lv_obj_add_flag(trk, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(trk, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)SCR_NOWPLAYING);
     g_title = br_label(trk, "Not Playing", br_font(22, 1), BR_TXT);
-    lv_obj_set_size(g_title, 244, 27); lv_label_set_long_mode(g_title, LV_LABEL_LONG_DOT); lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_size(g_title, 244, 27); lv_label_set_long_mode(g_title, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(g_title, LV_ALIGN_TOP_MID, 0, 2);
     g_artist = br_label(trk, "", br_font(16, 0), BR_TXT2);
-    lv_obj_set_size(g_artist, 230, 20); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_DOT); lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_size(g_artist, 230, 20); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(g_artist, LV_ALIGN_TOP_MID, 0, 30);
     (void)seg;
     /* Library and Search (40 px) hang from the same top edge as the play disc (50 px), not centre-to-centre */

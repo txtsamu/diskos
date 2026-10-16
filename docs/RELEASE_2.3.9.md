@@ -53,3 +53,16 @@ payload and font sources/licences), without Git history or build caches.
 - Null EQ minus/plus buttons move outward and upward to clear the central value.
 
 This revision keeps version 2.3.9 and supersedes the previous 2.3.9 test binary.
+
+## Cumulative UI refinements
+
+- Null Bluetooth, Wi-Fi and Track Info reskins; Matrix font option combines
+  large dot-matrix headings with terminal details.
+- Null QS Text/Icons option shares Disco icons and live source indication.
+- All themes: shorter descriptions, selectors near 40% screen height, separate
+  scrolling help area, detail-row chevrons and scrolling overflow text.
+- Null settings reordered, Close nav bar renamed, full Settings header restored.
+- Disco and Null: How to below Battery and expanded contextual gesture hints.
+
+This cumulative candidate includes earlier 2.3.9 changes and all subsequent
+source changes in this work session. Physical-device validation remains pending.

@@ -375,10 +375,10 @@ static lv_obj_t *qrow(const char *t, const char *a, int now, int idx){
     if(now){ lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, LV_SYMBOL_VOLUME_MAX);
              lv_obj_set_pos(ic, 20, 25); lv_obj_set_style_text_color(ic, ui_current_accent(), 0); x = 48; }
     else lv_obj_add_event_cb(r, row_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)idx);   /* tap: jump to it */
-    lv_obj_t *tl = lv_label_create(r); lv_label_set_text(tl, t); lv_label_set_long_mode(tl,LV_LABEL_LONG_DOT);if(now)ui_reveal_title(tl);
+    lv_obj_t *tl = lv_label_create(r); lv_label_set_text(tl, t); lv_label_set_long_mode(tl,LV_LABEL_LONG_SCROLL_CIRCULAR);if(now)ui_reveal_title(tl);
     lv_obj_set_pos(tl, x, 10); lv_obj_set_size(tl, QW - x - (now ? 22 : 64), 28);
     lv_obj_set_style_text_font(tl, ui_font_user(20), 0); lv_obj_set_style_text_color(tl, now ? ui_current_accent() : TC(TEXT_PRIMARY), 0);
-    lv_obj_t *al = lv_label_create(r); lv_label_set_text(al, a); lv_label_set_long_mode(al,LV_LABEL_LONG_DOT);if(now)ui_reveal_title(al);
+    lv_obj_t *al = lv_label_create(r); lv_label_set_text(al, a); lv_label_set_long_mode(al,LV_LABEL_LONG_SCROLL_CIRCULAR);if(now)ui_reveal_title(al);
     lv_obj_set_pos(al, x, 39); lv_obj_set_size(al, QW - x - (now ? 22 : 64), 22);
     lv_obj_set_style_text_font(al, ui_font_user(16), 0); lv_obj_set_style_text_color(al, TC(TEXT_SECONDARY), 0);
     if(!now){                                                 /* the drag handle */

@@ -236,7 +236,7 @@ static void fb_add_row(int i){
 
         lv_obj_t *nm = lv_label_create(r);
         lv_label_set_text(nm, en->name);
-        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(nm, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(nm, 40, en->is_dir ? 15 : 6);
         lv_obj_set_size(nm, en->is_dir ? FB_ROW_W - 72 : FB_ROW_W - 50, 22);
         lv_obj_set_style_text_font(nm, ui_font_user(18), 0);           /* CJK filenames, like Library/Search */

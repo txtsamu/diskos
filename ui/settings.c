@@ -695,9 +695,9 @@ static const char *const OPT_ARTISTCLASS[] = { "By Artist", "By Album Artist" };
 static const char *const OPT_ROTATION[] = { "Normal", "Turn 90", "Turn 180", "Turn 270" };   /* stock values 0..3 */
 static const char *const OPT_VOLKEY[] = { "Switch Track", "Adjust Volume" };
 static const char *const D_ARTCACHE[] = {
-    "Album covers preload in the background so browsing stays smooth. Per-track art is decoded only as you play it (default).",
-    "Covers preload, plus every track's art is pre-decoded while idle. Decoding can warm the player; it pauses automatically if it gets hot.",
-    "Covers preload, plus every track's art is pre-decoded while idle AND charging. Decoding can warm the player; it pauses automatically if it gets hot.",
+    "Preload album covers; decode track art only during playback (default).",
+    "Preload covers and decode track art while idle. Pauses if the player gets hot.",
+    "Preload covers; decode track art only while idle and charging. Pauses if hot.",
 };
 
 /* per-option descriptions for the cyclers (parallel to the OPT_ arrays) */
@@ -720,21 +720,21 @@ static const setting_t TABLE[] = {
     { "Playback", "Equalizer",   ST_CYCLER, "eq_preset", 0,0,0, OPT_EQ,  21, NULL, apply_eq,   0,
       "Tone preset sent to the player; audible effect is still being verified.", NULL },
     { "Playback", "Up Next", ST_TOGGLE, "up_next", 0,1,0, NULL,0, NULL, apply_upnext, 0,
-      "Show Up Next beside Home Favourites. Hold the Queue shortcut on Now Playing to view it; a tap still opens your editable Queue.", NULL },
+      "Up Next sits beside Home favourites. Hold Queue for Up Next; tap for the editable queue.", NULL },
     { "Playback", "Auto-tag",    ST_CYCLER, "autotag", 0,0,0, OPT_AUTOTAG, 2, NULL, apply_autotag, 0,
-      "On Wi-Fi, a track that plays for 10 s and lacks synced lyrics or artwork gets them added to its tags. Not found: tried again on a later play, at most once a day.", NULL },
+      "After 10 s on Wi-Fi, add missing art and synced lyrics to tags. Retry failures on later plays, at most daily.", NULL },
     { "Playback", "Custom EQ",    ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_eq_custom, 0,
-      "View the custom curve. Editing is available only on firmware with a verified custom EQ protocol.", NULL },
+      "View the custom EQ curve. Editing requires verified firmware support.", NULL },
     { "Playback", "DSD Output",  ST_READONLY, NULL, 0,0,0, NULL,0, "Auto", NULL, 0,
       "The player auto-selects the DSD mode; this control isn't user-adjustable yet.", NULL },
     { "Playback", "Resume Playback", ST_CYCLER, "memory_play", 0,0,0, OPT_MEMORY, 3, NULL, apply_memory, 0,
-      "On power-on: Off = start fresh, Position = resume the exact spot, Song = reopen the last track.", NULL },
+      "On startup: Off starts fresh; Position resumes the spot; Song resumes the track.", NULL },
     { "Playback", "Artists",     ST_CYCLER, "artist_class", 0,0,0, OPT_ARTISTCLASS, 2, NULL, apply_artist_class, 0,
-      "Group the Artists list by each song's artist, or by its album artist - the same choice as the stock player.", NULL },
+      "Group Artists by song artist or album artist, matching the stock player.", NULL },
     { "Playback", "SongSphere", ST_TOGGLE, "songsphere", 0,1,1, NULL, 0, NULL, NULL, 1,
-      "Music by mood: place albums, artists and songs on a sphere, then play what fits. Off hides it in Apps and the Mood actions.", NULL },
+      "Assign moods to albums, artists or songs. Off hides SongSphere and Mood actions.", NULL },
     { "Playback", "Play Through Folders", ST_TOGGLE, "folder_jump", 0,1,1, NULL, 0, NULL, apply_folder_jump, 0,
-      "When an album, artist, genre or folder finishes, keep playing the next one. Works with Sequential, Shuffle and Loop All.", NULL },
+      "Continue to the next album, artist, genre or folder. Works in Sequential, Shuffle and Loop All.", NULL },
     /* Audio/DAC cluster - cyclers with min=-1 so they can read "System default" (unmanaged):
      * until you pick a value diskOS sends nothing + the player keeps its own setting. */
     { "Audio",    "Working Mode", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_workmode, 0,
@@ -744,7 +744,7 @@ static const setting_t TABLE[] = {
     { "Audio",    "DAC Filter",  ST_CYCLER, "audio_filter", 0,0,0, OPT_DFILTER, 6, NULL, apply_dac_filter, 1,
       "CS43131 digital filter roll-off. A subtle tone/transient tradeoff.", NULL },
     { "Audio",    "ReplayGain",  ST_CYCLER, "replay_gain",  0,0,0, OPT_REPLAYGAIN, 3, NULL, apply_replay_gain, 0,
-      "Level the volume across tracks. Track uses each song's gain; Album keeps an album's relative dynamics.", NULL },
+      "Match loudness by track, or by album while preserving relative track levels.", NULL },
     { "Audio",    "DRE",         ST_CYCLER, "audio_dre",    0,0,0, OPT_DRE, 2, NULL, apply_dre, 1,
       "Dynamic Range Enhancement (CS43131) for quieter listening.", NULL },
     { "Audio",    "Gapless",     ST_CYCLER, "gapless",      0,0,0, OPT_DRE, 2, NULL, apply_gapless, 0,
@@ -755,55 +755,55 @@ static const setting_t TABLE[] = {
       "Left/right channel balance. 0 = centred; negative = left, positive = right.", NULL },
 #ifdef DISKOS_TEST_OUTPUTS   /* device-unverified: test builds only */
     { "Audio",    "SPDIF Output", ST_TOGGLE, "spdif",   0,1,1, NULL,0, NULL, apply_spdif, 0,
-      "Send audio to the digital SPDIF output instead of the internal DAC. Playback pauses for a moment while it switches.", NULL },
+      "Use digital SPDIF instead of the internal DAC. Switching briefly pauses playback.", NULL },
 #endif
     { "Display",  "Brightness",  ST_SLIDER, "brightness", 4,40,2, NULL,0, NULL, apply_brightness_row, 16,
       "Screen backlight level. While Outdoor Mode is on the screen stays at full brightness.", NULL },
     { "Display", "Theme", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_themecolours, 0,
-      "Theme, Appearance (dark or light), Automatic Appearance, Outdoor Mode and the Accent colour.", NULL },
+      "Theme, appearance, automatic switching, Outdoor Mode and accent colour.", NULL },
     {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
+    {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
+    {"Null Options","Quick items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Eight fields with Wi-Fi first and Settings last",NULL},
+    {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
+    {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
     {"Null Options","Title hold",ST_CYCLER,"null_title_hold",0,0,0,OPT_DHOLD,3,NULL,NULL,0,"Immersive, favourite/unfavourite, or no action when holding track text.",NULL},
+    {"Null Options","Controls",ST_CYCLER,"null_controls",0,0,2,OPT_DCTRL,3,NULL,apply_null_live,0,"Buttons, autofade or gestures",NULL},
+    {"Null Options","QS layout",ST_CYCLER,"null_qs_layout",0,0,1,OPT_NULLQS,2,NULL,apply_null_qs_layout,0,"Text labels or a grid of icons. Tap, hold and active colours stay the same.",NULL},
+    {"Null Options","Fonts",ST_CYCLER,"null_music_fonts",0,0,3,OPT_NULLFONTS,4,NULL,apply_null_reload,0,"Original, Jersey, Handjet or Matrix. Matrix pairs dot titles with terminal text.",NULL},
+    {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align only Music title, artist, album and time",NULL},
+    {"Null Options","Show Clock",ST_TOGGLE,"null_clock",0,1,1,NULL,0,NULL,apply_null_live,1,"Clock and Wi-Fi, Bluetooth and battery icons. Hold the top strip to show or hide them.",NULL},
+    {"Null Options","Album",ST_TOGGLE,"null_music_album",0,1,1,NULL,0,NULL,apply_null_live,1,"Show album on Music",NULL},
     {"Null Options","Track number",ST_TOGGLE,"null_trackno",0,1,1,NULL,0,NULL,NULL,0,"Prefix the Music title with its tag track number.",NULL},
+    {"Null Options","Close nav bar",ST_CYCLER,"null_autohide",0,0,3,OPT_NULLAUTO,4,NULL,apply_null_live,2,"Navigation drawer timeout",NULL},
+    {"Null Options","Side",ST_CYCLER,"null_side",0,0,1,OPT_DSIDE,2,NULL,apply_null_live,0,"Navigation opener handedness",NULL},
+    {"Null Options","Scroll",ST_CYCLER,"null_scroll",0,0,0,OPT_DSCROLL,3,NULL,NULL,0,"Classic curves; Straight stays flat; Disco swings rows. Saved separately for Null.",NULL},
     {"Null Options","Double tap",ST_CYCLER,"null_nav_double",0,0,0,OPT_NAV_ACTION,DISCO_NAV_COUNT,NULL,NULL,DISCO_NAV_SEARCH,"Double-tap the centre of the open menu handle. Dragging still scrolls.",NULL},
     {"Null Options","Handle hold",ST_CYCLER,"null_nav_hold",0,0,0,OPT_NAV_ACTION,DISCO_NAV_COUNT,NULL,NULL,DISCO_NAV_MUSIC,"Hold the centre of the open menu handle. Its ends retain continuous scroll.",NULL},
+    {"Null Options","Arrow colours",ST_TOGGLE,"null_drawer_state_colours",0,1,1,NULL,0,NULL,apply_null_live,1,"Closed blue/red; open yellow/lime",NULL},
     {"Null Options","First-use hints",ST_CYCLER,"null_hints",0,0,0,OPT_HINTS,3,NULL,apply_hints,0,"Automatic for the first five healthy starts, On, or Off.",NULL},
     {"Null Options","Show hints again",ST_ACTION,NULL,0,0,0,NULL,0,"Reset",apply_hints_reset,0,"Reset only Null's learned hints.",NULL},
-    {"Null Options","Show Clock",ST_TOGGLE,"null_clock",0,1,1,NULL,0,NULL,apply_null_live,1,"Clock and Wi-Fi, Bluetooth and battery icons. Hold the top strip to show or hide them.",NULL},
-    {"Null Options","Scroll",ST_CYCLER,"null_scroll",0,0,0,OPT_DSCROLL,3,NULL,NULL,0,"Classic follows the screen edge; Straight keeps rows flat; Disco swings the rows. Stored separately for Null.",NULL},
-    {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
-    {"Null Options","Fonts",ST_CYCLER,"null_music_fonts",0,0,3,OPT_NULLFONTS,4,NULL,apply_null_reload,0,"Music typography: Original, Jersey, Handjet, or Matrix: big dot headings with terminal details",NULL},
-    {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align only Music title, artist, album and time",NULL},
-    {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
-    {"Null Options","Album",ST_TOGGLE,"null_music_album",0,1,1,NULL,0,NULL,apply_null_live,1,"Show album on Music",NULL},
-    {"Null Options","Autohide",ST_CYCLER,"null_autohide",0,0,3,OPT_NULLAUTO,4,NULL,apply_null_live,2,"Navigation drawer timeout",NULL},
-    {"Null Options","Side",ST_CYCLER,"null_side",0,0,1,OPT_DSIDE,2,NULL,apply_null_live,0,"Navigation opener handedness",NULL},
-    {"Null Options","Controls",ST_CYCLER,"null_controls",0,0,2,OPT_DCTRL,3,NULL,apply_null_live,0,"Buttons, autofade or gestures",NULL},
-    {"Null Options","Arrow colours",ST_TOGGLE,"null_drawer_state_colours",0,1,1,NULL,0,NULL,apply_null_live,1,"Closed blue/red; open yellow/lime",NULL},
-    {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
-    {"Null Options","QS layout",ST_CYCLER,"null_qs_layout",0,0,1,OPT_NULLQS,2,NULL,apply_null_qs_layout,0,"Text labels or a grid of icons. Tap, hold and active colours stay the same.",NULL},
-    {"Null Options","Quick items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Eight fields with Wi-Fi first and Settings last",NULL},
     { "Display",  "Disco Options", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_options, 0,
-      "The Disco theme's own settings: the menu circle, clock, track times, rim sheen, equalizer and progress bar colours.", NULL },
+      "Disco menu, Music layout, quick settings, clock and colours.", NULL },
     { "Display", "Text & Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_textlayout, 0,
-      "Font size, screen rotation, the clock format, track numbers, animations and the back-swipe distance.", NULL },
+      "Text size, rotation, clock, track numbers, animations and back-swipe distance.", NULL },
     { "Display", "Standby", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_screenstandby, 0,
       "What the screen does when you leave it: screensaver and when the screen switches off.", NULL },
     { "Display", "Online & Extras", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_onlineextras, 0,
       "Online album art and lyrics, the art cache, weather on Home, Shortcuts and the album view.", NULL },
     { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_BRAUN,
-      "Colour theme for the whole interface. Each has dark and light screens (see Appearance). The screen restarts; your music keeps playing.", NULL },
+      "Choose the UI theme. Restarts the screen; music continues.", NULL },
     { "Theme Colours",  "Appearance",  ST_CYCLER, "theme_variant", 0,0,0, OPT_APPEARANCE, 2, NULL, apply_appearance, 1,
       "Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.", NULL },
     { "Theme Colours",  "Automatic Appearance", ST_TOGGLE, "theme_auto", 0,1,1, NULL,0,NULL,apply_theme_auto,0,
-      "Ring, Braun and Disco use Light from 07:00 to 20:00 and Dark overnight. Changes apply when the screen turns off. Outdoor Mode keeps Light on.",NULL },
+      "Ring, Braun and Disco: Light 07:00-20:00, Dark otherwise. Applies at screen-off. Outdoor stays Light.",NULL },
     { "Theme Colours",  "Outdoor Mode", ST_TOGGLE, "outdoor",  0,1,1, NULL, 0, NULL, apply_outdoor, 0,
-      "Light screens at full brightness, easier to read in sunlight. Uses more battery. Turning it off returns your own brightness.", NULL },
+      "Light UI at full brightness for sunlight; uses more battery. Off restores your brightness.", NULL },
     { "Theme Colours",  "Accent Colour", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_colorpick, 0,
       "Now Playing accent: derived from album art, or any fixed colour you pick.", NULL },
     { "Text & Layout",  "Font Size",   ST_CYCLER, "font_size", 0,0,0, OPT_FONTSIZE, 3, NULL, apply_font_size, 1,
-      "Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen restarts; your music keeps playing.", NULL },
+      "Small, Medium or Large list/body text; titles and clocks stay fixed. Restarts the UI; music continues.", NULL },
     { "Text & Layout",  "Screen Rotation", ST_CYCLER, CTL_CFG_ROT, 0,0,0, OPT_ROTATION, CTL_ROT_N, NULL, apply_screen_rot, 0,
-      "Turn the picture and touch clockwise: Normal, 90, 180 or 270 degrees. Stored by the player, as in the stock menu.", NULL },
+      "Rotate display and touch clockwise: 0, 90, 180 or 270 degrees. Saved by the player.", NULL },
     { "Text & Layout",  "24-Hour Time", ST_TOGGLE, "time_24h",  0,1,1, NULL, 0, NULL, apply_time, 1,
       "Use a 24-hour clock instead of AM/PM.", NULL },
     { "Text & Layout",  "Track Numbers", ST_TOGGLE, "track_numbers", 0,1,1, NULL, 0, NULL, apply_track_numbers, 0,
@@ -815,33 +815,33 @@ static const setting_t TABLE[] = {
     { "Text & Layout",  "Now Playing", ST_CYCLER, "np_style",   0,0,0, OPT_NPSTYLE, 4, NULL, apply_np_style, 0,
       "Album art style on the Now Playing screen.", D_NPSTYLE },
     { "Text & Layout",  "Immersive", ST_CYCLER, "imm_style", 0,0,0, OPT_DIMM, 3, NULL, apply_imm, 0,
-      "The full-screen cover: Vinyl (it spins, with grooves and a dark label), CD (it spins, with a clear hub, a still rainbow sheen and faint spokes) or None (the plain cover, standing still).", NULL },
+      "Vinyl: spinning grooves. CD: spinning disc with a fixed rainbow sheen. None: still artwork.", NULL },
     { "Text & Layout",  "Immersive Lyrics", ST_TOGGLE, "imm_lyrics", 0,1,1, NULL, 0, NULL, apply_imm, 1,
-      "Synced lyrics over the full-screen cover, on a darker shade at the bottom. Off shows the cover alone.", NULL },
+      "Show synced lyrics over a darkened part of Immersive. Off shows artwork only.", NULL },
     { "Text & Layout",  "Disc Colour", ST_CYCLER, "disc_colour", 0,0,0, OPT_DISCCOLOUR, 3, NULL, NULL, 0,
       "The colour of the Disc drawn on the startup screen. Set it to match yours.", NULL },
     { "Standby",  "Screensaver", ST_CYCLER, "saver_idx",  0,0,0, OPT_POWER, 5, NULL, NULL, 2,
       "Idle time before the clock screensaver appears and the screen dims.", NULL },
     { "Standby",  "Saver Style", ST_CYCLER, "saver_style", 0,0,0, OPT_SAVERSTYLE, 6, NULL, NULL, 0,
-      "Screensaver look: Cover art, Analog clock, Minimal, Digital, spinning Vinyl, or the Ring clock.", NULL },
+      "Choose Cover, Analog, Minimal, Digital, Vinyl or Ring screensaver.", NULL },
     { "Standby",  "Screen Off",  ST_CYCLER, "screenoff_idx", 0,0,0, OPT_POWER, 5, NULL, NULL, 3,
       "How long after the screensaver the screen turns fully off.", NULL },
     { "Online & Extras",  "Online Album Art", ST_TOGGLE, "online_art", 0,1,1, NULL, 0, NULL, apply_online_art, 0,
-      "Songs with no cover of their own get one from the internet (Wi-Fi). Each album is looked up once; playback is never touched.", NULL },
+      "Fetch missing covers over Wi-Fi, once per album. Playback is unaffected.", NULL },
     { "Online & Extras",  "Online Lyrics", ST_TOGGLE, "online_lyrics", 0,1,1, NULL, 0, NULL, NULL, 1,
-      "Songs with no lyrics of their own (no .lrc file, none in the song's tags) are looked up on lrclib.net (Wi-Fi). Off stops diskOS's own lookup; lyrics from the SD card or the song's tags still show.", NULL },
+      "Fetch missing lyrics from lrclib.net over Wi-Fi. Off stops lookups; SD-card and embedded lyrics still work.", NULL },
     { "Online & Extras",  "Album Art Cache", ST_CYCLER, "artcache", 0,0,0, OPT_ARTCACHE, 3, NULL, apply_artcache, 0,
-      "Pre-decode album art so covers load instantly. Background decoding can warm the player; it throttles on heat.", D_ARTCACHE },
+      "Cache decoded covers for faster display. Background work slows down if the player gets hot.", D_ARTCACHE },
     { "Online & Extras",  "Weather on Home", ST_TOGGLE, "weather_on", 0,1,1, NULL, 0, NULL, apply_weather, 1,
-      "Show the weather glance on the home screen and screensaver (tap it to open the full forecast). Off skips the background fetch to save battery.", NULL },
+      "Show Home/saver weather; tap for forecasts. Off stops fetching to save battery.", NULL },
     { "Online & Extras",  "Shortcuts", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_shortcuts, 0,
       "Choose up to five shortcuts for the panel opened by swiping left from Home.", NULL },
     { "Online & Extras",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
       "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
     { "Disco Options", "Disco Menu", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_menu, 0,
-      "The sections of the black menu disc, in order. Add, remove and move them; Music and Settings always stay.", NULL },
+      "Add, remove and reorder menu destinations. Music and Settings stay available.", NULL },
     { "Disco Options", "Music Screen", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_musicscreen, 0,
-      "The Music screen: clock, track times, track number, where the title sits and what holding it does.", NULL },
+      "Music clock, times, track numbers, title position and hold action.", NULL },
     { "Disco Options", "Colours", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discocolours, 0,
       "Rim sheen and the colours of the equalizer, volume and progress, plus the progress shape.", NULL },
     { "Disco Options", "Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discolayout, 0,
@@ -849,7 +849,7 @@ static const setting_t TABLE[] = {
     { "Disco Options", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discoqs,0,
       "Choose the button style and up to seven quick actions.", NULL },
     { "Quick Settings", "Style", ST_CYCLER, "disco_qs_style",0,0,1,OPT_QS_STYLE,2,NULL,apply_disco_qs,0,
-      "List keeps the rows. Arc puts seven round buttons along the edge, Wi-Fi in the middle. The music disc stays.", NULL },
+      "List uses rows; Arc uses round buttons with Wi-Fi in the middle. Both keep the music disc.", NULL },
     { "Quick Settings", "Items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
       "Add, remove and reorder quick actions with the Disco Menu editor.", NULL },
     { "Music Screen", "Show Clock", ST_TOGGLE, "disco_clock", 0,1,1, NULL,0, NULL, apply_disco_clock, 1,
@@ -857,29 +857,29 @@ static const setting_t TABLE[] = {
     { "Music Screen", "Track Times", ST_TOGGLE, "disco_times", 0,1,1, NULL,0, NULL, apply_disco_times, 1,
       "Small elapsed and remaining times under the ends of the progress line on Music.", NULL },
     { "Music Screen", "Number Before Title", ST_TOGGLE, "disco_trackno", 0,1,1, NULL,0, NULL, NULL, 0,
-      "Show the song's track number before its title on Music, as in \"3. Northern Lights\" (from the song's tags).", NULL },
+      "Prefix the Music title with its tag track number, e.g. 3. Northern Lights.", NULL },
     { "Music Screen", "Track Font", ST_CYCLER, "np_font", 0,0,0, OPT_NPFONT, 3, NULL, apply_np_font, 0,
-      "Original, Inter Semibold or Nunito Bold for title and artist. Alternatives use larger, heavier text. The screen restarts; your music keeps playing.", NULL },
+      "Title/artist font: Original, Inter Semibold or Nunito Bold. Restarts the UI; music continues.", NULL },
     { "Music Screen", "Title Position", ST_CYCLER, "disco_title_al", 0,0,0, OPT_DTAL, 2, NULL, apply_disco_title, 0,
       "Where the title and artist sit on Music: centred, or from the left.", NULL },
     { "Music Screen", "Title Hold", ST_CYCLER, "disco_title_hold", 0,0,0, OPT_DHOLD, 3, NULL, apply_disco_hold, 0,
-      "What holding the title on Music does: open the cover full screen, or favourite (or unfavourite) the song. A tap still opens the track menu.", NULL },
+      "Hold the title for Immersive, favourite/unfavourite, or nothing. Tap still opens track actions.", NULL },
     { "Music Screen", "Controls", ST_CYCLER, "disco_controls", 0,0,0, OPT_DCTRL, 3, NULL, apply_disco_controls, 0,
-      "Buttons as they are, buttons that fade after 5 seconds (a touch brings them back), or no buttons: double tap the bottom for play/pause, swipe right for next and left for previous.", NULL },
+      "Buttons, Auto-fade after 5 s (tap to reveal), or Gestures: double-tap play/pause; swipe right next, left previous.", NULL },
     { "Disco Colours", "Rim Sheen", ST_TOGGLE, "disco_sheen", 0,1,1, NULL,0, NULL, apply_disco_sheen, 1,
       "The faint CD rainbow around the edge of Music and playlists.", NULL },
     { "Disco Colours", "Equalizer", ST_CYCLER, "disco_eq", 0,0,0, OPT_DEQ, 2, NULL, apply_disco_eq, 0,
-      "The colours of the equalizer's faders: Disco gives every band its own CD colour, Accent uses the album's accent (or your picked one).", NULL },
+      "Disco gives bands rainbow colours; Accent uses the cover or chosen colour.", NULL },
     { "Disco Colours", "Volume", ST_CYCLER, "disco_vol", 0,0,0, OPT_DEQ, 2, NULL, apply_disco_eq, 0,
-      "The colour of the volume arc: Disco is the CD rainbow, Accent uses the album's accent (or your picked one).", NULL },
+      "Volume arc: Disco rainbow or the cover/chosen accent colour.", NULL },
     { "Disco Colours", "Progress Bar", ST_CYCLER, "disco_progress", 0,0,0, OPT_DPROG, 3, NULL, apply_disco_progress, 0,
-      "The progress on Music (line or arc, see Progress Shape): Disco is the rainbow, Accent follows the cover colour (or your picked accent), Off hides it.", NULL },
+      "Music progress: Disco rainbow, cover/chosen Accent, or Off. Shape is set in Layout.", NULL },
     { "Disco Layout", "Progress Shape", ST_CYCLER, "disco_prog_shape", 0,0,0, OPT_DSHAPE, 2, NULL, apply_disco_progress, 0,
-      "Linear is the line under the title. Arc runs the progress round the edge of Music instead, from just below the menu, clockwise, to just above it. Drag or tap either to seek.", NULL },
+      "Linear below the title, or Arc round the rim. Tap or drag either to seek.", NULL },
     { "Disco Layout", "Side", ST_CYCLER, "disco_side_pick", 0,0,0, OPT_DSIDE, 2, NULL, NULL, 0,
       "Pick a side, then Apply. The screen restarts; your music keeps playing.", NULL },
     { "Disco Layout", "Scroll", ST_CYCLER, "disco_scroll", 0,0,0, OPT_DSCROLL, 3, NULL, NULL, 0,
-      "How list rows move as they scroll: Classic follows the screen's edge, Straight keeps them flat, Disco swings them round the navigation circle like spokes of a CD.", NULL },
+      "Classic follows the rim; Straight keeps rows flat; Disco swings rows round the menu.", NULL },
     { "Disco Layout", "Double tap", ST_CYCLER, "disco_nav_double", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_SEARCH,
       "Double-tap the icon in the open navigation circle.", NULL },
     { "Disco Layout", "Hold", ST_CYCLER, "disco_nav_hold", 0,0,0, OPT_NAV_ACTION, DISCO_NAV_COUNT, NULL, NULL, DISCO_NAV_MUSIC,
@@ -903,38 +903,38 @@ static const setting_t TABLE[] = {
     { "System", "About", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_about, 0,
       "Version, device information and temperature.", NULL },
     { "Power",   "Sleep Timer", ST_CYCLER, "sleep_idx", 0,0,0, OPT_SLEEP, 6, NULL, apply_sleep, 0,
-      "Pause playback, or shut the device down (see When Sleep Ends), after this long. Resets on restart.", NULL },
+      "Pause or shut down when the timer ends, as chosen below. Timer resets on restart.", NULL },
     { "Power",   "When Sleep Ends", ST_CYCLER, "sleep_action", 0,0,0, OPT_SLEEP_ACT, 2, NULL, NULL, POWER_SLEEP_PAUSE,
-      "What the Sleep Timer does. Shut down closes the card safely first, then powers the device off.", NULL },
+      "At timer end: pause or shut down. Shutdown safely closes the card first.", NULL },
     { "Power",   "Idle Power-off", ST_CYCLER, "idle_off_idx", 0,0,0, OPT_IDLE_OFF, POWER_IDLE_N, NULL, NULL, 0,
-      "Power the device off after this long with nothing playing and no touch or key press. Closes the card safely first.", NULL },
+      "Shut down after this long with no playback or input. Safely closes the card first.", NULL },
     { "Power",   "Charging Limit", ST_TOGGLE, "charge_protect", 0,1,1, NULL, 0, NULL, apply_charge_protect, 0,
       "The player's Charging optimization: stops charging at about 80% to slow battery wear.", NULL },
     { "Power",   "Shut down player", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_POWER, apply_shutdown, 0,
       "Switch the player off.", NULL },
     { "Date & Time",   "Automatic Time", ST_TOGGLE, "auto_time", 0,1,1, NULL, 0, NULL, apply_auto_time, 1,
-      "Set the time and time zone from the internet whenever Wi-Fi connects. A change applies after the next restart.", NULL },
+      "Sync time/zone on Wi-Fi connection. Changes take effect after restart.", NULL },
     { "Date & Time",   "Set Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_datetime, 0,
       "Set the clock by hand. With Automatic Time on, Wi-Fi may correct it later.", NULL },
     { "Date & Time",   "Time Zone",   ST_CHOICE, "tz_idx", 0,0,0, TZ_LABEL, TZ_COUNT, NULL, apply_timezone, 0,
-      "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
+      "Automatic follows your location on Wi-Fi, with Automatic Time on. Or choose a zone.", NULL },
     { "Library",   "Rescan Library", ST_ACTION, NULL, 0,0,0, NULL,0, "Scan", apply_rescan, 0,
       "Re-scan the SD card for new or removed music.", NULL },
     { "Library",   "Import Playlists", ST_ACTION, NULL, 0,0,0, NULL,0, "Import", apply_import_m3u, 0,
       "Import .m3u / .m3u8 playlists found on the SD card.", NULL },
     { "Controls",   "Volume Keys", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_volkeys_group, 0,
-      "What the volume keys do on a press, a double press and when held: adjust the volume or switch track.", NULL },
+      "Choose volume-key actions for press, double-press and hold: volume or track change.", NULL },
     { "Controls",   "Default UI",  ST_CYCLER, "boot_default", 0,0,0, OPT_BOOTDEF, 2, NULL, apply_boot_default, 0,
-      "Which UI boots by default. To boot the other one, hold Vol-Up from power-on until it appears.", NULL },
+      "Choose the startup UI. Hold Vol-Up during power-on to start the other UI.", NULL },
     { "Controls",   "Language",    ST_CHOICE, "language", 0,0,0, i18n_lang_names, LANG_COUNT, NULL, apply_language, LANG_EN,
       "Interface language. Song, artist and album names are always shown as they are tagged.", NULL },
     { "Maintenance",   "Update from SD Card", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_update_sd_open, 0,
-      "Install a signed diskOS update from the SD card folder diskos-update (made with your signing script). Otherwise shows how a stock update file is used.", NULL },
+      "Install a signed update from SD /diskos-update, made by your signing script. Otherwise shows stock-update instructions.", NULL },
     /* Disco: no online updates (Update diskOS / Automatic Updates are gone); updates come from the SD card or a flash */
     { "Maintenance",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
       "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
     { "Maintenance",   "Reset diskOS Settings", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", system_reset_open, 0,
-      "Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, Last.fm, EQ and audio settings are kept.", NULL },
+      "Reset UI appearance/behaviour. Keep music, Wi-Fi, Bluetooth, Last.fm, EQ and audio settings.", NULL },
     { "Maintenance",   "Debug Mode",  ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_debug_mode, 0,
       "Enable temporary SSH over Wi-Fi (fresh random password) for debugging. Off by default.", NULL },
     { "About",   "About",       ST_READONLY, NULL, 0,0,0, NULL,0, "diskOS beta", NULL, 0,
@@ -944,7 +944,7 @@ static const setting_t TABLE[] = {
     { "About",   "Temperature", ST_READONLY, NULL, 0,0,0, NULL,0, "@temp", NULL, 0,
       "Battery/board temperature from the fuel gauge (this SoC exposes no core sensor).", NULL },
     { "Volume Keys", "Press", ST_CYCLER, "key_single", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_single, CTL_ACT_VOLUME,
-      "What the volume keys do on a single press: adjust the volume or switch track. Stored by the player, as in the stock menu.", NULL },
+      "Single volume-key press: volume or track change. Saved by the stock player.", NULL },
     { "Volume Keys", "Double Press", ST_CYCLER, "key_double", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_double, CTL_ACT_VOLUME,
       "What the volume keys do on a double press: adjust the volume or switch track.", NULL },
     { "Volume Keys", "Long Press", ST_CYCLER, "key_long", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_long, CTL_ACT_VOLUME,
@@ -952,19 +952,19 @@ static const setting_t TABLE[] = {
     { "Network",  "Wi-Fi",       ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_wifi, 0,
       "Scan for and connect to Wi-Fi networks.", NULL },
     { "Network",  "MA Sendspin", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_ma_group, 0,
-      "A Sendspin player for Music Assistant: the Disc shows up there as a speaker. Needs Wi-Fi; uses AirPlay while it is on.", NULL },
+      "Appear as a Music Assistant speaker via Sendspin. Requires Wi-Fi; uses AirPlay while active.", NULL },
     { "MA Sendspin", "Sendspin", ST_TOGGLE, "ma_on", 0,1,1, NULL,0, NULL, apply_ma_on, 0,
-      "A Sendspin player for Music Assistant. On: the Disc connects and waits for music, using AirPlay while it is on. Off goes back to Playback.", NULL },
+      "On: connect to Music Assistant and wait for audio via AirPlay. Off: return to Playback.", NULL },
     { "MA Sendspin", "Server", ST_ACTION, NULL, 0,0,0, NULL,0, g_ma_server_lbl, apply_ma_server, 0,
-      "Auto finds Music Assistant on your network. Tap to type its address instead, for example 192.168.1.20 (port 8927 is added for you). Clear it for Auto.", NULL },
+      "Auto finds Music Assistant locally. Or type its address; default port 8927. Clear to restore Auto.", NULL },
     { "MA Sendspin", "Player Name", ST_ACTION, NULL, 0,0,0, NULL,0, g_ma_name_lbl, apply_ma_name, 0,
       "How the Disc is called in Music Assistant.", NULL },
     { "MA Sendspin", "Sync Delay", ST_SLIDER, "ma_delay_ms", -2000,2000,10, NULL,0, NULL, NULL, 0,
-      "Moves the Disc's sound later (+) or earlier (-), in milliseconds, to line it up with other speakers playing the same music.", NULL },
+      "Sync speakers: positive milliseconds delay the Disc; negative values play it earlier.", NULL },
     { "Network",  "Bluetooth", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_bt, 0,
       "Pair Bluetooth devices. Audio routes to connected headphones or speakers (SBC, beta).", NULL },
     { "Network",  "Bluetooth Codec", ST_CHOICE, "bt_codec", 0,0,0, BT_CODEC_LABEL, BT_CODEC_N, NULL, NULL, 0,
-      "Codec for Bluetooth headphones, as in the stock player. Applies the next time the headphones connect. If they lack the codec, SBC is used. AAC and LDAC are heavier for this player and may stutter.", NULL },
+      "Choose the headphone codec for the next connection. Unsupported codecs fall back to SBC. AAC/LDAC may stutter.", NULL },
 };
 #define N_SETTINGS ((int)(sizeof(TABLE)/sizeof(TABLE[0])))
 
@@ -1233,7 +1233,7 @@ void setting_detail_refresh(void){
         lv_obj_t *sl = lv_slider_create(g_detail_root);
         lv_obj_set_size(sl, 220, 12);
         lv_obj_set_ext_click_area(sl, 14);
-        lv_obj_align(sl, LV_ALIGN_CENTER, 0, -6);
+        lv_obj_align(sl,LV_ALIGN_TOP_MID,0,138);
         lv_slider_set_range(sl, s->min, s->max);
         if(outdoor_holds(s)){ v = ui_effective_brightness(); lv_obj_add_state(sl, LV_STATE_DISABLED); }
         lv_slider_set_value(sl, v, LV_ANIM_OFF);
@@ -1242,7 +1242,7 @@ void setting_detail_refresh(void){
         lv_obj_set_style_bg_color(sl, TC(TEXT_PRIMARY), LV_PART_KNOB);
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[16]; lv_label_set_text(vl, val_text(s,b,sizeof b));
-        lv_obj_set_width(vl, 360); lv_obj_align(vl, LV_ALIGN_CENTER, 0, 40);
+        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 168);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
@@ -1251,7 +1251,7 @@ void setting_detail_refresh(void){
         lv_obj_add_event_cb(sl, detail_slider_release_cb, LV_EVENT_PRESS_LOST, NULL);
     } else if(s->type == ST_TOGGLE){
         lv_obj_t *sw = lv_switch_create(g_detail_root);
-        lv_obj_align(sw, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_align(sw, LV_ALIGN_TOP_MID, 0, 128);
         lv_obj_set_style_bg_color(sw, ui_current_accent(), LV_PART_INDICATOR | LV_STATE_CHECKED);
         if(v) lv_obj_add_state(sw, LV_STATE_CHECKED);
         ui_on(sw, detail_toggle_cb, LV_EVENT_VALUE_CHANGED, NULL, "settings.detail_toggle.value", UI_CORE);
@@ -1259,7 +1259,7 @@ void setting_detail_refresh(void){
         /* every option as a row; the current one ticked. Themes also show three colour dots (background, surface,
          * accent) in the current Dark/Light variant, so each can be judged before picking. */
         lv_obj_t *list = make_list(g_detail_root);
-        if(s->opts == i18n_lang_names) lv_obj_set_height(list, 215);
+        lv_obj_set_height(list,210);
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
         /* Themes: Disco first, then Ring, Braun and Stone; the other presets stay in the code and keep working if
          * already selected, but are not offered here for now. Rows still carry the real preset index. */
@@ -1308,20 +1308,20 @@ void setting_detail_refresh(void){
         /* < value > stepper */
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[24]; lv_label_set_text(vl,nav_setting(s)?tr(s->opts[v]):val_text(s,b,sizeof b));
-        lv_obj_set_size(vl, nav_setting(s)?160:220, 32); lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
-        lv_obj_align(vl, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_set_size(vl,176,40); lv_label_set_long_mode(vl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 128);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         lv_obj_set_style_text_font(vl, TF(UI_24), 0);
         lv_obj_t *lb = lv_button_create(g_detail_root);
         lv_obj_remove_style_all(lb); lv_obj_set_size(lb, 48, 48);
-        lv_obj_align(lb, LV_ALIGN_CENTER, -110, 0);
+        lv_obj_align(lb, LV_ALIGN_TOP_MID, -116, 120);
         lv_obj_t *li = lv_label_create(lb); lv_label_set_text(li, LV_SYMBOL_LEFT);
         lv_obj_set_style_text_color(li, TC(TEXT_PRIMARY), 0); lv_obj_center(li);
         lv_obj_add_event_cb(lb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)-1);
         lv_obj_t *rb = lv_button_create(g_detail_root);
         lv_obj_remove_style_all(rb); lv_obj_set_size(rb, 48, 48);
-        lv_obj_align(rb, LV_ALIGN_CENTER, 110, 0);
+        lv_obj_align(rb, LV_ALIGN_TOP_MID, 116, 120);
         lv_obj_t *ri = lv_label_create(rb); lv_label_set_text(ri, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_center(ri);
         lv_obj_add_event_cb(rb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)1);
@@ -1333,7 +1333,7 @@ void setting_detail_refresh(void){
         }
         if(nav_setting(s) || (s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"))){ /* choices with explicit Apply */
             lv_obj_t *ab = lv_button_create(g_detail_root); lv_obj_remove_style_all(ab);
-            lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_CENTER, 0, 58);
+            lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_TOP_MID, 0, 184);
             lv_obj_set_style_radius(ab, LV_RADIUS_CIRCLE, 0);
             lv_obj_set_style_bg_color(ab, ui_current_accent(), 0); lv_obj_set_style_bg_opa(ab, LV_OPA_COVER, 0);
             lv_obj_set_style_bg_opa(ab, LV_OPA_70, LV_STATE_PRESSED);
@@ -1345,7 +1345,7 @@ void setting_detail_refresh(void){
     } else { /* readonly */
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[128];lv_label_set_text(vl,val_text(s,b,sizeof b));
-        lv_obj_set_width(vl, 360); lv_obj_align(vl, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 128);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, TC(TEXT_LYRICS), 0);
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
@@ -1360,10 +1360,14 @@ void setting_detail_refresh(void){
     if(desc && desc[0]){
         lv_obj_t *d = lv_label_create(g_detail_root);
         lv_label_set_text(d, tr(desc));
-        lv_label_set_long_mode(d, s->type == ST_CHOICE ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(d, 240);
-        if(s->type == ST_CHOICE) lv_obj_set_height(d, 22);
-        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, 0, -40);
+        lv_label_set_long_mode(d,LV_LABEL_LONG_WRAP);
+        int apply=nav_setting(s)||(s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"));
+        int y=apply?246:s->type==ST_CHOICE?286:216;
+        lv_obj_t *help=lv_obj_create(g_detail_root);lv_obj_remove_style_all(help);
+        lv_obj_set_size(help,244,310-y);lv_obj_align(help,LV_ALIGN_TOP_MID,0,y);
+        lv_obj_set_scroll_dir(help,LV_DIR_VER);lv_obj_set_scrollbar_mode(help,LV_SCROLLBAR_MODE_AUTO);
+        lv_obj_add_flag(help,LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_set_parent(d,help);lv_obj_set_width(d,244);lv_obj_set_pos(d,0,0);
         lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_font(d, TF(UI_14), 0);
         lv_obj_set_style_text_color(d, TC(TEXT_MUTED), 0);
@@ -1462,6 +1466,7 @@ __attribute__((unused)) static void cat_cb(lv_event_t *e){
 
 static orbit_t g_set_orb;
 static void cat_pick(int gi){
+    if(gi==N_GROUPS+1 && (th_disco() || th_null())){g_active_group="How to";screen_show(SCR_SETLIST);return;}
     if(gi == N_GROUPS){ screen_show(SCR_USAGE); return; }   /* Battery */
     if(gi < 0 || gi >= N_GROUPS) return; g_active_group = GROUPS[gi]; screen_show(SCR_SETLIST); }
 void setlist_open(const char *group){
@@ -1472,18 +1477,18 @@ static void hub_cb(lv_event_t *e){ list_back_cb(e); }
 /* Disco: the categories as a curved list of rounded rows (as Quick Settings), clear of the navigation sliver */
 static void disco_cat_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) cat_pick((int)(intptr_t)lv_event_get_user_data(e)); }
 static void settings_disco_list(lv_obj_t *root){          /* styled like the submenus: curved rows, 4 in view, scroll dots */
-    lv_obj_t *t = lv_label_create(root); lv_label_set_text(t, th_null()?"STNGS":"Settings");
+    lv_obj_t *t = lv_label_create(root); lv_label_set_text(t, "Settings");
     lv_obj_set_style_text_font(t, TF(UI_20), 0); lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 28);
-    static const char *GICON[] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE, LV_SYMBOL_WIFI, LV_SYMBOL_SETTINGS, LV_SYMBOL_BATTERY_3 };
+    static const char *GICON[] = { LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_IMAGE, LV_SYMBOL_WIFI, LV_SYMBOL_SETTINGS, LV_SYMBOL_BATTERY_3, LV_SYMBOL_FILE };
     lv_obj_t *list = make_list(root);
     static curvelist_t cl; curvelist_attach(&cl, list, root, 288);
-    for(int g = 0; g <= N_GROUPS; g++){
+    for(int g = 0; g <= N_GROUPS+1; g++){
         lv_obj_t *r = setting_card(list);
         lv_obj_add_event_cb(r, disco_cat_cb, LV_EVENT_CLICKED, (void *)(intptr_t)g);
         lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, GICON[g]); lv_obj_set_style_text_font(ic, TH_F_LIST, 0);
         lv_obj_set_style_text_color(ic, ui_current_accent(), 0); lv_obj_set_pos(ic, 18, 16);
-        lv_obj_t *n = lv_label_create(r); lv_label_set_text(n, g < N_GROUPS ? GROUPS[g] : "Battery");
+        lv_obj_t *n = lv_label_create(r); lv_label_set_text(n, g < N_GROUPS ? GROUPS[g] : g==N_GROUPS?"Battery":"How to");
         lv_obj_set_style_text_font(n, TH_F_LIST, 0); lv_obj_set_style_text_color(n, TC(TEXT_PRIMARY), 0);
         lv_obj_set_pos(n, 50, 16);
         lv_obj_t *c = lv_label_create(r); lv_label_set_text(c, LV_SYMBOL_RIGHT); lv_obj_set_style_text_font(c, TH_F_DETAIL, 0);
@@ -1513,14 +1518,47 @@ void settings_create(lv_obj_t *root){
 
 /* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
+static const char *row_value(const setting_t *s,char *buf,int n){
+    if(s->type==ST_CYCLER && s->nopts==2 && !strcmp(s->opts[0],"Off") && !strcmp(s->opts[1],"On")) return val_text(s,buf,n);
+    if(s->type==ST_SLIDER || s->type==ST_CYCLER || s->type==ST_CHOICE ||
+       (s->type==ST_ACTION && (s->apply==apply_ma_server || s->apply==system_reset_open))){
+        snprintf(buf,n,"%s",setting_unavailable(s)?"Unavailable":LV_SYMBOL_RIGHT);return buf;
+    }
+    return val_text(s,buf,n);
+}
 void settings_row_values_refresh(void){
     char b[40];
-    for(int i=0;i<N_SETTINGS;i++) if(g_list_rows[i] && lv_obj_is_valid(g_list_rows[i])) lv_label_set_text(g_list_rows[i], val_text(&TABLE[i],b,sizeof b));
+    for(int i=0;i<N_SETTINGS;i++) if(g_list_rows[i] && lv_obj_is_valid(g_list_rows[i])) lv_label_set_text(g_list_rows[i], row_value(&TABLE[i],b,sizeof b));
 }
 
 /* ---- one category's rows (SCR_SETLIST), rebuilt on every entry so values are always live ---- */
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 
+void settings_open_howto(void){if(th_disco() || th_null()){g_active_group="How to";screen_show(SCR_SETLIST);}}
+static void howto_body(lv_obj_t *root){
+    static const char *titles[]={"Navigate","Navigation menu","Music","Seek / artwork","Quick Settings","Library","Clock / volume","More shortcuts"};
+    char music[256],nav[256],quick[256],more[256];
+    int hold=cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
+    int mode=cfg_get_int(th_null()?"null_controls":"disco_controls",0);
+    snprintf(nav,sizeof nav,"%s",th_null()?"Side arrow: open menu. Drag text or handle. Hold handle ends to scroll; double-tap / hold its centre for your shortcuts.":"Side tab: open menu. Arrows: browse. Centre icon: open. Double-tap / hold the centre for your chosen shortcuts.");
+    snprintf(music,sizeof music,"Title tap: track actions / Mood. Hold: %s. %s",hold==0?"Immersive":hold==1?"favourite / unfavourite":"no action",mode==2?"Double-tap the gesture field: play/pause. Swipe right: next; left: previous.":mode==1?"Auto-fade: tap once to reveal controls, then tap a button.":"Use the previous, play/pause and next buttons.");
+    snprintf(quick,sizeof quick,"Tap Wi-Fi / BT to toggle; hold for connections. Drag brightness. %s",th_null()?"Tap outside / bottom arrow, or swipe up beside the panel to close.":"Swipe up to close.");
+    snprintf(more,sizeof more,"%s EQ: tap a band; drag or use +/-. Tap gain/frequency to switch. Power button: pocket lock.",onboarding_gesture_text(HINT_SHORTCUTS));
+    const char *bodies[]={disco_mirror()?"Swipe left from the right edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.":"Swipe right from the left edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.",nav,music,th_null()?"Tap or drag progress to seek. Tap full-screen artwork to return. Back swipe closes the track popup.":"Tap / drag progress to seek; hold for precise seeking. Tap full-screen artwork to return. Back swipe closes the track popup.",quick,"Hold songs / albums for actions. Tap A-Z, then a letter. Drag the rim to scroll. Cover flow: drag to browse; tap for tracks; hold to play.","Clock: tap for Weather; hold the top strip to hide/show. Drag volume to adjust; tap outside to dismiss.",more};
+    lv_obj_t *list=make_list(root);lv_obj_set_pos(list,42,76);lv_obj_set_size(list,276,244);
+    lv_obj_set_style_pad_bottom(list,40,0);lv_obj_set_style_pad_row(list,12,0);
+    for(unsigned i=0;i<sizeof titles/sizeof *titles;i++){
+        lv_obj_t *card=lv_obj_create(list);lv_obj_remove_style_all(card);lv_obj_set_width(card,260);lv_obj_set_height(card,LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(card,LV_FLEX_FLOW_COLUMN);lv_obj_set_style_pad_row(card,4,0);lv_obj_set_style_pad_bottom(card,8,0);
+        lv_obj_set_style_border_side(card,LV_BORDER_SIDE_BOTTOM,0);lv_obj_set_style_border_width(card,1,0);lv_obj_set_style_border_color(card,TC(BORDER),0);
+        lv_obj_clear_flag(card,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *head=lv_label_create(card);char upper[80];theme_upper(upper,sizeof upper,titles[i]);
+        lv_label_set_text(head,th_null()?upper:titles[i]);lv_obj_set_width(head,260);lv_label_set_long_mode(head,LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_text_font(head,TF(UI_18),0);lv_obj_set_style_text_color(head,TC(TEXT_PRIMARY),0);
+        lv_obj_t *body=lv_label_create(card);lv_label_set_text(body,bodies[i]);lv_obj_set_width(body,260);
+        lv_label_set_long_mode(body,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(body,TF(UI_14),0);lv_obj_set_style_text_color(body,TC(TEXT_SECONDARY),0);
+    }
+}
 void setlist_refresh(void){
     if(!g_setlist_root || !g_active_group) return;
     lv_obj_clean(g_setlist_root);
@@ -1529,6 +1567,7 @@ void setlist_refresh(void){
     lv_obj_set_style_bg_opa(g_setlist_root, LV_OPA_COVER, 0);
     ui_header_cb(g_setlist_root, g_active_group, list_back_cb);   /* title = category; back pops to categories */
 
+    if(!strcmp(g_active_group,"How to")){howto_body(g_setlist_root);return;}
     lv_obj_t *list = make_list(g_setlist_root);
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
@@ -1545,15 +1584,18 @@ void setlist_refresh(void){
 
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, s->label);
-        lv_obj_set_pos(lbl, 18, 16);
+        lv_obj_set_pos(lbl,18,16);
+        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s)?116:202);
+        lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(lbl, TH_F_LIST, 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
 
-        char b[24]; val_text(s, b, sizeof b);
+        char b[40]; row_value(s, b, sizeof b);
         lv_obj_t *vl = lv_label_create(row);
         lv_label_set_text(vl, b);
-        lv_obj_set_pos(vl, 150, 18);
-        lv_obj_set_size(vl, 120, 22);
+        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s)?144:228,18);
+        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s)?126:42,24);
+        lv_label_set_long_mode(vl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_style_text_font(vl, TH_F_DETAIL, 0);
         lv_obj_set_style_text_color(vl, TC(TEXT_SECONDARY), 0);

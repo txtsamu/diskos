@@ -1,3 +1,4 @@
+#include "onboarding.h"
 #include "null_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
@@ -121,6 +122,7 @@ static void transition(int from, int to, int dir)
     }                             /* the crash recorder's trail of screens */
     if (th_disco()) disco_screen_entering(to);   /* picker visibility first: the lists curve around it */
     transition_core(from, to, dir);
+    if(th_disco() || th_null())onboarding_screen(to,0);
     if(th_null())null_screen_entered(to);
     if (th_disco()) disco_screen_entered(to, (to >= 0 && to < SCR_COUNT) ? s_roots[to] : NULL);   /* backdrop, glass, picker on top */
 }

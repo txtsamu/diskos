@@ -21,6 +21,7 @@ void null_screen_entered(int which);
 void null_screen_leaving(void);
 int null_owns_point(int x, int y);
 void null_scroll_line(lv_obj_t **parts, int count, int position, int total);
+int null_volume_visible(void);
 void null_volume_show(int value);
 void null_qs_battery(int percent, int charging);
 void null_qs_create(lv_obj_t *root);

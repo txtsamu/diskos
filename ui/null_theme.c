@@ -524,7 +524,7 @@ void null_home_create(lv_obj_t *r)
     album = text(r, "", 36, 180, 288, TF(UI_16), TC(TEXT_SECONDARY));
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(album, LV_LABEL_LONG_SCROLL_CIRCULAR);
     track_hit=box(r,36,106,288,100);album_hit=box(r,36,174,288,30);
     lv_obj_t *hits[]={track_hit,album_hit};
     for(int k=0;k<2;k++){
@@ -875,19 +875,16 @@ void null_qs_build(void)
     static const char *shorts[] = {"WIFI",  "BT",   "LIBRY", "SCAN",   "MODES", "STNGS",
                                    "EQ",    "SRCH", "QUEUE", "UP NXT", "SHRTS", "WTHR",
                                    "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS"};
-    extern const lv_font_t null_qs_icons_30;
-    static const unsigned codes[]={0xf1eb,0xf293,0xf02d,0xf021,0xf1e6,0xf013,0xf1de,0xf002,0xf0cb,0xf051,0xf0ca,0xf185,0xf001,0xf05a,0xf03e,0xf07b,0xf004};
-    int icons=cfg_get_int("null_qs_layout",0)==1;
+    extern const lv_font_t font_icons_28,font_theme_24;
+    static lv_font_t icons,extra,theme_icons;
+    theme_icons=font_theme_24;extra=font_icons_28;extra.fallback=&theme_icons;
+    icons=lv_font_montserrat_28;icons.fallback=&extra;
+    int show_icons=cfg_get_int("null_qs_layout",0)==1;
     for(int i=0;i<8;i++){
-        int id=qids[i];const qs_item_t *item=quicksettings_item(id);
-        if(icons && item && id>=0 && id<17){
-            unsigned cp=codes[id];char glyph[4]={(char)(0xe0|(cp>>12)),(char)(0x80|((cp>>6)&63)),(char)(0x80|(cp&63)),0};
-            text_set(qcaptions[i],glyph);lv_obj_set_style_text_font(qcaptions[i],&null_qs_icons_30,0);
-            lv_obj_set_y(qcaptions[i],(50-lv_font_get_line_height(&null_qs_icons_30))/2);
-        }else{
-            text_set(qcaptions[i],id>=0 && id<17?shorts[id]:"ITEM");
-            lv_obj_set_style_text_font(qcaptions[i],&pixel14,0);lv_obj_set_y(qcaptions[i],17);
-        }
+        int id=qids[i];
+        text_set(qcaptions[i],show_icons?quicksettings_item_glyph(id):(id>=0 && id<17?shorts[id]:"ITEM"));
+        lv_obj_set_style_text_font(qcaptions[i],show_icons?&icons:&pixel14,0);
+        lv_obj_set_y(qcaptions[i],show_icons?(50-lv_font_get_line_height(&icons))/2:17);
         lv_obj_set_style_text_color(qcaptions[i],TC(TEXT_SECONDARY),0);
     }
     if (qpp) {
@@ -901,6 +898,7 @@ static void radio_state(void)
     if (!qs_open || !qpanel)
         return;
     for (int i = 0; i < qcount; i++) {
+        if(cfg_get_int("null_qs_layout",0)==1)text_set(qcaptions[i],quicksettings_item_glyph(qids[i]));
         int on = qids[i] == 0   ? wifi_radio_live()
                  : qids[i] == 1 ? bt_state() == BT_ON
                  : qids[i] == 3 ? scanner_active()
@@ -1182,10 +1180,10 @@ void null_saver_create(lv_obj_t *r)
     sweather_icon=text(r,"",56,62,40,&null_weather_32,TC(TEXT_SECONDARY));
     sweather=text(r,"",104,64,204,&saver_weather_font,TC(TEXT_SECONDARY));
     lv_obj_set_style_text_align(sweather,LV_TEXT_ALIGN_LEFT,0);
-    lv_label_set_long_mode(sweather,LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(sweather,LV_LABEL_LONG_SCROLL_CIRCULAR);
     sclock=text(r,"--:--",20,108,320,&null_pixel_70,TC(TEXT_PRIMARY));
     sdate=text(r,"",44,196,272,TF(UI_20),TC(TEXT_SECONDARY));
-    lv_label_set_long_mode(sdate,LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(sdate,LV_LABEL_LONG_SCROLL_CIRCULAR);
     strack=text(r,"",40,237,280,&music_fonts[0][0],TC(TEXT_PRIMARY));
     sartist=text(r,"",60,279,240,TF(UI_20),TC(TEXT_SECONDARY));
     lv_label_set_long_mode(strack,LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -1554,3 +1552,5 @@ void null_radio_skin(lv_obj_t *root,const char *name,lv_obj_t *ring,lv_obj_t *gl
     lv_obj_set_pos(list,46,210);lv_obj_set_size(list,268,134);lv_obj_set_style_pad_row(list,2,0);
     keep_tree(root);
 }
+
+int null_volume_visible(void){return volume_panel && !lv_obj_has_flag(volume_panel,LV_OBJ_FLAG_HIDDEN);}

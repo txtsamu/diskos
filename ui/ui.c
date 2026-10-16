@@ -21,6 +21,7 @@
 #include "theme_kit.h"
 #include "braun.h"
 #include "theme.h"
+#include "onboarding.h"
 #include "anim.h"
 #include "fonts_intl.h"   /* Cyrillic/Greek/Latin-ext fallback (issue #3) */
 
@@ -1178,7 +1179,7 @@ lv_obj_t *kit_edge_header(lv_obj_t *root, const char *title, lv_event_cb_t back_
     lv_obj_t *t = lv_label_create(root);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     theme_title_text(t, title);                       /* the theme's form first: that is the text that must fit */
     char shown[160]; lv_snprintf(shown, sizeof shown, "%s", lv_label_get_text(t));
     /* the box is as wide as the glass at the title's height (never past the round edge); a long title steps down
@@ -1212,7 +1213,7 @@ lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t ba
      * both sides, so a long album/playlist name truncates with an ellipsis instead of sliding under it. */
     lv_obj_set_pos(t, 104, 30); lv_obj_set_size(t, 152, 26);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_font(t, ui_font_cjk(18), 0);   /* headers show folder/album/playlist names: chain (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     if(th_braun()){                                           /* Braun: dark title, grey arrow, on the grille */
@@ -1343,8 +1344,8 @@ void kit_fork_np_braun(void);
 static lv_timer_t *g_settle_t;
 static void np_settle_cb(lv_timer_t *t){                  /* after 15 s: stop scrolling, end with "..." */
     (void)t;
-    if(title && lv_label_get_long_mode(title) == LV_LABEL_LONG_SCROLL_CIRCULAR) lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-    if(artist && lv_label_get_long_mode(artist) == LV_LABEL_LONG_SCROLL_CIRCULAR) lv_label_set_long_mode(artist, LV_LABEL_LONG_DOT);
+    if(title && lv_label_get_long_mode(title) == LV_LABEL_LONG_SCROLL_CIRCULAR) lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    if(artist && lv_label_get_long_mode(artist) == LV_LABEL_LONG_SCROLL_CIRCULAR) lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_timer_pause(g_settle_t);
 }
 /* A long title scrolls when the track changes or Now Playing appears, then settles: an endless scroll
@@ -1504,7 +1505,7 @@ static void np_layout(int poster){
     if(ring){ lv_obj_set_size(ring, ARC_D, ARC_D); lv_obj_align(ring, LV_ALIGN_CENTER, 0, 0); }
     if(cover) lv_obj_align(cover, LV_ALIGN_TOP_MID, 0, 42);
     if(btn_pp) lv_obj_set_style_text_font(btn_pp, TF(UI_32), 0);
-    if(artist){ lv_obj_set_style_text_font(artist, &s_font16, 0); lv_label_set_long_mode(artist, LV_LABEL_LONG_DOT); }
+    if(artist){ lv_obj_set_style_text_font(artist, &s_font16, 0); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR); }
     if(ring){ lv_arc_set_bg_angles(ring, 0, g_arc_sweep); lv_arc_set_rotation(ring, g_arc_rot);
               lv_arc_set_mode(ring, poster ? LV_ARC_MODE_REVERSE : LV_ARC_MODE_NORMAL);   /* fills from the left end */
               lv_obj_set_style_arc_width(ring, poster ? 4 : 6, LV_PART_MAIN); lv_obj_set_style_arc_width(ring, poster ? 4 : 6, LV_PART_INDICATOR); }
@@ -1516,15 +1517,15 @@ static void np_layout(int poster){
         lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_width(title, poster ? 236 : 260);
         lv_obj_set_height(title, poster ? 70 : LV_SIZE_CONTENT);          /* two lines, then ... */
-        lv_label_set_long_mode(title, poster ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_label_set_long_mode(title, poster ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, poster ? 146 : 198);
     }
     SHOW(title_sh, poster); SHOW(artist_sh, poster); SHOW(np_mid_btn, poster);
     if(title) lv_obj_set_style_text_color(title, TC(TEXT_PRIMARY), 0);
     if(title_sh){ lv_obj_set_style_text_font(title_sh, &s_font28, 0); lv_obj_set_size(title_sh, 236, 70);
-                  lv_label_set_long_mode(title_sh, LV_LABEL_LONG_DOT); lv_obj_align(title_sh, LV_ALIGN_TOP_MID, 1, 148); }
+                  lv_label_set_long_mode(title_sh, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_align(title_sh, LV_ALIGN_TOP_MID, 1, 148); }
     if(artist_sh){ lv_obj_set_style_text_font(artist_sh, &s_font16, 0); lv_obj_set_width(artist_sh, 220);
-                   lv_label_set_long_mode(artist_sh, LV_LABEL_LONG_DOT); lv_obj_align(artist_sh, LV_ALIGN_TOP_MID, 1, 224); }
+                   lv_label_set_long_mode(artist_sh, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_align(artist_sh, LV_ALIGN_TOP_MID, 1, 224); }
     if(artist){ lv_obj_set_width(artist, poster ? 220 : 238);
                 lv_obj_set_style_text_color(artist, poster ? TC(POSTER_SUBTITLE) : TC(TEXT_LYRICS), 0);
                 lv_obj_align(artist, LV_ALIGN_TOP_MID, 0, poster ? 222 : 226); }
@@ -2978,14 +2979,14 @@ void ui_create(lv_obj_t *root)
     artist = lv_label_create(scr);
     lv_obj_set_width(artist, 238);
     style_text(artist, &s_font16, TC(TEXT_LYRICS));
-    lv_label_set_long_mode(artist, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(artist, "");
     lv_obj_align(artist, LV_ALIGN_TOP_MID, 0, 226);
 
     album = lv_label_create(scr);
     lv_obj_set_width(album, 218);
     style_text(album, &s_font14, TC(TEXT_MUTED));
-    lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(album, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(album, "");
     lv_obj_align(album, LV_ALIGN_TOP_MID, 0, 246);
 
@@ -3134,7 +3135,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_width(fsart_title, 200);   /* two rows under the top arch, like Home */
     style_text(fsart_title, &s_font18, TC(FIXED_MEDIA_TITLE));
     lv_obj_set_style_text_align(fsart_title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(fsart_title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(fsart_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_align(fsart_title, LV_ALIGN_TOP_MID, 0, 50);   /* clear of the arch: at x=+-100 it sits at y~40 */
     lv_obj_clear_flag(fsart_title, LV_OBJ_FLAG_CLICKABLE);
 
@@ -3142,7 +3143,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_width(fsart_artist, 190);
     style_text(fsart_artist, &s_font16, TC(FIXED_MEDIA_ARTIST));
     lv_obj_set_style_text_align(fsart_artist, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(fsart_artist, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(fsart_artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_align(fsart_artist, LV_ALIGN_TOP_MID, 0, 75);
     lv_obj_clear_flag(fsart_artist, LV_OBJ_FLAG_CLICKABLE);
 
@@ -3313,6 +3314,7 @@ void ui_update(const track_state_t *st)
  * instead of hammering the buttons (which double-press into next/prev). */
 static lv_obj_t *g_vol_panel, *g_vol_arc, *g_vol_num;
 static lv_timer_t *g_vol_timer;
+int ui_volume_overlay_visible(void){return th_null()?null_volume_visible():(g_vol_panel && !lv_obj_has_flag(g_vol_panel,LV_OBJ_FLAG_HIDDEN));}
 static int g_vol_suppress;   /* 1 while we set the arc programmatically (no echo loop) */
 static uint32_t g_vol_last_send;  /* throttle: tick of the last 0715 we sent */
 static int g_vol_pending;         /* 1 if a value changed but was throttled (commit on release) */
@@ -3383,6 +3385,7 @@ static void dvol_paint(int v){
 static void vol_tap_close_cb(lv_event_t *e){ (void)e; if(g_vol_panel) lv_obj_add_flag(g_vol_panel, LV_OBJ_FLAG_HIDDEN); if(g_vol_timer) lv_timer_pause(g_vol_timer); }
 void ui_show_volume(int vol)
 {
+    onboarding_context(HINT_VOLUME);
     if(th_null()){null_volume_show(vol);return;}
     if(!g_vol_panel){
         /* the rim arc: a level on the right rim filling bottom -> top in the current accent, rounded ends,

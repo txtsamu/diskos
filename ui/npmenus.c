@@ -218,7 +218,7 @@ static void build_menu(lv_obj_t *box){
     if(th_braun()){ lv_obj_add_flag(dim, LV_OBJ_FLAG_HIDDEN); br_face(box); }   /* Braun: the grille, no album wash */
     g_menu_title = lv_label_create(box);
     lv_label_set_text(g_menu_title, "");
-    lv_label_set_long_mode(g_menu_title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_menu_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(g_menu_title, 200);
     lv_obj_set_style_text_align(g_menu_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_menu_title, ui_font_cjk(18), 0);
@@ -530,7 +530,8 @@ static lv_obj_t *cyc_row(lv_obj_t *parent, int y, const char *label,
 
     lv_obj_t *val = lv_label_create(row);
     lv_label_set_text(val, cur);
-    lv_obj_align(val, LV_ALIGN_TOP_MID, 0, 26);
+    lv_obj_set_size(val,190,30);lv_label_set_long_mode(val,LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_align(val,LV_TEXT_ALIGN_CENTER,0);lv_obj_align(val, LV_ALIGN_TOP_MID, 0, 26);
     lv_obj_set_style_text_font(val, TF(UI_20), 0);
     lv_obj_set_style_text_color(val, TC(ACCENT_PRIMARY), 0);
     *out_val = val;

@@ -797,7 +797,7 @@ static void ed_row(int id,int pos){
     lv_obj_set_style_text_font(ic,font,0);lv_obj_set_style_text_color(ic,pos>=0?ui_current_accent():TC(TEXT_MUTED),0);lv_obj_align(ic,LV_ALIGN_LEFT_MID,12,0);
     if(!g_edit_qs)roulette_icon(ic,icon,20);
     lv_obj_t *nm=lv_label_create(r);lv_label_set_text(nm,ed_name(id));lv_obj_set_style_text_font(nm,TF(UI_16),0);
-    lv_obj_set_width(nm,102);lv_label_set_long_mode(nm,LV_LABEL_LONG_DOT);
+    lv_obj_set_width(nm,102);lv_label_set_long_mode(nm,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_color(nm,pos>=0?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY),0);lv_obj_align(nm,LV_ALIGN_LEFT_MID,44,0);
     if(pos<0){ed_btn(r,234,LV_SYMBOL_PLUS,id,4,0);return;}
     ed_btn(r,150,LV_SYMBOL_UP,id,1,pos==0);ed_btn(r,188,LV_SYMBOL_DOWN,id,2,pos==g_edit_n-1);
@@ -864,7 +864,7 @@ lv_obj_t *disco_row(lv_obj_t *root, int y, int h, const char *glyph, const lv_fo
     lv_obj_align(ic, LV_ALIGN_LEFT_MID, 18, 0);
     lv_obj_t *n = lv_label_create(r); lv_label_set_text(n, name ? name : "");
     lv_obj_set_style_text_font(n, TH_F_LIST, 0); lv_obj_set_style_text_color(n, TC(TEXT_PRIMARY), 0);
-    lv_label_set_long_mode(n, LV_LABEL_LONG_DOT); lv_obj_set_width(n, right - left - 96);
+    lv_label_set_long_mode(n, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(n, right - left - 96);
     lv_obj_align(n, LV_ALIGN_LEFT_MID, 52, 0);
     lv_obj_t *v = lv_label_create(r); lv_label_set_text(v, "");
     lv_obj_set_style_text_font(v, TH_F_DETAIL, 0); lv_obj_set_style_text_color(v, TC(TEXT_SECONDARY), 0);

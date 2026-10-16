@@ -474,11 +474,11 @@ void weather_app_create(lv_obj_t *root)
     g_wd_ctemp = wlabel(root, TF(UI_46), TC(TEXT_PRIMARY));
     lv_obj_align(g_wd_ctemp, LV_ALIGN_CENTER, 0, -8);
     g_wd_cond = wlabel(root, ui_font_cjk(14), TC(TEXT_SECONDARY));
-    lv_label_set_long_mode(g_wd_cond, LV_LABEL_LONG_DOT); lv_obj_set_width(g_wd_cond, 150);
+    lv_label_set_long_mode(g_wd_cond, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_wd_cond, 150);
     lv_obj_set_style_text_align(g_wd_cond, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(g_wd_cond, LV_ALIGN_CENTER, 0, 26);
     g_wd_loc = wlabel(root, ui_font_cjk(16), TC(TEXT_PRIMARY));                 /* tap = change, hold = automatic */
-    lv_label_set_long_mode(g_wd_loc, LV_LABEL_LONG_DOT); lv_obj_set_width(g_wd_loc, 150);
+    lv_label_set_long_mode(g_wd_loc, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_wd_loc, 150);
     lv_obj_set_style_text_align(g_wd_loc, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(g_wd_loc, LV_ALIGN_CENTER, 0, 46);
     lv_obj_add_flag(g_wd_loc, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(g_wd_loc, 10);

@@ -185,14 +185,14 @@ static void books_rebuild(void){
 
         lv_obj_t *t = lv_label_create(r);                       /* title (book names may be non-Latin) */
         lv_label_set_text(t, b->title[0] ? b->title : "Untitled");
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(t, 70, 6); lv_obj_set_size(t, 186, 22);
         lv_obj_set_style_text_font(t, ui_font_cjk(16), 0);
         lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
         lv_obj_t *au = lv_label_create(r);                      /* author */
         lv_label_set_text(au, b->author[0] ? b->author : " ");
-        lv_label_set_long_mode(au, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(au, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(au, 70, 26); lv_obj_set_size(au, 186, 18);
         lv_obj_set_style_text_font(au, ui_font_cjk(14), 0);
         lv_obj_set_style_text_color(au, TC(TEXT_SECONDARY), 0);
@@ -310,7 +310,7 @@ static void chapters_rebuild(void){
 
         lv_obj_t *t = lv_label_create(r);                       /* chapter title (may be non-Latin) */
         lv_label_set_text(t, g_chlist[i].title);
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(t, 50, 16); lv_obj_set_size(t, 168, 20);
         lv_obj_set_style_text_font(t, ui_font_cjk(16), 0);
         lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
@@ -467,7 +467,7 @@ void chapters_create(lv_obj_t *root){
     lv_obj_set_style_text_font(g_ch_num, ui_font_cjk(16), 0); lv_obj_set_style_text_color(g_ch_num, TC(TEXT_PRIMARY), 0);
     lv_obj_align(g_ch_num, LV_ALIGN_TOP_MID, 0, 148);
     g_ch_title = lv_label_create(root);
-    lv_label_set_long_mode(g_ch_title, LV_LABEL_LONG_DOT); lv_obj_set_width(g_ch_title, 190);
+    lv_label_set_long_mode(g_ch_title, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_ch_title, 190);
     lv_obj_set_style_text_align(g_ch_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_ch_title, ui_font_cjk(14), 0); lv_obj_set_style_text_color(g_ch_title, TC(TEXT_SECONDARY), 0);
     lv_obj_align(g_ch_title, LV_ALIGN_TOP_MID, 0, 172);

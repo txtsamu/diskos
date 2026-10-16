@@ -103,7 +103,7 @@ static lv_obj_t *text(lv_obj_t *p, const char *s, int x, int y, int w, const lv_
     lv_obj_t *l = lv_label_create(p); lv_label_set_text(l, s);
     lv_obj_set_style_text_font(l, f, 0); lv_obj_set_style_text_color(l, c, 0);
     lv_obj_set_style_text_align(l, al, 0); lv_obj_set_width(l, w);
-    if(!strchr(s, '\n')){ lv_label_set_long_mode(l, LV_LABEL_LONG_DOT); lv_obj_set_height(l, lv_font_get_line_height(f)); }
+    if(!strchr(s, '\n')){ lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_height(l, lv_font_get_line_height(f)); }
     lv_obj_set_pos(l, x, y); lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
     return l;
 }

@@ -300,11 +300,11 @@ static void cfg_row(const char *left, const char *right, lv_event_cb_t cb, intpt
     lv_obj_set_style_bg_color(r, on ? TC(SURFACE_RAISED) : TC(SURFACE), 0); lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
     lv_obj_add_event_cb(r, cb, LV_EVENT_CLICKED, (void *)ud);
-    lv_obj_t *l = lv_label_create(r); lv_label_set_text(l, left); lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_t *l = lv_label_create(r); lv_label_set_text(l, left); lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(l, right ? 120 : 220);
     lv_obj_set_style_text_font(l, ui_font_cjk(16), 0); lv_obj_set_style_text_color(l, on ? ui_current_accent() : TC(TEXT_PRIMARY), 0);
     lv_obj_align(l, LV_ALIGN_LEFT_MID, 16, 0);
-    if(right){ lv_obj_t *v = lv_label_create(r); lv_label_set_text(v, right); lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
+    if(right){ lv_obj_t *v = lv_label_create(r); lv_label_set_text(v, right); lv_label_set_long_mode(v, LV_LABEL_LONG_SCROLL_CIRCULAR);
                lv_obj_set_width(v, 110); lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_RIGHT, 0);
                lv_obj_set_style_text_font(v, ui_font_cjk(14), 0); lv_obj_set_style_text_color(v, TC(TEXT_SECONDARY), 0);
                lv_obj_align(v, LV_ALIGN_RIGHT_MID, -14, 0); }

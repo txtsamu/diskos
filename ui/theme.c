@@ -763,7 +763,7 @@ void theme_title_text(lv_obj_t *label, const char *text){
     /* A content-sized dotted title (blueprint) still has the OLD text's box when the new text is set, and the label
      * picks its dots against that box: a longer title wrapped, became "..." and then shrank to fit the dots. Set the
      * text at the title's widest instead, so it dots only past that, then let it take its content size again. */
-    int fit = lv_obj_get_style_width(label, 0) == LV_SIZE_CONTENT && lv_label_get_long_mode(label) == LV_LABEL_LONG_DOT;
+    int fit = lv_obj_get_style_width(label, 0) == LV_SIZE_CONTENT && lv_label_get_long_mode(label) == LV_LABEL_LONG_SCROLL_CIRCULAR;
     if(fit && theme_kit()->title_fit) theme_kit()->title_fit(label, buf);   /* the theme sizes it for THIS text */
     else if(fit){
         int32_t mw = lv_obj_get_style_max_width(label, 0);

@@ -265,12 +265,12 @@ void songinfo_create(lv_obj_t *root)
     lv_obj_set_style_text_font(g_cover_note, TF(UI_20), 0); lv_obj_set_style_text_color(g_cover_note, TC(TEXT_PRIMARY), 0); lv_obj_center(g_cover_note);
     g_cover_img = lv_image_create(g_cover); lv_obj_add_flag(g_cover_img, LV_OBJ_FLAG_HIDDEN);
     g_title = lv_label_create(root);
-    lv_obj_set_width(g_title, 240); lv_label_set_long_mode(g_title, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(g_title, 240); lv_label_set_long_mode(g_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_title, ui_font_cjk(18), 0); lv_obj_set_style_text_color(g_title, TC(TEXT_PRIMARY), 0);
     lv_obj_align(g_title, LV_ALIGN_TOP_MID, 0, 144);
     g_artist = lv_label_create(root);
-    lv_obj_set_width(g_artist, 220); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(g_artist, 220); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_artist, ui_font_cjk(14), 0); lv_obj_set_style_text_color(g_artist, TC(TEXT_SECONDARY), 0);
     lv_obj_align(g_artist, LV_ALIGN_TOP_MID, 0, 166);
@@ -307,7 +307,7 @@ void songinfo_create(lv_obj_t *root)
 
         lv_obj_t *v = lv_label_create(cell);
         lv_obj_set_width(v, 156);
-        lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(v, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(v, ui_font_cjk(14), 0);   /* CJK titles/artist/album via Source Han Sans fallback (was montserrat_16 -> boxes) */
         lv_obj_set_style_text_color(v, TC(TEXT_PRIMARY), 0);
         lv_label_set_text(v, "-");

@@ -440,7 +440,7 @@ static void disc_place(int frac){                           /* put the cover on 
     float a = (-90.0f + frac * 0.36f) * 0.0174533f;
     lv_obj_set_pos(g_np_thumb, 180 + (int)lroundf(HR_R * cosf(a)) - HR_DISC / 2, 180 + (int)lroundf(HR_R * sinf(a)) - HR_DISC / 2);
 }
-static void settle_cb(lv_timer_t *t){ (void)t; if(g_np_title) lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_DOT); lv_timer_pause(g_settle); }
+static void settle_cb(lv_timer_t *t){ (void)t; if(g_np_title) lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_timer_pause(g_settle); }
 /* Home's bottom row: Library and Search are 56 px circles, play/pause a 68 px box; all three share ONE top
  * edge (HB_TOP), so the smaller buttons hang from the play button's top, not from its middle. */
 #define HB_TOP  276
@@ -560,14 +560,14 @@ void home_create(lv_obj_t *root)
     lv_obj_set_style_text_align(g_np_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_np_title, ui_font_cjk(24), 0);
     lv_obj_set_style_text_color(g_np_title, g_accent, 0);
-    lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_align(g_np_title, LV_ALIGN_TOP_MID, 0, 0);
     g_np_artist = lv_label_create(trk);
     lv_obj_set_width(g_np_artist, 210);
     lv_obj_set_style_text_align(g_np_artist, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_np_artist, ui_font_cjk(20), 0);
     lv_obj_set_style_text_color(g_np_artist, TC(TEXT_SECONDARY), 0);
-    lv_label_set_long_mode(g_np_artist, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_np_artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_align(g_np_artist, LV_ALIGN_TOP_MID, 0, 31);
 
     /* the cover riding the ring at the current position (the 42px thumb, clipped to a disc) */

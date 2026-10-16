@@ -832,7 +832,7 @@ static void info_row(const char *key, const char *val){
     lv_obj_set_style_text_color(k, TC(TEXT_MUTED), 0);
     lv_obj_t *v = lv_label_create(r);
     lv_label_set_text(v, val && val[0] ? val : "-");
-    lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(v, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(v, 96, 11); lv_obj_set_size(v, 142, 18);
     lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_font(v, ui_font_cjk(14), 0);   /* "Name" value = device name: Cyrillic/CJK-capable (issue #3) */
@@ -975,7 +975,7 @@ static void add_dev_row(const char *mac, const char *name, int connected, const 
     lv_obj_set_style_text_color(ic, connected ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : TC(TEXT_SECONDARY), 0);
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, name);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 42, 6); lv_obj_set_size(t, BROW_W - 42 - (connected ? 40 : 16), 24);
     lv_obj_set_style_text_font(t, th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* BT device names are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
@@ -1301,12 +1301,12 @@ void bt_create(lv_obj_t *root){
     lv_obj_set_style_text_font(g_hglyph, TF(UI_28), 0);
     lv_obj_align(g_hglyph, LV_ALIGN_TOP_MID, 0, 62);
     g_hname = lv_label_create(root);
-    lv_label_set_long_mode(g_hname, LV_LABEL_LONG_DOT); lv_obj_set_width(g_hname, 230);
+    lv_label_set_long_mode(g_hname, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_hname, 230);
     lv_obj_set_style_text_align(g_hname, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_hname, ui_font_cjk(18), 0);
     lv_obj_align(g_hname, LV_ALIGN_TOP_MID, 0, 128);
     g_hsub = lv_label_create(root);
-    lv_label_set_long_mode(g_hsub, LV_LABEL_LONG_DOT); lv_obj_set_width(g_hsub, 250);
+    lv_label_set_long_mode(g_hsub, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(g_hsub, 250);
     lv_obj_set_style_text_align(g_hsub, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_hsub, ui_font_cjk(14), 0); lv_obj_set_style_text_color(g_hsub, TC(TEXT_SECONDARY), 0);
     lv_obj_align(g_hsub, LV_ALIGN_TOP_MID, 0, 152);

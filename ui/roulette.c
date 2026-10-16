@@ -14,7 +14,7 @@ static void null_landing_button(lv_obj_t *button,lv_obj_t *label){
     lv_obj_set_style_bg_opa(button,70,LV_STATE_PRESSED);
     lv_obj_set_style_border_width(button,1,0);lv_obj_set_style_border_color(button,TC(TEXT_SECONDARY),0);
     lv_obj_set_style_text_font(label,TF(HEADER_SM),0);lv_obj_set_style_text_color(label,TC(TEXT_PRIMARY),0);
-    lv_obj_set_width(label,168);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);
+    lv_obj_set_width(label,168);lv_label_set_long_mode(label,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(label);
     kit_keep(button);kit_keep(label);
 }
@@ -132,11 +132,11 @@ void applanding_create(lv_obj_t *root){
     lv_obj_set_style_border_width(g_land_art, 2, 0); lv_obj_set_style_border_color(g_land_art, TC(TEXT_SECONDARY), 0);
     lv_obj_set_style_clip_corner(g_land_art, true, 0);
     g_land_title = text(root, "", 181, 272, TF(UI_22), TC(TEXT_PRIMARY));
-    lv_label_set_long_mode(g_land_title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_land_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     g_land_tag = text(root, "", 215, 260, TF(UI_16), TC(ACCENT_PRIMARY));
-    lv_label_set_long_mode(g_land_tag, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_land_tag, LV_LABEL_LONG_SCROLL_CIRCULAR);
     g_land_about = text(root, "", 243, 258, TF(UI_16), TC(TEXT_SECONDARY));
-    lv_label_set_long_mode(g_land_about, LV_LABEL_LONG_DOT);    /* at most two lines: they fit above the button */
+    lv_label_set_long_mode(g_land_about, LV_LABEL_LONG_SCROLL_CIRCULAR);    /* at most two lines: they fit above the button */
     lv_obj_set_height(g_land_about, 2 * lv_font_get_line_height(TF(UI_16)) + lv_obj_get_style_text_line_space(g_land_about, 0));
     lv_obj_t *button = lv_button_create(root); lv_obj_remove_style_all(button);
     lv_obj_set_size(button, 174, 42); lv_obj_align(button, LV_ALIGN_TOP_MID, 0, 296);

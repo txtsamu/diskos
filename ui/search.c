@@ -100,7 +100,7 @@ static void res_row(const mdb_song_t *s){
     ui_on(r, result_long_cb, LV_EVENT_LONG_PRESSED, (void*)(uintptr_t)s->id, "search.result.long", UI_CORE);
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, s->title[0] ? s->title : "Untitled");
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 12, 6); lv_obj_set_size(t, 244, 24);
     lv_obj_set_style_text_font(t, ui_font_user(18), 0);           /* CJK titles via the fallback chain */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
@@ -108,7 +108,7 @@ static void res_row(const mdb_song_t *s){
     char sub[2 * MDB_STR + 8];
     if(s->album[0]) snprintf(sub, sizeof sub, "%s \xC2\xB7 %s", s->artist, s->album); else snprintf(sub, sizeof sub, "%s", s->artist);
     lv_label_set_text(a, sub);
-    lv_label_set_long_mode(a, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(a, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(a, 12, 31); lv_obj_set_size(a, 244, 20);
     lv_obj_set_style_text_font(a, ui_font_user(16), 0);
     lv_obj_set_style_text_color(a, TC(TEXT_LYRICS), 0);
@@ -132,7 +132,7 @@ static void res_artist(int i){
     lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, "\xEF\x84\xB0");          /* microphone */
     lv_obj_set_style_text_font(ic, TF(ICON_20), 0); lv_obj_set_style_text_color(ic, ui_current_accent(), 0);
     lv_obj_align(ic, LV_ALIGN_LEFT_MID, 14, 0);
-    lv_obj_t *t = lv_label_create(r); lv_label_set_text(t, g_res_art[i]); lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_obj_t *t = lv_label_create(r); lv_label_set_text(t, g_res_art[i]); lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(t, RES_W - 90); lv_obj_set_style_text_font(t, ui_font_user(18), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_LEFT_MID, 42, 0);
     lv_obj_t *c = lv_label_create(r); lv_label_set_text(c, "Artist"); lv_obj_set_style_text_font(c, TF(UI_12), 0);
@@ -381,7 +381,7 @@ void search_create(lv_obj_t *root){
     lv_obj_add_flag(g_res_page, LV_OBJ_FLAG_CLICKABLE);
     ui_header_cb(g_res_page, "Results", res_back_cb);
     g_res_count = lv_label_create(g_res_page);
-    lv_label_set_long_mode(g_res_count, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(g_res_count, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(g_res_count, 220);
     lv_obj_set_style_text_align(g_res_count, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_res_count, ui_font_cjk(14), 0);

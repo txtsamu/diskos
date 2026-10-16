@@ -261,13 +261,13 @@ static void row_two(lv_obj_t *r, const char *top, const char *sub, const char *r
     if(right && right[0]){ lv_point_t sz; lv_text_get_size(&sz, right, TF(UI_18), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
                            tw = 256 - 12 - sz.x - 8; if(tw > 230) tw = 230; }
     lv_obj_t *t = lv_label_create(r);
-    lv_label_set_text(t, top); lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_text(t, top); lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 12, y1); lv_obj_set_size(t, tw, h1);
     lv_obj_set_style_text_font(t, ft, 0);   /* CJK titles render via Source Han Sans fallback */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     if(two){
         lv_obj_t *s = lv_label_create(r);
-        lv_label_set_text(s, sub); lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+        lv_label_set_text(s, sub); lv_label_set_long_mode(s, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(s, 12, y1 + h1); lv_obj_set_size(s, tw, h2);   /* clear of the duration */
         lv_obj_set_style_text_font(s, fs, 0);
         lv_obj_set_style_text_color(s, TC(TEXT_LYRICS), 0);
@@ -353,7 +353,7 @@ static void fav_confirm(int i){   /* i = the row's index into g_favs */
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 24);
     lv_obj_t *s = lv_label_create(card);
     lv_label_set_text(s, title);
-    lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(s, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_size(s,224,lv_font_get_line_height(ui_font_cjk(16)));
     lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(s, ui_font_cjk(16), 0);   /* song title is user data: Cyrillic/CJK-capable (issue #3) */
@@ -944,7 +944,7 @@ static void add_album_cover_header(const char *album, const char *artist){
     }
     if(has_artist){
         lv_obj_t *a = lv_label_create(r);
-        lv_label_set_long_mode(a, LV_LABEL_LONG_DOT); lv_obj_set_width(a, 240);
+        lv_label_set_long_mode(a, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_width(a, 240);
         lv_obj_set_style_text_align(a, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_text(a, artist);
         lv_obj_set_style_text_font(a, ui_text_font(15), 0);

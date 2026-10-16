@@ -19,7 +19,7 @@ const lv_font_t *ui_np_font(int size){
 }
 
 /* Reveal a highlighted row briefly, then stop repainting and return to ellipsis. */
-static void reveal_done(lv_anim_t *a){lv_label_set_long_mode((lv_obj_t *)a->var,LV_LABEL_LONG_DOT);}
+static void reveal_done(lv_anim_t *a){lv_label_set_long_mode((lv_obj_t *)a->var,LV_LABEL_LONG_SCROLL_CIRCULAR);}
 void ui_reveal_title(lv_obj_t *label){
     static lv_anim_t hint;static int ready;
     if(!ready){lv_anim_init(&hint);lv_anim_set_repeat_count(&hint,2);

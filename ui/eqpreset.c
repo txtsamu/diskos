@@ -69,9 +69,9 @@ static lv_obj_t *button(lv_obj_t *root,const char *text,int x,int y,int w,int h,
 }
 void eqpreset_create(lv_obj_t *root){
  lv_obj_set_style_bg_color(root,TC(CANVAS),0);ui_header(root,"Equalizer");
- lv_obj_t *prev_b=button(root,LV_SYMBOL_LEFT,-118,110,42,42,cycle,(void *)(intptr_t)-1,"eq.previous");
- lv_obj_t *next_b=button(root,LV_SYMBOL_RIGHT,118,110,42,42,cycle,(void *)(intptr_t)1,"eq.next");
- name_label=lv_label_create(root);lv_obj_set_width(name_label,178);lv_obj_align(name_label,LV_ALIGN_TOP_MID,0,119);
+ lv_obj_t *prev_b=button(root,LV_SYMBOL_LEFT,-118,123,42,42,cycle,(void *)(intptr_t)-1,"eq.previous");
+ lv_obj_t *next_b=button(root,LV_SYMBOL_RIGHT,118,123,42,42,cycle,(void *)(intptr_t)1,"eq.next");
+ name_label=lv_label_create(root);lv_obj_set_width(name_label,178);lv_label_set_long_mode(name_label,LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_align(name_label,LV_ALIGN_TOP_MID,0,128);
  lv_obj_set_style_text_align(name_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(name_label,TF(UI_24),0);lv_obj_set_style_text_color(name_label,TC(TEXT_PRIMARY),0);
  edit_button=button(root,"Edit",-60,183,104,44,edit,NULL,"eq.edit");rename_button=button(root,"Rename",60,183,104,44,rename_cb,NULL,"eq.rename");
  note_label=lv_label_create(root);lv_obj_set_width(note_label,280);lv_obj_align(note_label,LV_ALIGN_TOP_MID,0,244);lv_obj_set_style_text_align(note_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(note_label,TF(UI_12),0);lv_obj_set_style_text_color(note_label,TC(TEXT_SECONDARY),0);

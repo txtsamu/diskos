@@ -41,10 +41,10 @@ void bsaver_create(lv_obj_t *root){
     br_disc(root, CX, CY, 6, BR_ACC);
     g_seg_box = br_segment(root, 268);
     g_title = br_label(root, "", br_font(16, 1), BR_TXT);
-    lv_obj_set_width(g_title, 220); lv_label_set_long_mode(g_title, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(g_title, 220); lv_label_set_long_mode(g_title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(g_title, LV_ALIGN_TOP_MID, 0, 280);
     g_artist = br_label(root, "", br_font(14, 0), BR_TXT2);
-    lv_obj_set_width(g_artist, 200); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(g_artist, 200); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(g_artist, LV_ALIGN_TOP_MID, 0, 302);
     lv_obj_t *dim = lv_obj_create(root);                        /* standby: the whole face dimmed */
     lv_obj_remove_style_all(dim); lv_obj_set_size(dim, 360, 360);

@@ -80,14 +80,14 @@ static void un_add_row(int i){
 
     lv_obj_t *t = lv_label_create(r);                           /* title (may be non-Latin) */
     lv_label_set_text(t, q->title[0] ? q->title : "Untitled");
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 20, 8); lv_obj_set_size(t, 196, 26);
     lv_obj_set_style_text_font(t, ui_font_user(20), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
     lv_obj_t *s = lv_label_create(r);                           /* artist; "Now Playing" on the current row */
     lv_label_set_text(s, cur ? "Now Playing" : q->artist);
-    lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(s, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(s, 20, 35); lv_obj_set_size(s, 196, 21);
     lv_obj_set_style_text_font(s, cur ? TF(UI_16) : ui_font_user(16), 0);
     lv_obj_set_style_text_color(s, (cur ? TC(STATUS_INFO) : TC(TEXT_MUTED)), 0);

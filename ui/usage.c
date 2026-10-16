@@ -284,16 +284,16 @@ void usage_create(lv_obj_t *root){
     lv_obj_set_style_text_color(g_pct,TC(TEXT_PRIMARY),0);lv_obj_align(g_pct,LV_ALIGN_TOP_MID,dx,92);
     g_chg_ic=lv_label_create(root);lv_label_set_text(g_chg_ic,LV_SYMBOL_CHARGE);
     lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,(left?-78:78)+(th_null()?14:0),109);
-    g_sub=lv_label_create(root);lv_label_set_long_mode(g_sub,LV_LABEL_LONG_DOT);lv_obj_set_width(g_sub,230);
+    g_sub=lv_label_create(root);lv_label_set_long_mode(g_sub,LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_set_width(g_sub,230);
     lv_obj_set_style_text_align(g_sub,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub,TF(UI_22),0);
     lv_obj_set_style_text_color(g_sub,TC(TEXT_PRIMARY),0);lv_obj_align(g_sub,LV_ALIGN_TOP_MID,dx,158);
-    g_sub2=lv_label_create(root);lv_label_set_long_mode(g_sub2,LV_LABEL_LONG_DOT);lv_obj_set_width(g_sub2,230);
+    g_sub2=lv_label_create(root);lv_label_set_long_mode(g_sub2,LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_set_width(g_sub2,230);
     lv_obj_set_style_text_align(g_sub2,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub2,TF(UI_14),0);
     lv_obj_set_style_text_color(g_sub2,TC(TEXT_SECONDARY),0);lv_obj_align(g_sub2,LV_ALIGN_TOP_MID,dx,188);
     lv_obj_t *rule=lv_obj_create(root);lv_obj_remove_style_all(rule);lv_obj_set_size(rule,140,1);   /* a hairline above the totals */
     lv_obj_set_style_bg_color(rule,TC(TEXT_SECONDARY),0);lv_obj_set_style_bg_opa(rule,LV_OPA_30,0);lv_obj_align(rule,LV_ALIGN_TOP_MID,dx,216);
     g_cap=lv_label_create(root);lv_label_set_text(g_cap,"Last 24 hours");lv_obj_set_width(g_cap,th_null()?260:240);
-    if(th_null())lv_label_set_long_mode(g_cap,LV_LABEL_LONG_DOT);
+    if(th_null())lv_label_set_long_mode(g_cap,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_cap,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_cap,TF(UI_14),0);
     lv_obj_set_style_text_color(g_cap,TC(TEXT_MUTED),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,222);
     figure(root,dx-56,"playing",&g_play_v);figure(root,dx+56,"screen on",&g_scr_v);

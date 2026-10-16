@@ -249,12 +249,12 @@ static void review_hints(void){
     assert(onboarding_reset()==0);onboarding_start();nav_wait(900);
     const char *menu=side?LV_SYMBOL_LEFT " Tap for menu":"Tap for menu " LV_SYMBOL_RIGHT;
     assert(find_visible_text(lv_layer_top(),menu));
-    nav_wait(4100);assert(!find_visible_text(lv_layer_top(),menu));
+    nav_wait(6700);assert(!find_visible_text(lv_layer_top(),menu));
     assert(cfg_get_int("hint_starts",0)==0); /* quick restarts do not consume a start */
     onboarding_mode_changed();nav_wait(900);
     lv_point_t hint_point={side?133:227,180};nav_touch(hint_point,70);nav_wait(900);
     assert(cfg_get_int("hint_menu",0)==1);
-    assert(find_visible_text(lv_layer_top(),"Arrows: sections\nTap icon: open"));
+    assert(find_visible_text(lv_layer_top(),onboarding_gesture_text(HINT_NAV)));
     lv_point_t top=icon;top.y=115;nav_touch(top,70);assert(cfg_get_int("hint_nav",0)==1);
     nav_touch(top,70);assert(cfg_get_int("hint_nav",0)==2);
     disco_nav_set_open(0);nav_wait(300);nav_touch(tab,70);assert(cfg_get_int("hint_menu",0)==2);
@@ -967,6 +967,8 @@ int main(int argc, char **argv){
         const char *page=argv[3]+(art_race?17:(long_names?13:8));int scr=SCR_HOME;
         if(!strcmp(page,"bt")){scr=SCR_BT;}
         else if(!strcmp(page,"wifi")){scr=SCR_WIFI;}
+        else if(!strcmp(page,"settings")){scr=SCR_SETTINGS;}
+        else if(!strcmp(page,"howto")){extern void settings_open_howto(void);settings_open_howto();scr=SCR_SETLIST;}
         else if(!strcmp(page,"quick"))scr=SCR_QUICK;else if(!strcmp(page,"np") || !strncmp(page,"immersive",9))scr=SCR_NOWPLAYING;else if(!strcmp(page,"eq"))scr=SCR_EQ;
         else if(!strcmp(page,"bands"))scr=SCR_EQ_EDITOR;else if(!strcmp(page,"display")){setlist_open("Display");scr=SCR_SETLIST;}else if(!strcmp(page,"network")){setlist_open("Network");scr=SCR_SETLIST;}else if(!strcmp(page,"system")){setlist_open("System");scr=SCR_SETLIST;}else if(!strcmp(page,"info")){songinfo_unpin();songinfo_set(&st);scr=SCR_SONGINFO;}else if(!strcmp(page,"group")){void settings_open_group(const char*);setlist_open("Display");scr=SCR_SETLIST;screen_show(scr);settings_open_group(getenv("SETGROUP"));}
         else if(!strcmp(page,"library") || !strcmp(page,"albums"))scr=SCR_LIBRARY;else if(!strcmp(page,"settings"))scr=SCR_SETTINGS;
@@ -1014,6 +1016,9 @@ int main(int argc, char **argv){
             puts("PASS: battery threshold, charging colour, flow, flashing icon and closed-panel pause");
             return 0;
         }
+        if(getenv("HELP_KEY")){extern void settings_open_key(const char *);settings_open_key(getenv("HELP_KEY"));scr=SCR_SETTING_DETAIL;nav_wait(300);assert(screen_current()==SCR_SETTING_DETAIL);}
+        if(getenv("HELP_MENU_BOTTOM")){lv_obj_t *how=find_text(screen_get_root(SCR_SETTINGS),"How to");assert(how);lv_obj_scroll_to_view(lv_obj_get_parent(how),LV_ANIM_OFF);nav_wait(100);}
+        if(getenv("HELP_SCROLL")){extern void settings_test_scroll(int);settings_test_scroll(atoi(getenv("HELP_SCROLL")));}
         if(getenv("REVIEW_239_POLISH")){
             extern void settings_open_group(const char *);
             assert(th_null());

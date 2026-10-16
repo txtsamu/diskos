@@ -1,3 +1,4 @@
+#include "onboarding.h"
 #include "null_theme.h"
 #include "battery.h"
 #include "quicksettings.h"
@@ -110,6 +111,7 @@ static const char *mode_glyph(void){
         default: return LV_SYMBOL_SD_CARD;
     }
 }
+const char *quicksettings_item_glyph(int id){const qs_item_t *item=quicksettings_item(id);return id==T_MODE?mode_glyph():item?item->icon:LV_SYMBOL_SETTINGS;}
 static void paint_radios(void){
     if(th_disco()){dq_paint();return;}
     lv_color_t acc = th_ringlike()?ui_current_accent():TC(ACCENT_PRIMARY);
@@ -301,7 +303,7 @@ static void controls_build(lv_obj_t *root){
         lv_obj_set_style_border_width(r,2,LV_STATE_PRESSED);lv_obj_set_style_border_color(r,ui_current_accent(),LV_STATE_PRESSED);lv_obj_set_style_border_opa(r,LV_OPA_COVER,LV_STATE_PRESSED);
         lv_obj_add_flag(r,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_USER_2);if(g_style)lv_obj_add_flag(r,LV_OBJ_FLAG_ADV_HITTEST);lv_obj_clear_flag(r,LV_OBJ_FLAG_SCROLLABLE);
         ui_on(r,dq_row_cb,LV_EVENT_SHORT_CLICKED,(void*)(intptr_t)slot,"qs.item",UI_CORE);ui_on(r,dq_row_cb,LV_EVENT_LONG_PRESSED,(void*)(intptr_t)slot,"qs.item.hold",UI_CORE);
-        g_dq_ico[slot]=lv_label_create(r);lv_label_set_text(g_dq_ico[slot],CATALOG[id].icon);
+        g_dq_ico[slot]=lv_label_create(r);lv_label_set_text(g_dq_ico[slot],quicksettings_item_glyph(id));
         int small=!g_style && h<30;
         lv_obj_set_style_text_font(g_dq_ico[slot],id==Q_SEARCH?(small?&font_theme_20:&font_theme_24):
             (id==Q_WEATHER || id==Q_FAVS)?(small?TF(ICON_20):TF(ICON_28)):
@@ -567,4 +569,4 @@ void qsconfig_refresh(void){ }
 lv_obj_t *quicksettings_test_button(int slot){return slot>=0 && slot<g_nitems?g_dq_row[slot]:NULL;}
 lv_obj_t *quicksettings_test_disc(void){return g_cover_clip;}
 
-void quicksettings_null_action(int id,int hold){if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(!hold)pick_cb(id);}
+void quicksettings_null_action(int id,int hold){if(hold && (id==T_WIFI || id==T_BT))onboarding_discovered(HINT_RADIO_HOLD);if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(!hold)pick_cb(id);}
