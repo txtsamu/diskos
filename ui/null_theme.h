@@ -8,6 +8,7 @@ void null_saver_create(lv_obj_t *root);
 void null_saver_clock(const char *clock, const char *date);
 void null_saver_weather(const char *weather);
 void null_saver_track(const char *title, const char *artist);
+void null_home_weather(const char *weather);
 void null_home_clock(const char *time);
 void null_home_status(int batt, int charging, int wifi, int bt);
 void null_home_update(const char *title, const char *artist, int playing);

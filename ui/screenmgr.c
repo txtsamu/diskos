@@ -269,6 +269,7 @@ void screen_home(void)
  * input event, so they always step back one screen. */
 void screen_back(void)
 {
+    if(disco_track_overlay_visible()){dhome_overlay_close();return;}
     if (s_current != SCR_SAVER && screen_press_was_long()) { screen_home(); return; }
     if (s_current == SCR_SEARCH && (search_back_consumed() || search_back_to_landing())) return;   /* fork: results page -> back to the keyboard */
     if (s_current == SCR_SETLIST && settings_back_consumed()) return;

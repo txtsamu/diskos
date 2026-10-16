@@ -855,9 +855,9 @@ static const lv_font_t *lang_font(int px, const lv_font_t *base){
     }
     return base;
 }
-const lv_font_t *theme_font(theme_font_role_t role){
+static const lv_font_t *font_for_role(theme_font_role_t role,int themed){
     role = sized_role(role);
-    if((unsigned)role < THEME_FONT_COUNT && g_tfp[role]) return g_tfp[role];
+    if(themed && (unsigned)role < THEME_FONT_COUNT && g_tfp[role]) return g_tfp[role];
     if(i18n_needs_fallback_font()){
         switch(role){
         case THEME_FONT_UI_12: return lang_font(12, &lv_font_montserrat_12);
@@ -907,6 +907,9 @@ const lv_font_t *theme_font(theme_font_role_t role){
     default: return &lv_font_montserrat_16;
     }
 }
+
+const lv_font_t *theme_font(theme_font_role_t role){return font_for_role(role,1);}
+const lv_font_t *theme_font_default(theme_font_role_t role){return font_for_role(role,0);}
 
 /* WCAG 2 relative luminance / contrast */
 static float lin(unsigned c){ float v = c / 255.0f; return v <= 0.03928f ? v / 12.92f : __builtin_powf((v + 0.055f) / 1.055f, 2.4f); }

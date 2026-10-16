@@ -411,9 +411,8 @@ static int nav_action(const char *key,int fallback){
     int action=cfg_get_int(key,fallback);
     return action>=0 && action<DISCO_NAV_COUNT?action:fallback;
 }
-static void nav_run(int action){
-    if(!g_open || action==DISCO_NAV_NONE)return;
-    nav_cancel_tap();disco_nav_set_open(0);
+void disco_nav_action_run(int action){
+    if(action<0 || action>=DISCO_NAV_COUNT || action==DISCO_NAV_NONE)return;
     switch(action){
         case DISCO_NAV_MUSIC:screen_home();break;
         case DISCO_NAV_SEARCH:screen_show(SCR_SEARCH);break;
@@ -426,6 +425,10 @@ static void nav_run(int action){
         case DISCO_NAV_PLAYPAUSE:ui_transport_command("0201000C0000");break;
         case DISCO_NAV_NEXT:ui_transport_command("0201000C0001");break;
     }
+}
+static void nav_run(int action){
+    if(!g_open || action==DISCO_NAV_NONE)return;
+    nav_cancel_tap();disco_nav_set_open(0);disco_nav_action_run(action);
 }
 static int picker_wanted(int which){
     switch(which){

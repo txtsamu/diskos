@@ -3182,7 +3182,7 @@ int main(int argc, char **argv){
             ui_update(&st);
             /* Disco Options > Track Number: "3. Title" (the number from the tags, looked up once per track) */
             const char *np_title = st.have_track ? st.title : NULL; static char np_numbered[200];
-            if(np_title && th_disco() && cfg_get_int("disco_trackno", 0)){
+            if(np_title && ((th_disco() && cfg_get_int("disco_trackno",0)) || (th_null() && cfg_get_int("null_trackno",0)))){
                 static char tn_path[256]; static int tn_posid = -1, tn_no;
                 if(strcmp(tn_path, st.path) || tn_posid != st.pos_id){
                     snprintf(tn_path, sizeof tn_path, "%s", st.path); tn_posid = st.pos_id; tn_no = 0;

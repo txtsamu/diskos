@@ -43,6 +43,9 @@ void queue_create(lv_obj_t *root);
 enum { DISCO_NAV_MUSIC, DISCO_NAV_SEARCH, DISCO_NAV_QUEUE, DISCO_NAV_UPNEXT, DISCO_NAV_SHORTCUTS, DISCO_NAV_QUICK,
        DISCO_NAV_VOLUME, DISCO_NAV_SCREENOFF, DISCO_NAV_PLAYPAUSE, DISCO_NAV_NEXT, DISCO_NAV_NONE, DISCO_NAV_COUNT };
 void disco_nav_migrate(void);
+void disco_nav_action_run(int action);
+int disco_track_overlay_visible(void);
+void dhome_overlay_close(void);
 void shortcuts_config_create(lv_obj_t *root); void shortcuts_config_refresh(void); void shortcut_run(const char *key); void queue_refresh(void);
 int ui_play_slot(int pos);
 int ui_play_restore(int type, const char *name, long pid, int pos);

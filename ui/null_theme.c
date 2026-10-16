@@ -5,6 +5,7 @@
  */
 #include "null_theme.h"
 #include "config.h"
+#include "onboarding.h"
 #include "ipc.h"
 #include "null_menu.h"
 #include "null_transport_icons.h"
@@ -34,6 +35,7 @@ extern const lv_font_t null_handjet_38, null_vt323_27, null_vt323_24;
 static lv_font_t music_fonts[3][5];
 static lv_obj_t *qdate, *qbicon, *qsun, *track_hit, *album_hit, *gesture_feedback, *feedback_icon;
 static lv_timer_t *track_tap_timer;
+static lv_obj_t *music_weather;
 static char music_clock_text[32]="--:--";
 static const lv_font_t *music_font(int role)
 {
@@ -200,9 +202,15 @@ static void track_tap_later(lv_timer_t *t)
 }
 static void track_event(lv_event_t *e)
 {
-    if(!have || screen_current()!=SCR_HOME)return;
+    if(screen_current()!=SCR_HOME)return;
+    if(!have){if(lv_event_get_code(e)==LV_EVENT_CLICKED && !screen_press_was_long())screen_show(SCR_LIBRARY);return;}
     lv_event_code_t c=lv_event_get_code(e);
-    if(c==LV_EVENT_LONG_PRESSED){cancel_track_tap();gz_last=0;disco_open_np_immersive();return;}
+    if(c==LV_EVENT_LONG_PRESSED){
+        cancel_track_tap();gz_last=0;
+        int action=cfg_get_int("null_title_hold",0);
+        if(action==0)disco_open_np_immersive();else if(action==1)ui_np_fav_toggle();
+        return;
+    }
     if(cfg_get_int("null_controls",0)==2){gesture_event(e);return;}
     if(c==LV_EVENT_CLICKED && !screen_press_was_long())disco_track_overlay_open();
 }
@@ -314,11 +322,12 @@ static void layout_music(void)
     for (int i = 0; i < 3; i++)
         lv_obj_set_y(buttons[i], 254 + drop);
     lv_obj_set_y(gesture, 248 + drop);
-    if(track_hit)lv_obj_set_size(track_hit,288,nav_value>0?68:142);
+    if(track_hit){lv_obj_set_y(track_hit,nav_value>0?64:96);lv_obj_set_size(track_hit,288,nav_value>0?68:110);}
     if(album_hit)lv_obj_set_y(album_hit,174+drop);
 }
 static void nav_paint(void)
 {
+    if(music_weather)lv_obj_set_style_opa(music_weather,nav_value>=400?0:255*(400-nav_value)/400,0);
     if (!band)
         return;
     lv_obj_set_x(band, left() ? -360 + nav_value * 360 / 1000 : 360 - nav_value * 360 / 1000);
@@ -346,6 +355,8 @@ static void nav_anim(void *u, int32_t v)
 static void nav_set(int on)
 {
     nav_open = !!on;
+    onboarding_screen(screen_current(),nav_open);
+    if(on)onboarding_discovered(HINT_MENU);
     if (menu)
         null_menu_set_active(menu, on);
     last_touch = lv_tick_get();
@@ -395,6 +406,12 @@ static void menu_selected(int index, void *u)
     nav_set(0);
     disco_catalog_open(index);
 }
+static void menu_shortcut(int hold){
+    const char *key=hold?"null_nav_hold":"null_nav_double";
+    int action=cfg_get_int(key,hold?DISCO_NAV_MUSIC:DISCO_NAV_SEARCH);
+    if(action==DISCO_NAV_NONE)return;
+    nav_set(0);disco_nav_action_run(action);
+}
 void null_menu_refresh(void)
 {
     if (!band)
@@ -424,6 +441,7 @@ void null_menu_refresh(void)
         name_ptrs[i] = names[i];
     }
     menu = null_menu_create(band, name_ptrs, n, TC(TEXT_SECONDARY), TC(TEXT_PRIMARY), menu_selected, NULL);
+    null_menu_set_shortcut(menu,menu_shortcut);
     null_menu_set_active(menu, nav_open);
     lv_obj_update_layout(band);
 }
@@ -483,25 +501,30 @@ void null_home_create(lv_obj_t *r)
     lv_obj_remove_flag(bg, LV_OBJ_FLAG_CLICKABLE);
     wash = box(r, 0, 0, 360, 360);
     lv_obj_set_style_bg_opa(wash, 153, 0);
-    lv_obj_t *clock_hit = box(r, 72, 10, 216, 58);
+    lv_obj_t *clock_hit = box(r, 72, 10, 216, 82);
     lv_obj_set_style_bg_opa(clock_hit, 0, 0);
     lv_obj_add_flag(clock_hit, LV_OBJ_FLAG_CLICKABLE);
     ui_on(clock_hit, clock_event, LV_EVENT_LONG_PRESSED, NULL, "null.clock.toggle", UI_REACHABLE);
     lv_obj_add_event_cb(clock_hit, clock_event, LV_EVENT_SHORT_CLICKED, NULL);
-    clock_box = box(r, 72, 10, 216, 58);
+    clock_box = box(r, 72, 10, 216, 82);
     lv_obj_set_style_bg_opa(clock_box, 0, 0);
     music_status = text(clock_box, "", 0, 7, 216, TF(UI_14), TC(TEXT_SECONDARY));
     music_clock = text(clock_box, "--:--", 0, 24, 216, music_font(4), TC(TEXT_PRIMARY));
 
     lv_obj_set_style_text_align(music_status, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(music_clock, LV_TEXT_ALIGN_CENTER, 0);
-    title = text(r, "NOT PLAYING", 36, 116, 288, TF(HEADER), TC(TEXT_PRIMARY));
+    music_weather=text(clock_box,"",0,60,216,TF(UI_14),TC(TEXT_SECONDARY));
+    static lv_font_t weather_font;
+    extern const lv_font_t font_weather16;
+    weather_font=*TF(UI_14);weather_font.fallback=&font_weather16;
+    lv_obj_set_style_text_font(music_weather,&weather_font,0);
+    title = text(r, "GO TO LIBRARY", 36, 116, 288, TF(HEADER), TC(TEXT_PRIMARY));
     artist = text(r, "", 36, 157, 288, &pixel14, TC(TEXT_SECONDARY));
     album = text(r, "", 36, 180, 288, TF(UI_16), TC(TEXT_SECONDARY));
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
-    track_hit=box(r,36,64,288,142);album_hit=box(r,36,174,288,30);
+    track_hit=box(r,36,96,288,110);album_hit=box(r,36,174,288,30);
     lv_obj_t *hits[]={track_hit,album_hit};
     for(int k=0;k<2;k++){
         lv_obj_set_style_bg_opa(hits[k],0,0);lv_obj_add_flag(hits[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_PRESS_LOCK);
@@ -544,7 +567,7 @@ void null_home_update(const char *t, const char *a, int p)
     playing = !!p;
     if (title) {
         char b[192];
-        theme_upper(b, sizeof b, t ? t : "NOT PLAYING");
+        theme_upper(b, sizeof b, t ? t : "GO TO LIBRARY");
         if (strcmp(last_title, b)) {
             snprintf(last_title, sizeof last_title, "%s", b);
             text_set(title, b);
@@ -863,6 +886,7 @@ static void radio_state(void)
             lv_obj_set_style_text_color(qcaptions[i], on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0);
     }
 }
+void null_home_weather(const char *weather){if(music_weather)text_set(music_weather,weather?weather:"");}
 static void time_fmt(char *b, size_t n, long ms)
 {
     long s = ms > 0 ? ms / 1000 : 0;
@@ -1028,6 +1052,7 @@ void null_screen_entered(int which)
     lv_obj_t *root = screen_get_root(which);
     if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER)
         kit_restyle(root);
+    onboarding_screen(which,nav_open);
     int hidden = which == SCR_QUICK || which == SCR_SAVER || which == SCR_NOWPLAYING ||
                  which == SCR_SPHERE || which == SCR_SETTINGS || which == SCR_SETLIST ||
                  which == SCR_SETTING_DETAIL || which == SCR_QSCONFIG || which == SCR_SCCONFIG ||

@@ -1002,6 +1002,28 @@ int main(int argc, char **argv){
             puts("PASS: battery threshold, charging colour, flow, flashing icon and closed-panel pause");
             return 0;
         }
+        if(getenv("REVIEW_239")){
+            extern void disco_track_overlay_open(void);
+            assert(th_disco() || th_null());screen_home();screen_set_anim(0);
+            lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);
+            nav_wait(60);disco_track_overlay_open();nav_wait(60);assert(disco_track_overlay_visible());
+            int side=disco_mirror(),x=side?330:30;
+            nav_pointer=(lv_indev_data_t){.point={x,180},.state=LV_INDEV_STATE_PRESSED};nav_wait(50);
+            nav_pointer.point.x=side?210:150;nav_wait(80);
+            nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);
+            assert(!disco_track_overlay_visible());assert(screen_current()==SCR_HOME);
+            disco_track_overlay_open();nav_wait(40);screen_back();assert(!disco_track_overlay_visible());assert(screen_current()==SCR_HOME);
+            if(th_null()){
+                null_home_update(NULL,NULL,0);nav_wait(50);nav_touch((lv_point_t){180,125},60);nav_wait(80);assert(screen_current()==SCR_LIBRARY);
+                screen_home();cfg_set_int_deferred("null_nav_double",DISCO_NAV_SEARCH);cfg_set_int_deferred("null_nav_hold",DISCO_NAV_QUICK);
+                null_nav_set_open(1);nav_wait(250);
+                nav_touch((lv_point_t){180,200},50);nav_wait(80);nav_touch((lv_point_t){180,200},50);nav_wait(100);assert(screen_current()==SCR_SEARCH);
+                screen_home();null_nav_set_open(1);nav_wait(250);nav_touch((lv_point_t){180,200},750);nav_wait(100);assert(screen_current()==SCR_QUICK);
+            }
+            int fs=theme_font_size(),px=fs==0?14:fs==2?18:16;
+            assert(lv_font_get_line_height(theme_font_default(THEME_FONT_UI_16))==lv_font_get_line_height(theme_font_original(px)));
+            lv_indev_delete(in);puts("PASS: 2.3.9 popup swipe/back, Null idle Library and menu handle shortcuts, scaled Stats font");return 0;
+        }
         if(getenv("REVIEW_NULL_GESTURES")){
             extern int disco_track_overlay_visible(void);extern void dhome_overlay_close(void);
             assert(th_null());screen_home();screen_set_anim(0);cfg_set_int_deferred("null_controls",2);null_options_changed();

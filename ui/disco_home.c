@@ -489,6 +489,25 @@ static lv_obj_t *g_ov, *g_ov_btn[6], *g_ov_cap[6];
 static void ov_close(void){ if(g_ov){ lv_obj_delete(g_ov); g_ov = NULL; } }
 void dhome_overlay_close(void){ ov_close(); }
 int disco_track_overlay_visible(void){ return g_ov != NULL; }
+static lv_point_t ov_swipe_start;
+static uint32_t ov_swipe_at;
+static void ov_swipe_cb(lv_event_t *e){
+    lv_indev_t *in=lv_indev_active();if(!in || !g_ov)return;
+    lv_point_t p;lv_indev_get_point(in,&p);
+    lv_event_code_t code=lv_event_get_code(e);
+    if(code==LV_EVENT_PRESSED){ov_swipe_start=p;ov_swipe_at=lv_tick_get();return;}
+    if(code!=LV_EVENT_PRESSING && code!=LV_EVENT_RELEASED)return;
+    int dx=p.x-ov_swipe_start.x,dy=p.y-ov_swipe_start.y;
+    int mirrored=disco_mirror(),edge=mirrored?ov_swipe_start.x>=296:ov_swipe_start.x<=64;
+    extern int ui_get_swipe_thresh(void);
+    if(edge && (mirrored?-dx:dx)>=ui_get_swipe_thresh() && abs(dx)>2*abs(dy) && lv_tick_elaps(ov_swipe_at)<700){
+        lv_indev_wait_release(in);ov_close();
+    }
+}
+static void ov_swipe_bubble(lv_obj_t *o){
+    lv_obj_add_flag(o,LV_OBJ_FLAG_EVENT_BUBBLE);
+    for(uint32_t i=0;i<lv_obj_get_child_count(o);i++)ov_swipe_bubble(lv_obj_get_child(o,i));
+}
 static void ov_title_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) ov_close(); }
 enum { OV_FAV, OV_ALBUM, OV_ARTIST, OV_QUEUE, OV_LYRICS, OV_INFO, OV_N };
 void disco_open_np_immersive(void);
@@ -615,11 +634,14 @@ static void ov_open(void){
     kit_pass(g_ov);
     if(th_null()) lv_obj_set_style_bg_opa(g_ov, LV_OPA_COVER, 0);
     ov_paint();
+    ov_swipe_bubble(g_ov);
+    lv_obj_add_event_cb(g_ov,ov_swipe_cb,LV_EVENT_ALL,NULL);
 }
 /* Null shares the track popup without constructing or updating Disco's Home widgets. */
 void disco_track_overlay_open(void){
     track_state_t st; ipc_get_state(&st);
-    if(!th_null() || !st.have_track) return;
+    if((!th_null() && !th_disco()) || !st.have_track) return;
+    if(th_disco()){ov_open();return;}
     g_have = 1;
     g_acc = TC(TEXT_SECONDARY);
     theme_upper(L_TITLE.cur, sizeof L_TITLE.cur, st.title);

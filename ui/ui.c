@@ -2215,7 +2215,7 @@ static int book_chapter_window(const track_state_t *st, long *lo, long *hi)
 
 static lv_obj_t *g_sleep_dlg;
 void ui_np_close_overlays(void){ if(g_sleep_dlg){ lv_obj_del(g_sleep_dlg); g_sleep_dlg = NULL; } }
-int  ui_np_overlay_active(void){ return g_sleep_dlg != NULL; }   /* 1 while the sleep popover is up (main loop suppresses the ring/nav gesture) */
+int  ui_np_overlay_active(void){ return g_sleep_dlg != NULL || disco_track_overlay_visible(); }   /* 1 while the sleep popover is up (main loop suppresses the ring/nav gesture) */
 
 static void sleep_opt_cb(lv_event_t *e)
 {

@@ -29,6 +29,7 @@ typedef enum {
     THEME_FONT_COUNT
 } theme_font_role_t;
 const lv_font_t *theme_font(theme_font_role_t role);
+const lv_font_t *theme_font_default(theme_font_role_t role);
 int theme_font_size(void);   /* 0 Small, 1 Medium (default), 2 Large: cfg "font_size", read once */
 #define TF(role) theme_font(THEME_FONT_##role)
 

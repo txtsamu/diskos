@@ -276,6 +276,7 @@ void home_set_weather(const char *text)
 {
     char s[96]; wx_short(text, s, sizeof s);
     if(th_braun()){ const char *p = s; while(*p == ' ') p++; bhome_set_weather(p); return; }
+    if(th_null()){ null_home_weather(s); return; }
     if(th_disco()){ dhome_set_weather(s); return; }
     if (g_weather) lv_label_set_text(g_weather, s);          /* icon + temperature, above the clock */
 }

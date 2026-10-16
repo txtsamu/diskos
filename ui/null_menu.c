@@ -18,6 +18,9 @@ struct null_menu {
     lv_color_t idle, on;
     null_menu_action_t action;
     void *user;
+    void (*shortcut)(int);
+    uint32_t handle_tap;
+    int hold_fired;
 };
 static float maxpos(null_menu_t *m) { return ((m->count - 1) / 2) * 2 * CELL; }
 static float clamp(float p, float max) { return p < 0 ? 0 : p > max ? max : p; }
@@ -71,6 +74,10 @@ static void tick(lv_timer_t *t)
             m->pos = clamp(m->pos + dir * CELL * 3.f * dt, maxpos(m));
         }
     }
+    if(m->down && m->handle && !m->drag && !m->hold_fired && m->shortcut &&
+       m->last.x>RAIL_X+26 && m->last.x<RAIL_X+RAIL_W-26 && now-m->began>=600){
+        m->hold_fired=1;m->down=0;m->handle_tap=0;m->shortcut(1);return;
+    }
     if (m->coasting) {
         m->pos = clamp(m->pos + m->velocity * dt, maxpos(m));
         m->velocity *= expf(-dt * 13.f);
@@ -100,7 +107,7 @@ static void pointer(lv_event_t *e)
     lv_event_code_t c = lv_event_get_code(e);
     uint32_t now = lv_tick_get();
     if (c == LV_EVENT_PRESSED) {
-        m->down = 1;
+        m->down = 1;m->hold_fired=0;
         m->drag = 0;
         m->autoscroll = 0;
         m->coasting = m->settling = 0;
@@ -132,6 +139,9 @@ static void pointer(lv_event_t *e)
         if (c == LV_EVENT_PRESS_LOST) {
             m->velocity = 0;
             snap(m);
+        } else if(!m->drag && m->handle && !m->hold_fired && m->shortcut){
+            if(m->handle_tap && now-m->handle_tap<=300){m->handle_tap=0;m->shortcut(0);return;}
+            m->handle_tap=now;
         } else if (!m->drag && !m->handle && m->pressed >= 0 && m->pressed < m->count) {
             int selected = m->pressed;
             m->pressed = -1;
@@ -209,6 +219,7 @@ void null_menu_destroy(null_menu_t *m)
 float null_menu_position(const null_menu_t *m) { return m ? m->pos : 0; }
 int null_menu_dragging(const null_menu_t *m) { return m && m->drag; }
 
+void null_menu_set_shortcut(null_menu_t *m,void (*callback)(int)){if(m)m->shortcut=callback;}
 void null_menu_set_active(null_menu_t *m, int on)
 {
     if (!m)
@@ -218,6 +229,7 @@ void null_menu_set_active(null_menu_t *m, int on)
         lv_timer_resume(m->timer);
     } else {
         m->down = m->drag = m->coasting = m->settling = 0;
+        m->handle_tap=0;
         m->pressed = -1;
         lv_timer_pause(m->timer);
         paint(m);

@@ -87,20 +87,7 @@ void stats_flush(void){ rec_finish(); r_path[0] = 0; }
 /* Stats keeps its Disco typography and component geometry under Null; only
  * semantic colours follow the selected Null palette. */
 static const lv_font_t *stats_font(theme_font_role_t role){
-    if(!th_null()) return theme_font(role);
-    switch(role){
-    case THEME_FONT_UI_12: return theme_font_original(12);
-    case THEME_FONT_UI_14: return theme_font_original(14);
-    case THEME_FONT_UI_16: return theme_font_original(16);
-    case THEME_FONT_UI_18: return theme_font_original(18);
-    case THEME_FONT_UI_20: return theme_font_original(20);
-    case THEME_FONT_UI_22: return theme_font_original(22);
-    case THEME_FONT_UI_24: return theme_font_original(24);
-    case THEME_FONT_UI_28: return theme_font_original(28);
-    case THEME_FONT_UI_32: return theme_font_original(32);
-    case THEME_FONT_UI_36: return theme_font_original(36);
-    default: return theme_font_original(16);
-    }
+    return th_null()?theme_font_default(role):theme_font(role);
 }
 #undef TF
 #define TF(role) stats_font(THEME_FONT_##role)
