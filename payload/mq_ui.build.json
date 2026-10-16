@@ -1,16 +1,17 @@
 {
-  "version": "2.4.0",
-  "revision": "2.4.0 restore Null QS add/remove/reorder parity with Disco",
-  "status": "focused native checks and static MIPS ABI checks passed; physical Disc test pending",
-  "source_commit": "4f1f8b17035d6389b47c5d61ab911fc2582b875d",
+  "version": "2.5.0",
+  "revision": "Squash hero, bold touch playback, Volume B, How to and contextual hints",
+  "status": "native interaction, theme and website source checks passed; physical Disc flash not performed in this environment",
+  "source_commit": "bfe967b8df4618f2a0388cde47c50921dfe2db21",
   "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
-  "previous_candidate": "6821e7c",
-  "ui_source_sha256": "81c9741f1a93d18cf1f904ab16b107024cdeab8ffe87d5df422bb40b70eb8569",
+  "previous_candidate": "67dccfdec879932b125821cd344514c5aff50d48",
+  "ui_source_sha256": "9baa13b601410e6d653a38eb64605ac6216c261f92f0a8ed49669d8fc12ff32b",
+  "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
-  "abi": "static MIPS32r2, FP64, NaN2008",
+  "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
   "binary": {
-    "sha256": "c9fe6216e78964748be58563e1c040be98707cb96d9f221b467a2401eeaf6056",
-    "md5": "7f11b3a115f2c3d1052efe90b054f5ef",
-    "bytes": 6451412
+    "sha256": "6d7a0989c5b1dedfa4b0329f7a64c78765566b55fcc3c09313a068f9e8c76912",
+    "md5": "87da76d361e8bcb1c144ac86bda75d6d",
+    "bytes": 6885704
   }
 }

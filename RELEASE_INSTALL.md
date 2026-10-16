@@ -13,9 +13,8 @@ After that, `mq_ui` is the interface: sign it with your own keys and install it 
 Optional apps, installed separately:
 
 - [Disc Shelf](docs/DISC_SHELF_INSTALL.md): Navidrome browser and original-file downloader.
-- [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md): spin your collection for an album to play.
 
-Boomshine is built into `mq_ui`: add it in Disco Options > Menu items. Installed apps can join that menu too.
+Boomshine and [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md) are built into `mq_ui`: add them in the theme’s Menu items editor. Installed apps can join that menu too.
 
 This package is not a flasher. It contains no FiiO firmware, music, signing keys or account details.
 
