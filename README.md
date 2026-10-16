@@ -80,6 +80,10 @@ Listening Stats, SongSphere and Album Roulette. [2.2.1 notes](docs/releases/v2.2
 
 **2.2.2** brings a surprise and fixes the album covers in Listening Stats. [2.2.2 notes](docs/releases/v2.2.2.md)
 
+**2.4.0** introduces **Null**, a complete pixel theme, and focuses on polish and usability:
+centred selectors, larger help, calmer library scrolling, contextual tooltips and full-page
+How to guidance. [2.4.0 notes and final fixes](docs/RELEASE_2.4.0.md)
+
 **2.3.0** drops the record into Immersive, adds gesture controls and hold-to-scrub, puts Quick Settings round the edge and makes Listening Stats bigger and bolder, with Highlights. [2.3.0 notes](docs/releases/v2.3.0.md)
 
 <table><tr>
@@ -157,6 +161,24 @@ All the details: [2.2.1 fixes](docs/releases/v2.2.1.md) · [2.2 release notes](d
 
 Every screen, gesture and setting is in the **[tour](docs/DISCO_TOUR.md)**. Quick answers are in the
 **[how-to](docs/HOWTO.md)**.
+
+## Theme 02: Null
+
+Null is second after Disco in the theme picker. Bold pixel type, blue/yellow or red/lime,
+black or dark album backgrounds, and a sliding menu give it its own character. Quick
+Settings offers text or familiar Disco icons with artwork, transport and side bars.
+
+<table><tr>
+<td align="center"><img src="docs/null/music.png" width="220" alt="Null Music"><br>Music</td>
+<td align="center"><img src="docs/null/quick.png" width="220" alt="Null QS"><br>Quick Settings</td>
+<td align="center"><img src="docs/null/howto.png" width="220" alt="Null How to"><br>How to</td>
+</tr></table>
+
+Four font combinations include Matrix: large dot-matrix headings with terminal details.
+Reorder the menu, choose text or icon QS, and set handle double-tap/hold shortcuts.
+Null is right-handed. Both Disco and Null include one-topic How to pages and contextual
+hints; selectors and explanations are larger, with room to read and tap.
+See the [Null guide](docs/NULL_THEME.md) for the complete design and settings.
 
 ## Also included: Ring and Braun
 
