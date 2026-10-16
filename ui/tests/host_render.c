@@ -684,6 +684,13 @@ int main(int argc, char **argv){
             lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_SHORT_CLICKED,NULL);
         }
         assert(search_scroller()==NULL);                       /* typing never searches */
+        if(getenv("REVIEW_239_SEARCH")){
+            assert(th_null());lv_obj_t *go=ui_action_find("search.go");assert(go);
+            lv_obj_t *label=lv_obj_get_child(go,0);assert(label);
+            assert(lv_color_eq(lv_obj_get_style_text_color(label,0),TC(TEXT_PRIMARY)));
+            puts("PASS: typed Null search button uses visible active ink");
+        }
+
         if(go){ int before=send_count; lv_obj_send_event(ui_action_find("search.go"),LV_EVENT_CLICKED,NULL);
                 assert(search_scroller()!=NULL); assert(send_count==before);
                 if(getenv("SEARCH_BACK")){ assert(search_back_consumed()); assert(search_scroller()==NULL); } }
@@ -1001,6 +1008,30 @@ int main(int argc, char **argv){
             screen_back();nav_wait(250);y=lv_obj_get_y(flow);nav_wait(200);assert(lv_obj_get_y(flow)==y);
             puts("PASS: battery threshold, charging colour, flow, flashing icon and closed-panel pause");
             return 0;
+        }
+        if(getenv("REVIEW_239_POLISH")){
+            assert(th_null());
+            null_home_weather("18\xC2\xB0" "C");
+            assert(find_text(screen_get_root(SCR_HOME),"18C"));
+            if(scr==SCR_SAVER){
+                lv_obj_t *sb=lv_obj_get_child(screen_get_root(SCR_SAVER),0);
+                assert(lv_obj_check_type(sb,&lv_image_class));
+                assert(lv_obj_has_flag(sb,LV_OBJ_FLAG_HIDDEN)==(cfg_get_int("null_music_background",0)==0));
+                if(cfg_get_int("null_music_background",0))assert(lv_image_get_src(sb));
+            }
+            setlist_open("Display");settings_open_group("Theme Colours");nav_wait(80);
+            lv_obj_t *a=find_text(screen_get_root(SCR_SETLIST),"Appearance");assert(a);
+            lv_obj_send_event(lv_obj_get_parent(a),LV_EVENT_CLICKED,NULL);nav_wait(80);
+            lv_obj_t *detail=screen_get_root(SCR_SETTING_DETAIL);int disabled=0,before=cfg_get_int("theme_variant",-1);
+            for(uint32_t i=0;i<lv_obj_get_child_count(detail);i++){
+                lv_obj_t *o=lv_obj_get_child(detail,i);
+                if(lv_obj_check_type(o,&lv_button_class) && lv_obj_has_state(o,LV_STATE_DISABLED)){
+                    disabled++;lv_obj_send_event(o,LV_EVENT_CLICKED,NULL);
+                }
+            }
+            assert(disabled==2 && cfg_get_int("theme_variant",-1)==before);
+            assert(find_text(detail,"Null uses a fixed dark appearance.\nLight/Dark is unavailable in this theme."));
+            puts("PASS: Null degree removal, saver background visibility and disabled appearance with explanation");return 0;
         }
         if(getenv("REVIEW_239")){
             extern void disco_track_overlay_open(void);

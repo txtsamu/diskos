@@ -35,7 +35,7 @@ extern const lv_font_t null_handjet_38, null_vt323_27, null_vt323_24;
 static lv_font_t music_fonts[3][5];
 static lv_obj_t *qdate, *qbicon, *qsun, *track_hit, *album_hit, *gesture_feedback, *feedback_icon;
 static lv_timer_t *track_tap_timer;
-static lv_obj_t *music_weather;
+static lv_obj_t *music_weather,*saver_bg,*saver_wash;
 static char music_clock_text[32]="--:--";
 static const lv_font_t *music_font(int role)
 {
@@ -322,7 +322,7 @@ static void layout_music(void)
     for (int i = 0; i < 3; i++)
         lv_obj_set_y(buttons[i], 254 + drop);
     lv_obj_set_y(gesture, 248 + drop);
-    if(track_hit){lv_obj_set_y(track_hit,nav_value>0?64:96);lv_obj_set_size(track_hit,288,nav_value>0?68:110);}
+    if(track_hit){lv_obj_set_y(track_hit,nav_value>0?64:106);lv_obj_set_size(track_hit,288,nav_value>0?68:100);}
     if(album_hit)lv_obj_set_y(album_hit,174+drop);
 }
 static void nav_paint(void)
@@ -501,19 +501,19 @@ void null_home_create(lv_obj_t *r)
     lv_obj_remove_flag(bg, LV_OBJ_FLAG_CLICKABLE);
     wash = box(r, 0, 0, 360, 360);
     lv_obj_set_style_bg_opa(wash, 153, 0);
-    lv_obj_t *clock_hit = box(r, 72, 10, 216, 82);
+    lv_obj_t *clock_hit = box(r, 72, 10, 216, 94);
     lv_obj_set_style_bg_opa(clock_hit, 0, 0);
     lv_obj_add_flag(clock_hit, LV_OBJ_FLAG_CLICKABLE);
     ui_on(clock_hit, clock_event, LV_EVENT_LONG_PRESSED, NULL, "null.clock.toggle", UI_REACHABLE);
     lv_obj_add_event_cb(clock_hit, clock_event, LV_EVENT_SHORT_CLICKED, NULL);
-    clock_box = box(r, 72, 10, 216, 82);
+    clock_box = box(r, 72, 10, 216, 94);
     lv_obj_set_style_bg_opa(clock_box, 0, 0);
     music_status = text(clock_box, "", 0, 7, 216, TF(UI_14), TC(TEXT_SECONDARY));
-    music_clock = text(clock_box, "--:--", 0, 24, 216, music_font(4), TC(TEXT_PRIMARY));
+    music_clock = text(clock_box, "--:--", 0, 34, 216, music_font(4), TC(TEXT_PRIMARY));
 
     lv_obj_set_style_text_align(music_status, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(music_clock, LV_TEXT_ALIGN_CENTER, 0);
-    music_weather=text(clock_box,"",0,60,216,TF(UI_14),TC(TEXT_SECONDARY));
+    music_weather=text(clock_box,"",0,70,216,TF(UI_14),TC(TEXT_SECONDARY));
     static lv_font_t weather_font;
     extern const lv_font_t font_weather16;
     weather_font=*TF(UI_14);weather_font.fallback=&font_weather16;
@@ -524,7 +524,7 @@ void null_home_create(lv_obj_t *r)
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
-    track_hit=box(r,36,96,288,110);album_hit=box(r,36,174,288,30);
+    track_hit=box(r,36,106,288,100);album_hit=box(r,36,174,288,30);
     lv_obj_t *hits[]={track_hit,album_hit};
     for(int k=0;k<2;k++){
         lv_obj_set_style_bg_opa(hits[k],0,0);lv_obj_add_flag(hits[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_PRESS_LOCK);
@@ -642,6 +642,15 @@ void null_art_changed(void)
     else
         lv_obj_remove_flag(bg, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_bg_opa(wash, kind == 2 ? 164 : 153, 0);
+    if(saver_bg){
+        lv_image_set_src(saver_bg,NULL);
+        lv_image_set_src(saver_bg,lv_image_get_src(bg));
+        lv_image_set_scale(saver_bg,lv_image_get_scale_x(bg));
+        lv_obj_update_layout(bg);lv_obj_set_pos(saver_bg,lv_obj_get_x(bg),lv_obj_get_y(bg));
+        if(lv_obj_has_flag(bg,LV_OBJ_FLAG_HIDDEN))lv_obj_add_flag(saver_bg,LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_remove_flag(saver_bg,LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_opa(saver_wash,(kind==2?164:153)+26,0);
+    }
     if (qart) {
         const void *cover = ui_current_cover_dsc();
         lv_image_set_src(qart, cover);
@@ -745,26 +754,26 @@ static void qs_construct(void)
     lv_obj_set_style_border_width(qpanel, 1, 0);
     lv_obj_set_style_border_color(qpanel, TC(TEXT_SECONDARY), 0);
     lv_obj_set_style_border_opa(qpanel, 45, 0);
-        qdate = text(qpanel, "", 8, 22, 200, TF(HEADER), TC(TEXT_PRIMARY));
+        qdate = text(qpanel, "", 8, 8, 200, TF(HEADER), TC(TEXT_PRIMARY));
     lv_obj_set_style_text_align(qdate, LV_TEXT_ALIGN_CENTER, 0);
-    qcover = box(qpanel, 72, 154, 72, 72);
+    qcover = box(qpanel, 72, 246, 72, 72);
     lv_obj_set_style_shadow_color(qcover, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_shadow_width(qcover, 18, 0);
     lv_obj_set_style_shadow_opa(qcover, playing ? 85 : 0, 0);
     qart = lv_image_create(qcover);
     lv_obj_remove_flag(qart, LV_OBJ_FLAG_CLICKABLE);
-    qprev = transport_button(qpanel, 2, 168, 44, 0, &qicons[0]);
+    qprev = transport_button(qpanel, 2, 260, 44, 0, &qicons[0]);
     qpp = transport_button(qcover, 12, 12, 48, 1, &qicons[1]);
     lv_obj_set_style_bg_opa(qpp, 160, 0);
-    qnext = transport_button(qpanel, 170, 168, 44, 2, &qicons[2]);
+    qnext = transport_button(qpanel, 170, 260, 44, 2, &qicons[2]);
     /* Four fields above and four below. Lower field hit boxes end before the
      * close handle. */
     for (int k = 0; k < 8; k++) {
-        int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 58 + row * 44 : 238 + row * 44;
-        qfields[k] = box(qpanel, 12 + col * 96, y, 96, 40);
+        int col = k % 2, row = k / 2, y = 44 + row * 50;
+        qfields[k] = box(qpanel, 4 + col * 104, y, 104, 50);
         lv_obj_set_style_bg_opa(qfields[k], 0, 0);
         lv_obj_add_flag(qfields[k], LV_OBJ_FLAG_CLICKABLE);
-        qcaptions[k] = text(qfields[k], "", 0, 12, 96, &pixel14, TC(TEXT_SECONDARY));
+        qcaptions[k] = text(qfields[k], "", 0, 17, 104, &pixel14, TC(TEXT_SECONDARY));
         lv_obj_set_style_text_align(qcaptions[k], LV_TEXT_ALIGN_CENTER, 0);
         ui_on(qfields[k], qs_field_event, LV_EVENT_CLICKED, (void *)(intptr_t)k, "qs.tile", UI_CORE);
         ui_on(qfields[k], qs_field_event, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)k, "qs.tile.hold",
@@ -886,7 +895,11 @@ static void radio_state(void)
             lv_obj_set_style_text_color(qcaptions[i], on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0);
     }
 }
-void null_home_weather(const char *weather){if(music_weather)text_set(music_weather,weather?weather:"");}
+void null_home_weather(const char *weather){
+    char clean[128];size_t n=0;const unsigned char *p=(const unsigned char *)(weather?weather:"");
+    while(*p && n+1<sizeof clean){if(p[0]==0xc2 && p[1]==0xb0){p+=2;continue;}clean[n++]=*p++;}
+    clean[n]=0;if(music_weather)text_set(music_weather,clean);
+}
 static void time_fmt(char *b, size_t n, long ms)
 {
     long s = ms > 0 ? ms / 1000 : 0;
@@ -1052,6 +1065,7 @@ void null_screen_entered(int which)
     lv_obj_t *root = screen_get_root(which);
     if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER)
         kit_restyle(root);
+    if(which==SCR_SAVER)null_art_changed();
     onboarding_screen(which,nav_open);
     int hidden = which == SCR_QUICK || which == SCR_SAVER || which == SCR_NOWPLAYING ||
                  which == SCR_SPHERE || which == SCR_SETTINGS || which == SCR_SETLIST ||
@@ -1116,7 +1130,7 @@ void null_options_changed(void)
     lv_obj_set_style_text_font(album,music_font(2),0);
     lv_obj_set_style_text_font(times,music_font(3),0);
     lv_obj_set_style_text_font(music_clock,music_font(4),0);
-    lv_obj_set_y(music_clock,cfg_get_int("null_music_fonts",0)==0?28:24);
+    lv_obj_set_y(music_clock,34);
     last_ctl_mode = -1;
     last_ctl_visible = -1;
     wake_guard = 0;
@@ -1146,6 +1160,9 @@ extern const lv_font_t null_pixel_70, null_fine_24, null_weather_32;
 static lv_font_t saver_weather_font;
 void null_saver_create(lv_obj_t *r)
 {
+    saver_bg=lv_image_create(r);lv_obj_remove_flag(saver_bg,LV_OBJ_FLAG_CLICKABLE);
+    saver_wash=box(r,0,0,360,360);lv_obj_set_style_bg_color(saver_wash,TC(CANVAS),0);
+    lv_obj_set_style_bg_opa(saver_wash,179,0);
     saver_weather_font=null_fine_24;saver_weather_font.fallback=ui_font_cjk(20);
     sweather_icon=text(r,"",56,62,40,&null_weather_32,TC(TEXT_SECONDARY));
     sweather=text(r,"",104,64,204,&saver_weather_font,TC(TEXT_SECONDARY));
@@ -1158,7 +1175,7 @@ void null_saver_create(lv_obj_t *r)
     sartist=text(r,"",60,279,240,TF(UI_20),TC(TEXT_SECONDARY));
     lv_label_set_long_mode(strack,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(sartist,LV_LABEL_LONG_SCROLL_CIRCULAR);
-    keep_tree(r);
+    keep_tree(r);null_art_changed();
 }
 void null_saver_clock(const char *t,const char *d)
 {

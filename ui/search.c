@@ -173,7 +173,8 @@ static void query_changed(void){
     lv_obj_set_x(g_caret, g_query[0] ? 47 + (w > 190 ? 190 : w) + 1 : 43);
     int on = g_query[0] != 0;                                   /* Search is live only with something typed */
     lv_obj_set_style_bg_color(g_go, on ? ui_current_accent() : TC(SURFACE), 0);
-    lv_obj_set_style_text_color(g_go_lbl, on ? TC(ON_ACCENT) : TC(TEXT_DISABLED), 0);
+    if(th_null())lv_obj_set_style_bg_opa(g_go,LV_OPA_TRANSP,0);
+    lv_obj_set_style_text_color(g_go_lbl, th_null()?(on?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY)):(on?TC(ON_ACCENT):TC(TEXT_DISABLED)), 0);
 }
 static void bksp(int all){
     size_t n = strlen(g_query);

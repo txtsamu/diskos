@@ -1038,6 +1038,7 @@ static const char *val_text_value(const setting_t *s, char *buf, int n){
     if(setting_unavailable(s)) return tr(s->cfg_key && !strcmp(s->cfg_key, "ota_allow") ? "Not supported on this install" : "Not on this firmware");
     /* Outdoor Mode overrides these two while it is on: show what is really in effect, not the saved choice (which
      * stays untouched and comes back when Outdoor Mode is turned off) */
+    if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))return "Dark";
     if(theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "theme_variant")) return "Light (Outdoor)";
     if(theme_auto_supported() && cfg_get_int("theme_auto",0) && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))
         return theme_variant() ? "Light (Auto)" : "Dark (Auto)";
@@ -1173,6 +1174,7 @@ static void detail_slider_release_cb(lv_event_t *e){
     if(g_active->cfg_key && !strcmp(g_active->cfg_key, "ma_delay_ms")) ma_delay_changed();   /* restart with the saved value */
 }
 static void detail_cycle_cb(lv_event_t *e){
+    if(th_null() && g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_variant")){ui_toast("Null uses a fixed dark appearance");return;}
     if(theme_outdoor() && g_active->cfg_key && !strcmp(g_active->cfg_key, "theme_variant")){
         ui_toast("Outdoor Mode keeps Light on");   /* a Dark/Light change could not show until Outdoor Mode is off */
         return;
@@ -1320,6 +1322,12 @@ void setting_detail_refresh(void){
         lv_obj_t *ri = lv_label_create(rb); lv_label_set_text(ri, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_center(ri);
         lv_obj_add_event_cb(rb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)1);
+        if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant")){
+            lv_obj_add_state(lb,LV_STATE_DISABLED);lv_obj_add_state(rb,LV_STATE_DISABLED);
+            lv_obj_set_style_opa(lb,90,0);lv_obj_set_style_opa(rb,90,0);
+            lv_obj_add_flag(vl,LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(vl,detail_cycle_cb,LV_EVENT_CLICKED,NULL);
+        }
         if(nav_setting(s) || (s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"))){ /* choices with explicit Apply */
             lv_obj_t *ab = lv_button_create(g_detail_root); lv_obj_remove_style_all(ab);
             lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_CENTER, 0, 58);
@@ -1345,6 +1353,7 @@ void setting_detail_refresh(void){
     if(s->type==ST_CYCLER && s->opt_descs && v>=0 && v<s->nopts) desc = s->opt_descs[v];
     if(s->type == ST_CHOICE) desc = (s->opts == i18n_lang_names) ? "Screen redraws after selection."
                                   : (s->cfg_key && !strcmp(s->cfg_key, "bt_codec")) ? "Best effort: SBC if the headphones lack it." : NULL;
+    if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))desc="Null uses a fixed dark appearance.\nLight/Dark is unavailable in this theme.";
     if(desc && desc[0]){
         lv_obj_t *d = lv_label_create(g_detail_root);
         lv_label_set_text(d, tr(desc));

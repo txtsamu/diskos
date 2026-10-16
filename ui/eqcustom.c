@@ -732,7 +732,7 @@ void eqcustom_create(lv_obj_t *root){
         lv_obj_set_style_text_font(back_label, TF(UI_18), 0); lv_obj_set_style_text_color(back_label, TC(TEXT_PRIMARY), 0); lv_obj_center(back_label);
         ui_on(back, editor_back_cb, LV_EVENT_CLICKED, NULL, "eq.editor.back", UI_CORE);
         lv_obj_t *pm[2] = { g_minus, g_plus };
-        for(int k = 0; k < 2; k++){ lv_obj_set_size(pm[k], 52, 52); lv_obj_align(pm[k], LV_ALIGN_TOP_MID, k ? 94 : -94, 268); lv_obj_set_ext_click_area(pm[k], 8);
+        for(int k = 0; k < 2; k++){ lv_obj_set_size(pm[k], 52, 52); lv_obj_align(pm[k], LV_ALIGN_TOP_MID, k ? (th_null()?112:94) : (th_null()?-112:-94), th_null()?248:268); lv_obj_set_ext_click_area(pm[k], 8);
             lv_obj_set_style_bg_color(pm[k], TC(SURFACE), 0); lv_obj_set_style_bg_opa(pm[k], 190, 0);
             lv_obj_set_style_border_width(pm[k], 1, 0); lv_obj_set_style_border_color(pm[k], (th_null()?TC(TEXT_PRIMARY):ui_current_accent()), 0); lv_obj_set_style_border_opa(pm[k], 150, 0);
             kit_keep(pm[k]); lv_obj_add_flag(pm[k], LV_OBJ_FLAG_USER_2); }
