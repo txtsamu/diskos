@@ -138,6 +138,7 @@ static void ctl_tick(lv_timer_t *t){
     else if(!g_ctl_shown && idle < 300) ctl_show(1);                  /* any touch brings them back */
 }
 static void gz_flash(const char *glyph){
+    if(th_simple()){simple_action_feedback();return;}
     if(!g_gz_fx) return;
     lv_label_set_text(g_gz_fx, glyph); lv_obj_remove_flag(g_gz_fx, LV_OBJ_FLAG_HIDDEN);
     lv_anim_delete(g_gz_fx, ctl_opa_cb);
@@ -150,7 +151,7 @@ static int gz_arc_point(int x, int y){                                 /* on the
 }
 static void ov_open(void);
 static lv_timer_t *simple_tap_timer;
-static void simple_tap_done(lv_timer_t*t){lv_timer_delete(t);simple_tap_timer=NULL;ov_open();}
+static void simple_tap_done(lv_timer_t*t){lv_timer_delete(t);simple_tap_timer=NULL;if(screen_current()==SCR_HOME&&!simple_nav_is_open())ov_open();}
 static void gz_cb(lv_event_t *e){
     lv_event_code_t c = lv_event_get_code(e);
     if(c == LV_EVENT_HIT_TEST){ lv_hit_test_info_t *h = lv_event_get_hit_test_info(e); if(gz_arc_point(h->point->x, h->point->y)) h->res = false; return; }
@@ -220,13 +221,13 @@ void dhome_controls_apply(void){
     if(m == 1 && !g_ctl_tmr) g_ctl_tmr = lv_timer_create(ctl_tick, 250, NULL);
 }
 /* main.c asks: is a press here the gesture zone's? (a swipe there must not open Shortcuts) */
-static int gz_owns(int x, int y){ if(th_simple())return x>=36&&x<324&&y>=108&&y<225; return g_gz && ctl_mode() == 2 && !lv_obj_has_flag(g_gz, LV_OBJ_FLAG_HIDDEN)
+static int gz_owns(int x, int y){ if(th_simple())return x>=36&&x<324&&y>=100&&y<248&&!gz_arc_point(x,y); return g_gz && ctl_mode() == 2 && !lv_obj_has_flag(g_gz, LV_OBJ_FLAG_HIDDEN)
                                          && x >= lv_obj_get_x(g_gz) && x < lv_obj_get_x(g_gz) + GZ_W && y >= GZ_Y && y < GZ_Y + GZ_H && !gz_arc_point(x, y); }
 /* ---- the progress underline: a rainbow (the CD's sheen) that fills from left to right; drag or tap it to seek ---- */
 /* 1.4.1: wider now that a swipe can't press - from near the free edge to just short of the closed shard */
 #define UL_W 276
 #define UL_X (disco_mirror() ? 360 - 34 - UL_W : 34)
-#define UL_Y (th_simple()?238:214)
+#define UL_Y (th_simple()?265:214)
 static lv_obj_t *g_ul_fill, *g_ul_knob, *g_ul_tr, *g_ul_hit, *g_ul_solid;
 static int g_frac = -1, g_scrub;
 /* hold the line (or the arc) to scrub: a large time over the controls follows the finger, the head grows */
@@ -288,6 +289,9 @@ void dhome_times_apply(void){
     int on = !g_idle && simple_cfg_get_int("disco_times", 1) && simple_cfg_get_int("disco_progress", 0) != 2;   /* no line, no times (idle: neither) */
     lv_obj_t *o[4] = { L_EL.sh, L_EL.fg, L_RM.sh, L_RM.fg };
     for(int i = 0; i < 4; i++){ if(on) lv_obj_remove_flag(o[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o[i], LV_OBJ_FLAG_HIDDEN); }
+    if(th_simple()){
+        for(int k=0;k<4;k++){lv_obj_set_align(o[k],LV_ALIGN_TOP_LEFT);lv_obj_set_pos(o[k],k<2?36:234,278);lv_obj_set_size(o[k],90,24);}return;
+    }
     int arc = simple_cfg_get_int("disco_prog_shape", 0) == 1;                 /* Arc: no line, the two times side by side */
     for(int k = 0; k < 2; k++){
         int d = k ? 0 : 1;
@@ -364,9 +368,9 @@ static void underline_create(lv_obj_t *root){
  * bottom and the left, over the top to just above it (320 degrees). Same colours as the line (Disco / Accent / Off),
  * the same bright head, and the same drag or tap to seek. Its touch ring sits under everything else on Music, so the
  * buttons, the clock and the title keep their taps; a press in the top 40 px is left to the Quick Settings pull-down. */
-#define PA_A0 (disco_mirror() ? 220 : 40)                            /* Disco Left: from just above the shard (upper left), still clockwise */
+#define PA_A0 (th_simple()?135:(disco_mirror() ? 220 : 40))                            /* Disco Left: from just above the shard (upper left), still clockwise */
 #define PA_WRAP(d) ((d) % 360)                                          /* Left: the arc runs past 360 degrees */
-#define PA_SPAN 280
+#define PA_SPAN (th_simple()?270:280)
 #define PA_N 6
 #define PA_D 344                                                       /* the drawn ring: r 172 */
 #define PA_W 5
@@ -533,6 +537,7 @@ static void ov_paint(void){
 static void ov_act_cb(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     int a = (int)(intptr_t)lv_event_get_user_data(e);
+    if(th_simple())simple_action_feedback();
     switch(a){
         case OV_FAV:    ui_np_fav_toggle(); ov_paint(); return;       /* stays open */
         case OV_ALBUM:  ov_close(); ui_np_open_album(); break;
@@ -751,7 +756,7 @@ static void mode_paint(void){
     static const char *const G[5] = { LV_SYMBOL_RIGHT, LV_SYMBOL_SHUFFLE, LV_SYMBOL_LOOP "1", LV_SYMBOL_LOOP, LV_SYMBOL_RIGHT "1" };
     dl_text(&L_MODE, G[wm >= 0 && wm < 5 ? wm : 0]);
 }
-static void mode_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED){ ui_np_mode_next(); mode_paint(); } }   /* toasts the new mode */
+static void mode_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED){ ui_np_mode_next(); mode_paint(); if(th_simple())simple_action_feedback(); } }   /* toasts the new mode */
 /* ---- build ---------------------------------------------------------------------------------------- */
 void dhome_create(lv_obj_t *root){
     g_acc = ui_current_accent();
@@ -1003,20 +1008,25 @@ static void simple_music_layout(void){
  kit_keep(g_pill);kit_keep(g_trk);lv_obj_set_style_border_width(g_pill,0,0);lv_obj_set_style_bg_opa(g_pill,0,0);lv_obj_set_style_border_width(g_trk,0,0);lv_obj_set_style_bg_opa(g_trk,0,0);kit_keep(g_top_hit);lv_obj_set_align(g_pill,LV_ALIGN_TOP_LEFT);lv_obj_set_align(g_top_hit,LV_ALIGN_TOP_LEFT);
  lv_obj_set_pos(g_pill,80,14);lv_obj_set_size(g_pill,200,82);lv_obj_set_pos(g_top_hit,80,14);lv_obj_set_size(g_top_hit,200,82);
  simple_label_pair(&L_STAT,0,0,200,20,TF(UI_14));simple_label_pair(&L_TIME,0,24,200,32,TF(UI_28));simple_label_pair(&L_WX,0,60,200,22,&g_wfont);
- lv_obj_set_pos(g_trk,32,112);lv_obj_set_size(g_trk,296,112);
- simple_label_pair(&L_TITLE,0,0,296,66,TF(UI_30));simple_label_pair(&L_ARTIST,0,67,296,28,TF(UI_22));
- lv_point_t title_size;lv_text_get_size(&title_size,L_TITLE.cur,TF(UI_30),0,0,296,LV_TEXT_FLAG_NONE);
- int title_h=title_size.y>66?66:title_size.y;lv_obj_set_height(L_TITLE.fg,title_h);lv_obj_set_y(L_TITLE.fg,66-title_h);
- if(!simple_album){simple_album=lv_label_create(lv_obj_get_parent(g_trk));lv_obj_set_style_text_font(simple_album,TF(UI_18),0);lv_obj_set_style_text_color(simple_album,TC(TEXT_SECONDARY),0);lv_obj_set_style_text_align(simple_album,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(simple_album,44,210);lv_obj_set_size(simple_album,272,24);lv_label_set_long_mode(simple_album,LV_LABEL_LONG_DOT);kit_keep(simple_album);}
+ int aligned_left=simple_cfg_get_int("disco_title_al",0)==1;
+ lv_obj_set_pos(g_trk,36,100);lv_obj_set_size(g_trk,288,136);
+ simple_label_pair(&L_TITLE,0,0,288,88,TF(UI_36));simple_label_pair(&L_ARTIST,0,88,288,36,TF(UI_30));
+ lv_point_t title_size;lv_text_get_size(&title_size,L_TITLE.cur,TF(UI_36),0,0,288,LV_TEXT_FLAG_NONE);
+ int title_h=title_size.y>88?88:title_size.y;lv_obj_set_height(L_TITLE.fg,title_h);lv_obj_set_y(L_TITLE.fg,88-title_h);
+ lv_obj_set_style_text_align(L_TITLE.fg,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);
+ lv_obj_set_style_text_align(L_ARTIST.fg,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);
+ if(!simple_album){simple_album=lv_label_create(lv_obj_get_parent(g_trk));lv_label_set_long_mode(simple_album,LV_LABEL_LONG_DOT);kit_keep(simple_album);}
+ lv_obj_set_style_text_font(simple_album,TF(UI_26),0);lv_obj_set_style_text_color(simple_album,TC(TEXT_SECONDARY),0);
+ lv_obj_set_style_text_align(simple_album,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(simple_album,36,224);lv_obj_set_size(simple_album,288,34);
  track_state_t st;ipc_get_state(&st);lv_label_set_text(simple_album,st.album);
- lv_obj_set_pos(g_gz,32,108);lv_obj_set_size(g_gz,296,125);lv_obj_move_foreground(g_gz);
+ lv_obj_set_pos(g_gz,36,100);lv_obj_set_size(g_gz,288,148);lv_obj_move_foreground(g_gz);
  for(int i=0;i<4;i++)if(g_gz_hint[i])lv_obj_add_flag(g_gz_hint[i],LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_pos(g_gz_fx,140,150);lv_obj_move_foreground(g_gz_fx);
- lv_obj_set_size(g_mode,48,44);lv_obj_set_align(g_mode,LV_ALIGN_TOP_LEFT);lv_obj_set_pos(g_mode,86,280);lv_obj_remove_flag(g_mode,LV_OBJ_FLAG_HIDDEN);
+ lv_obj_set_size(g_mode,44,44);lv_obj_set_align(g_mode,LV_ALIGN_TOP_LEFT);lv_obj_set_pos(g_mode,248,44);lv_obj_remove_flag(g_mode,LV_OBJ_FLAG_HIDDEN);
  for(int k=0;k<2;k++){lv_obj_t*l=k?L_MODE.fg:L_MODE.sh;if(k){lv_obj_set_style_text_color(l,TC(ACCENT_PRIMARY),0);kit_keep(l);}else lv_obj_add_flag(l,LV_OBJ_FLAG_HIDDEN);}
- lv_obj_set_style_bg_color(g_ul_solid,TC(ACCENT_PRIMARY),0);lv_obj_remove_flag(g_ul_solid,LV_OBJ_FLAG_HIDDEN);
+ lv_obj_set_style_bg_color(g_ul_solid,TC(ACCENT_PRIMARY),0);if(!pa_on())lv_obj_remove_flag(g_ul_solid,LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_style_bg_color(g_ul_knob,TC(ACCENT_PRIMARY),0);lv_obj_set_style_outline_opa(g_ul_knob,0,0);
- simple_label_pair(&L_EL,36,254,90,24,TF(UI_16));simple_label_pair(&L_RM,234,254,90,24,TF(UI_16));
+ simple_label_pair(&L_EL,36,278,90,24,TF(UI_16));simple_label_pair(&L_RM,234,278,90,24,TF(UI_16));
  int bg=simple_cfg_get_int("simple_background",0);const void*src=bg==1?ui_current_backdrop_img():bg==2?ui_current_sharp_img():NULL;
  if(src){lv_image_set_src(g_cover,src);lv_obj_remove_flag(g_cover,LV_OBJ_FLAG_HIDDEN);}else lv_obj_add_flag(g_cover,LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_style_bg_opa(g_wash,theme_variant()?205:150,0);lv_obj_set_style_bg_grad_dir(g_wash,LV_GRAD_DIR_NONE,0);lv_obj_set_pos(g_wash,0,0);lv_obj_set_size(g_wash,360,360);

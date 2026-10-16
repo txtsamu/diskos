@@ -89,7 +89,7 @@ static int find_sharp_image(lv_obj_t *root){
 static int fixture, send_result, send_count;
 static int null_transport_calls;static char null_last_command[24];
 int __real_ui_transport_command(const char*);
-int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
+int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")||getenv("REVIEW_SIMPLE")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
 int __real_ipc_send_cmd(const char *frame);
 int __wrap_ipc_send_cmd(const char *frame){send_count++;return fixture?send_result:__real_ipc_send_cmd(frame);}
 int __real_fw_custom_peq_writable(void);
@@ -547,6 +547,8 @@ int main(int argc, char **argv){
     assert(!cfg_set_int_deferred("theme_auto",0));
     assert(!cfg_set_int_deferred("up_next",atoi(argv[4])));
     if(atoi(argv[1])==THEME_PRESET_SIMPLE){cfg_set_int_deferred("simple_clock",1);cfg_set_str_deferred("simple_qs_items","wbmerfhs");}
+    if(getenv("SIMPLE_SHAPE"))cfg_set_int_deferred("simple_prog_shape",atoi(getenv("SIMPLE_SHAPE")));
+    if(getenv("SIMPLE_ALIGN"))cfg_set_int_deferred("simple_title_al",atoi(getenv("SIMPLE_ALIGN")));
     if(getenv("SIMPLE_BG"))cfg_set_int_deferred("simple_background",atoi(getenv("SIMPLE_BG")));
     if(getenv("NULL_PALETTE"))cfg_set_int_deferred("null_palette",atoi(getenv("NULL_PALETTE")));
     if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
@@ -1625,10 +1627,16 @@ render:
         for(int x=240;x>=145;x-=5){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(250);assert(simple_test_selection()==1);assert(screen_current()==SCR_HOME);
         nav_touch((lv_point_t){180,160},50);nav_wait(250);assert(screen_current()==SCR_LIBRARY);
         screen_home();simple_nav_open(1);nav_wait(250);screen_back();nav_wait(180);assert(!simple_nav_is_open()&&screen_current()==SCR_HOME);
-        puts("PASS: Simple eight-slot QS order persists; Disco settings unchanged; bottom-hub wheel drags, snaps, opens Library and closes with Back");return 0;
+        nav_wait(250);int commands=null_transport_calls;
+        nav_touch((lv_point_t){180,205},40);nav_wait(100);nav_touch((lv_point_t){180,205},40);nav_wait(100);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0000"));
+        nav_pointer=(lv_indev_data_t){.point={95,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=95;x<=255;x+=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+2&&!strcmp(null_last_command,"0201000C0001"));
+        nav_pointer=(lv_indev_data_t){.point={255,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=255;x>=95;x-=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+3&&!strcmp(null_last_command,"0201000C0002"));
+        puts("PASS: Simple eight-slot QS, isolated preferences, planet drag/snap/open/back, metadata double-tap and both track swipes");return 0;
     }
-    if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);for(int i=0;i<35;i++){lv_tick_inc(10);lv_timer_handler();}}
+    if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);int ms=getenv("SIMPLE_NAV_MS")?atoi(getenv("SIMPLE_NAV_MS")):350;for(int i=0;i<ms/10;i++){lv_tick_inc(10);lv_timer_handler();}}
     if(th_simple()&&getenv("SIMPLE_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
+    if(th_simple()&&getenv("SIMPLE_ARROW_MS")){simple_action_feedback();for(int i=0;i<atoi(getenv("SIMPLE_ARROW_MS"))/10;i++){lv_tick_inc(10);lv_timer_handler();}}
+    if(th_simple()&&getenv("SIMPLE_ARROW_FRAME"))simple_test_feedback_frame(atoi(getenv("SIMPLE_ARROW_FRAME")));
     lv_refr_now(d);
     FILE *f=fopen(argv[5],"wb"); if(!f) return 1;
     fprintf(f,"P6\n360 360\n255\n");

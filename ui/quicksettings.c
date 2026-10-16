@@ -488,6 +488,7 @@ void quicksettings_create(lv_obj_t *root)
 /* the cover (RAM decode, scaled into the hub) and the blurred backdrop; called on track / art changes */
 void quicksettings_set_art(const void *cover_dsc, const void *backdrop_src)
 {
+    if(th_simple()){simple_qs_art(cover_dsc);return;}
     if(!g_cover_img) return;
     lv_image_set_src(g_cover_img, NULL);
     if(cover_dsc){

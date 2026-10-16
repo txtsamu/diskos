@@ -369,7 +369,7 @@ static int role_px(int role){
         [THEME_FONT_UI_28] = 28, [THEME_FONT_UI_32] = 32, [THEME_FONT_UI_36] = 36, [THEME_FONT_UI_40] = 40,
         [THEME_FONT_USER_14] = 14, [THEME_FONT_USER_16] = 16, [THEME_FONT_USER_18] = 18, [THEME_FONT_USER_20] = 20,
         [THEME_FONT_HEADER] = 28, [THEME_FONT_CLOCK] = 28, [THEME_FONT_SAVER_CLOCK] = 40, [THEME_FONT_DATE] = 18,
-        [THEME_FONT_ICON_20] = 20, [THEME_FONT_ICON_28] = 28, [THEME_FONT_HEADER_SM] = 22,
+        [THEME_FONT_QS_ICON_36] = 36, [THEME_FONT_LAUNCHER_ICON_80] = 80, [THEME_FONT_ICON_20] = 20, [THEME_FONT_ICON_28] = 28, [THEME_FONT_HEADER_SM] = 22,
         [THEME_FONT_UI_8] = 8, [THEME_FONT_UI_26] = 26, [THEME_FONT_UI_30] = 30, [THEME_FONT_UI_34] = 34, [THEME_FONT_UI_38] = 38, [THEME_FONT_UI_42] = 42, [THEME_FONT_UI_44] = 44, [THEME_FONT_UI_46] = 46, [THEME_FONT_UI_48] = 48 };
     return PX[role];
 }
@@ -932,6 +932,8 @@ static const lv_font_t *font_for_role(theme_font_role_t role,int themed){
     case THEME_FONT_DATE: return &lv_font_montserrat_14;
     case THEME_FONT_ICON_20: return &font_icons_20;
     case THEME_FONT_ICON_28: return &font_icons_28;
+    case THEME_FONT_QS_ICON_36: return &font_icons_28;
+    case THEME_FONT_LAUNCHER_ICON_80: return &font_icons_28;
     case THEME_FONT_QS_ICON_28: {
         static lv_font_t base, extra, symbols;
         extern const lv_font_t font_theme_24;

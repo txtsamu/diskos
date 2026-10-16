@@ -982,6 +982,7 @@ static void set_val(const setting_t *s, int v){
         ui_toast("Couldn't save settings"); return;
     }
     if(s->apply) s->apply(v);
+    if(th_simple())simple_action_feedback();
 }
 /* battery/board temp from the fuel gauge; power-supply ABI = tenths of a degree C */
 /* "1.2.0 (8c29ecbf)": the release plus the first 8 hex of the RUNNING binary's md5 - the build id used in every
@@ -1603,7 +1604,7 @@ void setlist_refresh(void){
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
         if(!th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"simple_background"))continue;
-        if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_prog_shape")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
+        if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
         if(!th_disco_family() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
         if(!th_disco_family() && !th_null() && !strcmp(s->group,"Help"))continue;
         if(!th_null()&&(s->apply==apply_null_options||!strcmp(s->group,"Null Options")))continue;
@@ -1616,7 +1617,7 @@ void setlist_refresh(void){
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
 
         lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Simple Options":th_simple()&&!strcmp(s->label,"Disco Menu")?"Menu items":s->label);
+        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Simple Options":th_simple()&&!strcmp(s->label,"Disco Menu")?"Menu items":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
         lv_obj_set_pos(lbl,18,16);
         lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
