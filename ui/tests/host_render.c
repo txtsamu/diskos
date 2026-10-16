@@ -549,6 +549,7 @@ int main(int argc, char **argv){
     if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
     if(getenv("NULL_SIDE"))cfg_set_int_deferred("null_side",atoi(getenv("NULL_SIDE")));
     if(getenv("NULL_TEXT"))cfg_set_int_deferred("null_text_align",atoi(getenv("NULL_TEXT")));
+    if(getenv("NULL_QS_LAYOUT"))cfg_set_int_deferred("null_qs_layout",atoi(getenv("NULL_QS_LAYOUT")));
     if(getenv("NULL_FONTS"))cfg_set_int_deferred("null_music_fonts",atoi(getenv("NULL_FONTS")));
     if(getenv("NULL_CTRL"))cfg_set_int_deferred("null_controls",atoi(getenv("NULL_CTRL")));
     theme_init();

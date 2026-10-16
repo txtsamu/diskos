@@ -97,3 +97,14 @@ Fourth Null font option: Matrix. Dot Matrix headings and large Music title/clock
 VT323 details at 18/21/24/27 pixels; existing international fallback chains remain.
 Original/Jersey/Handjet are retained. Choosing fonts reloads the themed UI.
 This is a native-render preview; the previously packaged 2.3.9 payload is unchanged.
+
+## QS layout preview
+
+Null Options > QS layout: Text (default) or Icons. The icon option uses the
+Font Awesome 4.7 catalogue, rendered at 30px in the same 2-column / 4-row grid.
+All 17 quick actions have a dedicated icon, including the Equalizer sliders.
+The original 104x50 targets, tap/hold callbacks, item ordering, artwork and
+transport remain unchanged. Blue/red idle ink becomes yellow/lime when
+pressed; active radios and scanning retain the active colour.
+The setting applies live and persists independently of Disco. Font source and
+generator: ui/fonts/null/qs, licence: licenses/OFL-1.1-FontAwesome.txt.

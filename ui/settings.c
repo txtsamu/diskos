@@ -345,10 +345,12 @@ static void apply_disco_menu(int v){ (void)v; disco_menu_open(); }     /* fork: 
 static void apply_disco_options(int v);
 static void apply_null_options(int v);
 static void apply_null_reload(int v){(void)v;theme_reload_or_revert("null_palette");}
+static void apply_null_qs_layout(int v){(void)v;null_qs_build();}
 static void apply_null_live(int v){(void)v;null_options_changed();}
 static void apply_null_menu(int v){(void)v;disco_menu_open();}
 static void apply_null_qs(int v){(void)v;disco_qs_menu_open();}
 static const char *OPT_NULLFONTS[]={"Original","Jersey","Handjet","Matrix"};
+static const char *OPT_NULLQS[]={"Text","Icons"};
 static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime"};
 static const char *OPT_NULLTEXT[]={"Center","Left"};
 static const char *OPT_NULLBG[]={"Black","Dark cover","Pixel cover"};
@@ -778,6 +780,7 @@ static const setting_t TABLE[] = {
     {"Null Options","Controls",ST_CYCLER,"null_controls",0,0,2,OPT_DCTRL,3,NULL,apply_null_live,0,"Buttons, autofade or gestures",NULL},
     {"Null Options","Arrow colours",ST_TOGGLE,"null_drawer_state_colours",0,1,1,NULL,0,NULL,apply_null_live,1,"Closed blue/red; open yellow/lime",NULL},
     {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
+    {"Null Options","QS layout",ST_CYCLER,"null_qs_layout",0,0,1,OPT_NULLQS,2,NULL,apply_null_qs_layout,0,"Text labels or a grid of icons. Tap, hold and active colours stay the same.",NULL},
     {"Null Options","Quick items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Eight fields with Wi-Fi first and Settings last",NULL},
     { "Display",  "Disco Options", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_options, 0,
       "The Disco theme's own settings: the menu circle, clock, track times, rim sheen, equalizer and progress bar colours.", NULL },

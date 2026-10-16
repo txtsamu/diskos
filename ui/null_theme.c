@@ -875,8 +875,21 @@ void null_qs_build(void)
     static const char *shorts[] = {"WIFI",  "BT",   "LIBRY", "SCAN",   "MODES", "STNGS",
                                    "EQ",    "SRCH", "QUEUE", "UP NXT", "SHRTS", "WTHR",
                                    "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS"};
-    for (int i = 0; i < 8; i++)
-        text_set(qcaptions[i], qids[i] >= 0 && qids[i] < 17 ? shorts[qids[i]] : "ITEM");
+    extern const lv_font_t null_qs_icons_30;
+    static const unsigned codes[]={0xf1eb,0xf293,0xf02d,0xf021,0xf1e6,0xf013,0xf1de,0xf002,0xf0cb,0xf051,0xf0ca,0xf185,0xf001,0xf05a,0xf03e,0xf07b,0xf004};
+    int icons=cfg_get_int("null_qs_layout",0)==1;
+    for(int i=0;i<8;i++){
+        int id=qids[i];const qs_item_t *item=quicksettings_item(id);
+        if(icons && item && id>=0 && id<17){
+            unsigned cp=codes[id];char glyph[4]={(char)(0xe0|(cp>>12)),(char)(0x80|((cp>>6)&63)),(char)(0x80|(cp&63)),0};
+            text_set(qcaptions[i],glyph);lv_obj_set_style_text_font(qcaptions[i],&null_qs_icons_30,0);
+            lv_obj_set_y(qcaptions[i],(50-lv_font_get_line_height(&null_qs_icons_30))/2);
+        }else{
+            text_set(qcaptions[i],id>=0 && id<17?shorts[id]:"ITEM");
+            lv_obj_set_style_text_font(qcaptions[i],&pixel14,0);lv_obj_set_y(qcaptions[i],17);
+        }
+        lv_obj_set_style_text_color(qcaptions[i],TC(TEXT_SECONDARY),0);
+    }
     if (qpp) {
         icon_replace(qpp, &qicons[1], 13, 13, playing ? NULL_ICON_PAUSE : NULL_ICON_PLAY,
                      playing ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY));
