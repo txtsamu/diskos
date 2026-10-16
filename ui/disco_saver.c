@@ -14,6 +14,8 @@
 
 extern const lv_font_t font_weather16;
 const void *ui_current_sharp_img(void);
+const void *ui_current_backdrop_img(void);
+static const void *saver_art(void){if(!th_simple())return ui_current_sharp_img();int bg=simple_cfg_get_int("simple_background",0);return bg==1?ui_current_backdrop_img():bg==2?ui_current_sharp_img():NULL;}
 lv_color_t ui_current_accent(void);
 const lv_anim_t *disco_scroll5(void);
 
@@ -30,7 +32,7 @@ static void pair(lv_obj_t *root, lv_obj_t **p, const lv_font_t *f, int w, int y,
         lv_obj_set_style_text_font(l, f, 0); lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
         if(w > 0){ lv_obj_set_size(l, w, lv_font_get_line_height(f)); lv_obj_set_style_anim(l, disco_scroll5(), 0); lv_label_set_long_mode(l, LV_LABEL_LONG_SCROLL_CIRCULAR); }
         lv_obj_set_style_text_color(l, TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_text_opa(l, 150, 0);
-        if(k){ lv_obj_set_style_text_color(l, TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_text_opa(l, dim ? 170 : 225, 0); }
+        if(k){ lv_obj_set_style_text_color(l, (th_simple()?(dim?TC(TEXT_SECONDARY):TC(TEXT_PRIMARY)):TC(FIXED_MEDIA_WHITE)), 0); lv_obj_set_style_text_opa(l, dim ? 170 : 225, 0); }
         lv_obj_align(l, LV_ALIGN_TOP_MID, k ? 0 : 1, y + (k ? 0 : 1));
         lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE);
         p[k] = l;
@@ -75,14 +77,14 @@ static void progress(void){                                       /* once a minu
 void dsaver_create(lv_obj_t *root){
     memset(g_cur, 0, sizeof g_cur);
     static const uint32_t IRI[NSEG] = { 0xFF5AA0, 0xFFB45A, 0xFFF06A, 0x62F28C, 0x4AD8FF, 0xB36BFF };
-    lv_obj_set_style_bg_color(root, TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(root, th_simple()?TC(CANVAS):TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_image_src(root, NULL, 0);
     g_img = lv_image_create(root); lv_obj_set_pos(g_img, -2, -2);
     lv_obj_clear_flag(g_img, LV_OBJ_FLAG_CLICKABLE);
-    const void *src = ui_current_sharp_img();
+    const void *src = saver_art();
     if(src) lv_image_set_src(g_img, src); else lv_obj_add_flag(g_img, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t *veil = lv_obj_create(root); lv_obj_remove_style_all(veil);   /* standby: the cover far down */
-    lv_obj_set_size(veil, 360, 360); lv_obj_set_style_bg_color(veil, TC(FIXED_MEDIA_BLACK), 0);
+    lv_obj_set_size(veil, 360, 360); lv_obj_set_style_bg_color(veil, th_simple()?TC(CANVAS):TC(FIXED_MEDIA_BLACK), 0);
     lv_obj_set_style_bg_opa(veil, 175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     g_tr = rim_arc(root, TC(FIXED_MEDIA_WHITE), 3, 40); lv_arc_set_angles(g_tr, 0, 360);
     for(int i = 0; i < NSEG; i++) g_seg[i] = rim_arc(root, theme_color_from_rgb(IRI[i]), 3, 200);
@@ -92,10 +94,10 @@ void dsaver_create(lv_obj_t *root){
     g_wf = *theme_font_original(24); g_wf.fallback = &font_weather16;
     pair(root, g_wx, &g_wf, -1, 142, 0);
     for(int k=0;k<2;k++){lv_obj_set_style_transform_scale(g_wx[k],300,0);lv_obj_set_style_transform_pivot_x(g_wx[k],lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_wx[k],lv_pct(50),0);}
-    g_title_font=*TF(UI_36);g_title_font.fallback=ui_font_cjk(28);
-    g_artist_font=*TF(UI_28);g_artist_font.fallback=ui_font_cjk(24);
+    g_title_font=*(th_simple()?TF(MUSIC_TITLE):TF(UI_36));g_title_font.fallback=ui_font_cjk(28);
+    g_artist_font=*(th_simple()?TF(MUSIC_ARTIST):TF(UI_28));g_artist_font.fallback=ui_font_cjk(24);
     pair(root, g_ti, &g_title_font, 296, 194, 0);
-    pair(root, g_ar, &g_artist_font, 280, 244, 1);
+    pair(root, g_ar, &g_artist_font, 280, th_simple()?250:244, 1);
     pair(root,g_status,TF(UI_20),160,20,1);dsaver_set_status(g_batt,g_charging,g_wifi,g_bt);
     for(int k = 0; k < 2; k++){                                   /* the scaled clock grows from its middle */
         lv_obj_update_layout(g_t[k]);
@@ -129,7 +131,7 @@ void dsaver_set_weather(const char *s){                           /* "<icon>  14
 }
 void dsaver_set_track(const char *title, const char *artist){
     ptext(g_ti, title ? title : ""); ptext(g_ar, artist ? artist : "");
-    if(g_img){ const void *src = ui_current_sharp_img();
+    if(g_img){ const void *src = saver_art();
         if(src){ lv_image_set_src(g_img, src); lv_obj_remove_flag(g_img, LV_OBJ_FLAG_HIDDEN); } else lv_obj_add_flag(g_img, LV_OBJ_FLAG_HIDDEN); }
     progress();
 }

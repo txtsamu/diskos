@@ -1,4 +1,4 @@
-# Simple — theme preview 0.3
+# Simple — theme preview 0.4
 
 A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
 configuration keys and presentation paths. Simple uses Disco's menus, track
@@ -91,3 +91,42 @@ This pass provides native stills and motion previews, not an update package.
   the same progress bar position and the gesture field covers the full info block.
 - Native-size list, USB and clipboard symbols avoid small fallback glyphs.
 - The arrow from D! also acknowledges double-tap playback and both track swipes.
+
+## Preview 0.4 — secondary screens and control polish
+
+Simple's component kit owns its control surfaces and ink rather than applying
+Ring's solid-fill assumptions first. Buttons retain each screen's geometry;
+small keyboard keys are not expanded into neighbouring targets. Round icon
+surfaces use a quiet vertical accent wash and a small downward shadow. Orange
+icons and selected-state radio shading stay intact through accent restyling.
+Large scrolling panels are excluded from the button treatment.
+
+- Search: inset query field, separated keyboard targets, readable active Search
+  text, themed results and preserved explicit search / Back behaviour.
+- A–Z: opaque palette canvas, orange heading, larger letters and round outlined
+  targets. Letter jumping and tap-outside dismissal use the shared callbacks.
+- EQ: controls centred without the Disco side-tab offset; On / Off ink remains
+  readable on a shaded surface. Existing profile / editor actions are retained.
+- App landing buttons, track-popup actions, dialogs and list controls use the
+  same Simple surfaces. Stats retains its charts and data presentation, with
+  Simple typography, semantic colours and shared control treatment.
+- Standby uses Simple's Plain / Blur / Cover selection, palette-aware dimming
+  and larger Nunito metadata. Disco's standby path remains unchanged.
+- Long screen headers use the smaller Nunito heading face when needed instead
+  of clipping the title. Secondary screen headings use the orange accent.
+
+Native review set: Stats overview / top artists, Search keyboard / results,
+A–Z in both palettes; Music launcher, QS, Library, EQ overview / faders,
+Bluetooth, Wi-Fi, track info, Settings, Battery, Weather, Help, standby,
+Roulette / Stats landings, Simple options, Queue, Up Next, Modes, Shortcuts,
+Network, System, Files, Books, date/time, Lyrics, volume and track popup.
+Empty content fixtures establish chrome and layout; they do not validate live
+network, files, lyrics or device state. Standalone installed app internals are
+outside the host theme contract.
+
+Focused native checks cover A–Z open / jump / close, typed Search ink and key
+separation, Search results / Back, EQ selection / editing / restore, and the
+existing Simple QS / navigation / playback gesture checks. Null's typed Search
+ink regression check also passes. Device performance and hardware behaviour
+still need a physical Disc. This preview includes source and renders, not an
+update binary.

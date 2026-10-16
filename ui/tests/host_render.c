@@ -676,6 +676,8 @@ int main(int argc, char **argv){
             int before=send_count; lv_obj_send_event(t,LV_EVENT_LONG_PRESSED,NULL); assert(send_count==before);
         }
         for(int i=0;i<40;i++){lv_tick_inc(10);lv_timer_handler();}
+        if(getenv("LIB_AZ")){lv_obj_t*l=find_text(root,"A - Z");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);kit_pass(root);
+            if(getenv("REVIEW_SIMPLE_AZ")){lv_obj_t*m=find_visible_text(root,"M");assert(m);lv_obj_send_event(lv_obj_get_parent(m),LV_EVENT_CLICKED,NULL);assert(!lv_obj_is_visible(m));assert(lv_obj_get_scroll_y(library_scroller())>0);puts("PASS: Simple A-Z opens, jumps to M and closes");}}
         goto render;
     }
     if(!strncmp(argv[3],"search",6)){              /* fork: search-<query>[-go]: type, optionally press Search */
@@ -697,6 +699,11 @@ int main(int argc, char **argv){
             puts("PASS: typed Null search button uses visible active ink");
         }
 
+        if(getenv("REVIEW_SIMPLE_SEARCH")){
+            assert(th_simple());lv_obj_update_layout(root);lv_obj_t*button=ui_action_find("search.go");assert(button);assert(lv_color_eq(lv_obj_get_style_text_color(lv_obj_get_child(button,0),0),TC(TEXT_PRIMARY)));
+            lv_obj_t*a=find_text(root,"H"),*b=find_text(root,"I");assert(a&&b);lv_area_t aa,bb;lv_obj_get_coords(lv_obj_get_parent(a),&aa);lv_obj_get_coords(lv_obj_get_parent(b),&bb);assert(aa.x2<bb.x1);
+            puts("PASS: Simple typed search has readable ink and separated keyboard targets");
+        }
         if(go){ int before=send_count; lv_obj_send_event(ui_action_find("search.go"),LV_EVENT_CLICKED,NULL);
                 assert(search_scroller()!=NULL); assert(send_count==before);
                 if(getenv("SEARCH_BACK")){ assert(search_back_consumed()); assert(search_scroller()==NULL); } }
@@ -739,7 +746,7 @@ int main(int argc, char **argv){
         if(!strcmp(argv[3],"roulette-land")) screen_show(SCR_ROULETTE);
         else { roulette_spin_open(); int ms=atoi(argv[3]+9);
             for(int t=0;t<ms;t+=10){ lv_tick_inc(10); lv_timer_handler(); if(t%200==0) usleep(2000); } }
-        for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
+        for(int i=0;i<35;i++){lv_tick_inc(10);lv_timer_handler();}
         goto render;
     }
     if(!strcmp(argv[3],"splashbench")){           /* the splash's cost per frame: ms of work per 40 ms step */
@@ -1517,8 +1524,8 @@ int main(int argc, char **argv){
             char saver_title[192];theme_upper(saver_title,sizeof saver_title,st.title);
             lv_obj_t *title=find_text(screen_get_root(scr),th_null()?saver_title:st.title), *artist=find_text(screen_get_root(scr),st.artist);
             assert(title && artist);
-            assert(lv_label_get_long_mode(title)==LV_LABEL_LONG_SCROLL_CIRCULAR);
-            assert(lv_label_get_long_mode(artist)==LV_LABEL_LONG_SCROLL_CIRCULAR);
+            assert(lv_label_get_long_mode(title)==(th_simple()?LV_LABEL_LONG_DOT:LV_LABEL_LONG_SCROLL_CIRCULAR));
+            assert(lv_label_get_long_mode(artist)==(th_simple()?LV_LABEL_LONG_DOT:LV_LABEL_LONG_SCROLL_CIRCULAR));
             int extra=atoi(page+5);
             for(int i=0;i<extra/10;i++){lv_tick_inc(10);lv_timer_handler();}
         }

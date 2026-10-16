@@ -171,11 +171,12 @@ static void query_changed(void){
     lv_obj_set_style_text_color(g_query_lbl, g_query[0] ? TC(TEXT_PRIMARY) : TC(TEXT_DISABLED), 0);
     lv_obj_update_layout(g_query_lbl);                          /* the caret sits right after the text */
     int w = g_query[0] ? lv_obj_get_width(g_query_lbl) : 0;
-    lv_obj_set_x(g_caret, g_query[0] ? 47 + (w > 190 ? 190 : w) + 1 : 43);
+    lv_obj_set_x(g_caret, g_query[0] ? 47 + (w > (th_simple()?142:190) ? (th_simple()?142:190) : w) + 1 : 43);
     int on = g_query[0] != 0;                                   /* Search is live only with something typed */
     lv_obj_set_style_bg_color(g_go, on ? ui_current_accent() : TC(SURFACE), 0);
+    if(th_simple())lv_obj_set_style_bg_color(g_go,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),on?60:24),0);
     if(th_null())lv_obj_set_style_bg_opa(g_go,LV_OPA_TRANSP,0);
-    lv_obj_set_style_text_color(g_go_lbl, th_null()?(on?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY)):(on?TC(ON_ACCENT):TC(TEXT_DISABLED)), 0);
+    lv_obj_set_style_text_color(g_go_lbl, (th_null()||th_simple())?(on?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY)):(on?TC(ON_ACCENT):TC(TEXT_DISABLED)), 0);
 }
 static void bksp(int all){
     size_t n = strlen(g_query);
@@ -372,6 +373,12 @@ void search_create(lv_obj_t *root){
     lv_obj_set_style_text_font(g_mode_lbl, TF(UI_14), 0);
     lv_obj_set_style_text_color(g_mode_lbl, TC(TEXT_SECONDARY), 0);
     lv_obj_center(g_mode_lbl);
+    if(th_simple()){
+        lv_obj_set_size(g_field,200,42);lv_obj_align(g_field,LV_ALIGN_TOP_MID,0,28);
+        lv_obj_set_style_max_width(g_query_lbl,142,0);lv_obj_set_style_text_font(g_query_lbl,TF(UI_20),0);
+        lv_obj_set_style_border_width(g_field,1,0);lv_obj_set_style_border_color(g_field,TC(ACCENT_PRIMARY),0);lv_obj_set_style_border_opa(g_field,80,0);
+        lv_obj_set_size(g_go,150,36);lv_obj_align(g_go,LV_ALIGN_TOP_MID,0,76);
+    }
     /* the results page: covers the keyboard; its back header returns to it with the query kept */
     g_res_page = lv_obj_create(root);
     lv_obj_remove_style_all(g_res_page);

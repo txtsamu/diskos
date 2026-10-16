@@ -45,16 +45,25 @@ int simple_cfg_set_int(const char*k,int v){char b[64];return cfg_set_int(scope(k
 int simple_cfg_set_str(const char*k,const char*v){char b[64];return cfg_set_str(scope(k,b,sizeof b),v);}
 int simple_cfg_set_int_deferred(const char*k,int v){char b[64];return cfg_set_int_deferred(scope(k,b,sizeof b),v);}
 int simple_cfg_set_str_deferred(const char*k,const char*v){char b[64];return cfg_set_str_deferred(scope(k,b,sizeof b),v);}
+static char simple_label_tag;
 static lv_obj_t *label(lv_obj_t*p,const char*s,int x,int y,int w,const lv_font_t*f,lv_color_t c){
  lv_obj_t*l=lv_label_create(p);lv_label_set_text(l,s);lv_obj_set_pos(l,x,y);lv_obj_set_width(l,w);
  lv_label_set_long_mode(l,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(l,f,0);lv_obj_set_style_text_color(l,c,0);
- lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(l,LV_OBJ_FLAG_CLICKABLE);kit_keep(l);return l;
+ lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(l,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_user_data(l,&simple_label_tag);kit_keep(l);return l;
+}
+/* Quiet bevel shared by Simple's icon surfaces; no animation or bitmap cost. */
+static void simple_shade(lv_obj_t *o){
+ lv_obj_set_style_bg_color(o,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),38),0);
+ lv_obj_set_style_bg_grad_color(o,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),12),0);
+ lv_obj_set_style_bg_grad_dir(o,LV_GRAD_DIR_VER,0);lv_obj_set_style_bg_opa(o,255,0);
+ lv_obj_set_style_shadow_color(o,TC(FIXED_MEDIA_BLACK),0);lv_obj_set_style_shadow_opa(o,24,0);
+ lv_obj_set_style_shadow_width(o,5,0);lv_obj_set_style_shadow_offset_y(o,2,0);
 }
 static lv_obj_t *circle(lv_obj_t*p,int cx,int cy,int size){
  lv_obj_t*b=lv_button_create(p);lv_obj_remove_style_all(b);lv_obj_set_size(b,size,size);lv_obj_set_pos(b,cx-size/2,cy-size/2);
  lv_obj_set_style_radius(b,LV_RADIUS_CIRCLE,0);lv_obj_set_style_border_width(b,2,0);lv_obj_set_style_border_color(b,TC(ACCENT_PRIMARY),0);
  lv_obj_set_style_bg_color(b,TC(ACCENT_PRIMARY),0);lv_obj_set_style_bg_opa(b,24,0);lv_obj_set_style_bg_opa(b,90,LV_STATE_PRESSED);
- lv_obj_remove_flag(b,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);kit_keep(b);return b;
+ simple_shade(b);lv_obj_remove_flag(b,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);kit_keep(b);return b;
 }
 /* ---- One-item wheel; rotation is about the bottom hub, never the screen centre. ---- */
 static lv_obj_t *nav_root,*nav_panel,*nav_hub,*nav_items[3],*nav_icons[3],*nav_names[3],*nav_pos;
@@ -178,7 +187,7 @@ void simple_qs_refresh(int playing){
  if(!qs_root)return;
  if(qs_pp_icon)lv_label_set_text(qs_pp_icon,playing?LV_SYMBOL_PAUSE:LV_SYMBOL_PLAY);
  if(qs_bright&&!lv_obj_has_state(qs_bright,LV_STATE_PRESSED))lv_arc_set_value(qs_bright,ui_get_brightness());
- for(int i=0;i<qs_n;i++){int active=qs_ids[i]==0?wifi_radio_live()>0:qs_ids[i]==1?bt_state()>0:0;lv_obj_set_style_bg_opa(qs_tiles[i],active?95:20,0);}
+ for(int i=0;i<qs_n;i++){int active=qs_ids[i]==0?wifi_radio_live()>0:qs_ids[i]==1?bt_state()>0:0;lv_obj_set_style_bg_color(qs_tiles[i],theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),active?90:38),0);}
  if(qs_progress){track_state_t st;ipc_get_state(&st);int f=st.duration_ms>0?(int)(st.position_ms*1000LL/st.duration_ms):0;if(f<0)f=0;if(f>1000)f=1000;lv_arc_set_value(qs_progress,f);}
 }
 void simple_qs_art(const void*src){
@@ -224,19 +233,32 @@ void simple_qs_create(lv_obj_t*r){
 }
 /* Scoped component styler: keep inherited Disco geometry; change only this theme's surfaces. */
 static void simple_style(lv_obj_t*o,kit_role_t role){
+ if(lv_obj_get_user_data(o)==&simple_label_tag)return;
  if(simple_music_protected(o)||o==nav_root||o==nav_panel||o==nav_hub)return;
- if(theme_kit_ring.style)theme_kit_ring.style(o,role);
+ /* Simple owns control ink; Ring's filled-button ink assumes an opaque accent. */
  if(lv_obj_check_type(o,&lv_label_class)&&lv_label_get_long_mode(o)==LV_LABEL_LONG_SCROLL_CIRCULAR)lv_label_set_long_mode(o,LV_LABEL_LONG_DOT);
  switch(role){
  case KIT_TITLE:lv_obj_set_style_text_color(o,TC(ACCENT_PRIMARY),0);break;
  case KIT_BACK:case KIT_ICON_BUTTON:case KIT_BUTTON:{
-  int w=lv_obj_get_width(o),h=lv_obj_get_height(o);if(w>0&&w<80&&h>0&&h<80){int d=w>h?w:h;if(d<44)d=44;lv_obj_set_size(o,d,d);}
+  if(lv_obj_get_width(o)>=200&&lv_obj_get_height(o)>100){if(lv_obj_get_width(o)>=340&&lv_obj_get_height(o)>=340){lv_obj_set_style_bg_color(o,TC(CANVAS),0);lv_obj_set_style_bg_grad_dir(o,LV_GRAD_DIR_NONE,0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_bg_opa(o,255,0);}break;}
   lv_obj_set_style_radius(o,LV_RADIUS_CIRCLE,0);lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,TC(ACCENT_PRIMARY),0);
-  lv_obj_set_style_bg_color(o,TC(ACCENT_PRIMARY),0);lv_obj_set_style_bg_opa(o,22,0);lv_obj_set_style_bg_opa(o,85,LV_STATE_PRESSED);break;}
+  simple_shade(o);lv_obj_set_style_bg_color(o,TC(ACCENT_PRIMARY),LV_STATE_PRESSED);lv_obj_set_style_bg_opa(o,85,LV_STATE_PRESSED);
+  lv_obj_set_style_text_color(o,TC(TEXT_PRIMARY),0);lv_obj_set_style_text_color(o,TC(TEXT_DISABLED),LV_STATE_DISABLED);
+  for(uint32_t i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t*l=lv_obj_get_child(o,i);if(lv_obj_check_type(l,&lv_label_class)&&lv_obj_get_user_data(l)!=&simple_label_tag)lv_obj_set_style_text_color(l,TC(TEXT_PRIMARY),0);}
+  break;}
  case KIT_ROW:lv_obj_set_style_radius(o,LV_RADIUS_CIRCLE,0);lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,TC(ACCENT_PRIMARY),0);lv_obj_set_style_border_opa(o,55,0);break;
  case KIT_ROW_TEXT:lv_label_set_long_mode(o,LV_LABEL_LONG_DOT);break;
  case KIT_SCRIM:lv_obj_set_style_bg_color(o,TC(CANVAS),0);lv_obj_set_style_bg_opa(o,255,0);break;
- case KIT_TEXT:break;
+ case KIT_TEXT:{
+  lv_obj_t*p=lv_obj_get_parent(o);
+  if(p==screen_get_root(screen_current())&&lv_obj_get_y(o)>=20&&lv_obj_get_y(o)<=50)lv_obj_set_style_text_color(o,TC(ACCENT_PRIMARY),0);
+  if(p&&lv_obj_has_flag(p,LV_OBJ_FLAG_CLICKABLE)&&lv_obj_get_event_count(p)>0&&lv_obj_get_width(p)<=200&&lv_obj_get_height(p)<=90)
+   lv_obj_set_style_text_color(o,lv_obj_has_state(p,LV_STATE_DISABLED)?TC(TEXT_DISABLED):TC(TEXT_PRIMARY),0);
+  break;}
+ case KIT_TEXTAREA:lv_obj_set_style_radius(o,22,0);lv_obj_set_style_border_color(o,TC(ACCENT_PRIMARY),0);lv_obj_set_style_border_width(o,1,0);break;
+ case KIT_SLIDER:case KIT_BAR:
+  lv_obj_set_style_bg_color(o,TC(BORDER_STRONG),LV_PART_MAIN);lv_obj_set_style_bg_color(o,TC(ACCENT_PRIMARY),LV_PART_INDICATOR);lv_obj_set_style_bg_color(o,TC(ACCENT_PRIMARY),LV_PART_KNOB);break;
+ case KIT_POPUP:lv_obj_set_style_bg_color(o,TC(CANVAS),0);lv_obj_set_style_border_color(o,TC(ACCENT_PRIMARY),0);lv_obj_set_style_radius(o,24,0);break;
  default:break;
  }
 }
@@ -245,7 +267,8 @@ static lv_obj_t*simple_header(lv_obj_t*r,const char*t,lv_event_cb_t cb){
  const char*shown=!strcmp(t,"Disco Options")?"Simple":!strcmp(t,"Disco Colours")?"Colours":!strcmp(t,"Disco Layout")?"Layout":t;
  lv_obj_t*b=circle(r,92,44,44);label(b,LV_SYMBOL_LEFT,0,10,44,TF(UI_20),TC(ACCENT_PRIMARY));
  ui_on(b,cb?cb:simple_back,LV_EVENT_CLICKED,NULL,"nav.back",UI_CORE);
- lv_obj_t*l=label(r,shown,120,26,168,TF(HEADER),TC(ACCENT_PRIMARY));lv_obj_set_height(l,40);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);return l;
+ lv_point_t size;lv_text_get_size(&size,shown,TF(HEADER),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ lv_obj_t*l=label(r,shown,120,26,168,size.x>168?TF(UI_22):TF(HEADER),TC(ACCENT_PRIMARY));lv_obj_set_height(l,40);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);return l;
 }
 const theme_kit_t theme_kit_simple={.id="simple",.style=simple_style,.header=simple_header};
 

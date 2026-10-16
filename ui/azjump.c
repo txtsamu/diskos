@@ -52,7 +52,7 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
     lv_obj_set_user_data(a->grid, a);
     lv_obj_set_size(a->grid, 360, 360); lv_obj_set_pos(a->grid, 0, 0);
     lv_obj_set_style_bg_color(a->grid, th_null()?TC(FIXED_MEDIA_BLACK):TC(CANVAS), 0);
-    lv_obj_set_style_bg_opa(a->grid, th_null()?128:LV_OPA_80, 0);
+    lv_obj_set_style_bg_opa(a->grid, th_null()?128:th_simple()?255:LV_OPA_80, 0);
     lv_obj_add_flag(a->grid, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(a->grid, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(a->grid, grid_bg_cb, LV_EVENT_CLICKED, NULL);
@@ -60,8 +60,8 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
     lv_obj_t *gt = lv_label_create(a->grid);                  /* says it's navigation, not a sort control */
     lv_label_set_text(gt, tr("Jump to"));
     lv_obj_align(gt, LV_ALIGN_TOP_MID, 0, 20);
-    lv_obj_set_style_text_font(gt, TF(UI_14), 0);
-    lv_obj_set_style_text_color(gt, TC(TEXT_MUTED), 0);
+    lv_obj_set_style_text_font(gt, th_simple()?TF(UI_22):TF(UI_14), 0);
+    lv_obj_set_style_text_color(gt, th_simple()?TC(ACCENT_PRIMARY):TC(TEXT_MUTED), 0);
     static const char *AZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#";
     int cols = 5, cw = 52, ch = 48, n = 27, gw = cols * cw, x0 = (360 - gw) / 2, rows = (n + cols - 1) / cols, y0 = 48;
     for(int i = 0; i < n; i++){
@@ -79,7 +79,7 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
         lv_obj_add_event_cb(cell, letter_cb, LV_EVENT_CLICKED, (void *)(intptr_t)AZ[i]);
         lv_obj_t *l = lv_label_create(cell);
         char b[2] = { AZ[i], 0 }; lv_label_set_text(l, b);
-        lv_obj_set_style_text_font(l, TF(UI_20), 0);
+        lv_obj_set_style_text_font(l, th_simple()?TF(UI_24):TF(UI_20), 0);
         lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0); lv_obj_center(l);
     }
 }

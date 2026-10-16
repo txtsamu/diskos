@@ -48,6 +48,7 @@ void eqpreset_refresh(void){
  if(switch_pointer)lv_obj_set_style_bg_color(switch_pointer,p?theme_on_color(ui_current_accent()):TC(TEXT_MUTED),0);
  lv_obj_set_style_bg_color(switch_button,p?ui_current_accent():TC(SURFACE),0);
  lv_obj_set_style_text_color(switch_label,p?theme_on_color(ui_current_accent()):TC(TEXT_PRIMARY),0);
+ if(th_simple()){lv_obj_set_style_bg_color(switch_button,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),p?60:24),0);lv_obj_set_style_text_color(switch_label,TC(TEXT_PRIMARY),0);lv_obj_add_flag(switch_pointer,LV_OBJ_FLAG_HIDDEN);}
  if(th_null()){
   lv_obj_set_style_bg_opa(switch_button,0,0);lv_obj_set_style_border_width(switch_button,1,0);
   lv_obj_set_style_border_color(switch_button,p?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY),0);
@@ -81,7 +82,7 @@ void eqpreset_create(lv_obj_t *root){
  lv_obj_set_size(switch_pointer,3,9);lv_obj_align(switch_pointer,LV_ALIGN_TOP_MID,10,4);
  lv_obj_set_style_bg_opa(switch_pointer,LV_OPA_COVER,0);lv_obj_set_style_radius(switch_pointer,1,0);
  lv_obj_set_style_transform_rotation(switch_pointer,300,0);lv_obj_clear_flag(switch_pointer,LV_OBJ_FLAG_CLICKABLE);
- if(th_disco_family()){   /* fork: Disco keeps the navigation circle's sliver on the right rim - the controls step left of it */
+ if(th_disco()){   /* fork: Disco keeps the navigation circle's sliver on the right rim - the controls step left of it */
   for(uint32_t k=0;k<lv_obj_get_child_count(root);k++){
    lv_obj_t *o=lv_obj_get_child(root,(int32_t)k);
    if(o==name_label||o==edit_button||o==rename_button||o==note_label||o==switch_button) lv_obj_set_style_translate_x(o,disco_mirror()?20:-20,0);   /* Left: step right of it */
