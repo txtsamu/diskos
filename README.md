@@ -180,6 +180,8 @@ Null is right-handed. Both Disco and Null include one-topic How to pages and con
 hints; selectors and explanations are larger, with room to read and tap.
 See the [Null guide](docs/NULL_THEME.md) for the complete design and settings.
 
+Building another theme? Start with the [theme authoring framework](themes.md): shared features, component hooks, scoped options and a focused acceptance checklist.
+
 ## Also included: Ring and Braun
 
 Two more complete themes, with the same features and settings, are in **Settings › Display › Theme › Theme**:
