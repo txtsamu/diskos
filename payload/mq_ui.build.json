@@ -1,15 +1,14 @@
 {
-  "version": "2.3.0-Null.5",
-  "status": "development candidate; focused host checks passed; physical Disc testing pending",
-  "source_commit": "f3d8c3108ee932ef5e5e32659939b16687e22ea1",
-  "base_commit": "f3d8c3108ee932ef5e5e32659939b16687e22ea1",
-  "working_changes": false,
-  "ui_source_sha256": "23bb79ae15fa6a20ef71d147727a70320c880f7e94c3acbebd4de1c3c7bf439d",
+  "version": "2.3.9",
+  "status": "device-test candidate; focused pointer checks and MIPS ABI checks passed; physical Disc testing pending",
+  "source_commit": "b87fe069cb82b6db7651bf34015ed7c609694d81",
+  "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
+  "ui_source_sha256": "a1f5503703cc8bdf29f076b8333869bd9f3c30666febe6d18d171cec472fda92",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "80070b4c8a26e1451446d9fda2625d7eafc5854de6b4ed2de3494df2934b6a08",
-    "md5": "c8a3b3f076aefe39ad9b1335c2b2cb4c",
-    "bytes": 6345348
+    "sha256": "783cc7263e91bd13cbbd483a0b6beffe8b98d8b61d6bc98a5569b8be46f9d0c5",
+    "md5": "14cec0c4f0db2a53dbe23376906277e3",
+    "bytes": 6390672
   }
 }
