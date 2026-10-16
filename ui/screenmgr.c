@@ -22,8 +22,8 @@ static int s_current = SCR_HOME;
 static int s_popping;
 static int s_stack[16];
 static int s_sp = 0;
-#define PUSH_MS (th_null()?200:300) //   /* entrance (cubic ease-out: covers distance fast, settles gently) */
-#define POP_MS (th_null()?180:240) //   /* exit faster than entrance - a premium-motion reflex */
+#define PUSH_MS (th_simple()?180:th_null()?200:300) //   /* entrance (cubic ease-out: covers distance fast, settles gently) */
+#define POP_MS (th_simple()?140:th_null()?180:240) //   /* exit faster than entrance - a premium-motion reflex */
 static int s_anim = 1;   /* slide transitions; disabled by /usr/data/anim_off */
 static int s_skip;       /* the next change shows at once: the caller animates it itself (Disco immersive) */
 
@@ -108,9 +108,11 @@ static void anim_done_push(lv_anim_t *a)
 /* Slide between screens. dir = +1 push (new from right), -1 pop (new from left). */
 static void transition_core(int from, int to, int dir);
 void crash_crumb(int screen);
+int disco_editor_back(void);
 static void transition(int from, int to, int dir)
 {
     crash_crumb(to);
+    if(!th_disco_family()&&!th_null())disco_editor_back();
     if(th_null())null_screen_leaving();
     if(th_null() && to==SCR_QUICK){
       npmenu_close_transients();songmenu_close();fileops_close();ui_np_close_overlays();
@@ -273,6 +275,7 @@ void screen_home(void)
 void screen_back(void)
 {
     if(th_simple()&&simple_nav_is_open()){simple_nav_open(0);return;}
+    if(disco_editor_back())return;
     if(disco_track_overlay_visible()){dhome_overlay_close();return;}
     if (s_current != SCR_SAVER && screen_press_was_long()) { screen_home(); return; }
     if (s_current == SCR_SEARCH && (search_back_consumed() || search_back_to_landing())) return;   /* fork: results page -> back to the keyboard */

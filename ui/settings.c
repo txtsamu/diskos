@@ -801,6 +801,8 @@ static const setting_t TABLE[] = {
       "Light UI at full brightness for sunlight; uses more battery. Off restores your brightness.", NULL },
     { "Theme Colours",  "Accent Colour", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_colorpick, 0,
       "Now Playing accent: derived from album art, or any fixed colour you pick.", NULL },
+    { "Text & Layout", "Quick items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
+      "Choose and reorder quick actions, including playback mode.",NULL },
     { "Text & Layout",  "Font Size",   ST_CYCLER, "font_size", 0,0,0, OPT_FONTSIZE, 3, NULL, apply_font_size, 1,
       "Small, Medium or Large list/body text; titles and clocks stay fixed. Restarts the UI; music continues.", NULL },
     { "Text & Layout",  "Screen Rotation", ST_CYCLER, CTL_CFG_ROT, 0,0,0, OPT_ROTATION, CTL_ROT_N, NULL, apply_screen_rot, 0,
@@ -1604,6 +1606,8 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
+        if(th_disco_family()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
+        if(th_null()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
         if(!th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"simple_background"))continue;
         if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
         if(!th_disco_family() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;

@@ -48,7 +48,7 @@ void eqpreset_refresh(void){
  if(switch_pointer)lv_obj_set_style_bg_color(switch_pointer,p?theme_on_color(ui_current_accent()):TC(TEXT_MUTED),0);
  lv_obj_set_style_bg_color(switch_button,p?ui_current_accent():TC(SURFACE),0);
  lv_obj_set_style_text_color(switch_label,p?theme_on_color(ui_current_accent()):TC(TEXT_PRIMARY),0);
- if(th_simple()){lv_obj_set_style_bg_color(switch_button,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),p?60:24),0);lv_obj_set_style_text_color(switch_label,TC(TEXT_PRIMARY),0);lv_obj_add_flag(switch_pointer,LV_OBJ_FLAG_HIDDEN);}
+ if(th_simple()){if(p)lv_obj_add_state(switch_button,LV_STATE_CHECKED);else lv_obj_remove_state(switch_button,LV_STATE_CHECKED);lv_obj_set_style_bg_grad_dir(switch_button,LV_GRAD_DIR_NONE,0);lv_obj_set_style_bg_color(switch_button,p?TC(ACCENT_PRIMARY):theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),24),0);lv_obj_set_style_text_color(switch_label,p?theme_on_color(TC(ACCENT_PRIMARY)):TC(TEXT_PRIMARY),0);lv_obj_add_flag(switch_pointer,LV_OBJ_FLAG_HIDDEN);}
  if(th_null()){
   lv_obj_set_style_bg_opa(switch_button,0,0);lv_obj_set_style_border_width(switch_button,1,0);
   lv_obj_set_style_border_color(switch_button,p?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY),0);

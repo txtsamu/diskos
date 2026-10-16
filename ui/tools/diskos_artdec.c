@@ -589,11 +589,11 @@ static int orient(uint16_t **img, int N, int o){
 /* in-place Gaussian approximation: three box passes per axis, integer running sums. The box sizes for sigma 19
  * (standard n-box formula) are fixed at compile time so no floating point runs on the device. */
 static const int BLUR_BOXES_S19[3] = { 37, 37, 39 };   /* wl=37, wu=39, m=round((12*361-3*1369-12*37-9)/(-152))=2 */
-static int blur(uint16_t *img, int N){
+static int blur_boxes(uint16_t *img, int N,const int boxes[3]){
     uint16_t *line = bmalloc(sizeof(uint16_t) * (size_t)N * 3);
     if(!line) return -1;
     for(int pass = 0; pass < 3; pass++){
-        int r = (BLUR_BOXES_S19[pass] - 1) / 2, w = 2 * r + 1;
+        int r = (boxes[pass] - 1) / 2, w = 2 * r + 1;
         for(int axis = 0; axis < 2; axis++){
             for(int a = 0; a < N; a++){
                 for(int c = 0; c < 3; c++){
@@ -734,9 +734,20 @@ static int make(const pic_t *p, int N, int box, int blurred, uint16_t **res){
     uint16_t *img = resample(p->rgb, p->w, p->h, N, box);
     if(!img) return ST_LIMIT;
     if(orient(&img, N, p->orient)){ bfree(img); return ST_LIMIT; }
-    if(blurred && blur(img, N)){ bfree(img); return ST_LIMIT; }
+    if(blurred && blur_boxes(img,N,BLUR_BOXES_S19)){ bfree(img); return ST_LIMIT; }
     *res = img;
     return ST_OK;
+}
+
+/* Simple: a moderate blur at one third resolution, then bilinear upscale.
+ * The old art profile remains byte-for-byte on its original filter path. */
+static int make_soft_backdrop(const pic_t*p,uint16_t **res){
+ enum { SMALL=120 };static const int boxes[3]={5,7,7};
+ uint16_t*small=resample(p->rgb,p->w,p->h,SMALL,0);if(!small)return ST_LIMIT;
+ if(orient(&small,SMALL,p->orient)||blur_boxes(small,SMALL,boxes)){bfree(small);return ST_LIMIT;}
+ unsigned char*rgb=bmalloc(SMALL*SMALL*3);if(!rgb){bfree(small);return ST_LIMIT;}
+ for(int i=0;i<SMALL*SMALL*3;i++){unsigned v=(small[i]+128u)>>8;rgb[i]=(unsigned char)(v>255?255:v);}
+ bfree(small);*res=resample(rgb,SMALL,SMALL,360,0);bfree(rgb);return *res?ST_OK:ST_LIMIT;
 }
 
 /* Resource limits for this process. Returns -1 if any could not be applied: the helper then refuses to run
@@ -762,9 +773,10 @@ static int artdec_main(int argc, char **argv){
 int main(int argc, char **argv){
 #endif
     if(argc != 4) return ST_USAGE;
+    int soft = !strcmp(argv[1],"art-soft");
     int saver = !strcmp(argv[1], "saver");
     int poster = !strcmp(argv[1], "poster");
-    if(!saver && !poster && strcmp(argv[1], "art")) return ST_USAGE;
+    if(!saver && !poster && !soft && strcmp(argv[1], "art")) return ST_USAGE;
 #ifndef ARTDEC_INPROC
     if(limits()) return ST_LIMIT;                             /* in-process: the budget above still applies */
 #endif
@@ -830,7 +842,7 @@ int main(int argc, char **argv){
     uint16_t *c = NULL, *t = NULL, *b = NULL;
     rc = make(&pic, 148, 1, 0, &c);
     if(rc == ST_OK) rc = make(&pic, 42, 1, 0, &t);
-    if(rc == ST_OK) rc = make(&pic, 360, 0, 1, &b);
+    if(rc == ST_OK) rc = soft?make_soft_backdrop(&pic,&b):make(&pic,360,0,1,&b);
     stbi_image_free(pic.rgb);
     int mc = 0, mt = 0, mb = 0;
     if(rc == ST_OK) rc = write_bmp(pc, c, 148, &mc);

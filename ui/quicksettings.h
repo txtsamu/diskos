@@ -5,8 +5,12 @@
 typedef struct { const char *code, *name, *icon; } qs_item_t;
 const char *quicksettings_item_glyph(int id);
 int quicksettings_item_count(void);
+int quicksettings_item_limit(void);
+int quicksettings_playback_item(void);
+int quicksettings_item_active(int);
 const qs_item_t *quicksettings_item(int id);
 int quicksettings_items_load(int *items);
 int quicksettings_items_save(const int *items, int count);
 void disco_qs_menu_open(void);
+void quicksettings_null_action(int,int);
 #endif

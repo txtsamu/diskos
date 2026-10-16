@@ -865,14 +865,14 @@ void null_qs_build(void)
     for(int i=0;i<8;i++)qids[i]=i<count?items[i]:-1;
     static const char *shorts[] = {"WIFI",  "BT",   "LIBRY", "SCAN",   "MODES", "STNGS",
                                    "EQ",    "SRCH", "QUEUE", "UP NXT", "SHRTS", "WTHR",
-                                   "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS"};
+                                   "LYRCS", "INFO", "IMMRS", "FLDRS",  "FAVS", "PLY MD"};
     const lv_font_t *icons=TF(QS_ICON_28);
     int show_icons=simple_cfg_get_int("null_qs_layout",0)==1;
     for(int i=0;i<8;i++){
         if(i>=qcount){lv_obj_add_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);continue;}
         lv_obj_remove_flag(qfields[i],LV_OBJ_FLAG_HIDDEN);
         int id=qids[i];
-        text_set(qcaptions[i],show_icons?quicksettings_item_glyph(id):(id>=0 && id<17?shorts[id]:"ITEM"));
+        text_set(qcaptions[i],show_icons?quicksettings_item_glyph(id):(id>=0 && id<(int)(sizeof shorts/sizeof *shorts)?shorts[id]:"ITEM"));
         lv_obj_set_style_text_font(qcaptions[i],show_icons?icons:&pixel14,0);
         lv_obj_set_y(qcaptions[i],show_icons?(50-lv_font_get_line_height(icons))/2:17);
         lv_obj_set_style_text_color(qcaptions[i],TC(TEXT_SECONDARY),0);
@@ -892,7 +892,7 @@ static void radio_state(void)
         int on = qids[i] == 0   ? wifi_radio_live()
                  : qids[i] == 1 ? bt_state() == BT_ON
                  : qids[i] == 3 ? scanner_active()
-                                : 0;
+                 : qids[i]==quicksettings_playback_item()?quicksettings_item_active(qids[i]):0;
         if (!lv_obj_has_state(qfields[i], LV_STATE_PRESSED))
             lv_obj_set_style_text_color(qcaptions[i], on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0);
     }

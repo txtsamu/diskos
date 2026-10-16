@@ -890,7 +890,7 @@ int main(int argc, char **argv){
         }
         cfg_set_int_deferred("online_lyrics",0);cfg_set_int_deferred("online_art",0);
         cfg_set_int_deferred("eq_preset",11);cfg_set_int_deferred("eq_last",11);cfg_set_str("eq_name11","Warm analogue");
-        if(getenv("QS_ITEMS"))cfg_set_str_deferred("disco_qs_items",getenv("QS_ITEMS"));
+        if(getenv("QS_ITEMS"))simple_cfg_set_str_deferred(th_null()?"null_qs_items":th_disco_family()?"disco_qs_items":"qs_items",getenv("QS_ITEMS"));
         if(getenv("DISCO_QS"))cfg_set_int_deferred("disco_qs_style",atoi(getenv("DISCO_QS")));
         if(getenv("DISCO_PROG"))cfg_set_int_deferred("disco_progress",atoi(getenv("DISCO_PROG")));
         if(getenv("DISCO_IMMSTYLE"))cfg_set_int_deferred("disco_imm",atoi(getenv("DISCO_IMMSTYLE")));
@@ -1626,6 +1626,24 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(getenv("REVIEW_V6_QS")){
+        lv_obj_t*quicksettings_test_button(int);void disco_test_editor_close(void);
+        int item=quicksettings_playback_item(),selection[]={item,0,1};assert(quicksettings_items_save(selection,3)==0);quicksettings_build();screen_show(SCR_QUICK);nav_wait(250);
+        lv_obj_t*button=quicksettings_test_button(0);assert(button&&lv_obj_is_visible(button));int before=screen_current();
+        simple_cfg_set_int_deferred("work_mode",0);
+        for(int i=1;i<=5;i++){lv_obj_send_event(button,th_null()?LV_EVENT_CLICKED:LV_EVENT_SHORT_CLICKED,NULL);nav_wait(40);assert(simple_cfg_get_int("work_mode",-1)==i%5);assert(screen_current()==before);}
+        screen_show(SCR_SETTINGS);disco_qs_menu_open();assert(find_visible_text(lv_layer_top(),"Play mode"));screen_back();assert(screen_current()==SCR_SETTINGS);assert(!find_visible_text(lv_layer_top(),"Play mode"));
+        printf("PASS: preset %d QS playback-mode selection, real button cycles all five modes, editor availability\n",theme_preset());return 0;
+    }
+    if(th_simple()&&getenv("REVIEW_V6_MUSIC")){
+        track_state_t st;ipc_get_state(&st);snprintf(st.title,sizeof st.title,"A long track title that extends beyond this field");snprintf(st.artist,sizeof st.artist,"An artist with a deliberately long readable name");snprintf(st.album,sizeof st.album,"An album with a deliberately long readable name");snprintf(st.path,sizeof st.path,"/fixture/scroll-test.flac");ipc_set_external(st.title,st.artist,st.album,st.path,st.duration_ms,st.position_ms,0,0);home_set_now_playing(st.title,st.artist,ui_current_accent(),1);
+        lv_obj_t*root=screen_get_root(SCR_HOME),*title=find_text(root,st.title),*artist=find_text(root,st.artist),*album=find_text(root,st.album);assert(title&&artist&&album);kit_pass(root);nav_wait(50);
+        lv_obj_t*labels[]={title,artist,album};for(int i=0;i<3;i++){assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_SCROLL_CIRCULAR);lv_anim_t*a=lv_anim_get(labels[i],NULL);assert(a&&lv_anim_get_repeat_count(a)==3);}
+        home_set_now_playing(st.title,st.artist,ui_current_accent(),1);nav_wait(120000);for(int i=0;i<3;i++)assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_CLIP);
+        snprintf(st.path,sizeof st.path,"/fixture/next-track.flac");ipc_set_external(st.title,st.artist,st.album,st.path,st.duration_ms,st.position_ms,0,0);home_set_now_playing(st.title,st.artist,ui_current_accent(),1);for(int i=0;i<3;i++)assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_SCROLL_CIRCULAR);
+        const char*g[]={LV_SYMBOL_PLAY,LV_SYMBOL_PAUSE,LV_SYMBOL_NEXT,LV_SYMBOL_PREV};for(int i=0;i<4;i++){simple_playback_feedback(g[i]);nav_wait(30);assert(find_visible_text(lv_layer_top(),g[i]));nav_wait(350);}
+        puts("PASS: Simple metadata starts three cycles, stops, restarts on track identity change, and action-specific logo feedback");return 0;
+    }
     if(th_simple()&&getenv("REVIEW_SIMPLE_PERF")){
         screen_home();nav_wait(250);assert(simple_test_qs_paused());simple_nav_open(1);nav_wait(250);int bindings=simple_test_nav_bindings();
         for(int i=0;i<40;i++)simple_test_nav_phase(i*10);

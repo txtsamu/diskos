@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "sdio.h"
 #include "art.h"
+#include "theme.h"
 int artdec_inproc(const char *mode, const char *input, const char *out);   /* artdec_inproc.c */
 #include <stdio.h>
 #include <stdlib.h>
@@ -179,7 +180,7 @@ static int art_run_helper(const char *input, const char *saver_raw, const char *
     snprintf(sc, sizeof sc, "%s/c.bmp", stage); snprintf(st_, sizeof st_, "%s/t.bmp", stage); snprintf(sb, sizeof sb, "%s/b.bmp", stage);
     snprintf(sv, sizeof sv, "%s/v.bgra", stage);
     /* the same arguments the standalone diskos-artdec takes */
-    char *argv_art[] = { "diskos-artdec", "art", (char *)input, stage, NULL };
+    char *argv_art[] = { "diskos-artdec", th_simple()?"art-soft":"art", (char *)input, stage, NULL };
     char *argv_sav[] = { "diskos-artdec", raw_size == 364 ? "poster" : "saver", (char *)input, sv, NULL };
     char **argv = saver_raw ? argv_sav : argv_art;
     /* The decoder runs IN this thread (artdec_inproc.c): no child process, no fork, no slot to leak. A skip or an

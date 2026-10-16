@@ -1,4 +1,4 @@
-# Simple — theme preview 0.5
+# Simple — theme preview 0.6
 
 A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
 configuration keys and presentation paths. Simple uses Disco's menus, track
@@ -181,3 +181,46 @@ SongSphere landing/tag pages. SongSphere's mood colour field is intentional
 application content. Installed standalone app internals remain outside scope.
 Hardware radio transitions, actual brightness, animation performance, real media
 and custom app handoff still need a physical Disc.
+
+## Preview 0.6 — motion, playback and backgrounds
+
+1. Simple page push/pop runs in 180/140 ms, the main launcher opens/closes in
+   180/130 ms and snaps in 110 ms. The display refresh timer targets 16 ms while
+   this theme is active. Immersive enters/exits in 400/180 ms. The animation
+   budget allows the three metadata marquees alongside page motion.
+2. Active QS radios, EQ, non-default source/playback modes and rescan state use
+   a solid orange surface with contrasting ink. Outlines remain visible. The
+   playing cover badge and Simple EQ On control use the same active treatment.
+3. Music metadata uses Nunito Bold 32/28/26 px. Overflowing title, artist and
+   album run exactly three cycles on track/metadata identity changes, then rest
+   at the start. Repeated position frames do not restart them. Long album names
+   use a full-length metadata cache and are restored before marquee setup.
+4. Play/pause and previous/next feedback fly from D! with the corresponding
+   glyph. Playback state comes from the UI's play-state source for Simple;
+   unreliable raw metadata is not used to choose its glyph.
+5. A shared Play mode QS item (code p) cycles Sequential, Shuffle, Repeat One,
+   Repeat All and Single. Existing configured lists keep their saved entries.
+   It can be selected in every theme. Older fixed-layout presets keep their six
+   positions and now expose Quick items under Display > Text & Layout; Disco
+   retains seven slots, Null/Simple eight. Legacy selections use qs_items,
+   separate from Disco, Null and Simple preferences.
+6. The playback-mode control is hidden on Simple's Music screen. Track actions
+   retain their existing mode control and Play mode can be selected for QS.
+7. Header Back circles are 36 px; the arrow size remains unchanged and the
+   expanded hit area keeps them comfortable to press.
+8. A fixed pair of clipped gradient strips gently fades launcher side icons
+   into the theme canvas. No per-frame blur or bitmap processing is involved.
+9. Simple's cover/blur wash is about 30% (77/255) in both appearances and standby.
+10. Simple backgrounds use a moderate blur at 120x120, then bilinear upscale to
+    360x360. Filter kernels are 5/7/7, using integer arithmetic in the artwork
+    worker. This is softer than a cover without the former heavy sigma-19 blur.
+    The worker skips an unused Disco tint allocation/pass for Simple.
+
+Checks: real QS button cycles and editor access pass across all thirteen
+presets. Simple's metadata animations are checked for three repeats, stopping,
+and restarting for a new identity; action-specific feedback glyphs are checked.
+Existing navigation, brightness/battery, popup, Immersive return and shared QS
+editor parity checks pass. Decoder comparison preserves old art outputs
+byte-for-byte, and Simple cover/thumbnail output remains unchanged. Only its
+background filter differs. Native timing is informational; device FPS/power
+still need hardware measurement.

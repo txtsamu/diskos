@@ -945,7 +945,7 @@ static void imm_in_start(void){
     static int tag; lv_anim_delete(&tag, NULL);
     imm_in_set(0);
     lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_in_exec);
-    lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, 750); lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, th_simple()?400:750); lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_completed_cb(&a, imm_in_done); lv_anim_start(&a);
 }
 void dhome_imm_return(void);
@@ -976,7 +976,7 @@ void ui_np_fsart_close(void){
         static int tag; lv_anim_delete(&tag, NULL);                  /* the record lifts off, then Music slides back in */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
         lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_out_exec);
-        lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, 240); lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+        lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, th_simple()?180:240); lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
         lv_anim_set_completed_cb(&a, imm_out_done); lv_anim_start(&a);
         return;
     }
@@ -2343,7 +2343,7 @@ static void update_cover_for_path(const track_state_t *st)
     int nidx = displayed_idx ^ 1;
     art_req_t job; memset(&job, 0, sizeof job);
     job.idx = nidx;
-    job.disco = th_disco_family(); job.canvas = theme_rgb(THEME_CLR_CANVAS); job.variant = theme_variant();
+    job.disco = th_disco(); job.canvas = theme_rgb(THEME_CLR_CANVAS); job.variant = theme_variant();
     copy_cstr(job.track, sizeof job.track, st->path);
     copy_cstr(job.art_key, sizeof job.art_key, art_key);
     copy_cstr(job.artist,sizeof job.artist,st->artist);

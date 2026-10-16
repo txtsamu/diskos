@@ -28,7 +28,7 @@ static void exec_zoom(void *o, int32_t v){
 static void start(lv_obj_t *o, lv_anim_exec_xcb_t xcb, int from, int to,
                   uint32_t ms, lv_anim_path_cb_t path, lv_anim_completed_cb_t done){
     lv_anim_delete(o, xcb);   /* replace our OWN running anim first, so it frees a slot before the budget check */
-    if(lv_anim_count_running() >= ANIM_MAX_ACTIVE){
+    if(lv_anim_count_running() >= (th_simple()?8:ANIM_MAX_ACTIVE)){
         /* genuinely over budget (from OTHER objects): snap to end state, fire done synchronously */
         xcb(o, to);
         if(done){ lv_anim_t tmp; lv_anim_init(&tmp); tmp.var=o; done(&tmp); }
@@ -85,7 +85,7 @@ void anim_panel_shadow(lv_obj_t *root){
 static void start_expo(lv_obj_t *o, lv_anim_exec_xcb_t xcb, int from, int to,
                        uint32_t ms, lv_anim_completed_cb_t done){
     lv_anim_delete(o, xcb);   /* replace our OWN running anim first, so it frees a slot before the budget check */
-    if(lv_anim_count_running() >= ANIM_MAX_ACTIVE){
+    if(lv_anim_count_running() >= (th_simple()?8:ANIM_MAX_ACTIVE)){
         xcb(o, to);
         if(done){ lv_anim_t tmp; lv_anim_init(&tmp); tmp.var=o; done(&tmp); }
         return;

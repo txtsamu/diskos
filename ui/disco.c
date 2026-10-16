@@ -761,6 +761,7 @@ static const char *ed_icon(int id){return g_edit_qs?quicksettings_item(id)->icon
 static int ed_protected(int id){return g_edit_qs?0:menu_section(id).prot;}
 static void ed_build_async(void *p){(void)p;ed_build();}
 static void ed_close(void){if(g_ed){lv_obj_delete(g_ed);g_ed=NULL;g_ed_list=NULL;picker_paint();if(th_simple())simple_nav_refresh();if(g_edit_qs)quicksettings_build();if(th_null())null_menu_refresh();}}
+int disco_editor_back(void){if(!g_ed)return 0;ed_close();return 1;}
 static void ed_close_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ed_close();}
 static int ed_save(void){
     if(g_edit_qs)return quicksettings_items_save(g_edit,g_edit_n);
@@ -778,7 +779,7 @@ static void ed_act_cb(lv_event_t *e){
     else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
     else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
     else if(act==4 && i<0){
-        if(g_edit_n>=(g_edit_qs?((th_null()||th_simple())?8:7):MAXM)){ui_toast(g_edit_qs?((th_null()||th_simple())?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
+        if(g_edit_n>=(g_edit_qs?quicksettings_item_limit():MAXM)){ui_toast(g_edit_qs?((th_null()||th_simple())?"Remove an item first (eight maximum)":th_disco()?"Remove an item first (seven maximum)":"Remove an item first (six maximum)"):"The menu holds up to ten");return;}
         g_edit[g_edit_n++]=id;
     }else return;
     if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
@@ -821,7 +822,7 @@ static void ed_build(void){
     lv_obj_update_layout(g_ed_list);lv_obj_scroll_to_y(g_ed_list,sy,LV_ANIM_OFF);
 }
 static void editor_open(int qs){
-    if(!th_disco_family()&&!th_null()){ui_toast("This editor is part of Disco or Null");return;}if(g_ed)return;
+    if(!qs&&!th_disco_family()&&!th_null()){ui_toast("This editor is part of Disco or Null");return;}if(g_ed)return;
     onboarding_dismiss();g_edit_qs=qs;
     if(qs)g_edit_n=quicksettings_items_load(g_edit);else{menu_load();g_edit_n=g_nmenu;memcpy(g_edit,g_menu,sizeof(int)*(size_t)g_nmenu);}
     g_ed=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(g_ed);lv_obj_set_size(g_ed,360,360);
@@ -829,7 +830,7 @@ static void editor_open(int qs){
     if(g_bd_ok&&!th_simple())lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
     lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
     ui_header_cb(g_ed,qs?"Quick Items":th_simple()?"Menu items":th_null()?"Null Menu":"Disco Menu",ed_close_cb);
-    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?((th_null()||th_simple())?"Choose up to eight; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?((th_null()||th_simple())?"Choose up to eight; arrows change order":th_disco()?"Choose up to seven; arrows change order":"Choose up to six; arrows change order"):"Music and Settings always stay");
     lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
     g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
     lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
