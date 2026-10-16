@@ -698,7 +698,7 @@ static void ed_close(void);
 void dhome_overlay_close(void);
 int screen_popping(void);
 void disco_screen_entering(int which){
-    if(th_simple()){simple_nav_screen(which);dhome_overlay_close();ed_close();return;}
+    if(th_simple()){onboarding_dismiss();if(which==SCR_SEARCH&&!screen_popping())search_landing_reset();simple_nav_screen(which);dhome_overlay_close();ed_close();return;}
     onboarding_dismiss();
     nav_cancel_tap();
     if(which == SCR_SEARCH && !screen_popping()) search_landing_reset();  /* Menu > Search: the landing page first; back keeps results */
@@ -778,14 +778,14 @@ static void ed_act_cb(lv_event_t *e){
     else if(act==2 && i>=0 && i<g_edit_n-1){int t=g_edit[i+1];g_edit[i+1]=g_edit[i];g_edit[i]=t;}
     else if(act==3 && i>=0 && !ed_protected(id)){memmove(g_edit+i,g_edit+i+1,sizeof(int)*(size_t)(g_edit_n-i-1));g_edit_n--;}
     else if(act==4 && i<0){
-        if(g_edit_n>=(g_edit_qs?((th_null()||th_simple())?8:7):MAXM)){ui_toast(g_edit_qs?(th_null()?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
+        if(g_edit_n>=(g_edit_qs?((th_null()||th_simple())?8:7):MAXM)){ui_toast(g_edit_qs?((th_null()||th_simple())?"Remove an item first (eight maximum)":"Remove an item first (seven maximum)"):"The menu holds up to ten");return;}
         g_edit[g_edit_n++]=id;
     }else return;
     if(ed_save()<0){memcpy(g_edit,old,sizeof old);g_edit_n=old_n;ui_toast("Couldn't save settings");return;}
     lv_async_call(ed_build_async,NULL);
 }
 static lv_obj_t *ed_btn(lv_obj_t *row,int x,const char *glyph,int id,int act,int dim){
-    lv_obj_t *b=lv_button_create(row);lv_obj_remove_style_all(b);lv_obj_set_size(b,34,34);lv_obj_set_pos(b,x,6);
+    lv_obj_t *b=lv_button_create(row);lv_obj_remove_style_all(b);lv_obj_set_size(b,th_simple()?40:34,th_simple()?40:34);lv_obj_set_pos(b,th_simple()?(x==150?144:x==234?232:x):x,th_simple()?3:6);if(th_simple())lv_obj_set_ext_click_area(b,2);
     lv_obj_set_style_radius(b,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(b,TC(SURFACE_RAISED),0);
     lv_obj_set_style_bg_opa(b,dim?LV_OPA_TRANSP:LV_OPA_COVER,0);lv_obj_set_style_bg_color(b,TC(CONTROL_TRACK),LV_STATE_PRESSED);
     lv_obj_t *l=lv_label_create(b);lv_label_set_text(l,glyph);lv_obj_set_style_text_font(l,TF(UI_14),0);
@@ -803,7 +803,7 @@ static void ed_row(int id,int pos){
     lv_obj_set_style_text_font(ic,font,0);lv_obj_set_style_text_color(ic,pos>=0?ui_current_accent():TC(TEXT_MUTED),0);lv_obj_align(ic,LV_ALIGN_LEFT_MID,12,0);
     if(!g_edit_qs)roulette_icon(ic,icon,20);
     lv_obj_t *nm=lv_label_create(r);lv_label_set_text(nm,ed_name(id));lv_obj_set_style_text_font(nm,TF(UI_16),0);
-    lv_obj_set_width(nm,102);lv_label_set_long_mode(nm,LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_width(nm,th_simple()?94:102);lv_label_set_long_mode(nm,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_color(nm,pos>=0?TC(TEXT_PRIMARY):TC(TEXT_SECONDARY),0);lv_obj_align(nm,LV_ALIGN_LEFT_MID,44,0);
     if(pos<0){ed_btn(r,234,LV_SYMBOL_PLUS,id,4,0);return;}
     ed_btn(r,150,LV_SYMBOL_UP,id,1,pos==0);ed_btn(r,188,LV_SYMBOL_DOWN,id,2,pos==g_edit_n-1);
@@ -826,10 +826,10 @@ static void editor_open(int qs){
     if(qs)g_edit_n=quicksettings_items_load(g_edit);else{menu_load();g_edit_n=g_nmenu;memcpy(g_edit,g_menu,sizeof(int)*(size_t)g_nmenu);}
     g_ed=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(g_ed);lv_obj_set_size(g_ed,360,360);
     lv_obj_set_style_bg_color(g_ed,TC(CANVAS),0);lv_obj_set_style_bg_opa(g_ed,LV_OPA_COVER,0);
-    if(g_bd_ok)lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
+    if(g_bd_ok&&!th_simple())lv_obj_set_style_bg_image_src(g_ed,&g_bd_dsc,0);
     lv_obj_add_flag(g_ed,LV_OBJ_FLAG_CLICKABLE);lv_obj_clear_flag(g_ed,LV_OBJ_FLAG_SCROLLABLE);
-    ui_header_cb(g_ed,qs?"Quick Items":th_null()?"Null Menu":"Disco Menu",ed_close_cb);
-    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?(th_null()?"Choose up to eight; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
+    ui_header_cb(g_ed,qs?"Quick Items":th_simple()?"Menu items":th_null()?"Null Menu":"Disco Menu",ed_close_cb);
+    lv_obj_t *hint=lv_label_create(g_ed);lv_label_set_text(hint,qs?((th_null()||th_simple())?"Choose up to eight; arrows change order":"Choose up to seven; arrows change order"):"Music and Settings always stay");
     lv_obj_set_style_text_font(hint,TF(UI_12),0);lv_obj_set_style_text_color(hint,TC(TEXT_MUTED),0);lv_obj_align(hint,LV_ALIGN_TOP_MID,0,64);
     g_ed_list=lv_obj_create(g_ed);lv_obj_remove_style_all(g_ed_list);lv_obj_set_pos(g_ed_list,42,86);lv_obj_set_size(g_ed_list,276,274);
     lv_obj_set_flex_flow(g_ed_list,LV_FLEX_FLOW_COLUMN);lv_obj_set_flex_align(g_ed_list,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);

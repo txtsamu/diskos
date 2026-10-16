@@ -1115,7 +1115,7 @@ int main(int argc, char **argv){
         }
         if(getenv("REVIEW_239")){
             extern void disco_track_overlay_open(void);
-            assert(th_disco() || th_null());screen_home();screen_set_anim(0);
+            assert(th_disco_family() || th_null());screen_home();screen_set_anim(0);
             lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);
             nav_wait(60);disco_track_overlay_open();nav_wait(60);assert(disco_track_overlay_visible());
             int side=disco_mirror(),x=side?330:30;
@@ -1139,7 +1139,7 @@ int main(int argc, char **argv){
             }
             int fs=theme_font_size(),px=fs==0?14:fs==2?18:16;
             assert(lv_font_get_line_height(theme_font_default(THEME_FONT_UI_16))==lv_font_get_line_height(theme_font_original(px)));
-            lv_indev_delete(in);puts("PASS: 2.3.9 popup swipe/back, Null idle Library and menu handle shortcuts, scaled Stats font");return 0;
+            lv_indev_delete(in);puts("PASS: shared track popup swipe/back and Stats font policy; Null-specific shortcuts where applicable");return 0;
         }
         if(getenv("REVIEW_NULL_GESTURES")){
             extern int disco_track_overlay_visible(void);extern void dhome_overlay_close(void);
@@ -1174,8 +1174,8 @@ int main(int argc, char **argv){
             nav_wait(1900);assert(lv_obj_has_flag(strip,LV_OBJ_FLAG_HIDDEN));
             puts("PASS: Null volume strip adjusts, dismisses, reopens and times out");return 0;
         }
-        if(getenv("REVIEW_NULL_ROUTES")){
-            assert(th_null());
+        if(getenv("REVIEW_NULL_ROUTES")||getenv("REVIEW_SIMPLE_ROUTES")){
+            assert(th_null()||th_simple());
             for(int animated=0;animated<=1;animated++){
                 screen_set_anim(animated);screen_home();nav_wait(300);
                 /* Every library/queue/search playback picker uses this same public destination. */
@@ -1189,7 +1189,7 @@ int main(int argc, char **argv){
                 assert(screen_current()==SCR_HOME && !ui_np_fsart_active());
                 assert(lv_obj_has_flag(screen_get_root(SCR_NOWPLAYING),LV_OBJ_FLAG_HIDDEN));
             }
-            puts("PASS: Null playback redirects to Music and Immersive exits to Music, animations on/off");
+            puts("PASS: playback redirects to Music and Immersive exits to Music, animations on/off");
             return 0;
         }
         if(getenv("REVIEW_NULL")){review_null();return 0;}
@@ -1197,9 +1197,9 @@ int main(int argc, char **argv){
         if(getenv("REVIEW_HINTS")){review_hints();return 0;}
         if(getenv("REVIEW_QS_PARITY")){
             void disco_test_editor_close(void);lv_obj_t *null_test_qs_field(int);int null_test_qs_item(int);
-            const char *key=th_null()?"null_qs_items":"disco_qs_items",*other=th_null()?"disco_qs_items":"null_qs_items";
-            int initial[8]={0,1,4,2,6,7,3,5},items[QS_MAX_ITEMS],n=th_null()?8:7;
-            if(!th_null())initial[6]=5;
+            const char *key=th_simple()?"simple_qs_items":th_null()?"null_qs_items":"disco_qs_items",*other=(th_null()||th_simple())?"disco_qs_items":"null_qs_items";
+            int initial[8]={0,1,4,2,6,7,3,5},items[QS_MAX_ITEMS],n=(th_null()||th_simple())?8:7;
+            if(!th_null()&&!th_simple())initial[6]=5;
             cfg_set_str(other,"rf");assert(quicksettings_items_save(initial,n)==0);
             screen_show(SCR_SETTINGS);disco_qs_menu_open();qs_editor_click("Wi-Fi",LV_SYMBOL_DOWN);
             assert(quicksettings_items_load(items)==n && items[0]==1 && items[1]==0);
@@ -1210,6 +1210,7 @@ int main(int argc, char **argv){
             int count=quicksettings_items_load(items);assert(count==n-1 && items[count-2]==8);
             char saved[48];snprintf(saved,sizeof saved,"%s",cfg_get_str(key,""));
             disco_test_editor_close();screen_show(SCR_QUICK);nav_wait(250);
+            if(th_simple())assert(simple_test_qs_count()==count);
             if(th_null())for(int i=0;i<8;i++){
                 assert(null_test_qs_item(i)==(i<count?items[i]:-1));
                 assert(lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN)==(i>=count));
@@ -1218,6 +1219,7 @@ int main(int argc, char **argv){
             while((count=quicksettings_items_load(items))>0)qs_editor_click(quicksettings_item(items[0])->name,LV_SYMBOL_CLOSE);
             disco_test_editor_close();screen_show(SCR_QUICK);nav_wait(150);
             assert(!strcmp(cfg_get_str(key,"?"),""));assert(!strcmp(cfg_get_str(other,""),"rf"));
+            if(th_simple())assert(simple_test_qs_count()==0);
             if(th_null())for(int i=0;i<8;i++)assert(lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN));
             assert(quicksettings_items_save(initial,n)==0);quicksettings_build();nav_wait(150);
             if(th_null())for(int i=0;i<8;i++)assert(null_test_qs_item(i)==initial[i] && !lv_obj_has_flag(null_test_qs_field(i),LV_OBJ_FLAG_HIDDEN));
@@ -1624,6 +1626,19 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(th_simple()&&getenv("REVIEW_SIMPLE_PERF")){
+        screen_home();nav_wait(250);assert(simple_test_qs_paused());simple_nav_open(1);nav_wait(250);int bindings=simple_test_nav_bindings();
+        for(int i=0;i<40;i++)simple_test_nav_phase(i*10);
+        assert(simple_test_nav_bindings()==bindings);screen_show(SCR_LIBRARY);nav_wait(250);screen_home();nav_wait(250);assert(simple_test_nav_y()==360);simple_nav_open(1);nav_wait(320);assert(simple_test_nav_y()==108);simple_nav_open(0);nav_wait(250);
+        screen_show(SCR_QUICK);nav_wait(250);assert(!simple_test_qs_paused());lv_obj_t*root=screen_get_root(SCR_QUICK),*bright=NULL,*batt=NULL;
+        for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t*c=lv_obj_get_child(root,i);if(lv_obj_check_type(c,&lv_arc_class)&&lv_obj_get_width(c)==344){if(lv_arc_get_bg_angle_start(c)==222)bright=c;if(lv_arc_get_bg_angle_start(c)==42)batt=c;}}
+        assert(bright&&batt&&lv_arc_get_min_value(bright)==1&&lv_arc_get_max_value(bright)==40);
+        int old=cfg_get_int("brightness",16);lv_arc_set_value(bright,30);lv_obj_send_event(bright,LV_EVENT_VALUE_CHANGED,NULL);assert(cfg_get_int("brightness",16)==old);lv_obj_send_event(bright,LV_EVENT_RELEASED,NULL);assert(cfg_get_int("brightness",0)==30);
+        quicksettings_set_battery(67,1);nav_wait(250);assert(find_visible_text(root,LV_SYMBOL_CHARGE));quicksettings_set_battery(67,0);assert(lv_obj_get_style_arc_opa(batt,LV_PART_INDICATOR)==255);quicksettings_set_battery(14,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(STATUS_DANGER)));quicksettings_set_battery(-1,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(ACCENT_PRIMARY)));
+        assert_visible_icon_glyphs(root);screen_home();assert(simple_test_qs_paused());
+        printf("PASS: Simple cached launcher content (%d unchanged bindings over 40 frames), clean return geometry, QS timer pause, brightness 1..40/save-on-release, charge/unplug/low/unknown battery and icon glyphs\n",bindings);
+        return 0;
+    }
     if(th_simple()&&getenv("REVIEW_SIMPLE")){
         assert(simple_test_qs_count()==8);int ids[8];assert(quicksettings_items_load(ids)==8);
         int old=cfg_get_int("disco_clock",1);assert(simple_cfg_set_int_deferred("disco_clock",0)==0);assert(cfg_get_int("disco_clock",1)==old);assert(cfg_get_int("simple_clock",-1)==0);
@@ -1638,7 +1653,14 @@ render:
         nav_touch((lv_point_t){180,205},40);nav_wait(100);nav_touch((lv_point_t){180,205},40);nav_wait(100);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0000"));
         nav_pointer=(lv_indev_data_t){.point={95,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=95;x<=255;x+=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+2&&!strcmp(null_last_command,"0201000C0001"));
         nav_pointer=(lv_indev_data_t){.point={255,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=255;x>=95;x-=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+3&&!strcmp(null_last_command,"0201000C0002"));
-        puts("PASS: Simple eight-slot QS, isolated preferences, planet drag/snap/open/back, metadata double-tap and both track swipes");return 0;
+        simple_cfg_set_int_deferred("disco_title_hold",2);int calls=send_count;
+        nav_touch((lv_point_t){180,210},800);nav_wait(450);assert(send_count==calls&&screen_current()==SCR_HOME&&!disco_track_overlay_visible());
+        simple_cfg_set_int_deferred("disco_title_hold",0);
+        nav_touch((lv_point_t){180,210},800);nav_wait(600);assert(screen_current()==SCR_NOWPLAYING&&ui_np_fsart_active());ui_np_fsart_close();nav_wait(500);assert(screen_current()==SCR_HOME);
+        nav_touch((lv_point_t){180,210},40);nav_wait(450);assert(disco_track_overlay_visible());screen_back();assert(!disco_track_overlay_visible());
+        simple_cfg_set_int_deferred("disco_nav_double",DISCO_NAV_SEARCH);simple_nav_open(1);nav_wait(250);nav_touch((lv_point_t){180,310},40);nav_wait(80);nav_touch((lv_point_t){180,310},40);nav_wait(200);assert(screen_current()==SCR_SEARCH&&search_landing_active());
+        void search_landing_leave(void);search_landing_leave();screen_home();nav_wait(250);screen_show(SCR_SEARCH);nav_wait(100);assert(search_landing_active());
+        puts("PASS: Simple QS isolation, launcher drag/open/back, playback swipes/double-tap, Title hold None/Immersive, popup Back, logo shortcut and fresh Search landing");return 0;
     }
     if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);int ms=getenv("SIMPLE_NAV_MS")?atoi(getenv("SIMPLE_NAV_MS")):350;for(int i=0;i<ms/10;i++){lv_tick_inc(10);lv_timer_handler();}}
     if(th_simple()&&getenv("SIMPLE_NAV_PHASE"))simple_test_nav_phase(atoi(getenv("SIMPLE_NAV_PHASE")));

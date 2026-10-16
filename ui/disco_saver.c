@@ -65,6 +65,7 @@ static void progress(void){                                       /* once a minu
     track_state_t st; ipc_get_state(&st);
     int deg = (st.have_track && st.duration_ms > 0) ? (int)((long long)st.position_ms * 360 / st.duration_ms) : 0;
     if(deg > 360) deg = 360;
+    if(th_simple()){static int old_deg=-1,old_mode=-1;if(deg==old_deg&&m==old_mode)return;old_deg=deg;old_mode=m;}
     if(m == 2) lv_obj_add_flag(g_tr, LV_OBJ_FLAG_HIDDEN); else lv_obj_remove_flag(g_tr, LV_OBJ_FLAG_HIDDEN);
     for(int i = 0; i < NSEG; i++){
         int a0 = i * 60, a1 = a0 + 60;
@@ -132,6 +133,7 @@ void dsaver_set_weather(const char *s){                           /* "<icon>  14
 void dsaver_set_track(const char *title, const char *artist){
     ptext(g_ti, title ? title : ""); ptext(g_ar, artist ? artist : "");
     if(g_img){ const void *src = saver_art();
+        if(th_simple()){extern unsigned ui_art_revision(void);static unsigned revision;static const void*previous;static int seen;unsigned current=ui_art_revision();if(seen&&revision==current&&previous==src){if(screen_current()==SCR_SAVER)progress();return;}seen=1;revision=current;previous=src;}
         if(src){ lv_image_set_src(g_img, src); lv_obj_remove_flag(g_img, LV_OBJ_FLAG_HIDDEN); } else lv_obj_add_flag(g_img, LV_OBJ_FLAG_HIDDEN); }
     progress();
 }

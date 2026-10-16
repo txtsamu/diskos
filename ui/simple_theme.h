@@ -16,6 +16,9 @@ int simple_nav_is_open(void);
 int simple_owns_point(int,int);
 int simple_music_protected(lv_obj_t *);
 void simple_test_nav_phase(int);
+int simple_test_nav_bindings(void);
+int simple_test_nav_y(void);
+int simple_test_qs_paused(void);
 int simple_test_selection(void);
 int simple_test_qs_count(void);
 void simple_qs_create(lv_obj_t *);
@@ -26,4 +29,5 @@ void simple_test_feedback_frame(int);
 void simple_qs_battery(int,int);
 void simple_qs_track(const char *,const char *,int);
 void simple_qs_refresh(int);
+void simple_qs_visible(int);
 #endif

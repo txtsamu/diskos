@@ -1,4 +1,4 @@
-# Simple — theme preview 0.4
+# Simple — theme preview 0.5
 
 A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
 configuration keys and presentation paths. Simple uses Disco's menus, track
@@ -130,3 +130,54 @@ existing Simple QS / navigation / playback gesture checks. Null's typed Search
 ink regression check also passes. Device performance and hardware behaviour
 still need a physical Disc. This preview includes source and renders, not an
 update binary.
+
+## Preview 0.5 — performance and carryover audit
+
+Performance changes are scoped to Simple. This is a source/native preview;
+no physical-device FPS, power or touch-latency improvement is claimed yet.
+
+- Launcher icon/vector/label content is rebound only when the catalogue index
+  changes. Position and opacity still animate continuously. The native check
+  holds the same three bindings across 40 motion frames.
+- Hidden QS pauses its timer and ignores presentation refresh requests. Visible
+  QS updates changed playback/progress state, checks radios at most once per
+  second, and animates charging with a smooth triangular pulse.
+- Music and QS artwork refresh only when the artwork revision/source changes.
+  Music no longer reapplies its whole layout on repeated artwork publications.
+  Title measurement and album text updates follow changed metadata. Standby
+  avoids repeated unchanged artwork/progress work.
+- Brightness uses the hardware range 1–40, previews through the shared transient
+  backlight function, and persists on release / lost press, matching Disco.
+
+Bugs corrected:
+
+- Title hold None no longer toggles favourites; Immersive remains available.
+- The metadata gesture bounds follow the displayed field; the linear seek hit
+  band retains priority where the album field meets the progress control.
+- Leaving Music cancels launcher motion, clears press state and resets its
+  closed position, so the next open rises correctly.
+- Simple now dismisses old onboarding hints on screen changes, reports launcher
+  state to the hint engine, and resets Search's landing on fresh entry.
+- Charging opacity resets on unplug; low and unknown battery states are distinct.
+- QS mode glyphs follow the live source; drive/volume glyphs are included at
+  native icon sizes. Simple-owned colours survive accent restyling.
+- The editor correctly says eight QS items, has larger edit targets, and does
+  not inherit Disco's artwork backdrop. Long secondary headings fit the round
+  viewport. The inherited artist-scroll restart no longer overrides Simple's
+  single-line artist presentation.
+- Background restart failure restores the background key, not theme_preset.
+
+Carryover validation uses the real shared QS editor (reorder, add/remove,
+empty selection, reopen and configuration isolation) in Simple, Disco and
+Null. Simple checks include Line/Arc playback gestures, Title hold None and
+Immersive, track popup Back and edge-swipe, logo shortcut, fresh Search landing,
+and playback-picker / Immersive return routes with animations on/off.
+Brightness range/save timing and charging/unplug/low/unknown state are checked
+in the native harness; missing host backlight sysfs nodes are expected.
+
+Additional native review covers the QS editor, password keyboard, EQ band
+editing, progress selector, unsupported-codec explanation, Music Assistant and
+SongSphere landing/tag pages. SongSphere's mood colour field is intentional
+application content. Installed standalone app internals remain outside scope.
+Hardware radio transitions, actual brightness, animation performance, real media
+and custom app handoff still need a physical Disc.

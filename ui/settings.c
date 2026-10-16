@@ -179,6 +179,7 @@ static void apply_appearance(int v){ (void)v; theme_reload_or_revert("theme_vari
 static void apply_theme_auto(int v){ (void)v; theme_reload_or_revert("theme_auto"); }
 static void apply_outdoor(int v){ (void)v; theme_reload_or_revert("outdoor"); }
 static void apply_theme_preset(int v){ (void)v; theme_reload_or_revert("theme_preset"); }
+static void apply_simple_background(int v){(void)v;theme_reload_or_revert("simple_background");}
 /* Font Size and Language change every screen's text: like a theme change, the UI re-launches and re-reads them */
 static void apply_np_font(int v){(void)v;theme_reload_or_revert("np_font");}
 static void apply_font_size(int v){ (void)v; theme_reload_or_revert("font_size"); }
@@ -838,7 +839,7 @@ static const setting_t TABLE[] = {
       "Choose up to five shortcuts for the panel opened by swiping left from Home.", NULL },
     { "Online & Extras",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
       "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
-    { "Disco Options", "Background", ST_CYCLER, "simple_background",0,0,0,OPT_SIMPLE_BG,3,NULL,apply_theme_preset,0,"Plain, blurred art, or cover with a dark/light wash.",NULL },
+    { "Disco Options", "Background", ST_CYCLER, "simple_background",0,0,0,OPT_SIMPLE_BG,3,NULL,apply_simple_background,0,"Plain, blurred art, or cover with a dark/light wash.",NULL },
     { "Disco Options", "Disco Menu", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_menu, 0,
       "Add, remove and reorder menu destinations. Music and Settings stay available.", NULL },
     { "Disco Options", "Music Screen", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_musicscreen, 0,
