@@ -549,6 +549,7 @@ int main(int argc, char **argv){
     if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
     if(getenv("NULL_SIDE"))cfg_set_int_deferred("null_side",atoi(getenv("NULL_SIDE")));
     if(getenv("NULL_TEXT"))cfg_set_int_deferred("null_text_align",atoi(getenv("NULL_TEXT")));
+    if(getenv("NULL_FONTS"))cfg_set_int_deferred("null_music_fonts",atoi(getenv("NULL_FONTS")));
     if(getenv("NULL_CTRL"))cfg_set_int_deferred("null_controls",atoi(getenv("NULL_CTRL")));
     theme_init();
     if(!strcmp(argv[3],"shutdown")){
@@ -878,7 +879,9 @@ int main(int argc, char **argv){
         track_state_t st={0};snprintf(st.path,sizeof st.path,"%s",argv[5]);
         char *dot=strrchr(st.path,'.');assert(dot);strcpy(dot,".png");
         snprintf(st.title,sizeof st.title,"Northern Lights");snprintf(st.artist,sizeof st.artist,"The Midnight");snprintf(st.album,sizeof st.album,"Afterglow");
+        if(getenv("NP_TITLE"))snprintf(st.title,sizeof st.title,"%s",getenv("NP_TITLE"));
         if(getenv("NP_ARTIST"))snprintf(st.artist,sizeof st.artist,"%s",getenv("NP_ARTIST"));if(getenv("NP_ALBUM"))snprintf(st.album,sizeof st.album,"%s",getenv("NP_ALBUM"));
+        if(getenv("NULL_DEMO_FLAC")){char *ext=strrchr(st.path,'.');assert(ext);strcpy(ext,".flac");}
         int long_names=!strncmp(argv[3],"preview-long-",13);
         if(long_names){
             snprintf(st.title,sizeof st.title,"The Last Train Home Through Northern Lights");

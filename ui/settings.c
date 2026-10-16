@@ -348,6 +348,7 @@ static void apply_null_reload(int v){(void)v;theme_reload_or_revert("null_palett
 static void apply_null_live(int v){(void)v;null_options_changed();}
 static void apply_null_menu(int v){(void)v;disco_menu_open();}
 static void apply_null_qs(int v){(void)v;disco_qs_menu_open();}
+static const char *OPT_NULLFONTS[]={"Original","Dot matrix","Terminal"};
 static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime"};
 static const char *OPT_NULLTEXT[]={"Center","Left"};
 static const char *OPT_NULLBG[]={"Black","Dark cover","Pixel cover"};
@@ -762,6 +763,7 @@ static const setting_t TABLE[] = {
     {"Null Options","Show Clock",ST_TOGGLE,"null_clock",0,1,1,NULL,0,NULL,apply_null_live,1,"Clock and Wi-Fi, Bluetooth and battery icons. Hold the top strip to show or hide them.",NULL},
     {"Null Options","Scroll",ST_CYCLER,"null_scroll",0,0,0,OPT_DSCROLL,3,NULL,NULL,0,"Classic follows the screen edge; Straight keeps rows flat; Disco swings the rows. Stored separately for Null.",NULL},
     {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
+    {"Null Options","Fonts",ST_CYCLER,"null_music_fonts",0,0,2,OPT_NULLFONTS,3,NULL,apply_null_live,0,"Music typography: Original, Dot matrix or Terminal",NULL},
     {"Null Options","Text",ST_CYCLER,"null_text_align",0,0,1,OPT_NULLTEXT,2,NULL,apply_null_live,0,"Align only Music title, artist, album and time",NULL},
     {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
     {"Null Options","Album",ST_TOGGLE,"null_music_album",0,1,1,NULL,0,NULL,apply_null_live,1,"Show album on Music",NULL},

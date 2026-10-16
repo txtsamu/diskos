@@ -43,3 +43,10 @@ its close handle remains below the action hit areas. Brightness is 160 px tall,
 paired with a battery indicator at the left: 100% at top, red at 15% or less,
 green while charging, otherwise the palette's active colour.
 Focused host renders and the volume adjustment/dismiss/reopen/timeout check passed.
+
+Next source preview (not yet a device payload): Null Options > Fonts switches the
+Music screen between Original, Dot matrix and Terminal. Slightly larger cached
+faces keep Unicode fallback. The mode control precedes the fixed progress line;
+the time line is elapsed/total/file-extension. QS reserves a date zone and uses
+40px action hit areas on an even 44px pitch, with a 72px square cover between
+the two groups. The selected font option applies live to Music only.

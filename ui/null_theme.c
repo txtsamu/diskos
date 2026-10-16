@@ -14,6 +14,8 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include <math.h>
+#include <time.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +27,15 @@ void disco_catalog_open(int);
 void quicksettings_null_action(int id, int hold);
 extern const lv_font_t null_pixel_14;
 static lv_font_t pixel14;
+extern const lv_font_t null_pixel_16, null_pixel_24, null_dot_31, null_mono_27;
+extern const lv_font_t null_fine_16, null_fine_18, diskos_mono_16, diskos_mono_18;
+static lv_font_t music_fonts[3][5];
+static lv_obj_t *qdate;
+static const lv_font_t *music_font(int role)
+{
+    int set=cfg_get_int("null_music_fonts",0);if(set<0 || set>2)set=0;
+    return &music_fonts[set][role];
+}
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
     *buttons[3], *icons[3], *gesture, *hints[3];
 static lv_obj_t *nav, *band, *edge, *edge_line[5];
@@ -263,7 +274,7 @@ static void layout_music(void)
     lv_obj_set_y(seek, 197 + drop);
     lv_obj_set_y(playhead, 216 + drop);
     lv_obj_set_y(times, 227 + drop);
-    lv_obj_set_y(mode, 227 + drop);
+    lv_obj_set_y(mode, 198 + drop);
     for (int i = 0; i < 3; i++)
         lv_obj_set_y(buttons[i], 254 + drop);
     lv_obj_set_y(gesture, 248 + drop);
@@ -382,6 +393,14 @@ static void font_setup(void)
 {
     pixel14 = null_pixel_14;
     pixel14.fallback = ui_font_cjk(14);
+    const lv_font_t *sets[3][5]={
+        {&null_pixel_24,&null_pixel_16,&null_fine_18,&null_fine_16,&null_pixel_24},
+        {&null_dot_31,&diskos_mono_18,&diskos_mono_16,&diskos_mono_16,&null_dot_31},
+        {&null_mono_27,&diskos_mono_18,&diskos_mono_16,&diskos_mono_16,&null_mono_27}
+    };
+    for(int i=0;i<3;i++)for(int j=0;j<5;j++){
+        music_fonts[i][j]=*sets[i][j];music_fonts[i][j].fallback=ui_font_cjk(j==0 || j==4?20:16);
+    }
 }
 static void clock_event(lv_event_t *e)
 {
@@ -431,8 +450,8 @@ void null_home_create(lv_obj_t *r)
     clock_box = box(r, 72, 10, 216, 58);
     lv_obj_set_style_bg_opa(clock_box, 0, 0);
     music_status = text(clock_box, "", 0, 7, 216, TF(UI_14), TC(TEXT_SECONDARY));
-    music_clock = text(clock_box, "--:--", 0, 28, 216, TF(CLOCK), TC(TEXT_PRIMARY));
-    lv_obj_set_style_text_font(music_clock, TF(UI_22), 0);
+    music_clock = text(clock_box, "--:--", 0, 24, 216, music_font(4), TC(TEXT_PRIMARY));
+
     lv_obj_set_style_text_align(music_status, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(music_clock, LV_TEXT_ALIGN_CENTER, 0);
     title = text(r, "NOT PLAYING", 36, 116, 288, TF(HEADER), TC(TEXT_PRIMARY));
@@ -456,11 +475,11 @@ void null_home_create(lv_obj_t *r)
     playhead = box(r, 59, 253, 7, 7);
     lv_obj_set_style_bg_color(playhead, TC(TEXT_PRIMARY), 0);
     ui_on(seek, seek_event, LV_EVENT_ALL, NULL, "np.seek", UI_CORE);
-    times = text(r, "00:00 / 00:00", 72, 263, 174, TF(UI_14), TC(TEXT_PRIMARY));
-    mode = box(r, 250, 263, 44, 24);
+    times = text(r, "00:00/00:00/--", 62, 227, 236, music_font(3), TC(TEXT_PRIMARY));
+    mode = box(r, 18, 198, 36, 40);
     lv_obj_set_style_bg_opa(mode, 0, 0);
     lv_obj_add_flag(mode, LV_OBJ_FLAG_CLICKABLE);
-    text(mode, "", 10, 0, 24, TF(UI_16), TC(TEXT_SECONDARY));
+    text(mode, "", 6, 10, 24, TF(UI_16), TC(TEXT_SECONDARY));
     ui_on(mode, mode_event, LV_EVENT_CLICKED, NULL, "np.mode", UI_CORE);
     gesture = box(r, 76, 282, 208, 62);
     lv_obj_set_style_bg_opa(gesture, 0, 0);
@@ -560,7 +579,7 @@ void null_art_changed(void)
         lv_image_set_src(qart, cover);
         if (cover) {
             const lv_image_dsc_t *d = cover;
-            lv_image_set_scale(qart, 96 * 256 / d->header.w);
+            lv_image_set_scale(qart, 72 * 256 / d->header.w);
             lv_obj_center(qart);
         } else
             lv_image_set_src(qart, NULL);
@@ -657,21 +676,23 @@ static void qs_construct(void)
     lv_obj_set_style_border_width(qpanel, 1, 0);
     lv_obj_set_style_border_color(qpanel, TC(TEXT_SECONDARY), 0);
     lv_obj_set_style_border_opa(qpanel, 45, 0);
-    qcover = box(qpanel, 60, 144, 96, 96);
+        qdate = text(qpanel, "", 8, 24, 200, TF(UI_14), TC(TEXT_PRIMARY));
+    lv_obj_set_style_text_align(qdate, LV_TEXT_ALIGN_CENTER, 0);
+    qcover = box(qpanel, 72, 154, 72, 72);
     lv_obj_set_style_shadow_color(qcover, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_shadow_width(qcover, 18, 0);
     lv_obj_set_style_shadow_opa(qcover, playing ? 85 : 0, 0);
     qart = lv_image_create(qcover);
     lv_obj_remove_flag(qart, LV_OBJ_FLAG_CLICKABLE);
-    qprev = transport_button(qpanel, 2, 170, 44, 0, &qicons[0]);
-    qpp = transport_button(qcover, 24, 24, 48, 1, &qicons[1]);
+    qprev = transport_button(qpanel, 2, 168, 44, 0, &qicons[0]);
+    qpp = transport_button(qcover, 12, 12, 48, 1, &qicons[1]);
     lv_obj_set_style_bg_opa(qpp, 160, 0);
-    qnext = transport_button(qpanel, 170, 170, 44, 2, &qicons[2]);
+    qnext = transport_button(qpanel, 170, 168, 44, 2, &qicons[2]);
     /* Four fields above and four below. Lower field hit boxes end before the
      * close handle. */
     for (int k = 0; k < 8; k++) {
-        int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 32 + row * 48 : 244 + row * 42;
-        qfields[k] = box(qpanel, 12 + col * 96, y, 96, k < 4 ? 44 : 40);
+        int col = k % 2, row = (k % 4) / 2, y = k < 4 ? 58 + row * 44 : 238 + row * 44;
+        qfields[k] = box(qpanel, 12 + col * 96, y, 96, 40);
         lv_obj_set_style_bg_opa(qfields[k], 0, 0);
         lv_obj_add_flag(qfields[k], LV_OBJ_FLAG_CLICKABLE);
         qcaptions[k] = text(qfields[k], "", 0, 12, 96, &pixel14, TC(TEXT_SECONDARY));
@@ -743,6 +764,8 @@ void null_qs_build(void)
     if (!qroot)
         return;
     qs_construct();
+    time_t now=time(NULL);struct tm date;localtime_r(&now,&date);char d[48],up[48];
+    strftime(d,sizeof d,"%a %d %b",&date);theme_upper(up,sizeof up,d);text_set(qdate,up);
     int items[QS_MAX_ITEMS];
     int count = quicksettings_items_load(items);
     qcount = 0;
@@ -856,7 +879,13 @@ static void heartbeat(lv_timer_t *t)
         }
         time_fmt(a, sizeof a, st.position_ms);
         time_fmt(z, sizeof z, st.duration_ms);
-        snprintf(b, sizeof b, "%s / %s", a, z);
+        char format[10]="--";
+        if(st.have_track){
+            const char *name=strrchr(st.path,'/');name=name?name+1:st.path;
+            const char *ext=strrchr(name,'.');
+            if(ext && ext[1]){int k=0;for(ext++;*ext && *ext!='?' && *ext!='#' && k<8;ext++)format[k++]=(char)toupper((unsigned char)*ext);format[k]=0;}
+        }
+        snprintf(b, sizeof b, "%s/%s/%s", a, z, format);
         if (strcmp(b, last_times)) {
             snprintf(last_times, sizeof last_times, "%.63s", b);
             text_set(times, b);
@@ -914,6 +943,8 @@ int null_owns_point(int x, int y)
     if (y >= 152 && y <= 208 && (left() ? x <= 48 : x >= 312))
         return 1;
     if (screen_current() == SCR_HOME) {
+        if (y >= 198 && y <= 289 && x >= 18 && x < 58)
+            return 1;
         if (y >= 188 && y < 310 && x >= 60 && x <= 302)
             return 1;
         if (y >= 248 && y < 360 && x >= 76 && x <= 284)
@@ -997,6 +1028,12 @@ void null_options_changed(void)
         else
             lv_obj_add_flag(clock_box, LV_OBJ_FLAG_HIDDEN);
     }
+    lv_obj_set_style_text_font(title,music_font(0),0);
+    lv_obj_set_style_text_font(artist,music_font(1),0);
+    lv_obj_set_style_text_font(album,music_font(2),0);
+    lv_obj_set_style_text_font(times,music_font(3),0);
+    lv_obj_set_style_text_font(music_clock,music_font(4),0);
+    lv_obj_set_y(music_clock,cfg_get_int("null_music_fonts",0)==0?28:24);
     last_ctl_mode = -1;
     last_ctl_visible = -1;
     wake_guard = 0;
