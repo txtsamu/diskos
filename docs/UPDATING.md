@@ -12,11 +12,17 @@ build if the trial fails.
 > [!IMPORTANT]
 > **Coming from 1.4.0 or older? Reflash once.** The update fixes from 1.4.1 are in the boot script, which an SD
 > update can't replace. Flash with the same `--ota-key` as before (step 1); after that, SD updates work as below.
-> Already on 1.4.1 or later? 2.0 is an ordinary SD update.
+> Already on 1.4.1 or later? 2.5.0 is an ordinary SD update.
 
 An SD update changes `mq_ui` (the interface) only. It doesn't touch the stock player, the boot scripts or the
 optional app ([Disc Shelf](DISC_SHELF_INSTALL.md)). A downloaded
 `mq_ui` is **not** signed with your keys yet; you sign it yourself (step 3).
+
+## 2.5.0: Squash and the existing themes
+
+2.5.0 adds Squash’s bold touch-first presentation while retaining Null and the existing themes. Update with your current signing key. Existing theme IDs and settings stay compatible; select Squash explicitly to try it. Settings → Help is below Battery, with How to, first-use hints and a reset option.
+
+The release `mq_ui` and `mq_ui.build.json` must match. The raw UI is not a signed SD update. If internal storage is tight, back up and remove unused source archives rather than deleting active or rollback update directories.
 
 ## 1. Make keys and flash once
 

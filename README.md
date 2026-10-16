@@ -1,13 +1,13 @@
 <h1 align="center">diskOS Disco!</h1>
 
 <p align="center">
-  <b>The album cover is the interface.</b><br>
+  <b>Big. Bold. Squash. 🎃</b><br>
   A touch UI for the round screen of the FiiO Snowsky Disc, built on
   <a href="https://github.com/b0hemia/diskos">b0hemia's diskOS</a>.
 </p>
 
 <p align="center">
-  <img src="docs/disco/hero.png" width="900" alt="diskOS Disco! on the Snowsky Disc: Album back sleeve, Music light, Inter Semibold, Queue, Equalizer">
+  <img src="docs/squash/hero.png" width="1000" alt="Squash: big Music text, rising launcher, eight-icon Quick Settings and bottom volume arc">
 </p>
 
 <p align="center">
@@ -36,6 +36,16 @@
 > **Testing only, as-is, no liability.** This is a hobby project. Flashing rewrites the Disc's root filesystem;
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
+
+## New in 2.5.0: Big. Bold. Squash. 🎃
+
+**[Squash](docs/themes/squash.md)** is our warm, readable take on the round screen: large Nunito Bold text, charcoal or off-white with orange accents, and controls made for touch. Double-tap track text to play/pause, swipe to skip, and tap D! for a rising circular launcher. Eight editable Quick Settings and a clean bottom volume arc keep everyday actions close.
+
+**Help is part of the interface.** Open **Settings → Help**, below Battery, for one-topic **How to** pages, contextual first-use hints and **Show hints again**. Learning is saved separately in Squash, Disco and Null.
+
+**Null stays pixel-perfect.** Its full section and customization options remain, alongside Disco, Ring and Braun. Each theme keeps its own look and preferences.
+
+[2.5.0 release notes](docs/releases/v2.5.0.md) · [Latest release handoff](docs/RELEASE_2.5.0.md) · [How-to](docs/HOWTO.md) · [Try the customizer](https://zmd22.github.io/diskos-disco/#yourway)
 
 ## The idea
 
@@ -67,6 +77,9 @@ replaces only what you see and touch.
 <td align="center"><img src="docs/disco/music-light.png" width="190" alt="Light appearance"><br><sub><b>Light</b> appearance, or automatic by time of day</sub></td>
 </tr>
 </table>
+
+<details>
+<summary>Earlier releases: SongSphere, Stats, Windows and more</summary>
 
 ## New in 2.2: SongSphere built in, Apps, a new Listening Stats
 
@@ -125,6 +138,8 @@ Also in 2.0: no more false "Couldn't start playback" when a big playlist takes a
 1.5.0 is here too: [Boomshine](docs/DISCO_TOUR.md#boomshine), any app in the navigation circle, and landing pages.
 
 All the details: [2.2.1 fixes](docs/releases/v2.2.1.md) · [2.2 release notes](docs/releases/v2.2.0.md) · [2.1](docs/releases/v2.1.0.md) · [2.0](docs/releases/v2.0.0.md) · [1.5.0](docs/releases/v1.5.0.md) · [changelog](CHANGELOG.md).
+
+</details>
 
 ## Highlights
 

@@ -40,6 +40,7 @@ jobs:
           [ -f "$NOTES" ] || NOTES="CHANGELOG.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --title "diskOS Disco! ${TAG#v}" --notes-file "$NOTES" --latest
           else
             gh release create "$TAG" dist/* \
               --title "diskOS Disco! ${TAG#v}" --notes-file "$NOTES" --latest

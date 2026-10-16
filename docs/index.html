@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>diskOS Disco! Your Disco, your way</title>
-<meta name="description" content="diskOS Disco! 2.4.0: a new touch interface for the FiiO Snowsky Disc. The album fills the round screen, the record spins in Immersive, Listening Stats shows your year, and every detail is a setting.">
-<meta property="og:title" content="diskOS Disco! 2.4.0">
-<meta property="og:description" content="The album cover is the interface. A touch UI for the FiiO Snowsky Disc, built on diskOS.">
-<meta property="og:image" content="https://zmd22.github.io/diskos-disco/disco/hero.png">
+<title>diskOS Disco! 2.5.0 — Meet Squash 🎃</title>
+<meta name="description" content="Meet Squash: big, bold text, touch playback gestures and warm orange controls for the Snowsky Disc. Plus Null, How to pages and helpful hints in diskOS Disco! 2.5.0.">
+<meta property="og:title" content="diskOS Disco! 2.5.0">
+<meta property="og:description" content="Squash brings big bold type, touch playback and a pumpkin-orange palette. Null, customization and helpful guidance remain a tap away.">
+<meta property="og:image" content="https://zmd22.github.io/diskos-disco/squash/hero.png">
 <link rel="icon" href="disco/music.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -293,6 +293,16 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 .null-gallery figcaption{max-width:32ch;margin:20px auto 0}
 #null .why{margin-top:48px}
 @media(max-width:680px){.null-gallery{grid-template-columns:1fr;gap:36px}.null-gallery .shot{max-width:260px}.null-gallery figcaption{text-align:center}}
+
+/* 2.5.0: Squash leads; older chapters stay compact and linked. */
+@font-face{font-family:SquashNunito;src:url("squash/Nunito-Bold.woff") format("woff");font-weight:700;font-display:swap}
+:root{--squash:#f28a32}
+.squash-hero .wordmark{font-size:clamp(28px,4vw,48px);opacity:.8}.squash-title{font-family:SquashNunito,system-ui,sans-serif;font-size:clamp(60px,10vw,124px);font-weight:700;line-height:.92;letter-spacing:-.045em;margin:28px auto 0}.squash-title span{color:var(--squash)}.squash-title small{font-size:.4em;vertical-align:middle}.squash-tagline{font-family:SquashNunito,system-ui,sans-serif;font-size:clamp(22px,3vw,32px)}
+.squash-hero .stage5 .c .shot{box-shadow:0 24px 80px #0008,0 0 80px #f28a3225}.squash-hero .pill.solid{background:var(--squash);color:#171719}
+.squash-feature h2,.squash-help h2{font-family:SquashNunito,system-ui,sans-serif;font-size:clamp(38px,6vw,72px);line-height:1;letter-spacing:-.035em}.squash-feature .for{color:var(--squash)}.squash-feature .lead{max-width:66ch;margin-top:22px}.squash-feature .why{margin-top:36px}.squash-volume .shot,.squash-help .shot{max-width:300px;margin:auto}.squash-volume h3{font-size:30px;margin-bottom:16px}.squash-volume p{max-width:54ch;color:var(--mist)}
+.chapter{padding:64px 0 20px}.chapter .kicker{font-size:clamp(44px,7vw,80px)}#screens,#immersive,#stats,#apps,#songsphere,#yours{padding-top:54px;padding-bottom:54px}.feat{gap:26px}.feat .shot{max-width:210px}.squash-feature .feat .shot{max-width:300px}.why{margin-top:32px}.imm .pair figure:last-child{margin-top:40px}.opts{margin-top:28px!important}.chips button:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:680px){.bar nav{gap:10px;overflow:auto}.squash-title{font-size:72px}.squash-feature .feat .shot{max-width:280px}.squash-help .split{gap:28px}.squash-hero{padding-top:34px}}
+
 </style>
 </head>
 <body id="top">
@@ -301,28 +311,29 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   <div class="wrap">
     <a class="logo" href="#top"><i aria-hidden="true"></i>diskOS Disco!</a>
     <nav aria-label="Sections">
-      <a href="#yourway">Make it yours</a><a href="#null">Null</a><a href="#form">Form</a><a href="#function">Function</a><a href="#apps">Apps</a><a href="#install">Install</a>
+      <a href="#squash">Squash 🎃</a><a href="#yourway">Make it yours</a><a href="#null">Null</a><a href="#help">Help</a><a href="#form">Form</a><a href="#function">Function</a><a href="#apps">Apps</a><a href="#install">Install</a>
     </nav>
     <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest">Download</a>
   </div>
 </header>
 
 <main>
-<section class="hero2">
+<section class="hero2 squash-hero">
   <div class="wrap">
     <span class="for">For the FiiO <b>Snowsky Disc</b>, built on diskOS</span>
-    <h1 class="wordmark" aria-label="Disco!">Disco!</h1>
-    <p class="tagline">Your music. <span>Your way.</span></p>
-    <p class="lead">A fresh look for your Snowsky Disc. Bigger artwork, clear controls and a screen that feels made for music.</p>
+    <div class="wordmark" aria-label="Disco!">Disco!</div>
+    <h1 class="squash-title">Big. Bold.<br><span>Squash.</span> <small>🎃</small></h1>
+    <p class="tagline squash-tagline">Your music, within reach.</p>
+    <p class="lead">Big, readable type. Warm orange controls. Tap, swipe and play on a screen made for your fingers.</p>
     <div class="stage5" aria-label="Screens from diskOS Disco!">
-      <figure class="l o"><div class="shot"><img src="disco/library.png" alt="The Library, curving with the screen" width="360" height="360"></div><figcaption>Library</figcaption></figure>
-      <figure class="l i"><div class="shot"><img src="disco/music.png" alt="Music: the cover is the interface" width="360" height="360"></div><figcaption>Music</figcaption></figure>
-      <figure class="c"><div class="shot"><img src="disco/splash.png" alt="The Disco! boot animation: a CD that rolls out the name" width="360" height="360"></div></figure>
-      <figure class="r i"><div class="shot"><img src="disco/immersive.png" alt="Immersive: the cover as a spinning record" width="360" height="360"></div><figcaption>Immersive</figcaption></figure>
-      <figure class="r o"><div class="shot"><img src="disco/stats-wrapped.png" alt="Listening Stats: your top artist" width="360" height="360"></div><figcaption>Stats</figcaption></figure>
+      <figure class="l o"><div class="shot"><img src="squash/quick.png" alt="Eight round Quick Settings around the album cover" width="360" height="360"></div><figcaption>Quick Settings</figcaption></figure>
+      <figure class="l i"><div class="shot"><img src="squash/light.png" alt="Squash Music in off-white and orange" width="360" height="360"></div><figcaption>Light</figcaption></figure>
+      <figure class="c"><div class="shot"><img src="squash/music.png" alt="Squash Music with large Nunito Bold title, artist and album" width="360" height="360"></div></figure>
+      <figure class="r i"><div class="shot"><img src="squash/drawer.png" alt="Squash rising circular launcher" width="360" height="360"></div><figcaption>Launcher</figcaption></figure>
+      <figure class="r o"><div class="shot"><img src="squash/volume.png" alt="Squash clean bottom volume arc and D! hub" width="360" height="360"></div><figcaption>Volume</figcaption></figure>
     </div>
-    <p class="newline"><b>New in 2.4:</b> Null, our new pixel theme. Larger text, calmer lists and helpful gesture tips.
-      <a href="https://github.com/zmd22/diskos-disco/blob/main/docs/RELEASE_2.4.0.md">See what’s new</a></p>
+    <p class="newline"><b>New in 2.5.0:</b> Squash takes centre stage. Null stays electric. How to and helpful hints make both easier to learn.
+      <a href="https://github.com/zmd22/diskos-disco/blob/main/docs/RELEASE_2.5.0.md">See what’s new</a></p>
     <div class="ctas" style="justify-content:center;margin-top:30px">
       <a class="pill solid" href="https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip">Download for Windows</a>
       <a class="pill line" href="#install">Linux and SD updates</a>
@@ -332,29 +343,49 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
   </div>
 </section>
 
+<section id="squash" class="band squash-feature">
+  <div class="wrap">
+    <span class="for">The 2.5.0 headliner · Squash 🎃</span>
+    <h2>Room to read.<br>Room to touch.</h2>
+    <p class="lead">A quieter theme with a bold personality: charcoal or off-white, pumpkin orange, and large round controls. Your music stays at the centre.</p>
+    <div class="feat null-gallery">
+      <figure><div class="shot"><img src="squash/music.png" alt="Squash Music: fixed-size Nunito Bold metadata and a floating D! circle" width="360" height="360" loading="lazy"></div><figcaption><b>Touch your music</b>Double-tap the track text to play or pause. Swipe right for next, left for previous. Tap once for track actions and Mood.</figcaption></figure>
+      <figure><div class="shot"><img src="squash/drawer.png" alt="Squash launcher: a planet-like cap rises from the bottom" width="360" height="360" loading="lazy"></div><figcaption><b>A little planet rises</b>Tap D! for the launcher. Drag to rotate through big icons; release to snap, then tap to open.</figcaption></figure>
+      <figure><div class="shot"><img src="squash/quick.png" alt="Squash eight-icon Quick Settings with a round central cover and brightness and battery arcs" width="360" height="360" loading="lazy"></div><figcaption><b>Eight useful shortcuts</b>Choose and reorder eight icons around your artwork. Active buttons glow orange; hold an icon to learn what it does.</figcaption></figure>
+    </div>
+    <div class="why">
+      <div><h3>Big, bold, readable</h3><p>Nunito Bold by default. Original and Inter keep the same title/artist/album hierarchy. Long names scroll three times, then rest.</p></div>
+      <div><h3>Calm backgrounds</h3><p>Plain, gently blurred, or cover artwork. Dark and light appearances, left or centred text, line or 270° arc progress.</p></div>
+      <div><h3>Small touches, thought through</h3><p>Action icons fly out of D!. Choose its double-tap and hold shortcuts. Show playback status and mode beside it—or hide them.</p></div>
+    </div>
+    <div class="split squash-volume" style="margin-top:44px;align-items:center"><div><h3>Volume, down to an arc.</h3><p>Drag the clean bottom arc to adjust. A big value and the familiar D! hub keep it simple. Tap D! or outside to close; it hides itself after 1.8 seconds without input and stays open while you drag.</p><a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/themes/squash.md">Explore Squash’s settings</a></div><figure><div class="shot"><img src="squash/volume.png" alt="Squash volume B: bottom arc, live value and D! dismiss hub, no plus/minus buttons" width="360" height="360" loading="lazy"></div></figure></div>
+  </div>
+</section>
+
 <section id="yourway" class="band">
   <div class="wrap mixer">
     <div>
       <h2 class="stroke">Make it yours.</h2>
-      <p class="lead" style="margin-top:22px">Pick a look. Try the controls. Find your favourite combination.</p>
+      <p class="lead" style="margin-top:22px">Pick a look. Try the controls. Find your favourite combination. Each chip previews one setting at a time; choices differ by theme.</p>
       <div class="groups" id="mixer" style="margin-top:30px">
         <div class="group"><span>Theme</span><div class="chips" data-group="theme">
-          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
+          <button type="button" aria-pressed="true" data-img="squash/music.png" data-note="Squash: big bold text, pumpkin-orange controls and touch playback.">Squash 🎃</button>
           <button type="button" aria-pressed="false" data-img="null/music.png" data-note="Null: bold pixel text, electric colour and a sliding menu.">Null</button>
+          <button type="button" aria-pressed="false" data-img="disco/music.png" data-note="Disco: the cover fills the screen.">Disco</button>
           <button type="button" aria-pressed="false" data-img="disco/ring-music.png" data-note="Ring: the progress ring is the interface.">Ring</button>
           <button type="button" aria-pressed="false" data-img="disco/ring-light-music.png" data-note="Ring Light: off-white with lime.">Ring Light</button>
           <button type="button" aria-pressed="false" data-img="disco/braun-music.png" data-note="Braun: after Dieter Rams' SK4 radio.">Braun</button>
           <button type="button" aria-pressed="false" data-img="disco/braun-dark-music.png" data-note="Braun Dark: charcoal and aluminium.">Braun Dark</button>
         </div></div>
         <div class="group"><span>Controls</span><div class="chips" data-group="controls">
-          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="Buttons, as they've always been.">Buttons</button>
-          <button type="button" aria-pressed="false" data-img="disco/music-gestures.png" data-note="Double-tap to pause. Swipe to change track.">Gestures</button>
+          <button type="button" aria-pressed="false" data-img="disco/music.png" data-note="Buttons, as they've always been.">Buttons</button>
+          <button type="button" aria-pressed="true" data-img="disco/music-gestures.png" data-note="Double-tap to pause. Swipe to change track.">Gestures</button>
           <button type="button" aria-pressed="false" data-img="disco/music-scrub.png" data-note="Hold the line to scrub, with the time large under your finger.">Scrub</button>
         </div></div>
         <div class="group"><span>Title font</span><div class="chips" data-group="font">
-          <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="The original Disco voice.">Original</button>
+          <button type="button" aria-pressed="false" data-img="disco/music.png" data-note="The original Disco voice.">Original</button>
           <button type="button" aria-pressed="false" data-img="disco/music-inter.png" data-note="Inter Semibold: crisp and easy to read.">Inter</button>
-          <button type="button" aria-pressed="false" data-img="disco/music-nunito.png" data-note="Nunito Bold: round and warm.">Nunito</button>
+          <button type="button" aria-pressed="true" data-img="disco/music-nunito.png" data-note="Nunito Bold: round and warm.">Nunito</button>
         </div></div>
         <div class="group"><span>Progress</span><div class="chips" data-group="progress">
           <button type="button" aria-pressed="true" data-img="disco/music.png" data-note="A rainbow line under the title.">Line</button>
@@ -372,8 +403,8 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
       </div>
     </div>
     <div>
-      <div class="stage"><div class="shot"><img id="mix-img" src="disco/music.png" alt="Music, as chosen" width="360" height="360"></div></div>
-      <p class="note" id="mix-note" aria-live="polite">Disco: the cover fills the screen.</p>
+      <div class="stage"><div class="shot"><img id="mix-img" src="squash/music.png" alt="Music, as chosen" width="360" height="360"></div></div>
+      <p class="note" id="mix-note" aria-live="polite">Squash: big bold text, pumpkin-orange controls and touch playback.</p>
     </div>
   </div>
 </section>
@@ -381,7 +412,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
 
 <section id="null" class="band">
   <div class="wrap">
-    <span class="for">New in 2.4 · Theme 02</span>
+    <span class="for">Also in 2.5.0 · Null</span>
     <h2 class="stroke">Meet Null.</h2>
     <p class="lead" style="margin-top:22px">Bold pixels. Bright colour. A darker kind of Disco.</p>
     <div class="row r3 null-gallery">
@@ -392,16 +423,16 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     <div class="why">
       <div><h3>Make it your own</h3><p>Two palettes, four font combinations and your choice of backgrounds. Arrange the menu and quick items to suit you.</p></div>
       <div><h3>Small screen. Clear choices.</h3><p>Large touch targets, readable settings and quieter lists. Names scroll when focused, then give the screen a rest.</p></div>
-      <div><h3>A little help, when needed</h3><p>Gesture tips explain the less obvious moves. Settings → Help brings How to and first-use hints together, in both Disco and Null.</p></div>
+      <div><h3>A little help, when needed</h3><p>Gesture tips explain the less obvious moves. Settings → Help brings How to and first-use hints together, in Squash, Disco and Null.</p></div>
     </div>
-    <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/NULL_THEME.md">Explore Null’s settings</a>
+    <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/NULL_THEME.md">Explore Null’s settings</a> · <a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/RELEASE_2.4.0.md">Null release history</a>
   </div>
 </section>
 
+<section id="help" class="band squash-help"><div class="wrap split"><div><span class="for">A little help goes a long way</span><h2>Learn one move.<br>Enjoy the next.</h2><p class="lead">Gestures should feel useful, not mysterious. Open Settings → Help, directly below Battery, whenever you need a reminder.</p><ul class="points"><li><b>How to:</b> one topic per page, large text and a bottom arrow to keep going.</li><li><b>Helpful hints:</b> short contextual popups for playback, navigation, seeking, radio holds and more.</li><li><b>Your pace:</b> keep hints on, switch them off, or choose Show hints again. Learning is saved separately for Squash, Disco and Null.</li></ul><a class="more" href="https://github.com/zmd22/diskos-disco/blob/main/docs/HOWTO.md">Read the quick guide</a></div><figure><div class="shot"><img src="squash/howto.png" alt="Squash on-device How to: one readable topic with a next-page arrow" width="360" height="360" loading="lazy"></div></figure></div></section>
 <div class="chapter" id="form"><div class="wrap">
   <div class="kicker">Form</div>
-  <p class="lead">A round screen deserves a round interface. Nothing here is a phone layout squeezed into a circle:
-    every list, button and arc is drawn for the Disc's shape, and then handed to you to tune.</p>
+  <p class="lead">A round screen deserves a round interface. Menus, lists and arcs follow the Disc’s shape, with room for your fingers and your music.</p>
 </div></div>
 
 <section style="padding-top:60px">
@@ -423,8 +454,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
     <div class="why">
       <div><h3>Why it matters</h3><p>Square interfaces waste the corners a round screen doesn't have. Following the circle means bigger
         text, bigger targets and nothing cut off at the edge.</p></div>
-      <div><h3>Two distinct voices, one system</h3><p>Disco, Null, Ring and Braun share one design system, so every screen,
-        popup and setting looks like it belongs. Null keeps its deep black canvas.</p></div>
+      <div><h3>Distinct looks, shared features</h3><p>Squash, Disco, Null, Ring and Braun share working features while keeping their own look and preferences. Null keeps its deep black canvas.</p></div>
       <div><h3>For either hand</h3><p>Disco’s Left mode mirrors the menu, gestures, lists and arcs. Null is designed for right-handed navigation.</p></div>
     </div>
   </div>
@@ -517,7 +547,7 @@ footer .logo i{background:radial-gradient(circle,#000 0 17%,rgba(255,255,255,.55
         skip. Hold the progress line to scrub with the time shown large.</p></div>
     <div class="feat">
       <figure><div class="shot"><img src="disco/music.png" alt="Buttons" width="360" height="360" loading="lazy"></div><figcaption><b>Buttons</b>As they've always been.</figcaption></figure>
-      <figure><div class="shot"><img src="disco/music-gestures.png" alt="Gestures" width="360" height="360" loading="lazy"></div><figcaption><b>Gestures</b>Double tap, swipe left or right; faint hints show where.</figcaption></figure>
+      <figure><div class="shot"><img src="disco/music-gestures.png" alt="Gestures" width="360" height="360" loading="lazy"></div><figcaption><b>Gestures</b>Double-tap to pause; swipe to change track. Contextual hints explain the moves.</figcaption></figure>
       <figure><div class="shot"><img src="disco/music-scrub.png" alt="Hold to scrub" width="360" height="360" loading="lazy"></div><figcaption><b>Hold to scrub</b>On the line or the arc round the rim.</figcaption></figure>
     </div>
   </div>
@@ -716,7 +746,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre></div></li>
 <pre>awk '$2 == "mq_ui" { print }' SHA256SUMS | sha256sum -c -</pre>
         <p>Expect <code>mq_ui: OK</code>. Then sign it with the keys matching the root key on your Disc:</p>
 <pre>sh ui/tools/owner-keys/diskos-sign.sh \
-  /path/to/mq_ui 2.4.0 \
+  /path/to/mq_ui 2.5.0 \
   /absolute/path/to/your/diskos-keys ./diskos-update</pre>
         <p>The output holds six files. Every signing run gets a later number than the one before (kept with your keys), so a repeat update is always accepted.</p></div></li>
       <li><div><h3>Copy, eject and install</h3>
@@ -724,7 +754,7 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre></div></li>
           eject, then on the Disc choose <b>Settings › System › Maintenance › Update from SD Card › Update</b> and restart when prompted.
           UI updates don't install the separate apps.</p></div></li>
       <li><div><h3>Test and keep the trial</h3>
-        <p>Check <b>Settings › System › About</b> for the new version (Disco! 2.4.0). Keep it running for at least three minutes and
+        <p>Check <b>Settings › System › About</b> for the new version (Disco! 2.5.0). Keep it running for at least three minutes and
           play music; it can be accepted automatically, or choose <b>Keep</b> when asked. <b>Go back</b> and a restart revert it.
           An unproven trial rolls back after two trial boots.</p>
         <p><a href="https://github.com/zmd22/diskos-disco/blob/main/docs/UPDATING.md">The full SD update guide</a> covers key checks, trials, rollback and troubleshooting.</p></div></li>
@@ -780,15 +810,16 @@ cp diskos-keys/diskos-root.pub.pem payload/</pre></div></li>
 
 <script>
 (function(){
-  /* the mixer: one setting at a time on the round screen */
-  var mi=document.getElementById('mix-img'),mn=document.getElementById('mix-note');
+  /* Native screenshot customizer: preserve all themes and preview one setting at a time. */
+  var mi=document.getElementById('mix-img'),mn=document.getElementById('mix-note'),theme='Squash';
+  var squash={controls:{Gestures:'music.png',Scrub:'music.png'},font:{Original:'font-original.png',Inter:'font-inter.png',Nunito:'font-nunito.png'},progress:{Line:'music.png',Arc:'arc.png'},hand:{Right:'music.png'},look:{Dark:'music.png',Light:'light.png',Accent:'music.png'}};
+  function availability(){document.querySelectorAll('#mixer .chips').forEach(function(g){if(g.dataset.group==='theme')return;g.querySelectorAll('button').forEach(function(b){b.disabled=theme==='Squash'?!squash[g.dataset.group][b.textContent.trim()]:theme==='Null';});});}
   document.querySelectorAll('#mixer .chips button').forEach(function(b){b.addEventListener('click',function(){
-    document.querySelectorAll('#mixer .chips button').forEach(function(x){
-      var same=x.parentNode===b.parentNode;
-      if(same) x.setAttribute('aria-pressed',x===b?'true':'false');
-      else x.setAttribute('aria-pressed',x===x.parentNode.firstElementChild?'true':'false');});
-    mi.src=b.getAttribute('data-img');mn.textContent=b.getAttribute('data-note');
-  });});
+    var group=b.parentNode.dataset.group,key=b.textContent.trim();if(group==='theme')theme=key.indexOf('Squash')===0?'Squash':key;
+    document.querySelectorAll('#mixer .chips').forEach(function(g){g.querySelectorAll('button').forEach(function(x){var chosen=g===b.parentNode?x===b:g.dataset.group==='theme'?x.textContent.trim().indexOf(theme)===0:theme==='Squash'?(g.dataset.group==='font'?x.textContent.trim()==='Nunito':g.dataset.group==='controls'?x.textContent.trim()==='Gestures':x===g.firstElementChild):x===g.firstElementChild;x.setAttribute('aria-pressed',chosen?'true':'false');});});
+    mi.src=theme==='Squash'&&group!=='theme'?'squash/'+squash[group][key]:b.dataset.img;
+    mn.textContent=theme==='Squash'&&group!=='theme'?'Squash · '+key+' preview. Double-tap track text to play/pause; swipe to skip.':b.dataset.note;availability();
+  });});availability();
   /* dark / light gallery */
   var btns=document.querySelectorAll('.toggle button');
   btns.forEach(function(b){b.addEventListener('click',function(){

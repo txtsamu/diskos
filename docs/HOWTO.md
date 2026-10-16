@@ -4,7 +4,30 @@ Short answers for everyday tasks. For a walk through every screen, see the [tour
 
 [Home](../README.md) | [Tour](DISCO_TOUR.md) | [Docs](README.md)
 
-## Getting around
+## Squash quick start 🎃
+
+Select **Display → Theme → Squash**. Its options are under **Display → Squash Options**. Menu items and Quick settings are the first two entries.
+
+| Action | Touch control |
+|---|---|
+| Play / pause | Double-tap the track text; or tap play/pause on the QS artwork |
+| Next / previous | Swipe right / left across the track text |
+| Track actions / Mood | Single-tap the track text |
+| Open the launcher | Tap D!, drag the wheel, release to snap, tap the large icon |
+| Shortcut | Double-tap D! in the open launcher, or hold D! / the large icon; configure both in Layout |
+| Quick Settings | Pull down; hold Wi-Fi or Bluetooth for connection screens; hold other items for names |
+| Volume | Use the volume keys, then drag the bottom arc; tap D! / outside to dismiss |
+| Volume auto-hide | 1.8 seconds without input; stays open while dragging |
+| Seek | Tap/drag the line or arc; hold for precision |
+
+**Music Screen settings:** Nunito Bold is the default; Original and Inter Semibold retain fixed 36/32/28 px sizes. Set Left/Centred text, Track Times and the independent Playback state / Playback mode toggles. Squash uses gestures on Music; QS retains its touch play/pause button. Blur has a 20% overlay, Cover 30%, or choose Plain.
+
+**Need a reminder?** Open **Settings → Help**, directly below Battery. How to has one topic per page and an arrow at the bottom. First-use hints appear in context; switch their mode or choose Show hints again. Squash, Disco and Null remember learning separately. The small permanent dots/arrows around Squash’s logo are removed; contextual hints still work.
+
+[Squash details](themes/squash.md) · [Null details](NULL_THEME.md)
+
+## Getting around — Disco
+
 
 **Go back.** Swipe right from the left edge of the screen (in left-handed mode: swipe left from the right edge).
 A bubble follows your finger and turns your accent colour once the swipe will count. Or tap a ‹ arrow in a header. Hold the arrow to go straight to Music.
@@ -14,18 +37,18 @@ A bubble follows your finger and turns your accent colour once the swipe will co
 **Switch sections.** Tap the shard on the right edge (left edge in left-handed mode), then tap the top or bottom of the circle (or swipe
 on it) until you see the section you want, and tap its middle. Tap outside the circle or its › to close it.
 
-**Change what's in the navigation circle.** Settings > Display > Disco Options > Disco Menu. Use the arrows to
+**Change what's in the navigation circle.** Settings > Display > Disco Options > Menu items. Use the arrows to
 move a section, × to remove it, and Add to bring one in. Music always stays first; Music and Settings can't be
 removed.
 
 **Open Quick Settings.** Pull down from the top edge; swipe up to close.
 
 **Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or List (rows);
-**Items** chooses and orders up to eight buttons.
+**Items** chooses and orders up to seven buttons in Disco; Squash and Null support eight.
 
 **Change what a double tap or hold on the open circle does.** Settings > Display > Disco Options > Layout > Double tap / Hold.
 
-**Bring the first-use tips back.** Settings > System > Help > Show hints again (or turn them Off there).
+**Bring the first-use tips back.** Settings > Help > Show hints again (or turn them Off there).
 
 **Use it left-handed.** Settings > Display > Disco Options > Layout > Side: choose **Left** and tap **Apply**. The
 interface restarts with the navigation circle, Quick Settings, Weather and the rest on the left, and the back
@@ -178,5 +201,5 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 **Install from Windows.** Use the [Windows app](WINDOWS.md): Check, Prepare, Install, and later Update for SD updates.
 
 **Install Disc Shelf.** It's separate from the interface: follow [Disc Shelf](DISC_SHELF_INSTALL.md). Open it from
-the navigation circle (add it in Disco Options > Disco Menu), Apps, All apps or a shortcut. Boomshine, Album Roulette,
+the navigation circle (add it in Disco Options > Menu items), Apps, All apps or a shortcut. Boomshine, Album Roulette,
 Listening Stats and SongSphere are built in: just add them.

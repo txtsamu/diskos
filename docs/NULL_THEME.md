@@ -1,6 +1,10 @@
-# Null 2.3.0-Null.5 — Disc device-test build
+# Null — retained in diskOS Disco! 2.5.0
 
 Select Display > Theme > Null. Theme settings are under Display > Null Options.
+
+Null stays the complete pixel theme alongside the new Squash 🎃. Its existing appearance, font/background choices, drawer and vertical QS remain. Menu items and Quick settings lead its options; Music and Settings cannot be removed from the main menu. Help is directly below Battery, with How to, First-use hints and Show hints again, saved independently per theme. [2.5.0 notes](releases/v2.5.0.md) · [Squash](themes/squash.md).
+
+The Null.N entries below retain the original device-test history; current cumulative fixes are described in the 2.4.0 polish and shared Help sections.
 
 Includes the pixel typography and transports, cyan/yellow and red/lime palettes,
 sliding navigation, vertical 4-cover-4 quick settings, background choices,
@@ -13,8 +17,8 @@ validation remains pending. This is a development candidate, not a stable releas
 Use the existing signed SD installation workflow and recovery/rollback procedure.
 The raw mq_ui is the UI payload, not a signed SD update package.
 
-Source is supplied in Null-source.tar.gz. Build with ui/tools/build_device.py
-and the toolchain-gcc11.2 release toolchain documented in ui/README.md.
+Matching source is available from the release tag and source archives. Build with the
+MIPS toolchain workflow documented in [ui/README.md](../ui/README.md).
 The build manifest records the source digest and exact binary checksums.
 
 Null.2 changes: Music clock/status row with a persistent top-strip hold target,

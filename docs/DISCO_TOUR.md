@@ -7,7 +7,7 @@ controls differ on older firmware, and a setting that cannot be applied says "No
 
 **Disco** is the default theme and the one this tour shows. Its idea: the album cover *is* the interface. The
 playing album fills the screen, blurred and tinted behind every menu, with a faint CD-rainbow sheen on the rim.
-Two more themes, **Ring** and **Braun**, have the same features and settings, laid out differently (see
+**Squash**, **Null**, **Ring** and **Braun** share core features with their own layouts and settings (see
 [Themes](#themes)).
 
 [Home](../README.md) | [How-to](HOWTO.md) | [Docs](README.md)
@@ -24,6 +24,12 @@ Two more themes, **Ring** and **Braun**, have the same features and settings, la
 - **Make it yours:** [Settings](#settings), [Disco Options](#disco-options), [Themes](#themes).
 - **More:** [Weather](#weather), [Battery](#battery), [Updates and safety](#updates-and-safety), [Limits](#limits).
 - **Optional apps:** [Disc Shelf](#disc-shelf).
+
+## Squash and Help in 2.5.0
+
+Squash is the featured theme in this release: big fixed-size Nunito Bold metadata, gesture playback, a larger bottom D! hub and a planet-like launcher. Double-tap track text to play/pause; swipe right/left for next/previous. Tap text for actions/Mood. The hub and large launcher icon honor your configured Hold action; dragging does not fire it. See [the Squash quick start](HOWTO.md) and [full settings](themes/squash.md).
+
+In **Squash, Disco and Null**, Help sits directly below Battery. It contains **How to**, **First-use hints** and **Show hints again**. How to is one topic per page, with large text and a next-page arrow. Contextual hints explain the less obvious gestures, and every theme keeps its own hint preferences and learning counters.
 
 ## Getting around
 
@@ -122,6 +128,10 @@ to use it. Hold Wi-Fi or Bluetooth for its settings; hold any other button to se
 </table>
 
 ### Volume
+
+**Squash:** the clean bottom arc shows a live 0–120 value and D! hub. Drag to adjust; tap D! or outside to dismiss. It auto-hides after 1.8 seconds without input and stays open while dragging. There are no ± buttons or full-screen dimmer.
+
+**Disco:**
 
 Press a volume key and the volume pops up over whatever is on screen: the round field on the right shows the
 level as a big number, and an arc along the right rim fills from the bottom up. Drag the arc to set the level,
@@ -456,11 +466,12 @@ Display > Disco Options (only shown with the Disco theme):
 
 ### Themes
 
-Display > Theme. Every theme has a Dark and a Light appearance, and Automatic Appearance can switch between them
-by the time of day.
+Display > Theme selects the presentation. Squash, Disco, Ring and Braun offer Dark/Light; Null keeps its black canvas and palette choices, so its Light/Dark control is disabled with an explanation.
 
 | Theme | Look |
 |---|---|
+| **Squash 🎃** | Big bold text, orange round controls, touch playback, a rising bottom launcher and eight icon QS slots. [Guide](themes/squash.md). |
+| **Null** | Pixel typography, vivid palettes, pixelated/dark/black backgrounds and a sliding drawer. [Guide](NULL_THEME.md). |
 | **Disco** | The album cover as the interface; glass panels, a CD sheen, the navigation circle on the right edge. |
 | **Ring** | Black (or off-white in Ring Light), the cover in a progress ring, round orbit menus, red or lime button rims. |
 | **Braun** | 1970s hi-fi: a speaker-grille face, an analogue clock, knobs and faders, orange accents. |

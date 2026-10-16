@@ -1,8 +1,16 @@
-# Squash — 2.4.0
+# Squash — 2.5.0
 
-A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
+A separate, opt-in theme, featured in diskOS Disco! 2.5.0. Existing presets keep their IDs,
 configuration keys and presentation paths. Squash uses Disco's menus, track
 popup, editor and system actions rather than duplicating their behaviour.
+
+## Start here: big, bold, touch-first 🎃
+
+Choose Display → Theme → Squash. Double-tap Music text for play/pause, swipe right/left to skip, single-tap for actions/Mood. D! opens a rising launcher; drag, release to snap, and tap the icon to open. The configured Hold works on the logo and large icon. Pull down for eight editable Quick Settings.
+
+**Settings → Help**, below Battery: How to has one topic per page; first-use hints appear in context; Show hints again resets learning. Squash stores hint preferences separately from Disco and Null. Volume now uses the clean bottom arc and D! dismissal, with no ± buttons or whole-screen dimmer. It auto-hides after 1.8 seconds idle, paused while dragging.
+
+The sections labelled Preview/2.4.0 below record design history; the 2.5.0 summary and final refinement/Volume B sections describe the shipped configuration. The permanent dots/arrows from earlier previews are removed. Nunito Bold defaults; all three Track Font options use fixed 36/32/28 px roles.
 
 ## Presentation
 
@@ -40,7 +48,7 @@ only in Squash.
 ## Build and render
 
 Apply the cumulative patch to tag v2.3.0 (005440795943c2af8865cc8e4b6a0f40e50febf9).
-The package includes the compiled 2.4.0 mq_ui and full matching source; no remote
+The package includes the compiled 2.5.0 mq_ui and full matching source; no remote
 release tag is created by this package. Build normally using the repository's
 MIPS toolchain workflow. Native rendering:
 

@@ -2,6 +2,13 @@
 
 [Back to the README](../README.md)
 
+## New in 2.5.0
+
+- [Squash 🎃](themes/squash.md): big bold text, touch playback, a rising launcher and clean bottom volume arc.
+- [2.5.0 release notes](releases/v2.5.0.md) and [release handoff](RELEASE_2.5.0.md).
+- [Null](NULL_THEME.md): the pixel theme remains fully documented.
+- On the Disc, **Settings → Help** (below Battery) contains **How to**, **First-use hints** and **Show hints again**.
+
 ## Using diskOS Disco!
 
 - [A tour of Disco!](DISCO_TOUR.md) - every screen, gesture and setting, with screenshots.

@@ -1,7 +1,7 @@
 # Theme authoring framework
 
 A practical guide to adding a complete theme to diskOS Disco, based on the
-Disco → Null implementation and the regressions found during that work.
+Disco → Null → Squash implementation and the regressions found during that work.
 
 **Rule: share behaviour, override presentation, isolate genuine theme options.**
 A new theme should inherit working features before it gets its own look.
@@ -463,3 +463,13 @@ Copy this into the theme's implementation notes:
 A theme is ready when it looks coherent, preserves the shared action contracts,
 returns through every route correctly, and has no unexplained blanks in its
 completeness table—not merely when Music looks finished.
+
+## 10. Squash 2.5.0: implemented lessons
+
+Squash is a shipped implementation path, not the proposed registry API. See [the theme guide](docs/themes/squash.md). Its user-visible name is Squash; preset 12 and internal `simple_*` names remain stable for preference compatibility.
+
+- **Own typography end to end.** MUSIC_TITLE/ARTIST/ALBUM roles use fixed 36/32/28 px faces across Original, Inter and default Nunito Bold. Protect theme-owned labels from the generic button-fit pass so long metadata scrolls instead of shrinking. Standby uses those same roles.
+- **Namespace actual options.** `simple_track_font`, `simple_play_state`, `simple_play_mode` and the existing configuration adapter isolate Squash choices; shared system preferences stay shared.
+- **Reuse working behavior.** Main-menu protection, QS editing/catalogue, mode cycling, transport IPC, track actions/Mood, Help and hint counters carry over. Both Squash launcher targets use the configured Hold action; ignore drags and preserve Nothing.
+- **A distinct overlay can stay modular.** Volume B is owned by Squash, selected only in the Squash route of ui_show_volume/visibility. Other volume UI stays untouched. Use the authoritative 0–120 range, throttle writes, commit the final drag value, reject stale touch echoes, pause idle timeout during drag, and retain/pause overlay resources when hidden.
+- **On-screen guidance is documentation too.** Theme-specific How to and onboarding text must describe the current launcher and volume controls. Screenshots, build manifests, release notes and bundled mq_ui must agree.

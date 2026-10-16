@@ -1,5 +1,7 @@
 # diskOS Disco 2.4.0 — device-test candidate
 
+Historical handoff. Current release: [2.5.0](RELEASE_2.5.0.md), featuring Squash.
+
 Starting point: cumulative 2.3.9 (6821e7c). The full patch is against v2.3.0.
 Includes the complete Null theme and all cumulative 2.3.9 refinements.
 
