@@ -1016,6 +1016,23 @@ int main(int argc, char **argv){
             puts("PASS: battery threshold, charging colour, flow, flashing icon and closed-panel pause");
             return 0;
         }
+        if(getenv("REVIEW_HELP_MENU")){
+            screen_show(SCR_SETTINGS);nav_wait(100);
+            lv_obj_t *help=find_text(screen_get_root(SCR_SETTINGS),"Help");assert(help);
+            assert(!find_text(screen_get_root(SCR_SETTINGS),"How to"));
+            lv_obj_send_event(lv_obj_get_parent(help),LV_EVENT_CLICKED,NULL);nav_wait(100);
+            lv_obj_t *root=screen_get_root(SCR_SETLIST),*how=find_text(root,"How to");assert(how);
+            assert(find_text(root,"First-use hints") && find_text(root,"Show hints again"));
+            lv_obj_send_event(lv_obj_get_parent(how),LV_EVENT_CLICKED,NULL);nav_wait(100);
+            assert(settings_back_consumed());nav_wait(100);assert(find_text(root,"First-use hints"));
+            cfg_set_int("disco_hints",th_null()?2:0);cfg_set_int("null_hints",0);
+            lv_obj_t *mode=find_text(root,"First-use hints");lv_obj_send_event(lv_obj_get_parent(mode),LV_EVENT_CLICKED,NULL);nav_wait(100);
+            lv_obj_t *right=find_text(screen_get_root(SCR_SETTING_DETAIL),LV_SYMBOL_RIGHT);assert(right);
+            lv_obj_send_event(lv_obj_get_parent(right),LV_EVENT_CLICKED,NULL);nav_wait(100);
+            assert(cfg_get_int(th_null()?"null_hints":"disco_hints",0)==1);
+            if(th_null())assert(cfg_get_int("disco_hints",0)==2);
+            puts("PASS: Help below Battery, How to and back path, independent hint preferences");return 0;
+        }
         if(getenv("HELP_KEY")){extern void settings_open_key(const char *);settings_open_key(getenv("HELP_KEY"));scr=SCR_SETTING_DETAIL;nav_wait(300);assert(screen_current()==SCR_SETTING_DETAIL);}
         if(getenv("HANDLE_TIP")){
             onboarding_reset();onboarding_start();onboarding_context(HINT_HANDLE);nav_wait(900);

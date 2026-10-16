@@ -109,7 +109,7 @@ targets, ordering, tap/hold callbacks and transport remain unchanged.
 Shared settings use separate selector and description areas. Editable detail
 rows show a chevron; On/Off and read-only values remain visible. Overflow text
 scrolls. Null options prioritize menu items, quick items, palette and background;
-Autohide is now Close nav bar. Both themes have Settings > How to below Battery,
+Autohide is now Close nav bar. Both themes have Settings > Help below Battery, with How to first,
 with eight compact sections and contextual gesture hints with independent counters.
 
 ## 2.4.0 polish
@@ -120,3 +120,10 @@ appear centrally, and the handle hint names the configured shortcuts. A-Z uses
 50% black; the two QS side bars have their own 30% black strips. Shared settings
 selectors are vertically centred with larger values and help. Library names
 abbreviate until focused; Music names run three scroll cycles then rest.
+
+## Shared Help menu
+
+Disco and Null both place Help directly below Battery in Settings. Its order is
+How to, First-use hints, Show hints again. Null no longer duplicates these in
+Null Options. Each theme retains its own saved hint mode and learning counters.
+Back from How to returns to Help; Back from Help returns to Settings.

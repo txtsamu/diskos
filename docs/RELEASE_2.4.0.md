@@ -42,3 +42,10 @@ Quick Settings and Disco standby. Focus/metadata animation checks and the shared
 theme guard run before packaging. The device build verifies static MIPS32r2,
 FP64 and NaN2008. The binary patch must reconstruct the packaged Git tree exactly.
 Physical Disc testing remains pending; no website publication is performed.
+
+## Shared Help menu
+
+Disco and Null both place Help directly below Battery in Settings. Its order is
+How to, First-use hints, Show hints again. Null no longer duplicates these in
+Null Options. Each theme retains its own saved hint mode and learning counters.
+Back from How to returns to Help; Back from Help returns to Settings.

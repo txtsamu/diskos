@@ -372,7 +372,7 @@ static void apply_grp_library(int v);
 static void apply_grp_controls(int v);
 static void apply_grp_maintenance(int v);
 static void apply_grp_about(int v);
-static void apply_grp_help(int v);
+static void apply_howto(int v);
 static void apply_hints(int v){(void)v;onboarding_mode_changed();}
 static void apply_hints_reset(int v){(void)v;ui_toast(onboarding_reset()<0?"Couldn't save settings":"Hints reset");}
 static const char *OPT_HINTS[]={"Automatic","On","Off"};
@@ -780,8 +780,6 @@ static const setting_t TABLE[] = {
     {"Null Options","Double tap",ST_CYCLER,"null_nav_double",0,0,0,OPT_NAV_ACTION,DISCO_NAV_COUNT,NULL,NULL,DISCO_NAV_SEARCH,"Double-tap the centre of the open menu handle. Dragging still scrolls.",NULL},
     {"Null Options","Handle hold",ST_CYCLER,"null_nav_hold",0,0,0,OPT_NAV_ACTION,DISCO_NAV_COUNT,NULL,NULL,DISCO_NAV_MUSIC,"Hold the centre of the open menu handle. Its ends retain continuous scroll.",NULL},
     {"Null Options","Arrow colours",ST_TOGGLE,"null_drawer_state_colours",0,1,1,NULL,0,NULL,apply_null_live,1,"Closed blue/red; open yellow/lime",NULL},
-    {"Null Options","First-use hints",ST_CYCLER,"null_hints",0,0,0,OPT_HINTS,3,NULL,apply_hints,0,"Automatic for the first five healthy starts, On, or Off.",NULL},
-    {"Null Options","Show hints again",ST_ACTION,NULL,0,0,0,NULL,0,"Reset",apply_hints_reset,0,"Reset only Null's learned hints.",NULL},
     { "Display",  "Disco Options", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_options, 0,
       "Disco menu, Music layout, quick settings, clock and colours.", NULL },
     { "Display", "Text & Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_textlayout, 0,
@@ -894,8 +892,8 @@ static const setting_t TABLE[] = {
       "Volume keys, the interface the Disc starts in, and the language.", NULL },
     { "System", "Maintenance", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_maintenance, 0,
       "Update from the SD card, restart, reset settings and debug tools.", NULL },
-    { "System", "Help", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_help, 0,
-      "First-use hints and discovery tips for Disco.", NULL },
+    { "Help", "How to", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_howto, 0,
+      "Gestures, navigation and useful shortcuts for the current theme.", NULL },
     { "Help", "First-use hints", ST_CYCLER, "disco_hints", 0,0,0, OPT_HINTS,3, NULL, apply_hints,0,
       "Automatic stops after discovery or five starts. On keeps tips available. Off hides tips.", NULL },
     { "Help", "Show hints again", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", apply_hints_reset,0,
@@ -969,12 +967,15 @@ static const setting_t TABLE[] = {
 #define N_SETTINGS ((int)(sizeof(TABLE)/sizeof(TABLE[0])))
 
 static int nav_setting(const setting_t *s){return s->cfg_key && (!strcmp(s->cfg_key,"disco_nav_double") || !strcmp(s->cfg_key,"disco_nav_hold"));}
-static int  get_val(const setting_t *s){ return s->cfg_key ? cfg_get_int(s->cfg_key, s->def) : 0; }
+static const char *setting_key(const setting_t *s){
+    return th_null() && s->cfg_key && !strcmp(s->cfg_key,"disco_hints")?"null_hints":s->cfg_key;
+}
+static int get_val(const setting_t *s){const char *key=setting_key(s);return key?cfg_get_int(key,s->def):0;}
 static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
      * leaves a stale eq_preset; every other setting persists up front here. */
     g_set_prev = get_val(s);
-    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && cfg_set_int(s->cfg_key, v) < 0){
+    if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && cfg_set_int(setting_key(s), v) < 0){
         ui_toast("Couldn't save settings"); return;
     }
     if(s->apply) s->apply(v);
@@ -1117,7 +1118,7 @@ static void apply_grp_datetime(int v){ (void)v; g_active_group = "Date & Time"; 
 static void apply_grp_library(int v){ (void)v; g_active_group = "Library"; setlist_refresh(); }
 static void apply_grp_controls(int v){ (void)v; g_active_group = "Controls"; setlist_refresh(); }
 static void apply_grp_maintenance(int v){ (void)v; g_active_group = "Maintenance"; setlist_refresh(); }
-static void apply_grp_help(int v){(void)v;g_active_group="Help";setlist_refresh();}
+static void apply_howto(int v){(void)v;g_active_group="How to";setlist_refresh();}
 static void apply_grp_about(int v){ (void)v; g_active_group = "About"; setlist_refresh(); }
 static void apply_volkeys_group(int v){ (void)v; g_active_group = "Volume Keys"; setlist_refresh(); }
 static void apply_ma_group(int v){ (void)v; ma_settings_load(); g_active_group = "MA Sendspin"; setlist_refresh(); }
@@ -1140,7 +1141,7 @@ static const struct { const char *child, *parent; } SUBGROUP[] = {
     { "Controls", "System" },
     { "Maintenance", "System" },
     { "About", "System" },
-    { "Help", "System" },
+    { "How to", "Help" },
     { "Disco Options", "Display" },
     { "Null Options", "Display" },
     { "MA Sendspin", "Network" },
@@ -1391,6 +1392,7 @@ void settings_open_detail(int idx){
 /* open a setting's detail page by its cfg key (robust to TABLE reordering). No-op if not found. */
 void settings_open_key(const char *key){
     if(!key) return;
+    if(th_null() && !strcmp(key,"null_hints"))key="disco_hints";
     for(int i=0;i<N_SETTINGS;i++)
         if(TABLE[i].cfg_key && !strcmp(TABLE[i].cfg_key, key)){
             if(setting_unavailable(&TABLE[i])){ ui_toast("Not supported on this firmware yet"); return; }
@@ -1469,7 +1471,7 @@ __attribute__((unused)) static void cat_cb(lv_event_t *e){
 
 static orbit_t g_set_orb;
 static void cat_pick(int gi){
-    if(gi==N_GROUPS+1 && (th_disco() || th_null())){g_active_group="How to";screen_show(SCR_SETLIST);return;}
+    if(gi==N_GROUPS+1 && (th_disco() || th_null())){g_active_group="Help";screen_show(SCR_SETLIST);return;}
     if(gi == N_GROUPS){ screen_show(SCR_USAGE); return; }   /* Battery */
     if(gi < 0 || gi >= N_GROUPS) return; g_active_group = GROUPS[gi]; screen_show(SCR_SETLIST); }
 void setlist_open(const char *group){
@@ -1491,7 +1493,7 @@ static void settings_disco_list(lv_obj_t *root){          /* styled like the sub
         lv_obj_add_event_cb(r, disco_cat_cb, LV_EVENT_CLICKED, (void *)(intptr_t)g);
         lv_obj_t *ic = lv_label_create(r); lv_label_set_text(ic, GICON[g]); lv_obj_set_style_text_font(ic, TH_F_LIST, 0);
         lv_obj_set_style_text_color(ic, ui_current_accent(), 0); lv_obj_set_pos(ic, 18, 16);
-        lv_obj_t *n = lv_label_create(r); lv_label_set_text(n, g < N_GROUPS ? GROUPS[g] : g==N_GROUPS?"Battery":"How to");
+        lv_obj_t *n = lv_label_create(r); lv_label_set_text(n, g < N_GROUPS ? GROUPS[g] : g==N_GROUPS?"Battery":"Help");
         lv_obj_set_style_text_font(n, TH_F_LIST, 0); lv_obj_set_style_text_color(n, TC(TEXT_PRIMARY), 0);
         lv_obj_set_pos(n, 50, 16);
         lv_obj_t *c = lv_label_create(r); lv_label_set_text(c, LV_SYMBOL_RIGHT); lv_obj_set_style_text_font(c, TH_F_DETAIL, 0);
@@ -1592,7 +1594,8 @@ void setlist_refresh(void){
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(!th_disco() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s) || s->apply==apply_grp_help || !strcmp(s->group,"Help")))continue;
+        if(!th_disco() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
+        if(!th_disco() && !th_null() && !strcmp(s->group,"Help"))continue;
         if(!th_null()&&(s->apply==apply_null_options||!strcmp(s->group,"Null Options")))continue;
         if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
         if((th_disco()||th_null()) && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
