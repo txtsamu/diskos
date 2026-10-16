@@ -28,6 +28,7 @@ _Static_assert(sizeof text/sizeof *text==HINT_COUNT,"hint text");
 const char *onboarding_gesture_text(int id){
     if(id<0 || id>=HINT_COUNT)return "";
     if(th_simple()&&(id==HINT_MENU||id==HINT_NAV))return "Tap D! for the launcher. Drag to rotate; tap the icon to open. Back closes it.";
+    if(th_simple()&&id==HINT_VOLUME)return "Drag the bottom arc for volume. Tap D! or outside to close; it auto-hides when idle.";
     if(th_simple()&&id==HINT_MUSIC_GESTURES)return "Double-tap track text: play/pause. Swipe right: next; left: previous.";
     if(id==HINT_BACK)return disco_mirror()?"Swipe left from the right edge to go back.":"Swipe right from the left edge to go back.";
     if(id==HINT_QUICK)return th_null()?"Pull down from the top for QS. Swipe up beside the panel, tap outside, or tap its bottom arrow to close.":"Pull down from the top for QS; swipe up to close.";

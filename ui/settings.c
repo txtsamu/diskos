@@ -1570,8 +1570,9 @@ static void howto_body(lv_obj_t *root){
     snprintf(more,sizeof more,"%s EQ: tap a band; drag or use +/-. Tap gain/frequency to switch. Power button: pocket lock.",onboarding_gesture_text(HINT_SHORTCUTS));
     const char *bodies[]={disco_mirror()?"Swipe left from the right edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.":"Swipe right from the left edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.",nav,music,th_null()?"Tap or drag progress to seek. Tap full-screen artwork to return. Back swipe closes the track popup.":"Tap / drag progress to seek; hold for precise seeking. Tap full-screen artwork to return. Back swipe closes the track popup.",quick,"Hold songs / albums for actions. Tap A-Z, then a letter. Drag the rim to scroll. Cover flow: drag to browse; tap for tracks; hold to play.","Clock: tap for Weather; hold the top strip to hide/show. Drag volume to adjust; tap outside to dismiss.",more};
     if(th_simple()){
-        snprintf(nav,sizeof nav,"Tap D! to open. Drag the wheel to browse; release to snap. Tap the icon to open. D! closes; double-tap / hold it for your shortcuts.");
+        snprintf(nav,sizeof nav,"Tap D! to open. Drag the wheel to browse; release to snap. Tap the icon to open. D! closes; double-tap D! / hold either icon for your shortcuts.");
         snprintf(quick,sizeof quick,"Eight icon slots. Tap Wi-Fi / Bluetooth to toggle; hold for connections. Hold other icons for names. Drag the sun arc for brightness; battery arc shows charge.");
+        bodies[6]="Clock: tap for Weather; hold the top strip to hide/show. Drag the bottom volume arc. Tap D! / outside to close; it auto-hides after input stops.";
         bodies[1]=nav;bodies[2]="Tap track text for actions / Mood. Double-tap: play/pause. Swipe right: next; left: previous. Hold uses your Title hold setting.";bodies[4]=quick;
     }
     lv_obj_t *list=lv_obj_create(root);lv_obj_remove_style_all(list);
