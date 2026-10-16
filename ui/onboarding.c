@@ -35,7 +35,7 @@ const char *onboarding_gesture_text(int id){
         int tap=cfg_get_int("null_nav_double",DISCO_NAV_SEARCH),hold=cfg_get_int("null_nav_hold",DISCO_NAV_MUSIC);
         if(tap<0 || tap>=DISCO_NAV_COUNT)tap=DISCO_NAV_SEARCH;
         if(hold<0 || hold>=DISCO_NAV_COUNT)hold=DISCO_NAV_MUSIC;
-        snprintf(tip,sizeof tip,"Handle centre: double-tap for %s; hold for %s. Drag to browse; hold either end to scroll.",names[tap],names[hold]);
+        snprintf(tip,sizeof tip,"Double-tap: %s\nHold centre: %s\nDrag to browse.\nHold ends to scroll.",names[tap],names[hold]);
         return tip;
     }
     if(id==HINT_MUSIC){
@@ -132,11 +132,15 @@ static void show_pill(int id){
     else {
         lv_obj_set_style_pad_hor(pill,14,0);lv_obj_set_style_pad_ver(pill,5,0);
         lv_obj_set_size(pill,LV_SIZE_CONTENT,LV_SIZE_CONTENT);
+        lv_label_set_long_mode(label,LV_LABEL_LONG_WRAP);
         lv_obj_set_width(label,250);lv_obj_set_style_max_width(label,250,0);   /* longer lines wrap */
         lv_obj_update_layout(pill);
         int pw=lv_obj_get_width(pill),ph=lv_obj_get_height(pill),cx=x+w/2;
-        if(ph>108){lv_obj_set_height(label,94);lv_label_set_long_mode(label,LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_update_layout(pill);ph=lv_obj_get_height(pill);}
-        if(ph>120){lv_obj_set_height(pill,120);ph=120;}
+        if(ph>204){
+            lv_obj_set_height(pill,204);ph=204;
+            lv_obj_add_flag(pill,LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scroll_dir(pill,LV_DIR_VER);lv_obj_set_scrollbar_mode(pill,LV_SCROLLBAR_MODE_AUTO);
+        }
         int px=cx-pw/2,py=y;
         if(id==HINT_MUSIC || id==HINT_SHORTCUTS)py=y+28-ph;            /* above the title, whatever its height */
         if(id!=HINT_LOCK){py=180-ph/2;px=180-pw/2;}
