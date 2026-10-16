@@ -70,16 +70,18 @@ static void nav_paint(void){
  int base=(int)lroundf(nav_phase);
  for(int j=0;j<3;j++){
   int off=j-1,index=(base+off)%nav_count;if(index<0)index+=nav_count;
-  float delta=(base+off-nav_phase),a=delta*0.95f;
-  int x=360+(int)lroundf(sinf(a)*135),y=202-(int)lroundf(cosf(a)*135);
+  float delta=(base+off-nav_phase),a=delta*0.6105f;
+  int x=360+(int)lroundf(sinf(a)*293),y=360-(int)lroundf(cosf(a)*293);
   lv_obj_set_pos(nav_items[j],x-90,y-56);
-  int opa=(int)(255*(1-fminf(1,fabsf(delta))));
+  float distance=fabsf(delta);
+  int opa=distance<=1?(int)(255-110*distance):(int)(145*fmaxf(0,1-(distance-1)/0.6f));
   lv_obj_set_style_opa(nav_items[j],opa,0);
   const char *ic=disco_catalog_icon(index);lv_label_set_text(nav_icons[j],ic);disco_vec_icon(nav_icons[j],ic,80);
   lv_obj_set_style_text_font(nav_icons[j],ic[0]!='@'&&(unsigned char)ic[0]<128?TF(UI_36):TF(LAUNCHER_ICON_80),0);
   lv_obj_set_style_transform_scale_x(nav_icons[j],256,0);lv_obj_set_style_transform_scale_y(nav_icons[j],256,0);
   lv_obj_center(nav_icons[j]);
   lv_label_set_text(nav_names[j],disco_catalog_name(index));
+  lv_obj_set_style_opa(nav_names[j],(int)(255*fmaxf(0,1-fabsf(delta))),0);
  }
  nav_selected=((int)lroundf(nav_phase)%nav_count+nav_count)%nav_count;
  char b[24];snprintf(b,sizeof b,"%d / %d",nav_selected+1,nav_count);lv_label_set_text(nav_pos,b);
@@ -247,6 +249,7 @@ static lv_obj_t*simple_header(lv_obj_t*r,const char*t,lv_event_cb_t cb){
 }
 const theme_kit_t theme_kit_simple={.id="simple",.style=simple_style,.header=simple_header};
 
+void simple_test_nav_phase(int v){nav_phase=v/1000.0f;nav_paint();}
 int simple_test_selection(void){return nav_selected;}
 int simple_test_qs_count(void){return qs_n;}
 

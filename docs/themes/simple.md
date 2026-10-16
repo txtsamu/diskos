@@ -1,4 +1,4 @@
-# Simple — theme preview 0.2
+# Simple — theme preview 0.3
 
 A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
 configuration keys and presentation paths. Simple uses Disco's menus, track
@@ -7,7 +7,7 @@ popup, editor and system actions rather than duplicating their behaviour.
 ## Presentation
 
 - Dark charcoal / off-white; orange emphasis and outlined round controls.
-- Nunito Bold 700 at 22/30 px for general important text and 36/30/26 px for Music; Inter Medium for smaller
+- Nunito Bold 700 at 22/30 px for general important text and 38/32/28 px for Music; Inter Medium for smaller
   detail, with existing international and symbol fallback chains.
 - Music backgrounds: Plain, Blur or Cover, with variant-specific washes.
 - Music: two-line title area, artist and album, Line / Arc seek progress, elapsed / total time,
@@ -82,3 +82,12 @@ hardware. No existing release binary or GitHub tag is replaced by this preview.
   and playback actions. This is action feedback, not a new confirmation step.
 
 This pass provides native stills and motion previews, not an update package.
+
+## Preview 0.3 — visible neighbours
+
+- Previous and next launcher icons stay partially visible at the left and right
+  edges, rotating continuously into the central position. Side labels fade out.
+- Music title / artist / album increase to 38 / 32 / 28 px; both alignments retain
+  the same progress bar position and the gesture field covers the full info block.
+- Native-size list, USB and clipboard symbols avoid small fallback glyphs.
+- The arrow from D! also acknowledges double-tap playback and both track swipes.

@@ -1634,6 +1634,7 @@ render:
         puts("PASS: Simple eight-slot QS, isolated preferences, planet drag/snap/open/back, metadata double-tap and both track swipes");return 0;
     }
     if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);int ms=getenv("SIMPLE_NAV_MS")?atoi(getenv("SIMPLE_NAV_MS")):350;for(int i=0;i<ms/10;i++){lv_tick_inc(10);lv_timer_handler();}}
+    if(th_simple()&&getenv("SIMPLE_NAV_PHASE"))simple_test_nav_phase(atoi(getenv("SIMPLE_NAV_PHASE")));
     if(th_simple()&&getenv("SIMPLE_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_simple()&&getenv("SIMPLE_ARROW_MS")){simple_action_feedback();for(int i=0;i<atoi(getenv("SIMPLE_ARROW_MS"))/10;i++){lv_tick_inc(10);lv_timer_handler();}}
     if(th_simple()&&getenv("SIMPLE_ARROW_FRAME"))simple_test_feedback_frame(atoi(getenv("SIMPLE_ARROW_FRAME")));

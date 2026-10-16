@@ -15,6 +15,7 @@ void simple_nav_refresh(void);
 int simple_nav_is_open(void);
 int simple_owns_point(int,int);
 int simple_music_protected(lv_obj_t *);
+void simple_test_nav_phase(int);
 int simple_test_selection(void);
 int simple_test_qs_count(void);
 void simple_qs_create(lv_obj_t *);

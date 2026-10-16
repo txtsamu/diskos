@@ -1009,17 +1009,17 @@ static void simple_music_layout(void){
  lv_obj_set_pos(g_pill,80,14);lv_obj_set_size(g_pill,200,82);lv_obj_set_pos(g_top_hit,80,14);lv_obj_set_size(g_top_hit,200,82);
  simple_label_pair(&L_STAT,0,0,200,20,TF(UI_14));simple_label_pair(&L_TIME,0,24,200,32,TF(UI_28));simple_label_pair(&L_WX,0,60,200,22,&g_wfont);
  int aligned_left=simple_cfg_get_int("disco_title_al",0)==1;
- lv_obj_set_pos(g_trk,36,100);lv_obj_set_size(g_trk,288,136);
- simple_label_pair(&L_TITLE,0,0,288,88,TF(UI_36));simple_label_pair(&L_ARTIST,0,88,288,36,TF(UI_30));
- lv_point_t title_size;lv_text_get_size(&title_size,L_TITLE.cur,TF(UI_36),0,0,288,LV_TEXT_FLAG_NONE);
- int title_h=title_size.y>88?88:title_size.y;lv_obj_set_height(L_TITLE.fg,title_h);lv_obj_set_y(L_TITLE.fg,88-title_h);
+ lv_obj_set_pos(g_trk,36,94);lv_obj_set_size(g_trk,288,136);
+ simple_label_pair(&L_TITLE,0,0,288,92,TF(MUSIC_TITLE));simple_label_pair(&L_ARTIST,0,92,288,39,TF(MUSIC_ARTIST));
+ lv_point_t title_size;lv_text_get_size(&title_size,L_TITLE.cur,TF(MUSIC_TITLE),0,0,288,LV_TEXT_FLAG_NONE);
+ int title_h=title_size.y>92?92:title_size.y;lv_obj_set_height(L_TITLE.fg,title_h);lv_obj_set_y(L_TITLE.fg,92-title_h);
  lv_obj_set_style_text_align(L_TITLE.fg,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);
  lv_obj_set_style_text_align(L_ARTIST.fg,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);
  if(!simple_album){simple_album=lv_label_create(lv_obj_get_parent(g_trk));lv_label_set_long_mode(simple_album,LV_LABEL_LONG_DOT);kit_keep(simple_album);}
- lv_obj_set_style_text_font(simple_album,TF(UI_26),0);lv_obj_set_style_text_color(simple_album,TC(TEXT_SECONDARY),0);
- lv_obj_set_style_text_align(simple_album,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(simple_album,36,224);lv_obj_set_size(simple_album,288,34);
+ lv_obj_set_style_text_font(simple_album,TF(MUSIC_ALBUM),0);lv_obj_set_style_text_color(simple_album,TC(TEXT_SECONDARY),0);
+ lv_obj_set_style_text_align(simple_album,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(simple_album,36,230);lv_obj_set_size(simple_album,288,35);
  track_state_t st;ipc_get_state(&st);lv_label_set_text(simple_album,st.album);
- lv_obj_set_pos(g_gz,36,100);lv_obj_set_size(g_gz,288,148);lv_obj_move_foreground(g_gz);
+ lv_obj_set_pos(g_gz,36,94);lv_obj_set_size(g_gz,288,171);lv_obj_move_foreground(g_gz);
  for(int i=0;i<4;i++)if(g_gz_hint[i])lv_obj_add_flag(g_gz_hint[i],LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_pos(g_gz_fx,140,150);lv_obj_move_foreground(g_gz_fx);
  lv_obj_set_size(g_mode,44,44);lv_obj_set_align(g_mode,LV_ALIGN_TOP_LEFT);lv_obj_set_pos(g_mode,248,44);lv_obj_remove_flag(g_mode,LV_OBJ_FLAG_HIDDEN);
