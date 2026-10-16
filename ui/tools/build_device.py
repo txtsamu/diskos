@@ -14,6 +14,9 @@ for path in sorted(paths):
  if not path.is_file() or any(x in skip for x in rel.parts) or path.suffix in ('.o','.d'):continue
  data=path.read_bytes();digest.update(str(rel).encode()+b'\0'+data);dest=cache/rel;dest.parent.mkdir(parents=True,exist_ok=True)
  if not dest.exists() or dest.read_bytes()!=data:shutil.copy2(path,dest);os.utime(dest,None)
+# An interrupted compiler may leave an empty object that make otherwise treats as up to date.
+for obj in cache.rglob('*.o'):
+ if obj.stat().st_size == 0:obj.unlink()
 prefix=str(a.toolchain.resolve()/'bin/mipsel-linux-musl-')
 cc=prefix+'gcc'+(' -fuse-ld=bfd' if Path(prefix+'ld.bfd').exists() else '')
 subprocess.run(['make','-C',str(cache),'CROSS='+prefix,'CC='+cc,'-j'+str(max(1,a.jobs)),'mq_ui','diskos-artdec','diskos-bootprobe'],check=True)

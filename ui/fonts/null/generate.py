@@ -35,7 +35,7 @@ patterns.update({str(i):s.split() for i,s in enumerate(digits)})
 patterns.update({':':['00000','00100','00100','00000','00100','00100','00000'],'-':['00000']*3+['11111']+['00000']*3,'/':['00001','00010','00010','00100','01000','01000','10000'],'.':['00000']*5+['00100','00100'],'<':['00010','00100','01000','10000','01000','00100','00010'],'>':['01000','00100','00010','00001','00010','00100','01000']})
 from PIL import Image,ImageDraw,ImageFont
 out=['/* Original Null5x7 alphabet and DejaVu-derived one-bit fine text. GPL3; see fonts/null/LICENSE-DejaVu.txt. */','#include "lvgl/lvgl.h"']
-for name,size,scale in [('null_pixel_14',14,2),('null_pixel_21',21,3),('null_pixel_28',28,4),('null_pixel_56',56,8),('null_fine_12',12,0),('null_fine_14',14,0),('null_fine_16',16,0),('null_fine_18',18,0),('null_fine_20',20,0)]:
+for name,size,scale in [('null_pixel_14',14,2),('null_pixel_21',21,3),('null_pixel_28',28,4),('null_pixel_56',56,8),('null_pixel_70',70,10),('null_fine_12',12,0),('null_fine_14',14,0),('null_fine_16',16,0),('null_fine_18',18,0),('null_fine_20',20,0),('null_fine_24',24,0)]:
  w=5*scale if scale else round(ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',size).getlength('M'));h=7*scale if scale else size+2;adv=w+(scale if scale else 1);data=[];ds=['{0}']
  for code in range(32,127):
   if scale:

@@ -1,4 +1,4 @@
-# Null 2.3.0-Null.4 — Disc device-test build
+# Null 2.3.0-Null.5 — Disc device-test build
 
 Select Display > Theme > Null. Theme settings are under Display > Null Options.
 
@@ -63,3 +63,14 @@ Volume uses a 24px eased slide and fade, opening in 96ms and closing in 70ms;
 repeated value updates preserve the running animation. The volume interaction
 check passed on the host. These source previews have not replaced the last
 compiled Null.4 payload.
+
+Null.5 device-test candidate includes every source preview above. Charging QS uses
+semantic green, an upward moving highlight and a flashing bolt; animation pauses
+when QS closes. Below 15% the battery fill and icon are red; 15% remains normal.
+Shared Boomshine/Stats/installed-app landings and Roulette have readable outlined
+Null buttons. Transparent-button labels retain contrast elsewhere as well.
+The screensaver keeps its custom fonts on entry: a 70px clock, separate 32px weather
+symbol, 24px weather text/title, and 20px date/artist. 12-hour AM/PM is retained in
+the date line so the large time fits. Unknown/absent weather icons are handled.
+Focused battery, landing-button, weather-glyph, gesture, volume and routing checks
+have passed on the host; physical Disc validation remains pending.

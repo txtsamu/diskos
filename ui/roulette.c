@@ -1,10 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "screens.h"
 #include "theme.h"
+#include "theme_kit.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+static void null_landing_button(lv_obj_t *button,lv_obj_t *label){
+    if(!th_null())return;
+    lv_obj_set_size(button,190,48);lv_obj_align(button,LV_ALIGN_TOP_MID,0,284);
+    lv_obj_set_style_radius(button,0,0);lv_obj_set_style_bg_opa(button,0,0);
+    lv_obj_set_style_bg_color(button,TC(TEXT_SECONDARY),LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(button,70,LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(button,1,0);lv_obj_set_style_border_color(button,TC(TEXT_SECONDARY),0);
+    lv_obj_set_style_text_font(label,TF(HEADER_SM),0);lv_obj_set_style_text_color(label,TC(TEXT_PRIMARY),0);
+    lv_obj_set_width(label,168);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(label);
+    kit_keep(button);kit_keep(label);
+}
 static void launch_cb(lv_event_t *e){ (void)e; roulette_spin_open(); }   /* built in since 2.2.0 */
 static lv_obj_t *text(lv_obj_t *root, const char *s, int y, int width, const lv_font_t *font, lv_color_t color){
     lv_obj_t *l = lv_label_create(root);
@@ -51,6 +64,7 @@ void roulette_create(lv_obj_t *root){
     lv_obj_add_event_cb(button, launch_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l = lv_label_create(button); lv_label_set_text(l, "I feel lucky!");
     lv_obj_set_style_text_font(l, TF(UI_18), 0); lv_obj_set_style_text_color(l, TC(ON_ACCENT), 0); lv_obj_center(l);
+    null_landing_button(button,l);
 }
 
 /* ---- App landing page: Boomshine, and any installed app (text from its app.conf, or plain defaults). */
@@ -133,6 +147,7 @@ void applanding_create(lv_obj_t *root){
     g_land_btn_l = lv_label_create(button);
     lv_obj_set_style_text_font(g_land_btn_l, TF(UI_18), 0); lv_obj_set_style_text_color(g_land_btn_l, TC(ON_ACCENT), 0);
     lv_obj_center(g_land_btn_l);
+    null_landing_button(button,g_land_btn_l);
 }
 void applanding_show(const char *name, const char *tagline, const char *about, const char *button, const char *exec){
     if(!g_land_root) return;

@@ -52,7 +52,9 @@ static const char *name_ptrs[10];
 static lv_obj_t *qroot, *qpanel, *qcover, *qart, *qpp, *qprev, *qnext, *qclose, *qbright, *qicons[3],
     *qfields[8], *qcaptions[8];
 static int qids[8], qcount;
-static lv_obj_t *qbattery, *qbfill, *qbhead;
+static lv_obj_t *qbattery, *qbfill, *qbhead, *qbflow;
+static lv_timer_t *qb_timer;
+static void battery_motion_sync(void);
 static int qbpercent = -1, qbcharging;
 static lv_obj_t *volume_panel, *volume_slider, *volume_value;
 static lv_timer_t *volume_timer;
@@ -681,6 +683,7 @@ void null_qs_slide(int open)
     if (!qpanel)
         return;
     qs_open = !!open;
+    battery_motion_sync();
     lv_anim_delete(qpanel, qpos);
     if (open && lv_obj_get_y(qpanel) == 0)
         lv_obj_set_y(qpanel, -360);
@@ -784,6 +787,8 @@ static void qs_construct(void)
         lv_obj_set_style_bg_color(qbattery, TC(TEXT_SECONDARY), 0);
         qbfill = box(qbattery, 0, 160, 6, 1);
         qbhead = box(qbattery, -1, 153, 8, 7);
+        qbflow=box(qbattery,0,160,6,1);lv_obj_set_style_bg_color(qbflow,theme_color_mix(TC(FIXED_MEDIA_WHITE),TC(STATUS_SUCCESS),110),0);
+        lv_obj_add_flag(qbflow,LV_OBJ_FLAG_HIDDEN);
     }
     if(!qbicon){
         qbicon=text(qroot,LV_SYMBOL_BATTERY_FULL,35,270,26,TF(UI_14),TC(TEXT_PRIMARY));
@@ -1019,7 +1024,7 @@ void null_screen_entered(int which)
     if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
-    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ)
+    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_APPLAND && which != SCR_SAVER)
         kit_restyle(root);
     int hidden = which == SCR_QUICK || which == SCR_SAVER || which == SCR_NOWPLAYING ||
                  which == SCR_SPHERE || which == SCR_SETTINGS || which == SCR_SETLIST ||
@@ -1109,28 +1114,48 @@ void null_options_changed(void)
         nav_paint();
     null_art_changed();
 }
-static lv_obj_t *sclock, *sdate, *sweather, *strack, *sartist;
+static lv_obj_t *sclock, *sdate, *sweather, *sweather_icon, *strack, *sartist;
+extern const lv_font_t null_pixel_70, null_fine_24, null_weather_32;
+static lv_font_t saver_weather_font;
 void null_saver_create(lv_obj_t *r)
 {
-    sclock = text(r, "--:--", 36, 122, 288, TF(SAVER_CLOCK), TC(TEXT_PRIMARY));
-    sdate = text(r, "", 50, 196, 260, TF(UI_14), TC(TEXT_SECONDARY));
-    sweather = text(r, "", 44, 75, 272, TF(UI_16), TC(TEXT_SECONDARY));
-    strack = text(r, "", 40, 242, 280, TF(HEADER_SM), TC(TEXT_PRIMARY));
-    sartist = text(r, "", 44, 275, 272, TF(UI_14), TC(TEXT_SECONDARY));
-    lv_label_set_long_mode(strack, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_long_mode(sartist, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    saver_weather_font=null_fine_24;saver_weather_font.fallback=ui_font_cjk(20);
+    sweather_icon=text(r,"",56,62,40,&null_weather_32,TC(TEXT_SECONDARY));
+    sweather=text(r,"",104,64,204,&saver_weather_font,TC(TEXT_SECONDARY));
+    lv_obj_set_style_text_align(sweather,LV_TEXT_ALIGN_LEFT,0);
+    lv_label_set_long_mode(sweather,LV_LABEL_LONG_DOT);
+    sclock=text(r,"--:--",20,108,320,&null_pixel_70,TC(TEXT_PRIMARY));
+    sdate=text(r,"",44,196,272,TF(UI_20),TC(TEXT_SECONDARY));
+    lv_label_set_long_mode(sdate,LV_LABEL_LONG_DOT);
+    strack=text(r,"",40,237,280,&music_fonts[0][0],TC(TEXT_PRIMARY));
+    sartist=text(r,"",60,279,240,TF(UI_20),TC(TEXT_SECONDARY));
+    lv_label_set_long_mode(strack,LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_long_mode(sartist,LV_LABEL_LONG_SCROLL_CIRCULAR);
     keep_tree(r);
 }
-void null_saver_clock(const char *t, const char *d)
+void null_saver_clock(const char *t,const char *d)
 {
-    text_set(sclock, t ? t : "--:--");
-    text_set(sdate, d ? d : "");
+    char clock[32],date[80];snprintf(clock,sizeof clock,"%s",t?t:"--:--");
+    char *suffix=strchr(clock,' ');if(suffix)*suffix++=0;
+    text_set(sclock,clock);
+    snprintf(date,sizeof date,"%s%s%s",d?d:"",suffix?"  ":"",suffix?suffix:"");text_set(sdate,date);
 }
-void null_saver_weather(const char *w) { text_set(sweather, w ? w : ""); }
-void null_saver_track(const char *t, const char *a)
+void null_saver_weather(const char *w)
 {
-    text_set(strack, t ? t : "");
-    text_set(sartist, a ? a : "");
+    const unsigned char *p=(const unsigned char *)(w?w:"");while(*p==' ')p++;
+    char icon[4]="";
+    if(p[0]>=0xe0 && p[0]<=0xef && p[1] && p[2]){
+        unsigned cp=((p[0]&15)<<12)|((p[1]&63)<<6)|(p[2]&63);lv_font_glyph_dsc_t glyph;
+        if(lv_font_get_glyph_dsc(&null_weather_32,&glyph,cp,0) && !glyph.is_placeholder){memcpy(icon,p,3);p+=3;}
+    }
+    while(*p==' ')p++;
+    text_set(sweather_icon,icon);text_set(sweather,(const char *)p);
+    if(icon[0]){lv_obj_set_x(sweather,104);lv_obj_set_width(sweather,204);lv_obj_set_style_text_align(sweather,LV_TEXT_ALIGN_LEFT,0);}
+    else {lv_obj_set_x(sweather,44);lv_obj_set_width(sweather,272);lv_obj_set_style_text_align(sweather,LV_TEXT_ALIGN_CENTER,0);}
+}
+void null_saver_track(const char *t,const char *a)
+{
+    char upper[192];theme_upper(upper,sizeof upper,t?t:"");text_set(strack,upper);text_set(sartist,a?a:"");
 }
 /* Shared screen grammar: black canvas, square controls, pixel headers, fine
  * pixel reading text. No screen is rebuilt here, so its action registry, list
@@ -1189,6 +1214,10 @@ static void null_style(lv_obj_t *o, kit_role_t role)
             lv_obj_set_style_text_color(o, TC(TEXT_SECONDARY), 0);
         } else if (role == KIT_ROW_SUB)
             lv_obj_set_style_text_color(o, TC(TEXT_PRIMARY), 0);
+        lv_obj_t *parent=lv_obj_get_parent(o);
+        lv_color_t ink=lv_obj_get_style_text_color(o,0);
+        if(parent && lv_obj_get_style_bg_opa(parent,0)<50 && ink.red+ink.green+ink.blue<96)
+            lv_obj_set_style_text_color(o,TC(TEXT_PRIMARY),0);
         if (!glyph && s && s[0] && role != KIT_TITLE) {
             const lv_font_t *cur = lv_obj_get_style_text_font(o, 0);
             int h = lv_font_get_line_height(cur);
@@ -1289,7 +1318,7 @@ void null_qs_battery(int percent, int charging)
     if (!qbattery || qbpercent < 0)
         return;
     int h = qbpercent * 160 / 100, y = 160 - h;
-    lv_color_t c = qbcharging ? TC(STATUS_SUCCESS) : qbpercent <= 15 ? TC(STATUS_DANGER) : TC(TEXT_PRIMARY);
+    lv_color_t c = qbcharging ? TC(STATUS_SUCCESS) : qbpercent < 15 ? TC(STATUS_DANGER) : TC(TEXT_PRIMARY);
     lv_obj_set_pos(qbfill, 0, y);
     lv_obj_set_size(qbfill, 6, h ? h : 1);
     if (h)
@@ -1301,7 +1330,32 @@ void null_qs_battery(int percent, int charging)
     lv_obj_set_y(qbhead, y);
     lv_obj_set_style_bg_color(qbfill, c, 0);
     lv_obj_set_style_bg_color(qbhead, c, 0);
+    battery_motion_sync();
     if(qbicon){text_set(qbicon,qbcharging?LV_SYMBOL_CHARGE:qbpercent>80?LV_SYMBOL_BATTERY_FULL:qbpercent>55?LV_SYMBOL_BATTERY_3:qbpercent>30?LV_SYMBOL_BATTERY_2:qbpercent>10?LV_SYMBOL_BATTERY_1:LV_SYMBOL_BATTERY_EMPTY);lv_obj_set_style_text_color(qbicon,c,0);}
+}
+static void battery_motion(lv_timer_t *t)
+{
+    (void)t;
+    if(!qs_open || !qbcharging || screen_current()!=SCR_QUICK){battery_motion_sync();return;}
+    int h=qbpercent>0?qbpercent*160/100:0;
+    if(qbflow && h){
+        int floor=160-h, y=160-(int)((lv_tick_get()%1800)*(h+18)/1800),end=y+18;
+        if(y<floor)y=floor;if(end>160)end=160;
+        if(end>y){lv_obj_set_pos(qbflow,0,y);lv_obj_set_height(qbflow,end-y);lv_obj_remove_flag(qbflow,LV_OBJ_FLAG_HIDDEN);}
+        else lv_obj_add_flag(qbflow,LV_OBJ_FLAG_HIDDEN);
+    }
+    if(qbicon)lv_obj_set_style_text_opa(qbicon,(lv_tick_get()/500)%2?65:255,0);
+}
+static void battery_motion_sync(void)
+{
+    if(qbcharging && qs_open){
+        if(!qb_timer)qb_timer=lv_timer_create(battery_motion,50,NULL);
+        else lv_timer_resume(qb_timer);
+    }else{
+        if(qb_timer)lv_timer_pause(qb_timer);
+        if(qbflow)lv_obj_add_flag(qbflow,LV_OBJ_FLAG_HIDDEN);
+        if(qbicon)lv_obj_set_style_text_opa(qbicon,255,0);
+    }
 }
 static void volume_x(void *o,int32_t progress) {
     volume_progress=progress;lv_obj_set_x(o,24*(1000-progress)/1000);

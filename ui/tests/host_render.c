@@ -800,6 +800,17 @@ int main(int argc, char **argv){
     if(!strcmp(argv[3],"appland-boom")){           /* the Boomshine landing page, for comparison */
         screen_set_anim(0);screens_init();boomshine_landing();
         for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();}
+        if(th_null()){
+            lv_obj_t *l=find_visible_text(screen_get_root(SCR_APPLAND),"Play");assert(l);
+            lv_color_t ink=lv_obj_get_style_text_color(l,0);assert(ink.red+ink.green+ink.blue>96);
+            assert(lv_obj_get_style_border_width(lv_obj_get_parent(l),0)==1);
+            if(getenv("REVIEW_NULL_LANDING")){
+                const char *labels[]={"Show me","Open"};
+                for(int j=0;j<2;j++){applanding_show(j?"Installed App":"Listening Stats","Tagline","App description",labels[j],j?"/not-launched":APP_BUILTIN_STATS);nav_wait(40);
+                    l=find_visible_text(screen_get_root(SCR_APPLAND),labels[j]);assert(l);ink=lv_obj_get_style_text_color(l,0);assert(ink.red+ink.green+ink.blue>96);}
+                puts("PASS: Boomshine, Stats and generic app landing buttons remain readable");
+            }
+        }
         goto render;
     }
     if(!strncmp(argv[3],"disco-",6)){              /* "Disco" theme concept mockups (tests/disco_mock.c) */
@@ -962,7 +973,7 @@ int main(int argc, char **argv){
             cfg_set_int_deferred("saver_style",5);
             saver_set_track(st.title,st.artist,NULL,st.path);
             saver_set_clock("10:09","Saturday, 3 October");
-            saver_set_weather("Clear 18°");
+            saver_set_weather("\xEF\x86\x85  18°C Clear");
             scr=SCR_SAVER;
         }
         if(th_null()&&!strcmp(page,"scr43"))appshelf_open();
@@ -976,6 +987,20 @@ int main(int argc, char **argv){
             void disco_test_tap(int);disco_nav_set_open(1);nav_wait(300);
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
             if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
+        }
+        if(getenv("REVIEW_NULL_BATTERY")){
+            assert(th_null());lv_color_t green=TC(STATUS_SUCCESS);assert(green.green>green.red && green.green>green.blue);screen_show(SCR_QUICK);nav_wait(250);
+            lv_obj_t *root=screen_get_root(SCR_QUICK),*bar=NULL;
+            for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=lv_obj_get_child(root,i);if(lv_obj_get_width(o)==6 && lv_obj_get_height(o)==160 && !lv_obj_check_type(o,&lv_slider_class))bar=o;}
+            assert(bar);lv_obj_t *fill=lv_obj_get_child(bar,0),*flow=lv_obj_get_child(bar,2);
+            null_qs_battery(14,0);assert(lv_color_eq(lv_obj_get_style_bg_color(fill,0),TC(STATUS_DANGER)));
+            null_qs_battery(15,0);assert(lv_color_eq(lv_obj_get_style_bg_color(fill,0),TC(TEXT_PRIMARY)));
+            null_qs_battery(67,1);assert(lv_color_eq(lv_obj_get_style_bg_color(fill,0),TC(STATUS_SUCCESS)));
+            nav_wait(100);int y=lv_obj_get_y(flow),height=lv_obj_get_height(flow);nav_wait(150);assert(lv_obj_get_y(flow)!=y || lv_obj_get_height(flow)!=height);
+            lv_obj_t *bolt=find_visible_text(root,LV_SYMBOL_CHARGE);assert(bolt);int opacity=lv_obj_get_style_text_opa(bolt,0);nav_wait(500);assert(lv_obj_get_style_text_opa(bolt,0)!=opacity);
+            screen_back();nav_wait(250);y=lv_obj_get_y(flow);nav_wait(200);assert(lv_obj_get_y(flow)==y);
+            puts("PASS: battery threshold, charging colour, flow, flashing icon and closed-panel pause");
+            return 0;
         }
         if(getenv("REVIEW_NULL_GESTURES")){
             extern int disco_track_overlay_visible(void);extern void dhome_overlay_close(void);
@@ -1328,7 +1353,9 @@ int main(int argc, char **argv){
             for(int i=0;i<extra/10;i++){lv_tick_inc(10);lv_timer_handler();}
         }
         if(scr==SCR_SAVER){
-            lv_obj_t *title=find_text(screen_get_root(scr),st.title), *artist=find_text(screen_get_root(scr),st.artist);
+            if(th_null()){assert_visible_icon_glyphs(screen_get_root(scr));assert(lv_font_get_line_height(lv_obj_get_style_text_font(find_text(screen_get_root(scr),"10:09"),0))>=70);}
+            char saver_title[192];theme_upper(saver_title,sizeof saver_title,st.title);
+            lv_obj_t *title=find_text(screen_get_root(scr),th_null()?saver_title:st.title), *artist=find_text(screen_get_root(scr),st.artist);
             assert(title && artist);
             assert(lv_label_get_long_mode(title)==LV_LABEL_LONG_SCROLL_CIRCULAR);
             assert(lv_label_get_long_mode(artist)==LV_LABEL_LONG_SCROLL_CIRCULAR);
