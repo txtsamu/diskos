@@ -1017,6 +1017,11 @@ int main(int argc, char **argv){
             return 0;
         }
         if(getenv("HELP_KEY")){extern void settings_open_key(const char *);settings_open_key(getenv("HELP_KEY"));scr=SCR_SETTING_DETAIL;nav_wait(300);assert(screen_current()==SCR_SETTING_DETAIL);}
+        if(getenv("HANDLE_TIP")){
+            onboarding_reset();onboarding_start();onboarding_context(HINT_HANDLE);nav_wait(900);
+            lv_obj_t *tip=find_text(lv_layer_top(),onboarding_gesture_text(HINT_HANDLE));assert(tip);
+            lv_area_t a;lv_obj_get_coords(lv_obj_get_parent(tip),&a);assert(abs((a.y1+a.y2)/2-180)<3);
+        }
         if(getenv("HOWTO_PAGE")){
             lv_obj_t *root=screen_get_root(SCR_SETLIST),*list=NULL;
             for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){

@@ -53,13 +53,19 @@ static void list_text_mode(lv_obj_t *row,int focused){
         if(lv_label_get_long_mode(l)!=want)lv_label_set_long_mode(l,want);
     }
 }
+static void library_row_focus(lv_event_t *e){list_text_mode(lv_event_get_target(e),1);}
+static int library_row_marked(lv_obj_t *row){
+    for(uint32_t i=0;i<lv_obj_get_event_count(row);i++)
+        if(lv_event_dsc_get_cb(lv_obj_get_event_dsc(row,i))==library_row_focus)return 1;
+    return 0;
+}
 static void list_focus_update(lv_timer_t *t){
     lv_obj_t *list=lv_timer_get_user_data(t);
     if(!lv_obj_is_visible(list))return;
     lv_obj_t *nearest=NULL;int distance=10000;
     for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){
         lv_obj_t *r=lv_obj_get_child(list,i);
-        if(!lv_obj_has_flag(r,LV_OBJ_FLAG_USER_2) || lv_obj_has_flag(r,LV_OBJ_FLAG_HIDDEN))continue;
+        if(!library_row_marked(r) || lv_obj_has_flag(r,LV_OBJ_FLAG_HIDDEN))continue;
         lv_area_t a;lv_obj_get_coords(r,&a);
         if(a.y2<72 || a.y1>318)continue;
         int d=LV_ABS((a.y1+a.y2)/2-180);
@@ -68,7 +74,7 @@ static void list_focus_update(lv_timer_t *t){
     }
     for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){
         lv_obj_t *r=lv_obj_get_child(list,i);
-        if(lv_obj_has_flag(r,LV_OBJ_FLAG_USER_2))list_text_mode(r,r==nearest);
+        if(library_row_marked(r))list_text_mode(r,r==nearest);
     }
 }
 static void list_watch_delete(lv_event_t *e){lv_timer_delete(lv_event_get_user_data(e));}
@@ -77,5 +83,5 @@ void ui_library_list_watch(lv_obj_t *list){
     lv_obj_add_event_cb(list,list_watch_delete,LV_EVENT_DELETE,timer);
 }
 void ui_library_row(lv_obj_t *row){
-    lv_obj_add_flag(row,LV_OBJ_FLAG_USER_2);list_text_mode(row,0);
+    lv_obj_add_event_cb(row,library_row_focus,LV_EVENT_FOCUSED,NULL);list_text_mode(row,0);
 }
