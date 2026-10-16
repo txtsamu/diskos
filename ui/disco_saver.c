@@ -86,7 +86,7 @@ void dsaver_create(lv_obj_t *root){
     if(src) lv_image_set_src(g_img, src); else lv_obj_add_flag(g_img, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t *veil = lv_obj_create(root); lv_obj_remove_style_all(veil);   /* standby: the cover far down */
     lv_obj_set_size(veil, 360, 360); lv_obj_set_style_bg_color(veil, th_simple()?TC(CANVAS):TC(FIXED_MEDIA_BLACK), 0);
-    lv_obj_set_style_bg_opa(veil, th_simple()?77:175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(veil, th_simple()?(simple_cfg_get_int("simple_background",0)==1?51:77):175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     g_tr = rim_arc(root, TC(FIXED_MEDIA_WHITE), 3, 40); lv_arc_set_angles(g_tr, 0, 360);
     for(int i = 0; i < NSEG; i++) g_seg[i] = rim_arc(root, theme_color_from_rgb(IRI[i]), 3, 200);
     pair(root, g_t, th_simple()?TF(UI_28):TF(UI_48), -1, 68, 0);

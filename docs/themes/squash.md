@@ -230,3 +230,9 @@ still need hardware measurement.
 Music metadata uses fixed Nunito Bold 36/32/28 px (title/artist/album), shared with standby metadata. Read-only playback and mode indicators flank the time cells. Gesture hints disappear after ten seconds without touch. Menu items and Quick settings lead every Disco-family theme options list; Music and Settings remain protected. Squash retains preset 12 and the existing `simple_*` configuration keys for upgrade compatibility.
 
 The configured Hold shortcut works on both the large launcher icon and the D! logo. It fires once per hold, ignores dragging, and Nothing leaves the launcher open. Double tap retains its own action; both shortcuts share validation and legacy action migration.
+
+## 2.4.0 refinement update
+
+All three Music font options use fixed title/artist/album sizes of 36/32/28 px. Nunito Bold is the default; Squash stores Track Font in `simple_track_font`, independently of Disco. Original uses Montserrat, and Inter Semibold has dedicated rasterized faces at the same sizes. Standby metadata shares these roles.
+
+The D! circle is 72 px, centred at (180,316), with a larger centred logo and matching feedback origin/hit area. Read-only play/pause and playback-mode glyphs now sit left/right of the logo, separately controlled by Playback state and Playback mode switches in Music Screen. They remain independent of Track Times and the progress style. Gesture dots/arrows are removed. The Track Times toggle only reveals the foreground labels, fixing duplicate shadow text. Blur uses a 20% overlay on Music and standby; Cover retains 30%.

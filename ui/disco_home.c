@@ -296,7 +296,7 @@ void dhome_times_apply(void){
     for(int i = 0; i < 4; i++){ if(on) lv_obj_remove_flag(o[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o[i], LV_OBJ_FLAG_HIDDEN); }
     if(th_simple()){
         simple_music_indicators();
-        for(int k=0;k<4;k++){lv_obj_set_align(o[k],LV_ALIGN_TOP_LEFT);lv_obj_set_pos(o[k],k<2?36:234,278);lv_obj_set_size(o[k],90,24);}return;
+        for(int k=0;k<4;k++){lv_obj_set_align(o[k],LV_ALIGN_TOP_LEFT);lv_obj_set_pos(o[k],k<2?36:234,278);lv_obj_set_size(o[k],90,24);if(!(k&1))lv_obj_add_flag(o[k],LV_OBJ_FLAG_HIDDEN);}return;
     }
     int arc = simple_cfg_get_int("disco_prog_shape", 0) == 1;                 /* Arc: no line, the two times side by side */
     for(int k = 0; k < 2; k++){
@@ -1061,20 +1061,20 @@ static void simple_music_layout(void){
  if(!simple_play_state){
   lv_obj_t*root=lv_obj_get_parent(g_trk);simple_play_state=lv_label_create(root);simple_mode_state=lv_label_create(root);
   lv_obj_t*o[2]={simple_play_state,simple_mode_state};
-  for(int k=0;k<2;k++){kit_keep(o[k]);lv_obj_clear_flag(o[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_text_font(o[k],TF(UI_16),0);lv_obj_set_style_text_align(o[k],LV_TEXT_ALIGN_CENTER,0);lv_obj_set_size(o[k],24,24);lv_obj_set_pos(o[k],k?216:120,278);}
+  for(int k=0;k<2;k++){kit_keep(o[k]);lv_obj_clear_flag(o[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_text_font(o[k],TF(UI_16),0);lv_obj_set_style_text_align(o[k],LV_TEXT_ALIGN_CENTER,0);lv_obj_set_size(o[k],24,24);lv_obj_set_pos(o[k],k?224:112,304);}
  }
  simple_music_indicators();simple_music_art();
- lv_obj_set_style_bg_opa(g_wash,77,0);lv_obj_set_style_bg_grad_dir(g_wash,LV_GRAD_DIR_NONE,0);lv_obj_set_pos(g_wash,0,0);lv_obj_set_size(g_wash,360,360);
+ lv_obj_set_style_bg_opa(g_wash,simple_cfg_get_int("simple_background",0)==1?51:77,0);lv_obj_set_style_bg_grad_dir(g_wash,LV_GRAD_DIR_NONE,0);lv_obj_set_pos(g_wash,0,0);lv_obj_set_size(g_wash,360,360);
  acc_paint();
 }
 
 static void simple_music_indicators(void){
  if(!th_simple())return;
- int visible=!g_idle&&simple_cfg_get_int("disco_times",1)&&simple_cfg_get_int("disco_progress",0)!=2;
+ int visible=!g_idle;
  static const char*const modes[5]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};
  if(simple_play_state){int playing=ui_is_playing();lv_label_set_text(simple_play_state,playing?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE);lv_obj_set_style_text_color(simple_play_state,playing?TC(STATUS_SUCCESS):TC(TEXT_SECONDARY),0);int mode=cfg_get_int("work_mode",0);lv_label_set_text(simple_mode_state,modes[mode>=0&&mode<5?mode:0]);lv_obj_set_style_text_color(simple_mode_state,TC(TEXT_SECONDARY),0);
-  lv_obj_t*o[2]={simple_play_state,simple_mode_state};for(int k=0;k<2;k++){if(visible)lv_obj_remove_flag(o[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(o[k],LV_OBJ_FLAG_HIDDEN);}}
- int hints=lv_display_get_inactive_time(NULL)<10000;
+  lv_obj_t*o[2]={simple_play_state,simple_mode_state};for(int k=0;k<2;k++){if(visible&&cfg_get_int(k?"simple_play_mode":"simple_play_state",1))lv_obj_remove_flag(o[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(o[k],LV_OBJ_FLAG_HIDDEN);}}
+ int hints=0; /* Squash uses status icons, without gesture glyphs around the logo. */
  for(int k=0;k<4;k++)if(g_gz_hint[k]){if(hints&&k!=1)lv_obj_remove_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);}
 }
 

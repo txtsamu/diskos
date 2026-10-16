@@ -168,8 +168,8 @@ void simple_nav_init(lv_obj_t*parent){
  }
  nav_pos=label(nav_panel,"",438,201,80,TF(UI_14),TC(TEXT_SECONDARY));
  lv_obj_add_flag(nav_pos,LV_OBJ_FLAG_HIDDEN);
- nav_hub=circle(parent,180,310,64);lv_obj_set_style_bg_color(nav_hub,TC(CANVAS),0);lv_obj_set_style_bg_opa(nav_hub,26,0);
- lv_obj_t*l=label(nav_hub,"D!",0,0,90,&diskos_splash_disco_72,TC(ACCENT_PRIMARY));lv_obj_set_style_transform_scale_x(l,112,0);lv_obj_set_style_transform_scale_y(l,112,0);lv_obj_set_style_transform_pivot_x(l,45,0);lv_obj_set_style_transform_pivot_y(l,36,0);lv_obj_center(l);
+ nav_hub=circle(parent,180,316,72);lv_obj_set_style_bg_color(nav_hub,TC(CANVAS),0);lv_obj_set_style_bg_opa(nav_hub,26,0);
+ lv_obj_t*l=label(nav_hub,"D!",0,0,90,&diskos_splash_disco_72,TC(ACCENT_PRIMARY));lv_obj_set_style_transform_scale_x(l,124,0);lv_obj_set_style_transform_scale_y(l,124,0);lv_obj_set_style_transform_pivot_x(l,45,0);lv_obj_set_style_transform_pivot_y(l,36,0);lv_obj_center(l);
  ui_on(nav_hub,hub_event,LV_EVENT_ALL,NULL,"simple.nav.toggle.shortcuts",UI_CORE);
  simple_nav_refresh();lv_obj_add_flag(nav_root,LV_OBJ_FLAG_HIDDEN);
 }
@@ -317,19 +317,19 @@ int simple_test_selection(void){return nav_selected;}
 int simple_test_qs_count(void){return qs_n;}
 lv_obj_t*simple_test_qs_button(int slot){return slot>=0&&slot<qs_n?qs_tiles[slot]:NULL;}
 
-int simple_owns_point(int x,int y){if(!th_simple())return 0;if(nav_on)return 1;return nav_hub&&!lv_obj_has_flag(nav_hub,LV_OBJ_FLAG_HIDDEN)&&(x-180)*(x-180)+(y-310)*(y-310)<=36*36;}
+int simple_owns_point(int x,int y){if(!th_simple())return 0;if(nav_on)return 1;return nav_hub&&!lv_obj_has_flag(nav_hub,LV_OBJ_FLAG_HIDDEN)&&(x-180)*(x-180)+(y-316)*(y-316)<=36*36;}
 
 /* Acknowledgement animation: a single upward arrow leaves the logo's position. */
 static lv_obj_t *action_arrow;
 static void arrow_frame(void*o,int32_t v){
- lv_obj_set_y(o,288-112*v/1000);
+ lv_obj_set_y(o,294-112*v/1000);
  int opacity=v<300?255:255*(1000-v)/700;if(opacity<0)opacity=0;
  lv_obj_set_style_opa(o,opacity,0);
 }
 static void arrow_done(lv_anim_t*a){lv_obj_add_flag(a->var,LV_OBJ_FLAG_HIDDEN);}
 void simple_playback_feedback(const char *glyph){
  if(!th_simple())return;
- if(!action_arrow){action_arrow=label(lv_layer_top(),LV_SYMBOL_UP,156,288,48,TF(QS_ICON_36),TC(ACCENT_PRIMARY));lv_obj_remove_flag(action_arrow,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);}
+ if(!action_arrow){action_arrow=label(lv_layer_top(),LV_SYMBOL_UP,156,294,48,TF(QS_ICON_36),TC(ACCENT_PRIMARY));lv_obj_remove_flag(action_arrow,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);}
  lv_label_set_text(action_arrow,glyph?glyph:LV_SYMBOL_UP);lv_obj_set_style_text_color(action_arrow,TC(ACCENT_PRIMARY),0);
  lv_anim_delete(action_arrow,arrow_frame);lv_obj_remove_flag(action_arrow,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(action_arrow);
  lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,action_arrow);lv_anim_set_exec_cb(&a,arrow_frame);lv_anim_set_values(&a,0,1000);lv_anim_set_duration(&a,300);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_set_completed_cb(&a,arrow_done);lv_anim_start(&a);

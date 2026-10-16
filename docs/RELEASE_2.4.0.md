@@ -63,3 +63,5 @@ open connection management.
 ## Squash theme
 
 Squash (formerly Simple) adds a minimalist orange palette, fixed Nunito Bold Music typography at 36/32/28 px, a floating D! launcher, eight editable Quick Settings and gesture feedback. Music shows read-only playback and playback-mode indicators beside its time cells. Gesture hints hide after ten seconds without touch. Standby text follows Music sizes. Saved preset IDs and existing preferences remain compatible. Menu items and Quick settings lead Disco, Null and Squash options; Settings cannot be removed from their main menus. See [the theme guide](themes/squash.md).
+
+Squash refinement: consistent 36/32/28 px Track Font options with Nunito Bold as default; a larger, lower D! hub; optional independent status glyphs beside it; no gesture-hint glyphs; 20% Blur overlay; duplicate Track Times fixed.

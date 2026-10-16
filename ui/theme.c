@@ -379,6 +379,13 @@ static void theme_fonts_install(void){
         if(!g_def || !g_def->font[r]) continue;
         int px = role_px(r);
         const lv_font_t *face=g_def->font[r];
+        if(th_simple() && r>=THEME_FONT_MUSIC_TITLE && r<=THEME_FONT_MUSIC_ALBUM){
+            extern const lv_font_t font_squash_inter_36,font_squash_inter_32,font_squash_inter_28;
+            const lv_font_t*original[]={&lv_font_montserrat_36,&lv_font_montserrat_32,&lv_font_montserrat_28};
+            const lv_font_t*inter[]={&font_squash_inter_36,&font_squash_inter_32,&font_squash_inter_28};
+            int choice=cfg_get_int("simple_track_font",2),i=r-THEME_FONT_MUSIC_TITLE;
+            if(choice==0)face=original[i];else if(choice==1)face=inter[i];
+        }
         if(th_null() && cfg_get_int("null_music_fonts",0)==3){
             extern const lv_font_t null_dot_31,null_dot_36,null_vt323_18,null_vt323_21,null_vt323_24,null_vt323_27;
             if(r==THEME_FONT_HEADER || r==THEME_FONT_CLOCK)face=&null_dot_31;

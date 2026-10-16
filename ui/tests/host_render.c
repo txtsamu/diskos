@@ -553,6 +553,7 @@ int main(int argc, char **argv){
     if(getenv("SIMPLE_SHAPE"))cfg_set_int_deferred("simple_prog_shape",atoi(getenv("SIMPLE_SHAPE")));
     if(getenv("SIMPLE_ALIGN"))cfg_set_int_deferred("simple_title_al",atoi(getenv("SIMPLE_ALIGN")));
     if(getenv("SIMPLE_BG"))cfg_set_int_deferred("simple_background",atoi(getenv("SIMPLE_BG")));
+    if(getenv("NP_FONT"))cfg_set_int_deferred(atoi(argv[1])==THEME_PRESET_SIMPLE?"simple_track_font":"np_font",atoi(getenv("NP_FONT")));
     if(getenv("NULL_PALETTE"))cfg_set_int_deferred("null_palette",atoi(getenv("NULL_PALETTE")));
     if(getenv("NULL_BG"))cfg_set_int_deferred("null_music_background",atoi(getenv("NULL_BG")));
     if(getenv("NULL_SIDE"))cfg_set_int_deferred("null_side",atoi(getenv("NULL_SIDE")));
@@ -904,7 +905,7 @@ int main(int argc, char **argv){
         if(getenv("DISCO_CTRL"))cfg_set_int_deferred("disco_controls",atoi(getenv("DISCO_CTRL")));
         if(getenv("DISCO_TAL"))cfg_set_int_deferred("disco_title_al",atoi(getenv("DISCO_TAL")));
         if(getenv("DISCO_SHEEN"))cfg_set_int_deferred("disco_sheen",atoi(getenv("DISCO_SHEEN")));
-        if(getenv("NP_FONT"))cfg_set_int_deferred("np_font",atoi(getenv("NP_FONT")));
+        if(getenv("NP_FONT"))cfg_set_int_deferred(th_simple()?"simple_track_font":"np_font",atoi(getenv("NP_FONT")));
         if(getenv("FONTSZ"))cfg_set_int_deferred("font_size",atoi(getenv("FONTSZ")));
         if(getenv("DISCO_MNU"))cfg_set_str_deferred("disco_mnu",getenv("DISCO_MNU"));
         cfg_set_int_deferred("disco_nav_hint",getenv("NAV_HINT")?0:1);   /* the first-time hint only when asked for */
@@ -1643,6 +1644,7 @@ render:
         puts("PASS: Squash real hold on launcher icon and logo runs saved Search/QS/Play-Pause/Nothing, fires once, ignores drag; configured double tap retained");return 0;
     }
     if(getenv("REVIEW_SQUASH_240")){
+        void dhome_times_apply(void);
         if(th_simple()){
             track_state_t st;ipc_get_state(&st);lv_obj_t*root=screen_get_root(SCR_HOME);
             lv_obj_t*title=find_visible_text(root,st.title),*artist=find_visible_text(root,st.artist),*album=find_visible_text(root,st.album);assert(title&&artist&&album);
@@ -1652,13 +1654,17 @@ render:
             assert(lv_color_eq(lv_obj_get_style_text_color(status,0),ui_is_playing()?TC(STATUS_SUCCESS):TC(TEXT_SECONDARY)));
             const char*mode[]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};
             for(int i=0;i<5;i++){cfg_set_int_deferred("work_mode",i);nav_wait(1100);lv_obj_t*m=find_visible_text(root,mode[i]);assert(m&&!lv_obj_has_flag(m,LV_OBJ_FLAG_CLICKABLE));}
-            lv_display_trigger_activity(d);nav_wait(1100);assert(find_visible_text(root,LV_SYMBOL_LEFT LV_SYMBOL_LEFT));nav_wait(11000);assert(!find_visible_text(root,LV_SYMBOL_LEFT LV_SYMBOL_LEFT));lv_display_trigger_activity(d);nav_wait(1100);assert(find_visible_text(root,LV_SYMBOL_LEFT LV_SYMBOL_LEFT));
+            assert(!find_visible_text(root,LV_SYMBOL_LEFT LV_SYMBOL_LEFT));assert(!find_visible_text(root,LV_SYMBOL_RIGHT LV_SYMBOL_RIGHT));
+            for(int i=0;i<2;i++){cfg_set_int_deferred("simple_play_state",i);cfg_set_int_deferred("simple_play_mode",i);dhome_times_apply();assert(!!find_visible_text(root,ui_is_playing()?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE)==i);}
+            simple_cfg_set_int_deferred("disco_times",0);dhome_times_apply();assert(find_visible_text(root,ui_is_playing()?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE));simple_cfg_set_int_deferred("disco_times",1);dhome_times_apply();
+            lv_obj_t*elapsed=find_visible_text(root,"1:32");if(elapsed){lv_obj_t*shadow=find_text(root,"1:32");if(shadow!=elapsed)assert(!lv_obj_is_visible(shadow));}
+
             screen_show(SCR_LIBRARY);nav_wait(250);lv_obj_t*back=find_visible_text(screen_get_root(SCR_LIBRARY),LV_SYMBOL_LEFT);assert(back);lv_area_t a,b;lv_obj_get_coords(back,&a);lv_obj_get_coords(lv_obj_get_parent(back),&b);assert(abs(a.y1+a.y2-b.y1-b.y2)<=2&&abs(a.x1+a.x2-b.x1-b.x2)<=2);
         }
         setlist_open("Display");nav_wait(250);lv_obj_t*entry=find_visible_text(screen_get_root(SCR_SETLIST),th_null()?"Null Options":th_simple()?"Squash Options":"Disco Options");assert(entry);lv_obj_send_event(lv_obj_get_parent(entry),LV_EVENT_CLICKED,NULL);nav_wait(250);lv_obj_t*root=screen_get_root(SCR_SETLIST);lv_obj_t*menu=find_visible_text(root,"Menu items"),*qs=find_visible_text(root,"Quick settings");assert(menu&&qs);assert(lv_obj_get_y(lv_obj_get_parent(menu))<lv_obj_get_y(lv_obj_get_parent(qs)));
         const char*key=th_null()?"null_menu":th_simple()?"simple_menu":"disco_menu";cfg_set_str(key,"library");int disco_catalog_load(void);const char*disco_catalog_id(int);int count=disco_catalog_load(),found=0;for(int i=0;i<count;i++)if(!strcmp(disco_catalog_id(i),"settings"))found++;assert(found==1);
         screen_show(SCR_SETTINGS);disco_menu_open();lv_obj_t*settings=find_visible_text(lv_layer_top(),"Settings");assert(settings);assert(!find_text(lv_obj_get_parent(settings),LV_SYMBOL_CLOSE));screen_back();
-        printf("PASS: preset %d fixed fonts, read-only state/mode, ten-second hints, centred Back, options order and protected Settings (applicable checks)\n",theme_preset());return 0;
+        printf("PASS: preset %d fixed fonts, read-only state/mode, no gesture hints, independent indicators, centred Back, options order and protected Settings (applicable checks)\n",theme_preset());return 0;
     }
     if(getenv("REVIEW_V6_QS")){
         lv_obj_t*quicksettings_test_button(int);void disco_test_editor_close(void);

@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 /* theme_kit.c - the action registry and the active kit (see theme_kit.h). */
 #include "theme_kit.h"
+#include "simple_theme.h"
 #include "theme.h"
 #include "screens.h"
 #include <string.h>
@@ -162,7 +163,7 @@ static void pass(lv_obj_t *o, kit_role_t parent_role, int is_root, int on_top, i
         }
         /* a label in a button that no longer fits (a wider theme face): step down to the theme's smaller sizes
          * (one line: content-sized, or clipped rather than wrapped) */
-        if(r == KIT_TEXT && (parent_role == KIT_BUTTON || parent_role == KIT_ICON_BUTTON) &&
+        if(r == KIT_TEXT && !(th_simple()&&simple_music_protected(o)) && (parent_role == KIT_BUTTON || parent_role == KIT_ICON_BUTTON) &&
            (lv_obj_get_style_width(o, 0) == LV_SIZE_CONTENT || lv_label_get_long_mode(o) != LV_LABEL_LONG_WRAP)){
             lv_obj_t *b = lv_obj_get_parent(o);
             int room = lv_obj_get_content_width(b);

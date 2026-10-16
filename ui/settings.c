@@ -181,7 +181,7 @@ static void apply_outdoor(int v){ (void)v; theme_reload_or_revert("outdoor"); }
 static void apply_theme_preset(int v){ (void)v; theme_reload_or_revert("theme_preset"); }
 static void apply_simple_background(int v){(void)v;theme_reload_or_revert("simple_background");}
 /* Font Size and Language change every screen's text: like a theme change, the UI re-launches and re-reads them */
-static void apply_np_font(int v){(void)v;theme_reload_or_revert("np_font");}
+static void apply_np_font(int v){(void)v;theme_reload_or_revert(th_simple()?"simple_track_font":"np_font");}
 static void apply_font_size(int v){ (void)v; theme_reload_or_revert("font_size"); }
 static void apply_language(int v){ (void)v; theme_reload_or_revert("language"); }
 
@@ -860,6 +860,10 @@ static const setting_t TABLE[] = {
       "Show the clock, weather and temperature over the cover on Music.", NULL },
     { "Music Screen", "Track Times", ST_TOGGLE, "disco_times", 0,1,1, NULL,0, NULL, apply_disco_times, 1,
       "Small elapsed and remaining times under the ends of the progress line on Music.", NULL },
+    { "Music Screen", "Playback state", ST_TOGGLE, "simple_play_state", 0,1,1,NULL,0,NULL,apply_disco_times,1,
+      "Show the read-only play/pause indicator beside the D! logo.",NULL },
+    { "Music Screen", "Playback mode", ST_TOGGLE, "simple_play_mode", 0,1,1,NULL,0,NULL,apply_disco_times,1,
+      "Show the read-only playback mode beside the D! logo.",NULL },
     { "Music Screen", "Number Before Title", ST_TOGGLE, "disco_trackno", 0,1,1, NULL,0, NULL, NULL, 0,
       "Prefix the Music title with its tag track number, e.g. 3. Northern Lights.", NULL },
     { "Music Screen", "Track Font", ST_CYCLER, "np_font", 0,0,0, OPT_NPFONT, 3, NULL, apply_np_font, 0,
@@ -974,9 +978,10 @@ static const setting_t TABLE[] = {
 
 static int nav_setting(const setting_t *s){return s->cfg_key && (!strcmp(s->cfg_key,"disco_nav_double") || !strcmp(s->cfg_key,"disco_nav_hold"));}
 static const char *setting_key(const setting_t *s){
+    if(th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"np_font"))return "simple_track_font";
     return th_null() && s->cfg_key && !strcmp(s->cfg_key,"disco_hints")?"null_hints":s->cfg_key;
 }
-static int get_val(const setting_t *s){const char *key=setting_key(s);return key?simple_cfg_get_int(key,s->def):0;}
+static int get_val(const setting_t *s){const char *key=setting_key(s);return key?simple_cfg_get_int(key,th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"np_font")?2:s->def):0;}
 static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
      * leaves a stale eq_preset; every other setting persists up front here. */
@@ -1608,7 +1613,7 @@ void setlist_refresh(void){
         const setting_t *s = &TABLE[i];
         if(th_disco_family()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
         if(th_null()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
-        if(!th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"simple_background"))continue;
+        if(!th_simple()&&s->cfg_key&&!strncmp(s->cfg_key,"simple_",7))continue;
         if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
         if(!th_disco_family() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
         if(!th_disco_family() && !th_null() && !strcmp(s->group,"Help"))continue;
