@@ -349,10 +349,10 @@ static const theme_preset_t PRESETS[] = {
     { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
     { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
     { "Null", FORK_NULL[0], FORK_NULL[1] },
-    { "Simple", FORK_SIMPLE[0], FORK_SIMPLE[1] },
+    { "Squash", FORK_SIMPLE[0], FORK_SIMPLE[1] },
 };
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
-const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null", "Simple" };
+const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null", "Squash" };
 static int g_preset;
 static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
 static int g_custom_on, g_custom_fixed_accent;

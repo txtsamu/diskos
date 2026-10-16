@@ -80,7 +80,7 @@ Listening Stats, SongSphere and Album Roulette. [2.2.1 notes](docs/releases/v2.2
 
 **2.2.2** brings a surprise and fixes the album covers in Listening Stats. [2.2.2 notes](docs/releases/v2.2.2.md)
 
-**2.4.0** introduces **Null**, a complete pixel theme, and focuses on polish and usability:
+**2.4.0** includes **Null**, a complete pixel theme, and **[Squash](docs/themes/squash.md)**, a readable orange-accented theme with a floating launcher and gesture controls. It focuses on polish and usability:
 centred selectors, larger help, calmer library scrolling, contextual tooltips and full-page
 How to guidance. [2.4.0 notes and final fixes](docs/RELEASE_2.4.0.md)
 

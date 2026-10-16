@@ -766,7 +766,7 @@ static const setting_t TABLE[] = {
       "Theme, appearance, automatic switching, Outdoor Mode and accent colour.", NULL },
     {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
     {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
-    {"Null Options","Quick items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Choose up to eight quick items and arrange their order",NULL},
+    {"Null Options","Quick settings",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Choose up to eight quick items and arrange their order",NULL},
     {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
     {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
     {"Null Options","Title hold",ST_CYCLER,"null_title_hold",0,0,0,OPT_DHOLD,3,NULL,NULL,0,"Immersive, favourite/unfavourite, or no action when holding track text.",NULL},
@@ -841,17 +841,17 @@ static const setting_t TABLE[] = {
       "Choose up to five shortcuts for the panel opened by swiping left from Home.", NULL },
     { "Online & Extras",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
       "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
-    { "Disco Options", "Background", ST_CYCLER, "simple_background",0,0,0,OPT_SIMPLE_BG,3,NULL,apply_simple_background,0,"Plain, blurred art, or cover with a dark/light wash.",NULL },
     { "Disco Options", "Disco Menu", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_disco_menu, 0,
       "Add, remove and reorder menu destinations. Music and Settings stay available.", NULL },
+    { "Disco Options", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discoqs,0,
+      "Choose the button style and up to seven quick actions.", NULL },
+    { "Disco Options", "Background", ST_CYCLER, "simple_background",0,0,0,OPT_SIMPLE_BG,3,NULL,apply_simple_background,0,"Plain, blurred art, or cover with a dark/light wash.",NULL },
     { "Disco Options", "Music Screen", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_musicscreen, 0,
       "Music clock, times, track numbers, title position and hold action.", NULL },
     { "Disco Options", "Colours", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discocolours, 0,
       "Rim sheen and the colours of the equalizer, volume and progress, plus the progress shape.", NULL },
     { "Disco Options", "Layout", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discolayout, 0,
       "Which side the navigation circle sits on, and how lists scroll.", NULL },
-    { "Disco Options", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_discoqs,0,
-      "Choose the button style and up to seven quick actions.", NULL },
     { "Quick Settings", "Style", ST_CYCLER, "disco_qs_style",0,0,1,OPT_QS_STYLE,2,NULL,apply_disco_qs,0,
       "List uses rows; Arc uses round buttons with Wi-Fi in the middle. Both keep the music disc.", NULL },
     { "Quick Settings", "Items", ST_ACTION, NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_disco_qs_items,0,
@@ -1622,7 +1622,7 @@ void setlist_refresh(void){
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
 
         lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Simple Options":th_simple()&&!strcmp(s->label,"Disco Menu")?"Menu items":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
+        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Squash Options":!strcmp(s->label,"Disco Menu")?"Menu items":!strcmp(s->label,"Quick Settings")?"Quick settings":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
         lv_obj_set_pos(lbl,18,16);
         lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);

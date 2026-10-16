@@ -1,17 +1,17 @@
-# Simple — theme preview 0.6
+# Squash — 2.4.0
 
 A separate, opt-in theme on the 2.4.0 baseline. Existing presets keep their IDs,
-configuration keys and presentation paths. Simple uses Disco's menus, track
+configuration keys and presentation paths. Squash uses Disco's menus, track
 popup, editor and system actions rather than duplicating their behaviour.
 
 ## Presentation
 
 - Dark charcoal / off-white; orange emphasis and outlined round controls.
-- Nunito Bold 700 at 22/30 px for general important text and 38/32/28 px for Music; Inter Medium for smaller
+- Nunito Bold 700 at 22/30 px for general important text and 36/32/28 px for Music; Inter Medium for smaller
   detail, with existing international and symbol fallback chains.
 - Music backgrounds: Plain, Blur or Cover, with variant-specific washes.
-- Music: two-line title area, artist and album, Line / Arc seek progress, elapsed / total time,
-  mode control and a 64 px floating D! rendered using the real logo font.
+- Music: fixed-size title, artist and album, Line / Arc seek progress, elapsed / total time,
+  read-only playback/mode indicators and a 64 px floating D! rendered using the real logo font.
 - Double-tap track text to play/pause, swipe right for next or left for previous,
   single tap for track actions/Mood, and the saved Title hold action.
 - Launcher: a rising 720 px circular cap, one large icon/label at rest. Items rotate
@@ -21,26 +21,27 @@ popup, editor and system actions rather than duplicating their behaviour.
   and battery/charging icons. Radio tap/hold and other item name hints retained.
 - Disco list geometry retained. Resting labels abbreviate rather than run
   continuous marquees; the existing library focus behaviour remains available.
-- Simple-specific guidance in Help and first-use hints.
+- Squash-specific guidance in Help and first-use hints.
 
 ## Implementation
 
 `ui/simple_theme.c` / `.h` own the launcher, QS, component kit and explicit
 configuration adapter. The adapter remaps inherited `disco_*`, app shortcut and
-hint keys only while Simple is active. `th_disco_family()` explicitly opts
-Simple into reused Disco layouts; `th_disco()` still means the original preset.
+hint keys only while Squash is active. `th_disco_family()` explicitly opts
+Squash into reused Disco layouts; `th_disco()` still means the original preset.
 
 `ui/disco_home.c` retains its established action handlers and popup and applies
-Simple-only geometry. `theme.c` appends preset 12 without changing old IDs;
-`theme_defs.c` assigns the existing licensed Nunito/Inter faces and Simple kit.
-The theme picker includes Simple and its inherited options appear as Simple
+Squash-only geometry. `theme.c` appends preset 12 without changing old IDs;
+`theme_defs.c` assigns the existing licensed Nunito/Inter faces and Squash kit.
+The theme picker includes Squash and its inherited options appear as Squash
 Options. Unsupported side and control layouts are hidden
-only in Simple.
+only in Squash.
 
 ## Build and render
 
-Apply the supplied patch to commit 9d5e239 (2.4.0 with release notes). This is a
-preview, not a replacement release tag. Build normally using the repository's
+Apply the cumulative patch to tag v2.3.0 (005440795943c2af8865cc8e4b6a0f40e50febf9).
+The package includes the compiled 2.4.0 mq_ui and full matching source; no remote
+release tag is created by this package. Build normally using the repository's
 MIPS toolchain workflow. Native rendering:
 
 ```
@@ -66,7 +67,7 @@ hardware. No existing release binary or GitHub tag is replaced by this preview.
 ## Preview 0.2 — rising planet
 
 - Nunito Bold track / artist / album: 36 / 30 / 26 px. Music-only alignment uses
-  Simple's own saved key; the whole three-line block follows Left / Centred.
+  Squash's own saved key; the whole three-line block follows Left / Centred.
 - The launcher is now a 720 px circle at x=-180. It rises from y=360 to y=108:
   70% of viewport height above the bottom. Its centre remains below the viewport,
   so only a broad circular cap is visible. Open/close slide in 230/170 ms.
@@ -94,7 +95,7 @@ This pass provides native stills and motion previews, not an update package.
 
 ## Preview 0.4 — secondary screens and control polish
 
-Simple's component kit owns its control surfaces and ink rather than applying
+Squash's component kit owns its control surfaces and ink rather than applying
 Ring's solid-fill assumptions first. Buttons retain each screen's geometry;
 small keyboard keys are not expanded into neighbouring targets. Round icon
 surfaces use a quiet vertical accent wash and a small downward shadow. Orange
@@ -108,9 +109,9 @@ Large scrolling panels are excluded from the button treatment.
 - EQ: controls centred without the Disco side-tab offset; On / Off ink remains
   readable on a shaded surface. Existing profile / editor actions are retained.
 - App landing buttons, track-popup actions, dialogs and list controls use the
-  same Simple surfaces. Stats retains its charts and data presentation, with
-  Simple typography, semantic colours and shared control treatment.
-- Standby uses Simple's Plain / Blur / Cover selection, palette-aware dimming
+  same Squash surfaces. Stats retains its charts and data presentation, with
+  Squash typography, semantic colours and shared control treatment.
+- Standby uses Squash's Plain / Blur / Cover selection, palette-aware dimming
   and larger Nunito metadata. Disco's standby path remains unchanged.
 - Long screen headers use the smaller Nunito heading face when needed instead
   of clipping the title. Secondary screen headings use the orange accent.
@@ -118,7 +119,7 @@ Large scrolling panels are excluded from the button treatment.
 Native review set: Stats overview / top artists, Search keyboard / results,
 A–Z in both palettes; Music launcher, QS, Library, EQ overview / faders,
 Bluetooth, Wi-Fi, track info, Settings, Battery, Weather, Help, standby,
-Roulette / Stats landings, Simple options, Queue, Up Next, Modes, Shortcuts,
+Roulette / Stats landings, Squash options, Queue, Up Next, Modes, Shortcuts,
 Network, System, Files, Books, date/time, Lyrics, volume and track popup.
 Empty content fixtures establish chrome and layout; they do not validate live
 network, files, lyrics or device state. Standalone installed app internals are
@@ -126,14 +127,13 @@ outside the host theme contract.
 
 Focused native checks cover A–Z open / jump / close, typed Search ink and key
 separation, Search results / Back, EQ selection / editing / restore, and the
-existing Simple QS / navigation / playback gesture checks. Null's typed Search
+existing Squash QS / navigation / playback gesture checks. Null's typed Search
 ink regression check also passes. Device performance and hardware behaviour
-still need a physical Disc. This preview includes source and renders, not an
-update binary.
+still need a physical Disc. That historical preview included source and renders only; the final 2.4.0 package includes mq_ui.
 
 ## Preview 0.5 — performance and carryover audit
 
-Performance changes are scoped to Simple. This is a source/native preview;
+Performance changes are scoped to Squash. This is a source/native preview;
 no physical-device FPS, power or touch-latency improvement is claimed yet.
 
 - Launcher icon/vector/label content is rebound only when the catalogue index
@@ -156,20 +156,20 @@ Bugs corrected:
   band retains priority where the album field meets the progress control.
 - Leaving Music cancels launcher motion, clears press state and resets its
   closed position, so the next open rises correctly.
-- Simple now dismisses old onboarding hints on screen changes, reports launcher
+- Squash now dismisses old onboarding hints on screen changes, reports launcher
   state to the hint engine, and resets Search's landing on fresh entry.
 - Charging opacity resets on unplug; low and unknown battery states are distinct.
 - QS mode glyphs follow the live source; drive/volume glyphs are included at
-  native icon sizes. Simple-owned colours survive accent restyling.
+  native icon sizes. Squash-owned colours survive accent restyling.
 - The editor correctly says eight QS items, has larger edit targets, and does
   not inherit Disco's artwork backdrop. Long secondary headings fit the round
-  viewport. The inherited artist-scroll restart no longer overrides Simple's
+  viewport. The inherited artist-scroll restart no longer overrides Squash's
   single-line artist presentation.
 - Background restart failure restores the background key, not theme_preset.
 
 Carryover validation uses the real shared QS editor (reorder, add/remove,
-empty selection, reopen and configuration isolation) in Simple, Disco and
-Null. Simple checks include Line/Arc playback gestures, Title hold None and
+empty selection, reopen and configuration isolation) in Squash, Disco and
+Null. Squash checks include Line/Arc playback gestures, Title hold None and
 Immersive, track popup Back and edge-swipe, logo shortcut, fresh Search landing,
 and playback-picker / Immersive return routes with animations on/off.
 Brightness range/save timing and charging/unplug/low/unknown state are checked
@@ -184,43 +184,47 @@ and custom app handoff still need a physical Disc.
 
 ## Preview 0.6 — motion, playback and backgrounds
 
-1. Simple page push/pop runs in 180/140 ms, the main launcher opens/closes in
+1. Squash page push/pop runs in 180/140 ms, the main launcher opens/closes in
    180/130 ms and snaps in 110 ms. The display refresh timer targets 16 ms while
    this theme is active. Immersive enters/exits in 400/180 ms. The animation
    budget allows the three metadata marquees alongside page motion.
 2. Active QS radios, EQ, non-default source/playback modes and rescan state use
    a solid orange surface with contrasting ink. Outlines remain visible. The
-   playing cover badge and Simple EQ On control use the same active treatment.
+   playing cover badge and Squash EQ On control use the same active treatment.
 3. Music metadata uses Nunito Bold 32/28/26 px. Overflowing title, artist and
    album run exactly three cycles on track/metadata identity changes, then rest
    at the start. Repeated position frames do not restart them. Long album names
    use a full-length metadata cache and are restored before marquee setup.
 4. Play/pause and previous/next feedback fly from D! with the corresponding
-   glyph. Playback state comes from the UI's play-state source for Simple;
+   glyph. Playback state comes from the UI's play-state source for Squash;
    unreliable raw metadata is not used to choose its glyph.
 5. A shared Play mode QS item (code p) cycles Sequential, Shuffle, Repeat One,
    Repeat All and Single. Existing configured lists keep their saved entries.
    It can be selected in every theme. Older fixed-layout presets keep their six
    positions and now expose Quick items under Display > Text & Layout; Disco
-   retains seven slots, Null/Simple eight. Legacy selections use qs_items,
-   separate from Disco, Null and Simple preferences.
-6. The playback-mode control is hidden on Simple's Music screen. Track actions
+   retains seven slots, Null/Squash eight. Legacy selections use qs_items,
+   separate from Disco, Null and Squash preferences.
+6. The playback-mode control is hidden on Squash's Music screen. Track actions
    retain their existing mode control and Play mode can be selected for QS.
 7. Header Back circles are 36 px; the arrow size remains unchanged and the
    expanded hit area keeps them comfortable to press.
 8. A fixed pair of clipped gradient strips gently fades launcher side icons
    into the theme canvas. No per-frame blur or bitmap processing is involved.
-9. Simple's cover/blur wash is about 30% (77/255) in both appearances and standby.
-10. Simple backgrounds use a moderate blur at 120x120, then bilinear upscale to
+9. Squash's cover/blur wash is about 30% (77/255) in both appearances and standby.
+10. Squash backgrounds use a moderate blur at 120x120, then bilinear upscale to
     360x360. Filter kernels are 5/7/7, using integer arithmetic in the artwork
     worker. This is softer than a cover without the former heavy sigma-19 blur.
-    The worker skips an unused Disco tint allocation/pass for Simple.
+    The worker skips an unused Disco tint allocation/pass for Squash.
 
 Checks: real QS button cycles and editor access pass across all thirteen
-presets. Simple's metadata animations are checked for three repeats, stopping,
+presets. Squash's metadata animations are checked for three repeats, stopping,
 and restarting for a new identity; action-specific feedback glyphs are checked.
 Existing navigation, brightness/battery, popup, Immersive return and shared QS
 editor parity checks pass. Decoder comparison preserves old art outputs
-byte-for-byte, and Simple cover/thumbnail output remains unchanged. Only its
+byte-for-byte, and Squash cover/thumbnail output remains unchanged. Only its
 background filter differs. Native timing is informational; device FPS/power
 still need hardware measurement.
+
+## 2.4.0 final refinement
+
+Music metadata uses fixed Nunito Bold 36/32/28 px (title/artist/album), shared with standby metadata. Read-only playback and mode indicators flank the time cells. Gesture hints disappear after ten seconds without touch. Menu items and Quick settings lead every Disco-family theme options list; Music and Settings remain protected. Squash retains preset 12 and the existing `simple_*` configuration keys for upgrade compatibility.

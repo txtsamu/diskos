@@ -739,7 +739,7 @@ static int make(const pic_t *p, int N, int box, int blurred, uint16_t **res){
     return ST_OK;
 }
 
-/* Simple: a moderate blur at one third resolution, then bilinear upscale.
+/* Squash: a moderate blur at one third resolution, then bilinear upscale.
  * The old art profile remains byte-for-byte on its original filter path. */
 static int make_soft_backdrop(const pic_t*p,uint16_t **res){
  enum { SMALL=120 };static const int boxes[3]={5,7,7};

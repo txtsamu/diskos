@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Simple: presentation over Disco's action catalogue, configuration editor and Music behaviour. */
+/* Squash: presentation over Disco's action catalogue, configuration editor and Music behaviour. */
 #include "simple_theme.h"
 #include "theme.h"
 #include "theme_kit.h"
@@ -50,7 +50,7 @@ static lv_obj_t *label(lv_obj_t*p,const char*s,int x,int y,int w,const lv_font_t
  lv_label_set_long_mode(l,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(l,f,0);lv_obj_set_style_text_color(l,c,0);
  lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(l,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_user_data(l,&simple_label_tag);kit_keep(l);return l;
 }
-/* Quiet bevel shared by Simple's icon surfaces; no animation or bitmap cost. */
+/* Quiet bevel shared by Squash's icon surfaces; no animation or bitmap cost. */
 static void simple_shade(lv_obj_t *o){
  lv_obj_set_style_bg_color(o,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),38),0);
  lv_obj_set_style_bg_grad_color(o,theme_color_mix(TC(ACCENT_PRIMARY),TC(CANVAS),12),0);
@@ -261,7 +261,7 @@ void simple_qs_create(lv_obj_t*r){
 static void simple_style(lv_obj_t*o,kit_role_t role){
  if(lv_obj_get_user_data(o)==&simple_label_tag||lv_obj_get_user_data(o)==&simple_control_tag)return;
  if(simple_music_protected(o)||o==nav_root||o==nav_panel||o==nav_hub)return;
- /* Simple owns control ink; Ring's filled-button ink assumes an opaque accent. */
+ /* Squash owns control ink; Ring's filled-button ink assumes an opaque accent. */
  if(lv_obj_check_type(o,&lv_label_class)&&lv_label_get_long_mode(o)==LV_LABEL_LONG_SCROLL_CIRCULAR)lv_label_set_long_mode(o,LV_LABEL_LONG_DOT);
  switch(role){
  case KIT_TITLE:lv_obj_set_style_text_color(o,TC(ACCENT_PRIMARY),0);break;
@@ -290,14 +290,14 @@ static void simple_style(lv_obj_t*o,kit_role_t role){
 }
 static void simple_back(lv_event_t*e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)screen_back();}
 static lv_obj_t*simple_header(lv_obj_t*r,const char*t,lv_event_cb_t cb){
- const char*shown=!strcmp(t,"Disco Options")?"Simple":!strcmp(t,"Disco Colours")?"Colours":!strcmp(t,"Disco Layout")?"Layout":t;
- lv_obj_t*b=circle(r,92,44,36);lv_obj_set_ext_click_area(b,6);label(b,LV_SYMBOL_LEFT,0,6,36,TF(UI_20),TC(ACCENT_PRIMARY));
+ const char*shown=!strcmp(t,"Disco Options")?"Squash":!strcmp(t,"Disco Colours")?"Colours":!strcmp(t,"Disco Layout")?"Layout":t;
+ lv_obj_t*b=circle(r,92,44,36);lv_obj_set_ext_click_area(b,6);lv_obj_t*back_icon=label(b,LV_SYMBOL_LEFT,0,0,36,TF(UI_20),TC(ACCENT_PRIMARY));lv_obj_center(back_icon);
  ui_on(b,cb?cb:simple_back,LV_EVENT_CLICKED,NULL,"nav.back",UI_CORE);
  lv_point_t size;const lv_font_t*f=TF(HEADER);lv_text_get_size(&size,shown,f,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
  if(size.x>152){f=TF(UI_22);lv_text_get_size(&size,shown,f,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>152)f=TF(UI_20);}
  lv_obj_t*l=label(r,shown,116,30,160,f,TC(ACCENT_PRIMARY));lv_obj_set_height(l,40);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);return l;
 }
-const theme_kit_t theme_kit_simple={.id="simple",.style=simple_style,.header=simple_header};
+const theme_kit_t theme_kit_simple={.id="squash",.style=simple_style,.header=simple_header};
 
 void simple_test_nav_phase(int v){nav_phase=v/1000.0f;nav_paint();}
 int simple_test_nav_bindings(void){return nav_bindings;}

@@ -110,6 +110,8 @@ static void pa_set(int f);
 #define GZ_H 112
 #define SIMPLE_SEEK_Y 265
 static lv_obj_t *g_gz, *g_gz_hint[4], *g_gz_fx;
+static lv_obj_t *simple_play_state, *simple_mode_state;
+static void simple_music_indicators(void);
 static lv_obj_t *g_ov;                                                  /* the track overlay (below) */
 static int g_scrub;                                                     /* the line is being dragged (below) */
 static lv_timer_t *g_ctl_tmr;
@@ -285,6 +287,7 @@ static void times_paint(long pos, long dur){
     char a[16], b[16];
     if(dur > 0){ fmt_t(a, sizeof a, pos, 0); fmt_t(b, sizeof b, th_simple()?dur:dur-pos, th_simple()?0:1); } else { a[0] = 0; b[0] = 0; }
     dl_text(&L_EL, a); dl_text(&L_RM, b);
+    if(th_simple())simple_music_indicators();
 }
 void dhome_times_apply(void){
     if(!L_EL.fg) return;
@@ -292,6 +295,7 @@ void dhome_times_apply(void){
     lv_obj_t *o[4] = { L_EL.sh, L_EL.fg, L_RM.sh, L_RM.fg };
     for(int i = 0; i < 4; i++){ if(on) lv_obj_remove_flag(o[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o[i], LV_OBJ_FLAG_HIDDEN); }
     if(th_simple()){
+        simple_music_indicators();
         for(int k=0;k<4;k++){lv_obj_set_align(o[k],LV_ALIGN_TOP_LEFT);lv_obj_set_pos(o[k],k<2?36:234,278);lv_obj_set_size(o[k],90,24);}return;
     }
     int arc = simple_cfg_get_int("disco_prog_shape", 0) == 1;                 /* Arc: no line, the two times side by side */
@@ -1000,7 +1004,7 @@ void dhome_imm_return(void){
 }
 void dhome_test_imm_parts(int v){ imm_parts_set(v); }                  /* host renders */
 
-/* Simple rearranges the retained Music controls; their handlers and track overlay remain shared. */
+/* Squash rearranges the retained Music controls; their handlers and track overlay remain shared. */
 static lv_obj_t *simple_album;
 static void simple_label_pair(dlabel_t*d,int x,int y,int w,int h,const lv_font_t*f){
  if(!d->fg)return;lv_obj_add_flag(d->sh,LV_OBJ_FLAG_HIDDEN);d->scroll=0;
@@ -1045,16 +1049,33 @@ static void simple_music_layout(void){
  lv_obj_set_style_text_align(simple_album,aligned_left?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER,0);lv_obj_set_pos(simple_album,36,230);lv_obj_set_size(simple_album,288,35);
  simple_music_content(1);
  lv_obj_set_pos(g_gz,36,94);lv_obj_set_size(g_gz,288,171);lv_obj_move_foreground(g_gz);
- for(int i=0;i<4;i++)if(g_gz_hint[i])lv_obj_add_flag(g_gz_hint[i],LV_OBJ_FLAG_HIDDEN);
+ lv_label_set_text(g_gz_hint[0],LV_SYMBOL_LEFT LV_SYMBOL_LEFT);lv_obj_set_pos(g_gz_hint[0],112,306);
+ lv_label_set_text(g_gz_hint[2],LV_SYMBOL_RIGHT LV_SYMBOL_RIGHT);lv_obj_set_pos(g_gz_hint[2],228,306);
+ lv_obj_set_pos(g_gz_hint[3],172,270);lv_obj_add_flag(g_gz_hint[1],LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_pos(g_gz_fx,140,150);lv_obj_move_foreground(g_gz_fx);
  lv_obj_set_size(g_mode,44,44);lv_obj_set_align(g_mode,LV_ALIGN_TOP_LEFT);lv_obj_set_pos(g_mode,248,44);lv_obj_add_flag(g_mode,LV_OBJ_FLAG_HIDDEN);
  for(int k=0;k<2;k++){lv_obj_t*l=k?L_MODE.fg:L_MODE.sh;if(k){lv_obj_set_style_text_color(l,TC(ACCENT_PRIMARY),0);kit_keep(l);}else lv_obj_add_flag(l,LV_OBJ_FLAG_HIDDEN);}
  lv_obj_set_style_bg_color(g_ul_solid,TC(ACCENT_PRIMARY),0);if(!pa_on())lv_obj_remove_flag(g_ul_solid,LV_OBJ_FLAG_HIDDEN);
  lv_obj_set_style_bg_color(g_ul_knob,TC(ACCENT_PRIMARY),0);lv_obj_set_style_outline_opa(g_ul_knob,0,0);
  simple_label_pair(&L_EL,36,278,90,24,TF(UI_16));simple_label_pair(&L_RM,234,278,90,24,TF(UI_16));
- simple_music_art();
+ if(!simple_play_state){
+  lv_obj_t*root=lv_obj_get_parent(g_trk);simple_play_state=lv_label_create(root);simple_mode_state=lv_label_create(root);
+  lv_obj_t*o[2]={simple_play_state,simple_mode_state};
+  for(int k=0;k<2;k++){kit_keep(o[k]);lv_obj_clear_flag(o[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_text_font(o[k],TF(UI_16),0);lv_obj_set_style_text_align(o[k],LV_TEXT_ALIGN_CENTER,0);lv_obj_set_size(o[k],24,24);lv_obj_set_pos(o[k],k?216:120,278);}
+ }
+ simple_music_indicators();simple_music_art();
  lv_obj_set_style_bg_opa(g_wash,77,0);lv_obj_set_style_bg_grad_dir(g_wash,LV_GRAD_DIR_NONE,0);lv_obj_set_pos(g_wash,0,0);lv_obj_set_size(g_wash,360,360);
  acc_paint();
 }
 
-int simple_music_protected(lv_obj_t*o){return th_simple()&&(o==g_pill||o==g_trk||o==g_top_hit||o==g_gz||o==L_TITLE.fg||o==L_ARTIST.fg||o==simple_album);}
+static void simple_music_indicators(void){
+ if(!th_simple())return;
+ int visible=!g_idle&&simple_cfg_get_int("disco_times",1)&&simple_cfg_get_int("disco_progress",0)!=2;
+ static const char*const modes[5]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};
+ if(simple_play_state){int playing=ui_is_playing();lv_label_set_text(simple_play_state,playing?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE);lv_obj_set_style_text_color(simple_play_state,playing?TC(STATUS_SUCCESS):TC(TEXT_SECONDARY),0);int mode=cfg_get_int("work_mode",0);lv_label_set_text(simple_mode_state,modes[mode>=0&&mode<5?mode:0]);lv_obj_set_style_text_color(simple_mode_state,TC(TEXT_SECONDARY),0);
+  lv_obj_t*o[2]={simple_play_state,simple_mode_state};for(int k=0;k<2;k++){if(visible)lv_obj_remove_flag(o[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(o[k],LV_OBJ_FLAG_HIDDEN);}}
+ int hints=lv_display_get_inactive_time(NULL)<10000;
+ for(int k=0;k<4;k++)if(g_gz_hint[k]){if(hints&&k!=1)lv_obj_remove_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);}
+}
+
+int simple_music_protected(lv_obj_t*o){return th_simple()&&(o==g_pill||o==g_trk||o==g_top_hit||o==g_gz||o==L_TITLE.fg||o==L_ARTIST.fg||o==simple_album||o==simple_play_state||o==simple_mode_state);}

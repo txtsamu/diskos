@@ -42,7 +42,8 @@ int         theme_outdoor(void);                    /* 1 = Outdoor mode (light v
 /* Built-in colour presets (cfg "theme_preset"): 0 = Default, then the generated ones (theme_presets.inc). Each has an
  * explicit dark and light palette; Appearance / Outdoor pick which of the two is active. */
 #define THEME_PRESET_COUNT 13
-#define THEME_PRESET_SIMPLE 12
+#define THEME_PRESET_SQUASH 12
+#define THEME_PRESET_SIMPLE THEME_PRESET_SQUASH /* saved ID / internal compatibility */
 int th_simple(void);
 int th_disco_family(void);
 #define THEME_PRESET_NULL 11

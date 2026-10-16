@@ -89,17 +89,17 @@ void dsaver_create(lv_obj_t *root){
     lv_obj_set_style_bg_opa(veil, th_simple()?77:175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     g_tr = rim_arc(root, TC(FIXED_MEDIA_WHITE), 3, 40); lv_arc_set_angles(g_tr, 0, 360);
     for(int i = 0; i < NSEG; i++) g_seg[i] = rim_arc(root, theme_color_from_rgb(IRI[i]), 3, 200);
-    pair(root, g_t, TF(UI_48), -1, 68, 0);
-    lv_obj_set_style_transform_scale(g_t[0], 380, 0); lv_obj_set_style_transform_scale(g_t[1], 380, 0);
+    pair(root, g_t, th_simple()?TF(UI_28):TF(UI_48), -1, 68, 0);
+    lv_obj_set_style_transform_scale(g_t[0], th_simple()?256:380, 0); lv_obj_set_style_transform_scale(g_t[1], th_simple()?256:380, 0);
     ptext(g_t, "--:--");
-    g_wf = *theme_font_original(24); g_wf.fallback = &font_weather16;
+    g_wf = *theme_font_original(th_simple()?18:24); g_wf.fallback = &font_weather16;
     pair(root, g_wx, &g_wf, -1, 142, 0);
-    for(int k=0;k<2;k++){lv_obj_set_style_transform_scale(g_wx[k],300,0);lv_obj_set_style_transform_pivot_x(g_wx[k],lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_wx[k],lv_pct(50),0);}
+    for(int k=0;k<2;k++){lv_obj_set_style_transform_scale(g_wx[k],th_simple()?256:300,0);lv_obj_set_style_transform_pivot_x(g_wx[k],lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_wx[k],lv_pct(50),0);}
     g_title_font=*(th_simple()?TF(MUSIC_TITLE):TF(UI_36));g_title_font.fallback=ui_font_cjk(28);
     g_artist_font=*(th_simple()?TF(MUSIC_ARTIST):TF(UI_28));g_artist_font.fallback=ui_font_cjk(24);
     pair(root, g_ti, &g_title_font, 296, 194, 0);
     pair(root, g_ar, &g_artist_font, 280, th_simple()?250:244, 1);
-    pair(root,g_status,TF(UI_20),160,20,1);dsaver_set_status(g_batt,g_charging,g_wifi,g_bt);
+    pair(root,g_status,th_simple()?TF(UI_14):TF(UI_20),160,20,1);dsaver_set_status(g_batt,g_charging,g_wifi,g_bt);
     for(int k = 0; k < 2; k++){                                   /* the scaled clock grows from its middle */
         lv_obj_update_layout(g_t[k]);
         lv_obj_set_style_transform_pivot_x(g_t[k], lv_pct(50), 0); lv_obj_set_style_transform_pivot_y(g_t[k], lv_pct(50), 0);

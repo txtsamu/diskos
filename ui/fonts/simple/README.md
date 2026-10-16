@@ -1,4 +1,4 @@
-# Simple font additions
+# Squash font additions
 
 Nunito Bold uses the existing Nunito variable source, instantiated at weight 700,
 and its OFL licence in ../nowplaying. New text faces are 26 px and 36 px.
