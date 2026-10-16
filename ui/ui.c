@@ -3316,7 +3316,7 @@ void ui_update(const track_state_t *st)
  * instead of hammering the buttons (which double-press into next/prev). */
 static lv_obj_t *g_vol_panel, *g_vol_arc, *g_vol_num;
 static lv_timer_t *g_vol_timer;
-int ui_volume_overlay_visible(void){return th_null()?null_volume_visible():(g_vol_panel && !lv_obj_has_flag(g_vol_panel,LV_OBJ_FLAG_HIDDEN));}
+int ui_volume_overlay_visible(void){return th_simple()?simple_volume_visible():th_null()?null_volume_visible():(g_vol_panel && !lv_obj_has_flag(g_vol_panel,LV_OBJ_FLAG_HIDDEN));}
 static int g_vol_suppress;   /* 1 while we set the arc programmatically (no echo loop) */
 static uint32_t g_vol_last_send;  /* throttle: tick of the last 0715 we sent */
 static int g_vol_pending;         /* 1 if a value changed but was throttled (commit on release) */
@@ -3388,6 +3388,7 @@ static void vol_tap_close_cb(lv_event_t *e){ (void)e; if(g_vol_panel) lv_obj_add
 void ui_show_volume(int vol)
 {
     onboarding_context(HINT_VOLUME);
+    if(th_simple()){simple_volume_show(vol);return;}
     if(th_null()){null_volume_show(vol);return;}
     if(!g_vol_panel){
         /* the rim arc: a level on the right rim filling bottom -> top in the current accent, rounded ends,

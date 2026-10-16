@@ -32,4 +32,6 @@ void simple_qs_battery(int,int);
 void simple_qs_track(const char *,const char *,int);
 void simple_qs_refresh(int);
 void simple_qs_visible(int);
+void simple_volume_show(int);
+int simple_volume_visible(void);
 #endif

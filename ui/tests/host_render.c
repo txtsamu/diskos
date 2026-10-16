@@ -29,6 +29,7 @@
 #include <stdatomic.h>
 
 /* Host-only controlled failure: hold album B's load while the UI returns to A. */
+static void volume_concept(int);
 static atomic_int race_waiting, race_release;
 static const char *race_path="/tmp/diskos-art-race-unreadable.mp3";
 int __real_art_make_all_ex_gen(const char *,const char *,const char *,const char *,int,unsigned);
@@ -1630,6 +1631,19 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(th_simple()&&getenv("REVIEW_SQUASH_VOLUME")){
+        fixture=1;send_result=0;ui_show_volume(72);nav_wait(180);assert(ui_volume_overlay_visible());
+        lv_obj_t*number=find_visible_text(lv_layer_top(),"72");assert(number);lv_obj_t*sheet=lv_obj_get_parent(number),*arc=NULL;for(uint32_t i=0;i<lv_obj_get_child_count(sheet);i++){lv_obj_t*o=lv_obj_get_child(sheet,i);if(lv_obj_check_type(o,&lv_arc_class))arc=o;}assert(arc&&lv_arc_get_max_value(arc)==120);
+        int before=send_count;lv_arc_set_value(arc,80);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);lv_arc_set_value(arc,81);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);ui_show_volume(72);assert(lv_arc_get_value(arc)==81);lv_obj_send_event(arc,LV_EVENT_PRESS_LOST,NULL);assert(send_count==before+2);assert(find_visible_text(lv_layer_top(),"81"));
+        lv_obj_add_state(arc,LV_STATE_PRESSED);nav_wait(2200);assert(ui_volume_overlay_visible());lv_obj_remove_state(arc,LV_STATE_PRESSED);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(2000);assert(!ui_volume_overlay_visible());
+        ui_show_volume(999);nav_wait(180);assert(lv_arc_get_value(arc)==120);ui_show_volume(-5);assert(lv_arc_get_value(arc)==0);
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+        nav_pointer=(lv_indev_data_t){.point={90,256},.state=LV_INDEV_STATE_PRESSED};nav_wait(60);for(int x=90;x<=270;x+=10){nav_pointer.point.x=x;nav_pointer.point.y=238+(x-180)*(x-180)/460;nav_wait(20);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(lv_arc_get_value(arc)>80&&ui_volume_overlay_visible());
+        nav_touch((lv_point_t){180,316},50);nav_wait(180);assert(!ui_volume_overlay_visible());assert(screen_current()==SCR_HOME&&!simple_nav_is_open());
+        ui_show_volume(60);nav_wait(180);nav_touch((lv_point_t){180,120},50);nav_wait(180);assert(!ui_volume_overlay_visible());
+        ui_show_volume(60);nav_wait(180);number=find_visible_text(lv_layer_top(),"60");assert(number);kit_pass(lv_obj_get_parent(lv_obj_get_parent(number)));assert(lv_obj_get_style_bg_opa(lv_obj_get_parent(lv_obj_get_parent(number)),0)==0);
+        puts("PASS: Squash volume B native arc drag, 0..120 clamp, throttled final commit, echo guard, hold timeout, logo/outside dismissal and transparent scrim");return 0;
+    }
     if(th_simple()&&getenv("REVIEW_SQUASH_HOLD")){
         lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);simple_cfg_set_int_deferred("disco_nav_v",2);
         const lv_point_t targets[]={{180,160},{180,310}};
@@ -1726,6 +1740,8 @@ render:
     if(th_simple()&&getenv("SIMPLE_ARROW_MS")){simple_action_feedback();for(int i=0;i<atoi(getenv("SIMPLE_ARROW_MS"))/10;i++){lv_tick_inc(10);lv_timer_handler();}}
     if(th_simple()&&getenv("SIMPLE_ARROW_FRAME"))simple_test_feedback_frame(atoi(getenv("SIMPLE_ARROW_FRAME")));
     lv_refr_now(d);
+    if(th_simple()&&getenv("SQUASH_VOLUME")){ui_show_volume(atoi(getenv("SQUASH_VOLUME")));nav_wait(180);lv_refr_now(d);}
+    if(getenv("VOLUME_CONCEPT")){volume_concept(atoi(getenv("VOLUME_CONCEPT")));lv_refr_now(d);}
     FILE *f=fopen(argv[5],"wb"); if(!f) return 1;
     fprintf(f,"P6\n360 360\n255\n");
     for(size_t i=0;i<sizeof pixels;i+=3){
@@ -1738,3 +1754,5 @@ render:
 #include "disco_mock.c"
 #include "stats_mock.c"
 #include "sphere_mock.c"
+
+#include "volume_concepts_mock.c"

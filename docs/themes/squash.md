@@ -236,3 +236,9 @@ The configured Hold shortcut works on both the large launcher icon and the D! lo
 All three Music font options use fixed title/artist/album sizes of 36/32/28 px. Nunito Bold is the default; Squash stores Track Font in `simple_track_font`, independently of Disco. Original uses Montserrat, and Inter Semibold has dedicated rasterized faces at the same sizes. Standby metadata shares these roles.
 
 The D! circle is 72 px, centred at (180,316), with a larger centred logo and matching feedback origin/hit area. Read-only play/pause and playback-mode glyphs now sit left/right of the logo, separately controlled by Playback state and Playback mode switches in Music Screen. They remain independent of Track Times and the progress style. Gesture dots/arrows are removed. The Track Times toggle only reveals the foreground labels, fixing duplicate shadow text. Blur uses a 20% overlay on Music and standby; Cover retains 30%.
+
+## Volume flyout B
+
+Squash volume now opens as a bottom circular cap concentric with the main launcher. A single orange arc controls the full device range, 0–120; the live value is above the same 72 px D! hub. Endpoint labels are read-only and there are no plus/minus buttons. The rest of the screen stays undimmed. Tap D! or outside to close; the flyout also closes after 1.8 seconds without input, but remains open while dragging. Entry/exit animations take 140/110 ms. The retained overlay allocates once and pauses its timer when hidden.
+
+Drag writes are limited to one per 120 ms, with the final deferred value committed on release or press-lost. Short-lived player echoes cannot pull the slider away from a drag. Active overlay touches are owned by Squash, so they cannot operate the Music gestures underneath. Null and other themes retain their existing volume overlays.
