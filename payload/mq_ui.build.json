@@ -1,16 +1,16 @@
 {
   "version": "2.4.0",
-  "revision": "2.4.0 shared Help menu below Battery, with independent theme hints",
+  "revision": "2.4.0 shared Help menu and enlarged, lowered Disco standby text",
   "status": "focused native checks and static MIPS ABI checks passed; physical Disc test pending",
-  "source_commit": "e1be23868a986397ffb123e7a3c436cf21ff5464",
+  "source_commit": "e0373797d5bbf0af5d022e51bfbc15f020ca81e5",
   "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
   "previous_candidate": "6821e7c",
-  "ui_source_sha256": "7791d07885e06c1a697989905d9c6e34dd2bfba5d07d5bed43f03a489bbafdbe",
+  "ui_source_sha256": "a508564b68cb678df1534abb2865596a1399e6565d86704b1e55205823ec461b",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "ee5ba600fdc11f91176ce5c183c5c73633a8acddfdee0b6fed65803d66b497f7",
-    "md5": "63c29a89c7c099798fb7f4b133236c62",
+    "sha256": "81ee1323af1627c21728a3025d331a1637bbf6208d0906e6d47cc3f4e8b4819b",
+    "md5": "e777dd7d49440f11857ddf6485898006",
     "bytes": 6451412
   }
 }
