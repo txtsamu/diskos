@@ -1010,6 +1010,7 @@ int main(int argc, char **argv){
             return 0;
         }
         if(getenv("REVIEW_239_POLISH")){
+            extern void settings_open_group(const char *);
             assert(th_null());
             null_home_weather("18\xC2\xB0" "C");
             assert(find_text(screen_get_root(SCR_HOME),"18C"));
