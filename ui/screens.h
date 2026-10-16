@@ -373,6 +373,9 @@ int  bt_radio_on(void);              /* current mode; 0 = Album Art Cache off */
 int  ui_main_is_idle(void);               /* main.c: 1 when the screen is dimmed/off (no active use) */
 const lv_font_t *ui_font_cjk(int size);   /* international/CJK user-text chain */
 void ui_reveal_title(lv_obj_t *label);
+void ui_music_scroll(lv_obj_t *label);
+void ui_library_list_watch(lv_obj_t *list);
+void ui_library_row(lv_obj_t *row);
 const lv_font_t *ui_np_font(int size);    /* optional Now Playing face, with the same fallbacks */
 int  ui_take_art_applied(void);           /* 1 once after art (re)applied -> re-push surfaces */
 int  ui_np_seek_press(int x, int y);

@@ -334,7 +334,7 @@ void home_set_status(int batt, int charging, int wifi, int bt)
 {
     if(th_braun()){ bhome_set_status(batt, charging, wifi, bt); return; }
     if(th_null()){ null_home_status(batt, charging, wifi, bt); return; }
-    if(th_disco()){ dhome_set_status(batt, charging, wifi, bt); return; }
+    if(th_disco()){void dsaver_set_status(int,int,int,int);dsaver_set_status(batt,charging,wifi,bt);dhome_set_status(batt, charging, wifi, bt); return; }
     if (!g_status) return;
     char buf[80]; char *p = buf; *p = 0;
     if (wifi) { p += sprintf(p, LV_SYMBOL_WIFI "  "); }
@@ -366,14 +366,14 @@ void home_set_now_playing(const char *title, const char *artist,
         const char *nt = title ? title : "Not Playing";
         if(strcmp(lv_label_get_text(g_np_title), nt)){
             lv_label_set_text(g_np_title, nt);
-            lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_SCROLL_CIRCULAR);   /* scroll a while, then settle */
-            if(g_settle){ lv_timer_reset(g_settle); lv_timer_resume(g_settle); }
+            ui_music_scroll(g_np_title);ui_music_scroll(g_np_artist);
+
         }
         lv_obj_set_style_text_color(g_np_title, title ? accent : TC(TEXT_DISABLED), 0);   /* idle: quiet grey */
     }
     if (g_ring) lv_obj_set_style_arc_color(g_ring, accent, LV_PART_INDICATOR);
     if (g_np_state) lv_obj_set_style_text_color(g_np_state, accent, 0);
-    if (g_np_artist) lv_label_set_text(g_np_artist, artist ? artist : "");
+    if (g_np_artist && strcmp(lv_label_get_text(g_np_artist),artist?artist:"")){lv_label_set_text(g_np_artist,artist?artist:"");ui_music_scroll(g_np_artist);}
     if (g_np_state) lv_label_set_text(g_np_state, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
 
     if (g_np_thumb) lv_obj_set_style_bg_color(g_np_thumb, accent, 0);
@@ -440,7 +440,7 @@ static void disc_place(int frac){                           /* put the cover on 
     float a = (-90.0f + frac * 0.36f) * 0.0174533f;
     lv_obj_set_pos(g_np_thumb, 180 + (int)lroundf(HR_R * cosf(a)) - HR_DISC / 2, 180 + (int)lroundf(HR_R * sinf(a)) - HR_DISC / 2);
 }
-static void settle_cb(lv_timer_t *t){ (void)t; if(g_np_title) lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_timer_pause(g_settle); }
+static void settle_cb(lv_timer_t *t){ (void)t; if(g_np_title) lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_CLIP); lv_timer_pause(g_settle); }
 /* Home's bottom row: Library and Search are 56 px circles, play/pause a 68 px box; all three share ONE top
  * edge (HB_TOP), so the smaller buttons hang from the play button's top, not from its middle. */
 #define HB_TOP  276

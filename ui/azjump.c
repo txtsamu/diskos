@@ -34,8 +34,8 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
     lv_obj_remove_style_all(a->btn);
     lv_obj_set_pos(a->btn, 308, 158); lv_obj_set_size(a->btn, 44, 44);
     lv_obj_set_style_radius(a->btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(a->btn, TC(SURFACE_RAISED), 0);
-    lv_obj_set_style_bg_opa(a->btn, LV_OPA_90, 0);
+    lv_obj_set_style_bg_color(a->btn, th_null()?TC(FIXED_MEDIA_BLACK):TC(SURFACE_RAISED), 0);
+    lv_obj_set_style_bg_opa(a->btn, th_null()?128:LV_OPA_90, 0);
     lv_obj_set_style_bg_color(a->btn, TC(SURFACE_SELECTED), LV_STATE_PRESSED);
     lv_obj_set_ext_click_area(a->btn, 10);
     lv_obj_add_event_cb(a->btn, btn_cb, LV_EVENT_CLICKED, a);
@@ -51,8 +51,8 @@ void azjump_create(azjump_t *a, lv_obj_t *root, azjump_cb_t jump, const char *ta
     lv_obj_remove_style_all(a->grid);
     lv_obj_set_user_data(a->grid, a);
     lv_obj_set_size(a->grid, 360, 360); lv_obj_set_pos(a->grid, 0, 0);
-    lv_obj_set_style_bg_color(a->grid, TC(CANVAS), 0);
-    lv_obj_set_style_bg_opa(a->grid, LV_OPA_80, 0);
+    lv_obj_set_style_bg_color(a->grid, th_null()?TC(FIXED_MEDIA_BLACK):TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(a->grid, th_null()?128:LV_OPA_80, 0);
     lv_obj_add_flag(a->grid, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(a->grid, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(a->grid, grid_bg_cb, LV_EVENT_CLICKED, NULL);

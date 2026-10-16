@@ -24,11 +24,11 @@ extern const lv_font_t font_weather16;
 /* text over the cover: every label has a twin one pixel down-right in the opposite colour (a soft shadow), and the pair
  * flips between light-on-dark and dark-on-light with the brightness of the cover behind it (decided once per album) */
 typedef struct { lv_obj_t *sh, *fg; int dim, scroll, ink; char cur[192]; } dlabel_t;   /* ink: last dark/light (-1 unset) */   /* cur: the text as set (an ellipsis edits the label's own copy) */
-/* a long title / artist scrolls five times, then settles on an ellipsis (again on the next track) */
-static void scroll_done(lv_anim_t *a){ lv_label_set_long_mode((lv_obj_t *)a->var, LV_LABEL_LONG_SCROLL_CIRCULAR); }
+/* Long Music metadata scrolls three times, then rests until the next track. */
+static void scroll_done(lv_anim_t *a){ lv_label_set_long_mode((lv_obj_t *)a->var, LV_LABEL_LONG_CLIP); }
 const lv_anim_t *disco_scroll5(void){
     static lv_anim_t t; static int init;
-    if(!init){ lv_anim_init(&t); lv_anim_set_repeat_count(&t, 5); lv_anim_set_repeat_delay(&t, 1200); lv_anim_set_completed_cb(&t, scroll_done); init = 1; }
+    if(!init){ lv_anim_init(&t); lv_anim_set_repeat_count(&t, 3); lv_anim_set_repeat_delay(&t, 1200); lv_anim_set_completed_cb(&t, scroll_done); init = 1; }
     return &t;
 }
 static void dl_scroll5(dlabel_t *d){
@@ -57,7 +57,7 @@ static void dl_text(dlabel_t *d, const char *t){
     if(!d->fg || !t) return;
     if(!strcmp(d->cur, t)) return;
     snprintf(d->cur, sizeof d->cur, "%s", t);
-    if(d->scroll){ lv_label_set_long_mode(d->fg, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_label_set_long_mode(d->sh, LV_LABEL_LONG_SCROLL_CIRCULAR); }
+    if(d->scroll){ ui_music_scroll(d->fg);ui_music_scroll(d->sh); }
     lv_label_set_text(d->fg, t); lv_label_set_text(d->sh, t);
 }
 static void dl_ink(dlabel_t *d, int dark_text){                     /* dark text on a light cover, and the reverse */
@@ -848,6 +848,7 @@ void dhome_set_status(int batt, int charging, int wifi, int bt){
 void dhome_set_now_playing(const char *title, const char *artist, lv_color_t accent, bool playing){
     g_have = title != NULL;
     g_acc = ui_disco_fit_accent(accent);
+    if(title && strcmp(L_TITLE.cur,title) && L_ARTIST.fg){ui_music_scroll(L_ARTIST.fg);ui_music_scroll(L_ARTIST.sh);}
     if(!(g_idle && !title)){ dl_text(&L_TITLE, title ? title : "Not Playing"); dl_text(&L_ARTIST, artist ? artist : ""); }
     if(g_mode) mode_paint();                                            /* changed elsewhere (Now Playing, Quick Settings) */
     static int last_play = -1;                                          /* this runs on every position frame: touch only what changed */

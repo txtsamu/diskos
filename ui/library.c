@@ -281,6 +281,7 @@ static void row_two(lv_obj_t *r, const char *top, const char *sub, const char *r
         lv_obj_set_style_text_font(rl, fr, 0);
         lv_obj_set_style_text_color(rl, TC(TEXT_MUTED), 0);
     }
+    ui_library_row(r);
 }
 
 /* ---- callbacks ---------------------------------------------------------- */
@@ -599,7 +600,7 @@ static void focus_mark(lv_obj_t *r){   /* lifted row + accent title: "you are he
     lv_obj_t *t = lv_obj_get_child(r, 0);
     if(t && lv_obj_check_type(t, &lv_label_class)){
         lv_obj_set_style_text_color(t, TC(ACCENT_PRIMARY), 0);
-        ui_reveal_title(t);
+        lv_label_set_long_mode(t,LV_LABEL_LONG_SCROLL_CIRCULAR);
     }
     g_focus_row = r;
 }
@@ -1329,6 +1330,7 @@ void library_create(lv_obj_t *root){
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* narrowed rows stay centred */
     lv_obj_add_event_cb(g_list, curve_scroll_cb, LV_EVENT_SCROLL, NULL);
+    ui_library_list_watch(g_list);
     pdots_create(root);                          /* after the list, so they draw on top of it */
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);

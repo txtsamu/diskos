@@ -84,6 +84,7 @@ static void plv_add_row(int i){
         lv_obj_set_pos(a, 12, 25); lv_obj_set_size(a, 256, 16);
         lv_obj_set_style_text_font(a, ui_font_user(14), 0);
         lv_obj_set_style_text_color(a, TC(TEXT_LYRICS), 0);
+        ui_library_row(r);
 }
 static void plv_scroll_cb(lv_event_t *e){ (void)e; vlist_follow(&g_plv); }
 static void plv_reload(void);   /* fwd */
@@ -362,6 +363,7 @@ void plview_create(lv_obj_t *root){
     lv_obj_set_scroll_dir(g_song_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_song_list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_song_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    ui_library_list_watch(g_song_list);
     lv_obj_add_event_cb(g_song_list, plv_scroll_cb, LV_EVENT_SCROLL, NULL);
     if(th_braun() && g_song_list){                                  /* Braun: the grille, the list on the segment, styled rows */
         br_face(root); lv_obj_update_layout(g_song_list);

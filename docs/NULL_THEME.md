@@ -111,3 +111,12 @@ rows show a chevron; On/Off and read-only values remain visible. Overflow text
 scrolls. Null options prioritize menu items, quick items, palette and background;
 Autohide is now Close nav bar. Both themes have Settings > How to below Battery,
 with eight compact sections and contextual gesture hints with independent counters.
+
+## 2.4.0 polish
+
+Null is right-handed only; Side remains visible but disabled with an explanation.
+How to uses full-topic snapped pages and a bottom next arrow. First-use tips
+appear centrally, and the handle hint names the configured shortcuts. A-Z uses
+50% black; the two QS side bars have their own 30% black strips. Shared settings
+selectors are vertically centred with larger values and help. Library names
+abbreviate until focused; Music names run three scroll cycles then rest.

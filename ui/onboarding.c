@@ -7,6 +7,7 @@
 #include <math.h>
 
 #include <string.h>
+#include <stdio.h>
 #include "null_theme.h"
 /* Learning is per theme, not shared with an already-used Disco setup. */
 static const char *hint_key(const char *key){
@@ -28,7 +29,15 @@ const char *onboarding_gesture_text(int id){
     if(id==HINT_BACK)return disco_mirror()?"Swipe left from the right edge to go back.":"Swipe right from the left edge to go back.";
     if(id==HINT_QUICK)return th_null()?"Pull down from the top for QS. Swipe up beside the panel, tap outside, or tap its bottom arrow to close.":"Pull down from the top for QS; swipe up to close.";
     if(id==HINT_NAV)return th_null()?"Tap the side arrow for the menu. Drag text or the handle to browse; tap an item to open.":"Tap the side tab for the menu. Arrows browse; centre icon opens. Double-tap / hold shortcuts are configurable.";
-    if(id==HINT_HANDLE)return "Drag the handle; hold either end to scroll. Double-tap / hold its centre for your chosen shortcuts.";
+    if(id==HINT_HANDLE){
+        static const char *names[]={"Music","Search","Queue","Up Next","Shortcuts","Quick Settings","Volume","Screen off","Play/Pause","Next track","Nothing"};
+        static char tip[192];
+        int tap=cfg_get_int("null_nav_double",DISCO_NAV_SEARCH),hold=cfg_get_int("null_nav_hold",DISCO_NAV_MUSIC);
+        if(tap<0 || tap>=DISCO_NAV_COUNT)tap=DISCO_NAV_SEARCH;
+        if(hold<0 || hold>=DISCO_NAV_COUNT)hold=DISCO_NAV_MUSIC;
+        snprintf(tip,sizeof tip,"Handle centre: double-tap for %s; hold for %s. Drag to browse; hold either end to scroll.",names[tap],names[hold]);
+        return tip;
+    }
     if(id==HINT_MUSIC){
         int action=cfg_get_int(th_null()?"null_title_hold":"disco_title_hold",0);
         return action==0?"Tap the title for track actions and Mood. Hold for Immersive.":action==1?"Tap the title for track actions and Mood. Hold to favourite / unfavourite.":"Tap the title for track actions and Mood. Title hold is disabled.";
@@ -117,7 +126,7 @@ static void show_pill(int id){
     if(id==HINT_LOCK){y=262;x=60;w=240;}
     if(id==HINT_MENU){lv_obj_add_flag(pill,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(pill,menu_hint_cb,LV_EVENT_CLICKED,NULL);}
     lv_obj_t *label=lv_label_create(pill);lv_label_set_text(label,message);
-    lv_obj_set_style_text_font(label,th_null()?TF(UI_14):TF(UI_16),0);lv_obj_set_style_text_color(label,th_null()?TC(TEXT_PRIMARY):TC(FIXED_MEDIA_WHITE),0);
+    lv_obj_set_style_text_font(label,TF(UI_18),0);lv_obj_set_style_text_color(label,th_null()?TC(TEXT_PRIMARY):TC(FIXED_MEDIA_WHITE),0);
     lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
     if(id==HINT_MENU){ lv_obj_set_pos(pill,x,y);lv_obj_set_size(pill,w,h);lv_obj_set_width(label,w-12);lv_obj_center(label); }
     else {
@@ -130,6 +139,7 @@ static void show_pill(int id){
         if(ph>120){lv_obj_set_height(pill,120);ph=120;}
         int px=cx-pw/2,py=y;
         if(id==HINT_MUSIC || id==HINT_SHORTCUTS)py=y+28-ph;            /* above the title, whatever its height */
+        if(id!=HINT_LOCK){py=180-ph/2;px=180-pw/2;}
         int mid=py+ph/2-180,half=(int)sqrtf((float)(178*178-mid*mid))-6;     /* inside the circle at that height */
         if(px<180-half)px=180-half;
         if(px+pw>180+half)px=180+half-pw;

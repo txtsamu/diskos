@@ -76,7 +76,7 @@ static uint32_t gz_t0, gz_last, last_touch;
 static int edge_drag;
 static lv_timer_t *clock_timer;
 static char last_title[192], last_artist[192], last_album[192], last_times[64];
-static int left(void) { return cfg_get_int("null_side", 0) == 1; }
+static int left(void) { return 0; }
 static lv_text_align_t alignment(void)
 {
     return cfg_get_int("null_text_align", 0) == 1 ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER;
@@ -571,12 +571,12 @@ void null_home_update(const char *t, const char *a, int p)
         theme_upper(b, sizeof b, t ? t : "GO TO LIBRARY");
         if (strcmp(last_title, b)) {
             snprintf(last_title, sizeof last_title, "%s", b);
-            text_set(title, b);
+            text_set(title, b);ui_music_scroll(title);ui_music_scroll(artist);ui_music_scroll(album);
         }
         theme_upper(b, sizeof b, a ? a : "");
         if (strcmp(last_artist, b)) {
             snprintf(last_artist, sizeof last_artist, "%s", b);
-            text_set(artist, b);
+            text_set(artist, b);ui_music_scroll(artist);
         }
     }
     controls_paint();
@@ -800,6 +800,11 @@ static void qs_construct(void)
     lv_obj_add_flag(qclose, LV_OBJ_FLAG_HIDDEN);
     /* Keep brightness reachable without changing the eight-field composition: a
      * slim side slider. */
+    for(int side=0;side<2;side++){
+        lv_obj_t *strip=box(qroot,side?294:28,102,38,198);
+        lv_obj_set_style_bg_color(strip,TC(FIXED_MEDIA_BLACK),0);
+        lv_obj_set_style_bg_opa(strip,77,0);
+    }
     qbright = lv_slider_create(qroot);
     lv_obj_set_size(qbright, 6, 160);
     lv_obj_set_pos(qbright, 310, 112);
@@ -975,7 +980,7 @@ static void heartbeat(lv_timer_t *t)
         char b[192], a[32], z[32];
         if (strcmp(last_album, st.have_track ? st.album : "")) {
             snprintf(last_album, sizeof last_album, "%s", st.have_track ? st.album : "");
-            text_set(album, last_album);
+            text_set(album, last_album);ui_music_scroll(album);
         }
         time_fmt(a, sizeof a, st.position_ms);
         time_fmt(z, sizeof z, st.duration_ms);

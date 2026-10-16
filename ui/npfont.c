@@ -27,3 +27,55 @@ void ui_reveal_title(lv_obj_t *label){
         lv_anim_set_completed_cb(&hint,reveal_done);ready=1;}
     lv_obj_set_style_anim(label,&hint,0);lv_label_set_long_mode(label,LV_LABEL_LONG_SCROLL_CIRCULAR);
 }
+
+/* Music metadata runs exactly three cycles, then rests at its start. */
+static void music_scroll_done(lv_anim_t *a){
+    lv_label_set_long_mode((lv_obj_t *)a->var,LV_LABEL_LONG_CLIP);
+}
+void ui_music_scroll(lv_obj_t *label){
+    static lv_anim_t motion;static int ready;
+    if(!label)return;
+    if(!ready){lv_anim_init(&motion);lv_anim_set_repeat_count(&motion,3);
+        lv_anim_set_delay(&motion,1000);lv_anim_set_repeat_delay(&motion,1200);
+        lv_anim_set_completed_cb(&motion,music_scroll_done);ready=1;}
+    lv_obj_set_style_anim(label,&motion,0);
+    lv_label_set_long_mode(label,LV_LABEL_LONG_CLIP);
+    lv_label_set_long_mode(label,LV_LABEL_LONG_SCROLL_CIRCULAR);
+}
+
+/* One quiet library list: only the visible row nearest the screen centre scrolls.
+ * Focus events can also select a row; virtual row deletion is handled by LVGL. */
+static void list_text_mode(lv_obj_t *row,int focused){
+    for(uint32_t k=0;k<lv_obj_get_child_count(row);k++){
+        lv_obj_t *l=lv_obj_get_child(row,k);
+        if(!lv_obj_check_type(l,&lv_label_class))continue;
+        lv_label_long_mode_t want=focused?LV_LABEL_LONG_SCROLL_CIRCULAR:LV_LABEL_LONG_DOT;
+        if(lv_label_get_long_mode(l)!=want)lv_label_set_long_mode(l,want);
+    }
+}
+static void list_focus_update(lv_timer_t *t){
+    lv_obj_t *list=lv_timer_get_user_data(t);
+    if(!lv_obj_is_visible(list))return;
+    lv_obj_t *nearest=NULL;int distance=10000;
+    for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){
+        lv_obj_t *r=lv_obj_get_child(list,i);
+        if(!lv_obj_has_flag(r,LV_OBJ_FLAG_USER_2) || lv_obj_has_flag(r,LV_OBJ_FLAG_HIDDEN))continue;
+        lv_area_t a;lv_obj_get_coords(r,&a);
+        if(a.y2<72 || a.y1>318)continue;
+        int d=LV_ABS((a.y1+a.y2)/2-180);
+        if(lv_obj_has_state(r,LV_STATE_FOCUSED))d=-1;
+        if(d<distance){distance=d;nearest=r;}
+    }
+    for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){
+        lv_obj_t *r=lv_obj_get_child(list,i);
+        if(lv_obj_has_flag(r,LV_OBJ_FLAG_USER_2))list_text_mode(r,r==nearest);
+    }
+}
+static void list_watch_delete(lv_event_t *e){lv_timer_delete(lv_event_get_user_data(e));}
+void ui_library_list_watch(lv_obj_t *list){
+    lv_timer_t *timer=lv_timer_create(list_focus_update,200,list);
+    lv_obj_add_event_cb(list,list_watch_delete,LV_EVENT_DELETE,timer);
+}
+void ui_library_row(lv_obj_t *row){
+    lv_obj_add_flag(row,LV_OBJ_FLAG_USER_2);list_text_mode(row,0);
+}

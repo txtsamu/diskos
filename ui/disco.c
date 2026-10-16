@@ -370,7 +370,7 @@ static void sheen_show_cb(lv_timer_t *t){ (void)t; g_sh_tm = NULL; disco_sheen_a
 
 int disco_mirror(void){
     static int m = -1;
-    if(m < 0) m = th_null()?cfg_get_int("null_side",0)==1:th_disco() && cfg_get_int("disco_side", 0) == 1;
+    if(m < 0) m = th_null()?0:th_disco() && cfg_get_int("disco_side", 0) == 1;
     return m;
 }
 /* ---- the navigation circle ------------------------------------------------------------------------- */

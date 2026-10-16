@@ -107,8 +107,8 @@ void bhome_set_status(int batt, int charging, int wifi, int bt){
     battery_arc_set(&g_battery,batt,charging);
 }
 void bhome_set_now_playing(const char *title, const char *artist, bool playing){
-    if(g_title){ const char *nt = title ? title : "Not Playing"; if(strcmp(lv_label_get_text(g_title), nt)) lv_label_set_text(g_title, nt);
+    if(g_title){ const char *nt = title ? title : "Not Playing"; if(strcmp(lv_label_get_text(g_title), nt)){lv_label_set_text(g_title, nt);ui_music_scroll(g_title);ui_music_scroll(g_artist);}
                  lv_obj_set_style_text_color(g_title, title ? TC(TEXT_PRIMARY) : TC(TEXT_DISABLED), 0); }
-    if(g_artist) lv_label_set_text(g_artist, artist ? artist : "");
+    if(g_artist && strcmp(lv_label_get_text(g_artist),artist?artist:"")){lv_label_set_text(g_artist,artist?artist:"");ui_music_scroll(g_artist);}
     if(g_pp){ lv_obj_t *l = lv_obj_get_child(g_pp, 0); if(l) lv_label_set_text(l, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY); }
 }

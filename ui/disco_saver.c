@@ -17,9 +17,11 @@ lv_color_t ui_current_accent(void);
 const lv_anim_t *disco_scroll5(void);
 
 #define NSEG 6
-static lv_obj_t *g_img, *g_t[2], *g_wx[2], *g_ti[2], *g_ar[2], *g_seg[NSEG], *g_tr;
+static lv_obj_t *g_img, *g_t[2], *g_wx[2], *g_ti[2], *g_ar[2], *g_status[2], *g_seg[NSEG], *g_tr;
 static lv_font_t g_wf;
 static char g_last[16];
+static int g_batt=-1,g_charging,g_wifi,g_bt;
+void dsaver_set_status(int batt,int charging,int wifi,int bt);
 
 static void pair(lv_obj_t *root, lv_obj_t **p, const lv_font_t *f, int w, int y, int dim){
     for(int k = 0; k < 2; k++){                                   /* [0] a shadow 1 px down-right, [1] the text */
@@ -83,19 +85,29 @@ void dsaver_create(lv_obj_t *root){
     lv_obj_set_style_bg_opa(veil, 175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     g_tr = rim_arc(root, TC(FIXED_MEDIA_WHITE), 3, 40); lv_arc_set_angles(g_tr, 0, 360);
     for(int i = 0; i < NSEG; i++) g_seg[i] = rim_arc(root, theme_color_from_rgb(IRI[i]), 3, 200);
-    pair(root, g_t, TF(UI_46), -1, 104, 0);
-    lv_obj_set_style_transform_scale(g_t[0], 330, 0); lv_obj_set_style_transform_scale(g_t[1], 330, 0);
+    pair(root, g_t, TF(UI_48), -1, 48, 0);
+    lv_obj_set_style_transform_scale(g_t[0], 380, 0); lv_obj_set_style_transform_scale(g_t[1], 380, 0);
     ptext(g_t, "--:--");
-    g_wf = *theme_font_original(18); g_wf.fallback = &font_weather16;
-    pair(root, g_wx, &g_wf, -1, 72, 1);
-    pair(root, g_ti, ui_font_cjk(24), 250, 214, 0);
-    pair(root, g_ar, ui_font_cjk(18), 230, 248, 1);
+    g_wf = *theme_font_original(24); g_wf.fallback = &font_weather16;
+    pair(root, g_wx, &g_wf, -1, 116, 0);
+    for(int k=0;k<2;k++){lv_obj_set_style_transform_scale(g_wx[k],300,0);lv_obj_set_style_transform_pivot_x(g_wx[k],lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_wx[k],lv_pct(50),0);}
+    pair(root, g_ti, ui_font_cjk(28), 292, 150, 0);
+    pair(root, g_ar, ui_font_cjk(24), 280, 188, 1);
+    pair(root,g_status,TF(UI_20),160,20,1);dsaver_set_status(g_batt,g_charging,g_wifi,g_bt);
     for(int k = 0; k < 2; k++){                                   /* the scaled clock grows from its middle */
         lv_obj_update_layout(g_t[k]);
         lv_obj_set_style_transform_pivot_x(g_t[k], lv_pct(50), 0); lv_obj_set_style_transform_pivot_y(g_t[k], lv_pct(50), 0);
     }
     g_last[0] = 0;
     progress();
+}
+void dsaver_set_status(int batt,int charging,int wifi,int bt){
+    g_batt=batt;g_charging=charging;g_wifi=wifi;g_bt=bt;
+    if(!g_status[0])return;
+    char text[96]="";
+    snprintf(text,sizeof text,"%s%s%s",wifi?LV_SYMBOL_WIFI "  ":"",bt?LV_SYMBOL_BLUETOOTH "  ":"",
+        batt<0?"":charging?LV_SYMBOL_CHARGE:batt<15?LV_SYMBOL_BATTERY_EMPTY:batt<40?LV_SYMBOL_BATTERY_1:batt<70?LV_SYMBOL_BATTERY_2:LV_SYMBOL_BATTERY_FULL);
+    for(int k=0;k<2;k++)lv_label_set_text(g_status[k],text);
 }
 void dsaver_set_clock(const char *t){
     if(!g_t[1] || !t || !strcmp(t, g_last)) return;

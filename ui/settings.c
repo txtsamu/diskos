@@ -1177,6 +1177,7 @@ static void detail_slider_release_cb(lv_event_t *e){
     if(g_active->cfg_key && !strcmp(g_active->cfg_key, "ma_delay_ms")) ma_delay_changed();   /* restart with the saved value */
 }
 static void detail_cycle_cb(lv_event_t *e){
+    if(th_null() && g_active->cfg_key && !strcmp(g_active->cfg_key,"null_side")){ui_toast("Null is right-handed only");return;}
     if(th_null() && g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_variant")){ui_toast("Null uses a fixed dark appearance");return;}
     if(theme_outdoor() && g_active->cfg_key && !strcmp(g_active->cfg_key, "theme_variant")){
         ui_toast("Outdoor Mode keeps Light on");   /* a Dark/Light change could not show until Outdoor Mode is off */
@@ -1228,12 +1229,13 @@ void setting_detail_refresh(void){
 
     const setting_t *s = g_active;
     int v = nav_setting(s)?g_nav_pending:get_val(s);
+    if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))v=0;
 
     if(s->type == ST_SLIDER){
         lv_obj_t *sl = lv_slider_create(g_detail_root);
         lv_obj_set_size(sl, 220, 12);
         lv_obj_set_ext_click_area(sl, 14);
-        lv_obj_align(sl,LV_ALIGN_TOP_MID,0,138);
+        lv_obj_align(sl,LV_ALIGN_TOP_MID,0,174);
         lv_slider_set_range(sl, s->min, s->max);
         if(outdoor_holds(s)){ v = ui_effective_brightness(); lv_obj_add_state(sl, LV_STATE_DISABLED); }
         lv_slider_set_value(sl, v, LV_ANIM_OFF);
@@ -1242,7 +1244,7 @@ void setting_detail_refresh(void){
         lv_obj_set_style_bg_color(sl, TC(TEXT_PRIMARY), LV_PART_KNOB);
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[16]; lv_label_set_text(vl, val_text(s,b,sizeof b));
-        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 168);
+        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 204);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
@@ -1251,7 +1253,7 @@ void setting_detail_refresh(void){
         lv_obj_add_event_cb(sl, detail_slider_release_cb, LV_EVENT_PRESS_LOST, NULL);
     } else if(s->type == ST_TOGGLE){
         lv_obj_t *sw = lv_switch_create(g_detail_root);
-        lv_obj_align(sw, LV_ALIGN_TOP_MID, 0, 128);
+        lv_obj_align(sw, LV_ALIGN_TOP_MID, 0, 160);
         lv_obj_set_style_bg_color(sw, ui_current_accent(), LV_PART_INDICATOR | LV_STATE_CHECKED);
         if(v) lv_obj_add_state(sw, LV_STATE_CHECKED);
         ui_on(sw, detail_toggle_cb, LV_EVENT_VALUE_CHANGED, NULL, "settings.detail_toggle.value", UI_CORE);
@@ -1307,25 +1309,25 @@ void setting_detail_refresh(void){
     } else if(s->type == ST_CYCLER){
         /* < value > stepper */
         lv_obj_t *vl = lv_label_create(g_detail_root);
-        char b[24]; lv_label_set_text(vl,nav_setting(s)?tr(s->opts[v]):val_text(s,b,sizeof b));
+        char b[24]; lv_label_set_text(vl,nav_setting(s)?tr(s->opts[v]):(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?"Right":val_text(s,b,sizeof b));
         lv_obj_set_size(vl,176,40); lv_label_set_long_mode(vl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 128);
+        lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 160);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
-        lv_obj_set_style_text_font(vl, TF(UI_24), 0);
+        lv_obj_set_style_text_font(vl, TF(UI_28), 0);
         lv_obj_t *lb = lv_button_create(g_detail_root);
         lv_obj_remove_style_all(lb); lv_obj_set_size(lb, 48, 48);
-        lv_obj_align(lb, LV_ALIGN_TOP_MID, -116, 120);
+        lv_obj_align(lb, LV_ALIGN_TOP_MID, -116, 156);
         lv_obj_t *li = lv_label_create(lb); lv_label_set_text(li, LV_SYMBOL_LEFT);
-        lv_obj_set_style_text_color(li, TC(TEXT_PRIMARY), 0); lv_obj_center(li);
+        lv_obj_set_style_text_color(li, TC(TEXT_PRIMARY), 0); lv_obj_set_style_text_font(li,TF(UI_24),0); lv_obj_center(li);
         lv_obj_add_event_cb(lb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)-1);
         lv_obj_t *rb = lv_button_create(g_detail_root);
         lv_obj_remove_style_all(rb); lv_obj_set_size(rb, 48, 48);
-        lv_obj_align(rb, LV_ALIGN_TOP_MID, 116, 120);
+        lv_obj_align(rb, LV_ALIGN_TOP_MID, 116, 156);
         lv_obj_t *ri = lv_label_create(rb); lv_label_set_text(ri, LV_SYMBOL_RIGHT);
-        lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_center(ri);
+        lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_set_style_text_font(ri,TF(UI_24),0); lv_obj_center(ri);
         lv_obj_add_event_cb(rb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)1);
-        if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant")){
+        if(th_null() && s->cfg_key && (!strcmp(s->cfg_key,"theme_variant") || !strcmp(s->cfg_key,"null_side"))){
             lv_obj_add_state(lb,LV_STATE_DISABLED);lv_obj_add_state(rb,LV_STATE_DISABLED);
             lv_obj_set_style_opa(lb,90,0);lv_obj_set_style_opa(rb,90,0);
             lv_obj_add_flag(vl,LV_OBJ_FLAG_CLICKABLE);
@@ -1333,7 +1335,7 @@ void setting_detail_refresh(void){
         }
         if(nav_setting(s) || (s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"))){ /* choices with explicit Apply */
             lv_obj_t *ab = lv_button_create(g_detail_root); lv_obj_remove_style_all(ab);
-            lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_TOP_MID, 0, 184);
+            lv_obj_set_size(ab, 132, 46); lv_obj_align(ab, LV_ALIGN_TOP_MID, 0, 224);
             lv_obj_set_style_radius(ab, LV_RADIUS_CIRCLE, 0);
             lv_obj_set_style_bg_color(ab, ui_current_accent(), 0); lv_obj_set_style_bg_opa(ab, LV_OPA_COVER, 0);
             lv_obj_set_style_bg_opa(ab, LV_OPA_70, LV_STATE_PRESSED);
@@ -1345,7 +1347,7 @@ void setting_detail_refresh(void){
     } else { /* readonly */
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[128];lv_label_set_text(vl,val_text(s,b,sizeof b));
-        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 128);
+        lv_obj_set_width(vl,240); lv_obj_align(vl, LV_ALIGN_TOP_MID, 0, 160);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(vl, TC(TEXT_LYRICS), 0);
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
@@ -1357,19 +1359,20 @@ void setting_detail_refresh(void){
     if(s->type == ST_CHOICE) desc = (s->opts == i18n_lang_names) ? "Screen redraws after selection."
                                   : (s->cfg_key && !strcmp(s->cfg_key, "bt_codec")) ? "Best effort: SBC if the headphones lack it." : NULL;
     if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"theme_variant"))desc="Null uses a fixed dark appearance.\nLight/Dark is unavailable in this theme.";
+    if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))desc="Null is right-handed only. This option is disabled.";
     if(desc && desc[0]){
         lv_obj_t *d = lv_label_create(g_detail_root);
         lv_label_set_text(d, tr(desc));
         lv_label_set_long_mode(d,LV_LABEL_LONG_WRAP);
         int apply=nav_setting(s)||(s->cfg_key && !strcmp(s->cfg_key,"disco_side_pick"));
-        int y=apply?246:s->type==ST_CHOICE?286:216;
+        int y=apply?282:s->type==ST_CHOICE?286:238;
         lv_obj_t *help=lv_obj_create(g_detail_root);lv_obj_remove_style_all(help);
-        lv_obj_set_size(help,244,310-y);lv_obj_align(help,LV_ALIGN_TOP_MID,0,y);
+        lv_obj_set_size(help,264,326-y);lv_obj_align(help,LV_ALIGN_TOP_MID,0,y);
         lv_obj_set_scroll_dir(help,LV_DIR_VER);lv_obj_set_scrollbar_mode(help,LV_SCROLLBAR_MODE_AUTO);
         lv_obj_add_flag(help,LV_OBJ_FLAG_SCROLL_MOMENTUM);
-        lv_obj_set_parent(d,help);lv_obj_set_width(d,244);lv_obj_set_pos(d,0,0);
+        lv_obj_set_parent(d,help);lv_obj_set_width(d,264);lv_obj_set_pos(d,0,0);
         lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_font(d, TF(UI_14), 0);
+        lv_obj_set_style_text_font(d, TF(UI_18), 0);
         lv_obj_set_style_text_color(d, TC(TEXT_MUTED), 0);
     }
 }
@@ -1519,6 +1522,7 @@ void settings_create(lv_obj_t *root){
 /* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
 static const char *row_value(const setting_t *s,char *buf,int n){
+    if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){snprintf(buf,n,"Disabled");return buf;}
     if(s->type==ST_CYCLER && s->nopts==2 && !strcmp(s->opts[0],"Off") && !strcmp(s->opts[1],"On")) return val_text(s,buf,n);
     if(s->type==ST_SLIDER || s->type==ST_CYCLER || s->type==ST_CHOICE ||
        (s->type==ST_ACTION && (s->apply==apply_ma_server || s->apply==system_reset_open))){
@@ -1535,6 +1539,12 @@ void settings_row_values_refresh(void){
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 
 void settings_open_howto(void){if(th_disco() || th_null()){g_active_group="How to";screen_show(SCR_SETLIST);}}
+static void howto_next(lv_event_t *e){
+    lv_obj_t *list=lv_event_get_user_data(e);
+    int page=(lv_obj_get_scroll_y(list)+120)/240;
+    int count=(int)lv_obj_get_child_count(list);
+    lv_obj_scroll_to_y(list,((page+1)%count)*240,LV_ANIM_ON);
+}
 static void howto_body(lv_obj_t *root){
     static const char *titles[]={"Navigate","Navigation menu","Music","Seek / artwork","Quick Settings","Library","Clock / volume","More shortcuts"};
     char music[256],nav[256],quick[256],more[256];
@@ -1545,19 +1555,29 @@ static void howto_body(lv_obj_t *root){
     snprintf(quick,sizeof quick,"Tap Wi-Fi / BT to toggle; hold for connections. Drag brightness. %s",th_null()?"Tap outside / bottom arrow, or swipe up beside the panel to close.":"Swipe up to close.");
     snprintf(more,sizeof more,"%s EQ: tap a band; drag or use +/-. Tap gain/frequency to switch. Power button: pocket lock.",onboarding_gesture_text(HINT_SHORTCUTS));
     const char *bodies[]={disco_mirror()?"Swipe left from the right edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.":"Swipe right from the left edge: back. Swipe up from the bottom on other screens: Music. Pull down from the top: QS.",nav,music,th_null()?"Tap or drag progress to seek. Tap full-screen artwork to return. Back swipe closes the track popup.":"Tap / drag progress to seek; hold for precise seeking. Tap full-screen artwork to return. Back swipe closes the track popup.",quick,"Hold songs / albums for actions. Tap A-Z, then a letter. Drag the rim to scroll. Cover flow: drag to browse; tap for tracks; hold to play.","Clock: tap for Weather; hold the top strip to hide/show. Drag volume to adjust; tap outside to dismiss.",more};
-    lv_obj_t *list=make_list(root);lv_obj_set_pos(list,42,76);lv_obj_set_size(list,276,244);
-    lv_obj_set_style_pad_bottom(list,40,0);lv_obj_set_style_pad_row(list,12,0);
+    lv_obj_t *list=lv_obj_create(root);lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list,42,72);lv_obj_set_size(list,276,240);
+    lv_obj_set_flex_flow(list,LV_FLEX_FLOW_COLUMN);lv_obj_set_scroll_dir(list,LV_DIR_VER);
+    lv_obj_set_scroll_snap_y(list,LV_SCROLL_SNAP_START);lv_obj_set_scrollbar_mode(list,LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLL_ONE|LV_OBJ_FLAG_SCROLL_MOMENTUM);
     for(unsigned i=0;i<sizeof titles/sizeof *titles;i++){
-        lv_obj_t *card=lv_obj_create(list);lv_obj_remove_style_all(card);lv_obj_set_width(card,260);lv_obj_set_height(card,LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(card,LV_FLEX_FLOW_COLUMN);lv_obj_set_style_pad_row(card,4,0);lv_obj_set_style_pad_bottom(card,8,0);
-        lv_obj_set_style_border_side(card,LV_BORDER_SIDE_BOTTOM,0);lv_obj_set_style_border_width(card,1,0);lv_obj_set_style_border_color(card,TC(BORDER),0);
-        lv_obj_clear_flag(card,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *card=lv_obj_create(list);lv_obj_remove_style_all(card);lv_obj_set_size(card,276,240);
+        lv_obj_add_flag(card,LV_OBJ_FLAG_SNAPPABLE);lv_obj_clear_flag(card,LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_t *head=lv_label_create(card);char upper[80];theme_upper(upper,sizeof upper,titles[i]);
-        lv_label_set_text(head,th_null()?upper:titles[i]);lv_obj_set_width(head,260);lv_label_set_long_mode(head,LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_style_text_font(head,TF(UI_18),0);lv_obj_set_style_text_color(head,TC(TEXT_PRIMARY),0);
-        lv_obj_t *body=lv_label_create(card);lv_label_set_text(body,bodies[i]);lv_obj_set_width(body,260);
-        lv_label_set_long_mode(body,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(body,TF(UI_14),0);lv_obj_set_style_text_color(body,TC(TEXT_SECONDARY),0);
+        lv_label_set_text(head,th_null()?upper:titles[i]);lv_obj_set_size(head,276,38);
+        lv_label_set_long_mode(head,LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_text_align(head,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_style_text_font(head,TF(UI_24),0);lv_obj_set_style_text_color(head,TC(TEXT_PRIMARY),0);
+        lv_obj_t *area=lv_obj_create(card);lv_obj_remove_style_all(area);lv_obj_set_pos(area,0,46);lv_obj_set_size(area,276,182);
+        lv_obj_set_scroll_dir(area,LV_DIR_VER);lv_obj_set_scrollbar_mode(area,LV_SCROLLBAR_MODE_AUTO);
+        lv_obj_t *body=lv_label_create(area);lv_label_set_text(body,bodies[i]);lv_obj_set_width(body,276);
+        lv_label_set_long_mode(body,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(body,TF(UI_20),0);lv_obj_set_style_text_color(body,TC(TEXT_SECONDARY),0);
     }
+    lv_obj_t *next=lv_button_create(root);lv_obj_remove_style_all(next);lv_obj_set_pos(next,148,312);lv_obj_set_size(next,64,44);
+    lv_obj_t *arrow=lv_label_create(next);lv_label_set_text(arrow,LV_SYMBOL_DOWN);lv_obj_set_style_text_font(arrow,TF(UI_24),0);
+    lv_obj_set_style_text_color(arrow,TC(TEXT_PRIMARY),0);lv_obj_center(arrow);
+    lv_obj_add_event_cb(next,howto_next,LV_EVENT_CLICKED,list);
+
 }
 void setlist_refresh(void){
     if(!g_setlist_root || !g_active_group) return;
@@ -1585,7 +1605,7 @@ void setlist_refresh(void){
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, s->label);
         lv_obj_set_pos(lbl,18,16);
-        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s)?116:202);
+        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(lbl, TH_F_LIST, 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
@@ -1593,8 +1613,8 @@ void setlist_refresh(void){
         char b[40]; row_value(s, b, sizeof b);
         lv_obj_t *vl = lv_label_create(row);
         lv_label_set_text(vl, b);
-        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s)?144:228,18);
-        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s)?126:42,24);
+        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
+        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
         lv_label_set_long_mode(vl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_style_text_font(vl, TH_F_DETAIL, 0);
@@ -1611,6 +1631,7 @@ void setlist_refresh(void){
             }
         }
         theme_list_row(row);
+        if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){lv_obj_set_style_text_color(lbl,TC(TEXT_MUTED),0);lv_obj_set_style_text_color(vl,TC(TEXT_MUTED),0);}
     }
     curvelist_update(&cl);
 }

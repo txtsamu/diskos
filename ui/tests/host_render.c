@@ -1017,6 +1017,41 @@ int main(int argc, char **argv){
             return 0;
         }
         if(getenv("HELP_KEY")){extern void settings_open_key(const char *);settings_open_key(getenv("HELP_KEY"));scr=SCR_SETTING_DETAIL;nav_wait(300);assert(screen_current()==SCR_SETTING_DETAIL);}
+        if(getenv("HOWTO_PAGE")){
+            lv_obj_t *root=screen_get_root(SCR_SETLIST),*list=NULL;
+            for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){
+                lv_obj_t *o=lv_obj_get_child(root,i);if(lv_obj_get_height(o)==240 && lv_obj_get_width(o)==276)list=o;
+            }
+            assert(list);lv_obj_scroll_to_y(list,240*atoi(getenv("HOWTO_PAGE")),LV_ANIM_OFF);nav_wait(100);
+        }
+        if(getenv("REVIEW_240")){
+            lv_obj_t *r=lv_obj_create(screen_get_root(scr));lv_obj_set_size(r,280,260);lv_obj_set_pos(r,40,60);
+            lv_obj_t *labels[3];
+            for(int i=0;i<3;i++){
+                lv_obj_t *row=lv_obj_create(r);lv_obj_set_pos(row,0,i*70);lv_obj_set_size(row,260,60);
+                labels[i]=lv_label_create(row);lv_obj_set_width(labels[i],180);
+                lv_label_set_text(labels[i],"A very long library title that needs a quiet abbreviated row");
+                ui_library_row(row);
+            }
+            ui_library_list_watch(r);nav_wait(250);
+            int scrolling=0;for(int i=0;i<3;i++)scrolling+=lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_SCROLL_CIRCULAR;
+            assert(scrolling==1);
+            lv_obj_delete(r);
+            lv_obj_t *l=lv_label_create(screen_get_root(scr));lv_obj_set_width(l,100);
+            lv_label_set_text(l,"A long music title for a real three-cycle scroll check");ui_music_scroll(l);
+            const lv_anim_t *motion=lv_obj_get_style_anim(l,0);assert(motion && lv_anim_get_repeat_count(motion)==3);
+            nav_wait(120000);assert(lv_label_get_long_mode(l)==LV_LABEL_LONG_CLIP);lv_obj_delete(l);
+            if(th_null()){
+                assert(!disco_mirror());extern void settings_open_key(const char *);settings_open_key("null_side");nav_wait(100);
+                lv_obj_t *detail=screen_get_root(SCR_SETTING_DETAIL);int disabled=0;
+                for(uint32_t i=0;i<lv_obj_get_child_count(detail);i++){
+                    lv_obj_t *o=lv_obj_get_child(detail,i);if(lv_obj_check_type(o,&lv_button_class) && lv_obj_has_state(o,LV_STATE_DISABLED))disabled++;
+                }
+                assert(disabled==2);assert(find_text(detail,"Right"));
+                assert(strstr(onboarding_gesture_text(HINT_HANDLE),"Search"));
+            }
+            puts("PASS: one focused library row, three-cycle Music scroll termination, Null right-only UI and handle hint");return 0;
+        }
         if(getenv("HELP_MENU_BOTTOM")){lv_obj_t *how=find_text(screen_get_root(SCR_SETTINGS),"How to");assert(how);lv_obj_scroll_to_view(lv_obj_get_parent(how),LV_ANIM_OFF);nav_wait(100);}
         if(getenv("HELP_SCROLL")){extern void settings_test_scroll(int);settings_test_scroll(atoi(getenv("HELP_SCROLL")));}
         if(getenv("REVIEW_239_POLISH")){
