@@ -50,3 +50,16 @@ faces keep Unicode fallback. The mode control precedes the fixed progress line;
 the time line is elapsed/total/file-extension. QS reserves a date zone and uses
 40px action hit areas on an even 44px pitch, with a 72px square cover between
 the two groups. The selected font option applies live to Music only.
+
+Focused source preview: QS uses the live clock instead of a date and labels its
+battery and brightness indicators. Configuration screens and EQ hide the Null
+navigation overlay, leaving chooser controls unobstructed. The EQ landing page
+preserves its own Null typography and visible toggle state.
+Gesture controls now use the metadata region, including the separate album row:
+double-tap toggles playback and horizontal swipes change track. A delayed single
+tap retains the track popup; holds retain Immersive. Hints are removed and a short
+pixel transport icon confirms actions. Pointer checks passed for these routes.
+Volume uses a 24px eased slide and fade, opening in 96ms and closing in 70ms;
+repeated value updates preserve the running animation. The volume interaction
+check passed on the host. These source previews have not replaced the last
+compiled Null.4 payload.

@@ -1233,7 +1233,7 @@ void setting_detail_refresh(void){
         char b[16]; lv_label_set_text(vl, val_text(s,b,sizeof b));
         lv_obj_set_width(vl, 360); lv_obj_align(vl, LV_ALIGN_CENTER, 0, 40);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(vl, ui_current_accent(), 0);
+        lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
         ui_on(sl, detail_slider_cb, LV_EVENT_VALUE_CHANGED, vl, "settings.detail_slider.value", UI_CORE);
         lv_obj_add_event_cb(sl, detail_slider_release_cb, LV_EVENT_RELEASED, NULL);
@@ -1300,7 +1300,7 @@ void setting_detail_refresh(void){
         lv_obj_set_size(vl, nav_setting(s)?160:220, 32); lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
         lv_obj_align(vl, LV_ALIGN_CENTER, 0, 0);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(vl, ui_current_accent(), 0);
+        lv_obj_set_style_text_color(vl, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
         lv_obj_set_style_text_font(vl, TF(UI_24), 0);
         lv_obj_t *lb = lv_button_create(g_detail_root);
         lv_obj_remove_style_all(lb); lv_obj_set_size(lb, 48, 48);

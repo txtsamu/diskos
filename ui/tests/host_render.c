@@ -88,7 +88,7 @@ static int find_sharp_image(lv_obj_t *root){
 static int fixture, send_result, send_count;
 static int null_transport_calls;static char null_last_command[24];
 int __real_ui_transport_command(const char*);
-int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
+int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
 int __real_ipc_send_cmd(const char *frame);
 int __wrap_ipc_send_cmd(const char *frame){send_count++;return fixture?send_result:__real_ipc_send_cmd(frame);}
 int __real_fw_custom_peq_writable(void);
@@ -170,7 +170,7 @@ static void review_null(void){
  // Navigation and seek gestures must not send playback commands when they merely move.
  commands=null_transport_calls;nav_pointer=(lv_indev_data_t){.point={120,308},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);nav_pointer.point.x=190;nav_wait(30);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(null_transport_calls==commands);
  for(int bg=0;bg<3;bg++){cfg_set_int_deferred("null_music_background",bg);null_options_changed();nav_wait(30);}
- cfg_set_int_deferred("null_controls",2);null_options_changed();nav_wait(30);commands=null_transport_calls;nav_touch((lv_point_t){180,306},60);nav_wait(90);nav_touch((lv_point_t){180,306},60);assert(null_transport_calls==commands+1);
+ cfg_set_int_deferred("null_controls",2);null_options_changed();nav_wait(30);commands=null_transport_calls;nav_touch((lv_point_t){180,155},60);nav_wait(90);nav_touch((lv_point_t){180,155},60);assert(null_transport_calls==commands+1);
  cfg_set_int_deferred("null_controls",1);null_options_changed();nav_wait(5300);commands=null_transport_calls;nav_touch((lv_point_t){120,308},80);assert(null_transport_calls==commands); // waking touch consumes the transport action
  for(int i=0;i<8;i++){screen_show(SCR_QUICK);nav_wait(210);screen_back();nav_wait(210);assert(screen_current()==SCR_HOME);}
  lv_indev_delete(in);puts("PASS: Null real-pointer drag suppression, menu destination, stationary NP under QS, radios, prev/next, close arrow, button swipe suppression, backgrounds, gesture double-tap, autofade wake and repeated QS lifecycle");
@@ -977,6 +977,25 @@ int main(int argc, char **argv){
             for(int i=atoi(getenv("PICK_DOWN"));i>0;i--){disco_test_tap(2);nav_wait(300);}
             if(getenv("NAV_CLOSE")){disco_nav_set_open(0);nav_wait(400);}
         }
+        if(getenv("REVIEW_NULL_GESTURES")){
+            extern int disco_track_overlay_visible(void);extern void dhome_overlay_close(void);
+            assert(th_null());screen_home();screen_set_anim(0);cfg_set_int_deferred("null_controls",2);null_options_changed();
+            lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);
+            nav_wait(60);int n=null_transport_calls;
+            nav_touch((lv_point_t){180,154},60);nav_wait(80);nav_touch((lv_point_t){180,154},60);
+            assert(null_transport_calls==n+1 && !strcmp(null_last_command,"0201000C0000"));
+            nav_wait(450);assert(!disco_track_overlay_visible());
+            nav_touch((lv_point_t){180,120},60);nav_wait(450);assert(disco_track_overlay_visible());dhome_overlay_close();nav_wait(60);
+            nav_pointer=(lv_indev_data_t){.point={100,188},.state=LV_INDEV_STATE_PRESSED};nav_wait(50);
+            nav_pointer.point.x=240;nav_wait(50);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
+            assert(null_transport_calls==n+2 && !strcmp(null_last_command,"0201000C0001"));
+            nav_wait(450);assert(!disco_track_overlay_visible());
+            nav_pointer=(lv_indev_data_t){.point={240,130},.state=LV_INDEV_STATE_PRESSED};nav_wait(50);
+            nav_pointer.point.x=100;nav_wait(50);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
+            assert(null_transport_calls==n+3 && !strcmp(null_last_command,"0201000C0002"));
+            puts("PASS: Null metadata double-tap, delayed popup tap, album next swipe, title previous swipe");
+            goto render;
+        }
         if(getenv("REVIEW_NULL_VOLUME")){
             screen_set_anim(1);screen_home();nav_wait(300);
             ui_show_volume(74);nav_wait(150);
@@ -1300,7 +1319,9 @@ int main(int argc, char **argv){
             assert(screen_current()==SCR_HOME);
             puts("PASS: Disco popup Info opens current-track details and Back returns to Music");
         }
-        if(getenv("VOLSHOW")){ void ui_show_volume(int); ui_show_volume(atoi(getenv("VOLSHOW"))); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
+        if(getenv("VOLSHOW")){ void ui_show_volume(int);ui_show_volume(atoi(getenv("VOLSHOW")));nav_wait(getenv("VOL_FRAME_MS")?atoi(getenv("VOL_FRAME_MS")):200);
+            if(getenv("VOL_CLOSE_MS")){lv_obj_t *close=ui_action_find("null.volume.dismiss");assert(close);lv_obj_send_event(close,LV_EVENT_CLICKED,NULL);nav_wait(atoi(getenv("VOL_CLOSE_MS")));}
+        }
         if(getenv("TICKS")){ int ms=atoi(getenv("TICKS")); for(int i=0;i<ms/20;i++){lv_tick_inc(20);lv_timer_handler();} }
         if(!strncmp(page,"immersive",9)){
             int extra=atoi(page+9);

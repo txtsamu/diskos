@@ -30,14 +30,16 @@ static lv_font_t pixel14;
 extern const lv_font_t null_pixel_16, null_pixel_24, null_dot_31, null_mono_27;
 extern const lv_font_t null_fine_16, null_fine_18, diskos_mono_16, diskos_mono_18;
 static lv_font_t music_fonts[3][5];
-static lv_obj_t *qdate;
+static lv_obj_t *qdate, *qbicon, *qsun, *track_hit, *album_hit, *gesture_feedback, *feedback_icon;
+static lv_timer_t *track_tap_timer;
+static char music_clock_text[32]="--:--";
 static const lv_font_t *music_font(int role)
 {
     int set=cfg_get_int("null_music_fonts",0);if(set<0 || set>2)set=0;
     return &music_fonts[set][role];
 }
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
-    *buttons[3], *icons[3], *gesture, *hints[3];
+    *buttons[3], *icons[3], *gesture;
 static lv_obj_t *nav, *band, *edge, *edge_line[5];
 static lv_obj_t *clock_box, *music_clock, *music_status;
 void disco_track_overlay_open(void);
@@ -56,6 +58,7 @@ static lv_obj_t *volume_panel, *volume_slider, *volume_value;
 static lv_timer_t *volume_timer;
 static int volume_pending, volume_suppress;
 static uint32_t volume_sent;
+static int volume_progress=1000, volume_closing;
 static const void *last_sharp;
 static lv_image_dsc_t pixel_dsc;
 static uint8_t *pixel_buf;
@@ -181,14 +184,35 @@ static void mode_event(lv_event_t *e)
         last_touch = lv_tick_get();
     }
 }
+static void gesture_event(lv_event_t *e);
+static void cancel_track_tap(void)
+{
+    if(track_tap_timer){lv_timer_delete(track_tap_timer);track_tap_timer=NULL;}
+}
+static void track_tap_later(lv_timer_t *t)
+{
+    (void)t;track_tap_timer=NULL;gz_last=0;
+    if(screen_current()==SCR_HOME && have)disco_track_overlay_open();
+}
 static void track_event(lv_event_t *e)
 {
-    if (!have)
-        return;
-    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
-        disco_open_np_immersive();
-    } else if (lv_event_get_code(e) == LV_EVENT_CLICKED && !screen_press_was_long())
-        disco_track_overlay_open();
+    if(!have || screen_current()!=SCR_HOME)return;
+    lv_event_code_t c=lv_event_get_code(e);
+    if(c==LV_EVENT_LONG_PRESSED){cancel_track_tap();gz_last=0;disco_open_np_immersive();return;}
+    if(cfg_get_int("null_controls",0)==2){gesture_event(e);return;}
+    if(c==LV_EVENT_CLICKED && !screen_press_was_long())disco_track_overlay_open();
+}
+static void feedback_opa(void *o,int32_t v){lv_obj_set_style_opa(o,v,0);}
+static void feedback_done(lv_anim_t *a){lv_obj_add_flag(a->var,LV_OBJ_FLAG_HIDDEN);}
+static void gesture_show_icon(int kind)
+{
+    if(!gesture_feedback)return;
+    icon_replace(gesture_feedback,&feedback_icon,13,13,kind,TC(TEXT_PRIMARY));
+    lv_anim_delete(gesture_feedback,NULL);lv_obj_remove_flag(gesture_feedback,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(gesture_feedback);lv_obj_set_style_opa(gesture_feedback,255,0);
+    lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,gesture_feedback);lv_anim_set_exec_cb(&a,feedback_opa);
+    lv_anim_set_values(&a,255,0);lv_anim_set_delay(&a,220);lv_anim_set_duration(&a,140);
+    lv_anim_set_completed_cb(&a,feedback_done);lv_anim_start(&a);
 }
 static void seek_event(lv_event_t *e)
 {
@@ -247,18 +271,26 @@ static void gesture_event(lv_event_t *e)
         wake_guard = 0;
         return;
     }
+    if(c==LV_EVENT_PRESS_LOST){cancel_track_tap();gz_last=0;return;}
     if (c != LV_EVENT_RELEASED || cfg_get_int("null_controls", 0) != 2)
         return;
     int dx = p.x - gz_start.x, dy = p.y - gz_start.y;
     if (abs(dx) >= 40 && abs(dx) > 2 * abs(dy) && now - gz_t0 < 700) {
         gz_last = 0;
-        ui_transport_command(dx > 0 ? "0201000C0001" : "0201000C0002");
+        cancel_track_tap();
+        if(ui_transport_command(dx > 0 ? "0201000C0001" : "0201000C0002")==0)gesture_show_icon(dx>0?NULL_ICON_NEXT:NULL_ICON_PREVIOUS);
     } else if (abs(dx) < 18 && abs(dy) < 18 && now - gz_t0 < 400) {
         if (gz_last && now - gz_last < 400) {
             gz_last = 0;
-            ui_transport_command("0201000C0000");
-        } else
-            gz_last = now;
+            cancel_track_tap();
+            if(ui_transport_command("0201000C0000")==0){
+                playing=ui_pp_icon_playing(ui_is_playing());controls_paint();
+                gesture_show_icon(playing?NULL_ICON_PAUSE:NULL_ICON_PLAY);
+            }
+        } else{
+            gz_last=now;cancel_track_tap();track_tap_timer=lv_timer_create(track_tap_later,400,NULL);
+            if(track_tap_timer)lv_timer_set_repeat_count(track_tap_timer,1);
+        }
     }
 }
 static void layout_music(void)
@@ -271,13 +303,15 @@ static void layout_music(void)
     lv_obj_set_y(title, 116 - lift);
     lv_obj_set_y(artist, 154 - lift);
     lv_obj_set_y(album, 180 + drop);
-    lv_obj_set_y(seek, 197 + drop);
+    lv_obj_set_y(seek, 204 + drop);
     lv_obj_set_y(playhead, 216 + drop);
     lv_obj_set_y(times, 227 + drop);
     lv_obj_set_y(mode, 198 + drop);
     for (int i = 0; i < 3; i++)
         lv_obj_set_y(buttons[i], 254 + drop);
     lv_obj_set_y(gesture, 248 + drop);
+    if(track_hit)lv_obj_set_size(track_hit,288,nav_value>0?68:142);
+    if(album_hit)lv_obj_set_y(album_hit,174+drop);
 }
 static void nav_paint(void)
 {
@@ -415,7 +449,10 @@ static void clock_event(lv_event_t *e)
                !lv_obj_has_flag(clock_box, LV_OBJ_FLAG_HIDDEN))
         weather_app_open();
 }
-void null_home_clock(const char *t) { text_set(music_clock, t ? t : "--:--"); }
+void null_home_clock(const char *t) {
+    snprintf(music_clock_text,sizeof music_clock_text,"%s",t?t:"--:--");
+    text_set(music_clock,music_clock_text);text_set(qdate,music_clock_text);
+}
 void null_home_status(int batt, int charging, int wifi, int bt)
 {
     char b[64] = "";
@@ -460,17 +497,22 @@ void null_home_create(lv_obj_t *r)
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_long_mode(album, LV_LABEL_LONG_DOT);
-    lv_obj_t *track = box(r, 36, 64, 272, 132);
-    lv_obj_set_style_bg_opa(track, 0, 0);
-    lv_obj_add_flag(track, LV_OBJ_FLAG_CLICKABLE);
-    ui_on(track, track_event, LV_EVENT_CLICKED, NULL, "null.track.menu", UI_REACHABLE);
-    ui_on(track, track_event, LV_EVENT_LONG_PRESSED, NULL, "null.track.immersive", UI_REACHABLE);
-    seek = box(r, 62, 234, 236, 44);
+    track_hit=box(r,36,64,288,142);album_hit=box(r,36,174,288,30);
+    lv_obj_t *hits[]={track_hit,album_hit};
+    for(int k=0;k<2;k++){
+        lv_obj_set_style_bg_opa(hits[k],0,0);lv_obj_add_flag(hits[k],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_PRESS_LOCK);
+        ui_on(hits[k],track_event,LV_EVENT_CLICKED,NULL,k?"null.album.menu":"null.track.menu",UI_REACHABLE);
+        ui_on(hits[k],track_event,LV_EVENT_LONG_PRESSED,NULL,k?"null.album.immersive":"null.track.immersive",UI_REACHABLE);
+        lv_obj_add_event_cb(hits[k],track_event,LV_EVENT_PRESSED,NULL);
+        lv_obj_add_event_cb(hits[k],track_event,LV_EVENT_RELEASED,NULL);
+        lv_obj_add_event_cb(hits[k],track_event,LV_EVENT_PRESS_LOST,NULL);
+    }
+    seek = box(r, 62, 204, 236, 32);
     lv_obj_set_style_bg_opa(seek, 0, 0);
     lv_obj_add_flag(seek, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
-    lv_obj_t *line = box(seek, 0, 21, 236, 3);
+    lv_obj_t *line = box(seek, 0, 14, 236, 3);
     lv_obj_set_style_bg_color(line, TC(TEXT_SECONDARY), 0);
-    fill = box(seek, 0, 21, 1, 3);
+    fill = box(seek, 0, 14, 1, 3);
     lv_obj_set_style_bg_color(fill, TC(TEXT_PRIMARY), 0);
     playhead = box(r, 59, 253, 7, 7);
     lv_obj_set_style_bg_color(playhead, TC(TEXT_PRIMARY), 0);
@@ -485,11 +527,10 @@ void null_home_create(lv_obj_t *r)
     lv_obj_set_style_bg_opa(gesture, 0, 0);
     lv_obj_add_flag(gesture, LV_OBJ_FLAG_CLICKABLE);
     ui_on(gesture, gesture_event, LV_EVENT_ALL, NULL, "null.music.gestures", UI_CORE);
-    hints[0] = text(gesture, "SWIPE L    SWIPE R", 0, 3, 208, TF(UI_12), TC(TEXT_HINT));
-    hints[1] = text(gesture, "PREV          NEXT", 0, 17, 208, TF(UI_12), TC(TEXT_HINT));
-    hints[2] = text(gesture, "DOUBLE TAP: PLAY/PAUSE", 0, 31, 208, TF(UI_12), TC(TEXT_HINT));
     for (int i = 0; i < 3; i++)
         buttons[i] = transport_button(r, 96 + i * 60, 288, 48, i, &icons[i]);
+    gesture_feedback=box(r,156,260,48,48);lv_obj_set_style_bg_opa(gesture_feedback,210,0);
+    lv_obj_add_flag(gesture_feedback,LV_OBJ_FLAG_HIDDEN);
     keep_tree(r);
     null_options_changed();
 }
@@ -676,7 +717,7 @@ static void qs_construct(void)
     lv_obj_set_style_border_width(qpanel, 1, 0);
     lv_obj_set_style_border_color(qpanel, TC(TEXT_SECONDARY), 0);
     lv_obj_set_style_border_opa(qpanel, 45, 0);
-        qdate = text(qpanel, "", 8, 24, 200, TF(UI_14), TC(TEXT_PRIMARY));
+        qdate = text(qpanel, "", 8, 22, 200, TF(HEADER), TC(TEXT_PRIMARY));
     lv_obj_set_style_text_align(qdate, LV_TEXT_ALIGN_CENTER, 0);
     qcover = box(qpanel, 72, 154, 72, 72);
     lv_obj_set_style_shadow_color(qcover, TC(TEXT_PRIMARY), 0);
@@ -744,6 +785,13 @@ static void qs_construct(void)
         qbfill = box(qbattery, 0, 160, 6, 1);
         qbhead = box(qbattery, -1, 153, 8, 7);
     }
+    if(!qbicon){
+        qbicon=text(qroot,LV_SYMBOL_BATTERY_FULL,35,270,26,TF(UI_14),TC(TEXT_PRIMARY));
+        extern const lv_font_t font_weather16;
+        qsun=text(qroot,"\xEF\x86\x85",300,270,26,&font_weather16,TC(TEXT_PRIMARY));
+        lv_obj_set_style_text_align(qbicon,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_style_text_align(qsun,LV_TEXT_ALIGN_CENTER,0);
+    }
     null_qs_battery(qbpercent, qbcharging);
     ui_on(qbright, qs_bright_event, LV_EVENT_VALUE_CHANGED, NULL, "qs.brightness", UI_CORE);
     lv_obj_add_event_cb(qbright, qs_bright_event, LV_EVENT_RELEASED, NULL);
@@ -764,8 +812,7 @@ void null_qs_build(void)
     if (!qroot)
         return;
     qs_construct();
-    time_t now=time(NULL);struct tm date;localtime_r(&now,&date);char d[48],up[48];
-    strftime(d,sizeof d,"%a %d %b",&date);theme_upper(up,sizeof up,d);text_set(qdate,up);
+    text_set(qdate,music_clock_text);
     int items[QS_MAX_ITEMS];
     int count = quicksettings_items_load(items);
     qcount = 0;
@@ -911,7 +958,7 @@ static void heartbeat(lv_timer_t *t)
         int cm = cfg_get_int("null_controls", 0),
             shown = cm != 1 || lv_display_get_inactive_time(NULL) < 5000;
         controls_visibility(cm, shown);
-        if ((cm == 1 && (!shown || wake_guard)) || cm == 2) {
+        if (cm == 1 && (!shown || wake_guard)) {
             lv_obj_remove_flag(gesture, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(gesture);
         } else
@@ -938,9 +985,9 @@ int null_owns_point(int x, int y)
         return 1;
     if (screen_current() == SCR_QUICK || disco_track_overlay_visible())
         return 1;
-    if (nav_value > 0 && y >= 135 && y <= 225)
+    if (nav && !lv_obj_has_flag(nav,LV_OBJ_FLAG_HIDDEN) && nav_value > 0 && y >= 135 && y <= 225)
         return 1;
-    if (y >= 152 && y <= 208 && (left() ? x <= 48 : x >= 312))
+    if (nav && !lv_obj_has_flag(nav,LV_OBJ_FLAG_HIDDEN) && y >= 152 && y <= 208 && (left() ? x <= 48 : x >= 312))
         return 1;
     if (screen_current() == SCR_HOME) {
         if (y >= 198 && y <= 289 && x >= 18 && x < 58)
@@ -951,7 +998,7 @@ int null_owns_point(int x, int y)
             return 1;
         if (y >= 10 && y < 68 && x >= 72 && x <= 288)
             return 1;
-        if (y >= 64 && y <= 196 && x >= 36 && x <= 308)
+        if (y >= 64 && y <= 214 && x >= 36 && x <= 324)
             return 1;
     }
     return 0;
@@ -961,6 +1008,8 @@ void null_screen_leaving(void)
     if (!th_null())
         return;
     dhome_overlay_close();
+    cancel_track_tap();gz_last=0;
+    if(gesture_feedback){lv_anim_delete(gesture_feedback,NULL);lv_obj_add_flag(gesture_feedback,LV_OBJ_FLAG_HIDDEN);}
     if (nav)
         nav_set(0);
     seek_drag = 0;
@@ -970,10 +1019,12 @@ void null_screen_entered(int which)
     if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
-    if (root && which != SCR_QUICK && which != SCR_HOME)
+    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ)
         kit_restyle(root);
     int hidden = which == SCR_QUICK || which == SCR_SAVER || which == SCR_NOWPLAYING ||
-                 which == SCR_SPHERE; /* custom app interiors stay independent */
+                 which == SCR_SPHERE || which == SCR_SETTINGS || which == SCR_SETLIST ||
+                 which == SCR_SETTING_DETAIL || which == SCR_QSCONFIG || which == SCR_SCCONFIG ||
+                 which == SCR_COLORPICK || which == SCR_DATETIME || which == SCR_EQ || which == SCR_EQ_EDITOR;
     if (menu)
         null_menu_set_active(menu, !hidden && nav_open);
     if (hidden)
@@ -1046,21 +1097,13 @@ void null_options_changed(void)
     else
         lv_obj_add_flag(album, LV_OBJ_FLAG_HIDDEN);
     int cm = cfg_get_int("null_controls", 0);
-    if (cm == 2)
-        lv_obj_remove_flag(gesture, LV_OBJ_FLAG_HIDDEN);
-    else
-        lv_obj_add_flag(gesture, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(gesture, LV_OBJ_FLAG_HIDDEN);
+    cancel_track_tap();gz_last=0;
     for (int i = 0; i < 3; i++) {
         if (cm == 2)
             lv_obj_add_flag(buttons[i], LV_OBJ_FLAG_HIDDEN);
         else
             lv_obj_remove_flag(buttons[i], LV_OBJ_FLAG_HIDDEN);
-    }
-    for (int i = 0; i < 3; i++) {
-        if (cm == 2)
-            lv_obj_remove_flag(hints[i], LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_add_flag(hints[i], LV_OBJ_FLAG_HIDDEN);
     }
     if (nav)
         nav_paint();
@@ -1258,12 +1301,16 @@ void null_qs_battery(int percent, int charging)
     lv_obj_set_y(qbhead, y);
     lv_obj_set_style_bg_color(qbfill, c, 0);
     lv_obj_set_style_bg_color(qbhead, c, 0);
+    if(qbicon){text_set(qbicon,qbcharging?LV_SYMBOL_CHARGE:qbpercent>80?LV_SYMBOL_BATTERY_FULL:qbpercent>55?LV_SYMBOL_BATTERY_3:qbpercent>30?LV_SYMBOL_BATTERY_2:qbpercent>10?LV_SYMBOL_BATTERY_1:LV_SYMBOL_BATTERY_EMPTY);lv_obj_set_style_text_color(qbicon,c,0);}
 }
-static void volume_x(void *o, int32_t x) { lv_obj_set_x(o, x); }
-static void volume_hidden(lv_anim_t *a) { lv_obj_add_flag(a->var, LV_OBJ_FLAG_HIDDEN); }
+static void volume_x(void *o,int32_t progress) {
+    volume_progress=progress;lv_obj_set_x(o,24*(1000-progress)/1000);
+    lv_obj_set_style_opa(o,255*progress/1000,0);
+}
+static void volume_hidden(lv_anim_t *a) { volume_closing=0;lv_obj_add_flag(a->var, LV_OBJ_FLAG_HIDDEN); }
 static void volume_close(void)
 {
-    if (!volume_panel || lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN))
+    if (!volume_panel || volume_closing || lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN))
         return;
     if (volume_timer)
         lv_timer_pause(volume_timer);
@@ -1272,8 +1319,9 @@ static void volume_close(void)
     lv_anim_init(&a);
     lv_anim_set_var(&a, volume_panel);
     lv_anim_set_exec_cb(&a, volume_x);
-    lv_anim_set_values(&a, lv_obj_get_x(volume_panel), 360);
-    lv_anim_set_duration(&a, screen_get_anim() ? 100 : 1);
+    volume_closing=1;
+    lv_anim_set_values(&a,volume_progress,0);
+    lv_anim_set_duration(&a,screen_get_anim()?70:1);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
     lv_anim_set_completed_cb(&a, volume_hidden);
     lv_anim_start(&a);
@@ -1362,21 +1410,14 @@ void null_volume_show(int value)
         snprintf(b, sizeof b, "%d", value);
         text_set(volume_value, b);
     }
-    int hidden = lv_obj_has_flag(volume_panel, LV_OBJ_FLAG_HIDDEN);
-    lv_anim_delete(volume_panel, NULL);
-    lv_obj_remove_flag(volume_panel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(volume_panel);
-    if (hidden) {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, volume_panel);
-        lv_anim_set_exec_cb(&a, volume_x);
-        lv_anim_set_values(&a, 360, 0);
-        lv_anim_set_duration(&a, screen_get_anim() ? 120 : 1);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_start(&a);
-    } else
-        lv_obj_set_x(volume_panel, 0);
+    int hidden=lv_obj_has_flag(volume_panel,LV_OBJ_FLAG_HIDDEN),reopening=volume_closing;
+    lv_obj_remove_flag(volume_panel,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(volume_panel);
+    if(hidden || reopening){
+        lv_anim_delete(volume_panel,NULL);volume_closing=0;
+        lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,volume_panel);lv_anim_set_exec_cb(&a,volume_x);
+        lv_anim_set_values(&a,hidden?0:volume_progress,1000);lv_anim_set_duration(&a,screen_get_anim()?96:1);
+        lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);
+    }
     lv_timer_reset(volume_timer);
     lv_timer_resume(volume_timer);
 }
