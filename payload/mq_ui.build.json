@@ -1,16 +1,16 @@
 {
   "version": "2.4.0",
-  "revision": "2.4.0 shared Help menu and enlarged, lowered Disco standby text",
+  "revision": "2.4.0 restore Null QS add/remove/reorder parity with Disco",
   "status": "focused native checks and static MIPS ABI checks passed; physical Disc test pending",
-  "source_commit": "e0373797d5bbf0af5d022e51bfbc15f020ca81e5",
+  "source_commit": "4f1f8b17035d6389b47c5d61ab911fc2582b875d",
   "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
   "previous_candidate": "6821e7c",
-  "ui_source_sha256": "a508564b68cb678df1534abb2865596a1399e6565d86704b1e55205823ec461b",
+  "ui_source_sha256": "81c9741f1a93d18cf1f904ab16b107024cdeab8ffe87d5df422bb40b70eb8569",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static MIPS32r2, FP64, NaN2008",
   "binary": {
-    "sha256": "81ee1323af1627c21728a3025d331a1637bbf6208d0906e6d47cc3f4e8b4819b",
-    "md5": "e777dd7d49440f11857ddf6485898006",
+    "sha256": "c9fe6216e78964748be58563e1c040be98707cb96d9f221b467a2401eeaf6056",
+    "md5": "7f11b3a115f2c3d1052efe90b054f5ef",
     "bytes": 6451412
   }
 }
