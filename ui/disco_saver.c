@@ -18,7 +18,7 @@ const lv_anim_t *disco_scroll5(void);
 
 #define NSEG 6
 static lv_obj_t *g_img, *g_t[2], *g_wx[2], *g_ti[2], *g_ar[2], *g_status[2], *g_seg[NSEG], *g_tr;
-static lv_font_t g_wf;
+static lv_font_t g_wf,g_title_font,g_artist_font;
 static char g_last[16];
 static int g_batt=-1,g_charging,g_wifi,g_bt;
 void dsaver_set_status(int batt,int charging,int wifi,int bt);
@@ -85,14 +85,16 @@ void dsaver_create(lv_obj_t *root){
     lv_obj_set_style_bg_opa(veil, 175, 0); lv_obj_clear_flag(veil, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     g_tr = rim_arc(root, TC(FIXED_MEDIA_WHITE), 3, 40); lv_arc_set_angles(g_tr, 0, 360);
     for(int i = 0; i < NSEG; i++) g_seg[i] = rim_arc(root, theme_color_from_rgb(IRI[i]), 3, 200);
-    pair(root, g_t, TF(UI_48), -1, 48, 0);
+    pair(root, g_t, TF(UI_48), -1, 68, 0);
     lv_obj_set_style_transform_scale(g_t[0], 380, 0); lv_obj_set_style_transform_scale(g_t[1], 380, 0);
     ptext(g_t, "--:--");
     g_wf = *theme_font_original(24); g_wf.fallback = &font_weather16;
-    pair(root, g_wx, &g_wf, -1, 116, 0);
+    pair(root, g_wx, &g_wf, -1, 142, 0);
     for(int k=0;k<2;k++){lv_obj_set_style_transform_scale(g_wx[k],300,0);lv_obj_set_style_transform_pivot_x(g_wx[k],lv_pct(50),0);lv_obj_set_style_transform_pivot_y(g_wx[k],lv_pct(50),0);}
-    pair(root, g_ti, ui_font_cjk(28), 292, 150, 0);
-    pair(root, g_ar, ui_font_cjk(24), 280, 188, 1);
+    g_title_font=*TF(UI_36);g_title_font.fallback=ui_font_cjk(28);
+    g_artist_font=*TF(UI_28);g_artist_font.fallback=ui_font_cjk(24);
+    pair(root, g_ti, &g_title_font, 296, 194, 0);
+    pair(root, g_ar, &g_artist_font, 280, 244, 1);
     pair(root,g_status,TF(UI_20),160,20,1);dsaver_set_status(g_batt,g_charging,g_wifi,g_bt);
     for(int k = 0; k < 2; k++){                                   /* the scaled clock grows from its middle */
         lv_obj_update_layout(g_t[k]);

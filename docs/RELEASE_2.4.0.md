@@ -14,7 +14,8 @@ Includes the complete Null theme and all cumulative 2.3.9 refinements.
 4. Library song, album, artist and playlist names use abbreviated resting labels.
    Only the focused row (nearest the screen centre, or keyboard focused) scrolls.
 5. Disco standby has a larger clock, weather and track text, with status at the
-   top and title/artist grouped around the vertical centre.
+   top and title/artist enlarged again and grouped below the vertical centre. The clock
+   sits lower with a clear margin beneath the status icons.
 6. Long Music metadata scrolls three cycles after a track change and then rests.
 7. Upper first-use hint popups move to the centre, with larger text.
 8. Null handle hint names the configured double-tap and hold shortcuts, plus
