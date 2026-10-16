@@ -1319,7 +1319,7 @@ int main(int argc, char **argv){
             assert(screen_current()==SCR_HOME);
             puts("PASS: Disco popup Info opens current-track details and Back returns to Music");
         }
-        if(getenv("VOLSHOW")){ void ui_show_volume(int);ui_show_volume(atoi(getenv("VOLSHOW")));nav_wait(getenv("VOL_FRAME_MS")?atoi(getenv("VOL_FRAME_MS")):200);
+        if(getenv("VOLSHOW")){ if(getenv("VOL_FRAME_MS"))screen_set_anim(1);void ui_show_volume(int);ui_show_volume(atoi(getenv("VOLSHOW")));nav_wait(getenv("VOL_FRAME_MS")?atoi(getenv("VOL_FRAME_MS")):200);
             if(getenv("VOL_CLOSE_MS")){lv_obj_t *close=ui_action_find("null.volume.dismiss");assert(close);lv_obj_send_event(close,LV_EVENT_CLICKED,NULL);nav_wait(atoi(getenv("VOL_CLOSE_MS")));}
         }
         if(getenv("TICKS")){ int ms=atoi(getenv("TICKS")); for(int i=0;i<ms/20;i++){lv_tick_inc(20);lv_timer_handler();} }
