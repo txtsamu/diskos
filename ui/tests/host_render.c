@@ -1012,6 +1012,12 @@ int main(int argc, char **argv){
             nav_pointer.point.x=side?210:150;nav_wait(80);
             nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);
             assert(!disco_track_overlay_visible());assert(screen_current()==SCR_HOME);
+            /* Start on an action button too: its events must bubble and it must not fire. */
+            disco_track_overlay_open();nav_wait(40);
+            nav_pointer=(lv_indev_data_t){.point={side?300:60,120},.state=LV_INDEV_STATE_PRESSED};nav_wait(50);
+            nav_pointer.point.x=180;nav_wait(70);
+            nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(60);
+            assert(!disco_track_overlay_visible());assert(screen_current()==SCR_HOME);
             disco_track_overlay_open();nav_wait(40);screen_back();assert(!disco_track_overlay_visible());assert(screen_current()==SCR_HOME);
             if(th_null()){
                 null_home_update(NULL,NULL,0);nav_wait(50);nav_touch((lv_point_t){180,125},60);nav_wait(80);assert(screen_current()==SCR_LIBRARY);
