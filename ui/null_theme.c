@@ -29,6 +29,8 @@ extern const lv_font_t null_pixel_14;
 static lv_font_t pixel14;
 extern const lv_font_t null_pixel_16, null_pixel_24, null_dot_31, null_mono_27;
 extern const lv_font_t null_fine_16, null_fine_18, diskos_mono_16, diskos_mono_18;
+extern const lv_font_t null_jersey_42, null_pixelify_22, null_pixelify_20;
+extern const lv_font_t null_handjet_38, null_vt323_27, null_vt323_24;
 static lv_font_t music_fonts[3][5];
 static lv_obj_t *qdate, *qbicon, *qsun, *track_hit, *album_hit, *gesture_feedback, *feedback_icon;
 static lv_timer_t *track_tap_timer;
@@ -431,8 +433,8 @@ static void font_setup(void)
     pixel14.fallback = ui_font_cjk(14);
     const lv_font_t *sets[3][5]={
         {&null_pixel_24,&null_pixel_16,&null_fine_18,&null_fine_16,&null_pixel_24},
-        {&null_dot_31,&diskos_mono_18,&diskos_mono_16,&diskos_mono_16,&null_dot_31},
-        {&null_mono_27,&diskos_mono_18,&diskos_mono_16,&diskos_mono_16,&null_mono_27}
+        {&null_jersey_42,&null_pixelify_22,&null_pixelify_20,&null_pixelify_20,&null_jersey_42},
+        {&null_handjet_38,&null_vt323_27,&null_vt323_24,&null_vt323_24,&null_handjet_38}
     };
     for(int i=0;i<3;i++)for(int j=0;j<5;j++){
         music_fonts[i][j]=*sets[i][j];music_fonts[i][j].fallback=ui_font_cjk(j==0 || j==4?20:16);
@@ -1024,7 +1026,7 @@ void null_screen_entered(int which)
     if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
-    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_APPLAND && which != SCR_SAVER)
+    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER)
         kit_restyle(root);
     int hidden = which == SCR_QUICK || which == SCR_SAVER || which == SCR_NOWPLAYING ||
                  which == SCR_SPHERE || which == SCR_SETTINGS || which == SCR_SETLIST ||

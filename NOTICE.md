@@ -180,3 +180,7 @@ See `apps/album-roulette/NOTICE.md` and `apps/album-roulette/README.md` for noti
 ## Disc Shelf 1.0.4
 
 The optional standalone Disc Shelf app is GPL-3.0-or-later. Exact corresponding source accompanies the binary at corresponding-source/disc-shelf-1.0.4-source.tar.gz. Third-party notices and license texts are in apps/disc-shelf/NOTICE.md and apps/disc-shelf/licenses/. It is distributed alongside the UI and does not become part of mq_ui.
+
+Null's optional music typography includes Jersey 10, Pixelify Sans, Handjet and VT323
+from the Google Fonts repository (SIL Open Font License 1.1). Font sources, exact
+licence texts and the glyph generator are in `ui/fonts/null/jersey/`.

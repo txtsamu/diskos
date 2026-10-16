@@ -132,7 +132,7 @@ static void curve(curvelist_t *c){
         return;
     }
     uint32_t n = lv_obj_get_child_count(c->list);
-    int mode = curvelist_disco_scroll();
+    int mode = c->disco_style ? cfg_get_int("disco_scroll",0) : curvelist_disco_scroll();
     for(uint32_t i = 0; i < n; i++){
         lv_obj_t *r = lv_obj_get_child(c->list, i);
         if(!lv_obj_has_flag(r, LV_OBJ_FLAG_USER_1)) continue;
@@ -172,7 +172,7 @@ static void curve(curvelist_t *c){
 static void dots(curvelist_t *c){
     if(th_braun()) return;                                       /* Braun: no position dots */
     int32_t sy = lv_obj_get_scroll_y(c->list), sb = lv_obj_get_scroll_bottom(c->list), tot = sy + sb;
-    if(th_null()){null_scroll_line(c->dot,11,sy,tot);return;}
+    if(th_null() && !c->disco_style){null_scroll_line(c->dot,11,sy,tot);return;}
     int idx = (tot <= 24) ? -1 : (int)((sy * 10 + tot / 2) / tot);
     if(idx > 10) idx = 10;
     if(idx == c->cur) return;
@@ -190,7 +190,7 @@ static void dots(curvelist_t *c){
 }
 static void scroll_cb(lv_event_t *e){ curvelist_t *c = lv_event_get_user_data(e); curve(c); dots(c); }
 void curvelist_attach(curvelist_t *c, lv_obj_t *list, lv_obj_t *root, int full_w){
-    c->list = list; c->full_w = full_w; c->cur = -2;
+    c->list = list; c->full_w = full_w; c->cur = -2; c->disco_style=0;
     if(th_braun()){                                                /* Braun: the grille, and the list on the lower segment */
         br_face(root);
         lv_obj_update_layout(list);

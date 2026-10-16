@@ -248,9 +248,9 @@ static void draw(void){
     if(nowt < 1600000000){ lv_label_set_text(g_play_v, "-"); lv_label_set_text(g_scr_v, "-"); return; }   /* clock not set: no "last 24 h" */
     if(g_cy.full_at && g_cy.full_at <= (uint32_t)nowt){         /* since the last full charge */
         uint32_t ago = (uint32_t)nowt - g_cy.full_at;
-        if(ago < 3600) snprintf(b, sizeof b, "Since full charge, just now");
-        else if(ago < 48 * 3600) snprintf(b, sizeof b, "Since full charge, %u h ago", ago / 3600);
-        else snprintf(b, sizeof b, "Since full charge, %u days ago", ago / 86400);
+        if(ago < 3600) snprintf(b, sizeof b, th_null()?"Full charge: just now":"Since full charge, just now");
+        else if(ago < 48 * 3600) snprintf(b, sizeof b, th_null()?"Full charge: %u h ago":"Since full charge, %u h ago", ago / 3600);
+        else snprintf(b, sizeof b, th_null()?"Full charge: %u days ago":"Since full charge, %u days ago", ago / 86400);
         lv_label_set_text(g_cap, b);
         fmt_dur(b, sizeof b, (int)g_cy.play_min); lv_label_set_text(g_play_v, b);
         fmt_dur(b, sizeof b, (int)g_cy.scr_min);  lv_label_set_text(g_scr_v, b);
@@ -269,6 +269,7 @@ void usage_create(lv_obj_t *root){
     lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     if(th_braun())br_face(root);
     int left=disco_mirror(),dx=left?30:-30;
+    if(th_null())dx+=14;
     g_ring=lv_arc_create(root);lv_obj_remove_style(g_ring,NULL,LV_PART_KNOB);
     lv_obj_clear_flag(g_ring,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(g_ring,344,344);lv_obj_center(g_ring);
     lv_arc_set_rotation(g_ring,left?220:40);lv_arc_set_bg_angles(g_ring,0,280);
@@ -282,7 +283,7 @@ void usage_create(lv_obj_t *root){
     g_pct=lv_label_create(root);lv_obj_set_style_text_font(g_pct,TF(UI_46),0);
     lv_obj_set_style_text_color(g_pct,TC(TEXT_PRIMARY),0);lv_obj_align(g_pct,LV_ALIGN_TOP_MID,dx,92);
     g_chg_ic=lv_label_create(root);lv_label_set_text(g_chg_ic,LV_SYMBOL_CHARGE);
-    lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,left?-78:78,109);
+    lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,(left?-78:78)+(th_null()?14:0),109);
     g_sub=lv_label_create(root);lv_label_set_long_mode(g_sub,LV_LABEL_LONG_DOT);lv_obj_set_width(g_sub,230);
     lv_obj_set_style_text_align(g_sub,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub,TF(UI_22),0);
     lv_obj_set_style_text_color(g_sub,TC(TEXT_PRIMARY),0);lv_obj_align(g_sub,LV_ALIGN_TOP_MID,dx,158);
@@ -291,7 +292,8 @@ void usage_create(lv_obj_t *root){
     lv_obj_set_style_text_color(g_sub2,TC(TEXT_SECONDARY),0);lv_obj_align(g_sub2,LV_ALIGN_TOP_MID,dx,188);
     lv_obj_t *rule=lv_obj_create(root);lv_obj_remove_style_all(rule);lv_obj_set_size(rule,140,1);   /* a hairline above the totals */
     lv_obj_set_style_bg_color(rule,TC(TEXT_SECONDARY),0);lv_obj_set_style_bg_opa(rule,LV_OPA_30,0);lv_obj_align(rule,LV_ALIGN_TOP_MID,dx,216);
-    g_cap=lv_label_create(root);lv_label_set_text(g_cap,"Last 24 hours");lv_obj_set_width(g_cap,240);
+    g_cap=lv_label_create(root);lv_label_set_text(g_cap,"Last 24 hours");lv_obj_set_width(g_cap,th_null()?260:240);
+    if(th_null())lv_label_set_long_mode(g_cap,LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(g_cap,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_cap,TF(UI_14),0);
     lv_obj_set_style_text_color(g_cap,TC(TEXT_MUTED),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,222);
     figure(root,dx-56,"playing",&g_play_v);figure(root,dx+56,"screen on",&g_scr_v);

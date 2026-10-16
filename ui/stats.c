@@ -84,6 +84,26 @@ void stats_tick(const track_state_t *st, int playing){
 void stats_flush(void){ rec_finish(); r_path[0] = 0; }
 
 #ifndef STATS_RECORDER_ONLY                         /* (the recorder alone: its host test) */
+/* Stats keeps its Disco typography and component geometry under Null; only
+ * semantic colours follow the selected Null palette. */
+static const lv_font_t *stats_font(theme_font_role_t role){
+    if(!th_null()) return theme_font(role);
+    switch(role){
+    case THEME_FONT_UI_12: return theme_font_original(12);
+    case THEME_FONT_UI_14: return theme_font_original(14);
+    case THEME_FONT_UI_16: return theme_font_original(16);
+    case THEME_FONT_UI_18: return theme_font_original(18);
+    case THEME_FONT_UI_20: return theme_font_original(20);
+    case THEME_FONT_UI_22: return theme_font_original(22);
+    case THEME_FONT_UI_24: return theme_font_original(24);
+    case THEME_FONT_UI_28: return theme_font_original(28);
+    case THEME_FONT_UI_32: return theme_font_original(32);
+    case THEME_FONT_UI_36: return theme_font_original(36);
+    default: return theme_font_original(16);
+    }
+}
+#undef TF
+#define TF(role) stats_font(THEME_FONT_##role)
 /* ================================ periods ================================ */
 enum { P_WEEK, P_MONTH, P_YEAR };
 static int g_ptype = P_MONTH, g_poff;                /* the period shown: its kind, and how many back from now */
@@ -768,7 +788,10 @@ static void sub_open(int k){
     g_pic_keep = g_npic;
     g_sub = panel();
     char t[48]; snprintf(t, sizeof t, "%s", KIND_TITLE[k]);
-    ui_header_cb(g_sub, t, sub_back_cb);
+    if(th_null()){
+        extern lv_obj_t *kit_default_header(lv_obj_t *,const char *,lv_event_cb_t);
+        kit_default_header(g_sub,t,sub_back_cb);
+    }else ui_header_cb(g_sub, t, sub_back_cb);
     g_subl = lv_obj_create(g_sub); lv_obj_remove_style_all(g_subl);
     lv_obj_set_size(g_subl, 360, 360);
     lv_obj_set_flex_flow(g_subl, LV_FLEX_FLOW_COLUMN);
@@ -779,6 +802,7 @@ static void sub_open(int k){
     lv_obj_add_flag(g_subl, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     lv_obj_move_background(g_subl);                                              /* under the header */
     curvelist_attach(&g_cl2, g_subl, g_sub, ROW_W);
+    g_cl2.disco_style=th_null();
     lv_obj_add_event_cb(g_subl, fit_cb, LV_EVENT_SCROLL, NULL);
     for(int i = 0; i < kind_n(k); i++) item_row(g_subl, k, i);
     curvelist_update(&g_cl2); names_fit(g_subl);
@@ -931,6 +955,7 @@ void stats_create(lv_obj_t *root){
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     curvelist_attach(&g_cl, g_list, root, ROW_W);
+    g_cl.disco_style=th_null();
     lv_obj_add_event_cb(g_list, fit_cb, LV_EVENT_SCROLL, NULL);   /* after the curve's own handler */
 }
 lv_obj_t *stats_scroller(void){ return g_sub ? g_subl : g_list; }

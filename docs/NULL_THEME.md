@@ -74,3 +74,14 @@ symbol, 24px weather text/title, and 20px date/artist. 12-hour AM/PM is retained
 the date line so the large time fits. Unknown/absent weather icons are handled.
 Focused battery, landing-button, weather-glyph, gesture, volume and routing checks
 have passed on the host; physical Disc validation remains pending.
+
+## Null.6 typography and screen refinements
+
+- Music fonts: Original, Jersey (Jersey 10 + Pixelify Sans), Handjet (bold square
+  Handjet titles + VT323 details). International fallback remains enabled.
+- Null EQ: straight thin off-colour rails, on-colour fill and square heads.
+  Existing wide touch regions and gain/selection handling remain unchanged.
+- Stats retains Disco fonts, card shapes, headers and position dots; semantic
+  colours use the current Null palette.
+- Battery body text shifts 14 pixels right; title stays fixed. Full-charge age
+  uses one compact line, including “ago”.

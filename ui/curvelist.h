@@ -5,7 +5,7 @@
 #ifndef CURVELIST_H
 #define CURVELIST_H
 #include "lvgl/lvgl.h"
-typedef struct { lv_obj_t *list, *dot[11]; int cur, full_w; } curvelist_t;
+typedef struct { lv_obj_t *list, *dot[11]; int cur, full_w, disco_style; } curvelist_t;
 void curvelist_attach(curvelist_t *c, lv_obj_t *list, lv_obj_t *root, int full_w);
 void curvelist_update(curvelist_t *c);
 void curvelist_braun_row(lv_obj_t *row);

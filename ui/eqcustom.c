@@ -207,13 +207,13 @@ static void braun_faders_paint(void){
 #define DKPX  ((DBOT - DTOP) / 2.0f / 6.0f * 0.88f)          /* px per dB (a little headroom at the ends) */
 static lv_obj_t *g_dtrk[NB], *g_dfill[NB], *g_dknob[NB];
 static int dxp(int i){ return (int)lroundf(DX0 + i * DSTEP); }
-static int doff(int i){ float u = (i - (NB - 1) / 2.0f) / ((NB - 1) / 2.0f); return (int)lroundf(16 * u * u); }   /* the smile */
+static int doff(int i){ if(th_null())return 0; float u = (i - (NB - 1) / 2.0f) / ((NB - 1) / 2.0f); return (int)lroundf(16 * u * u); }   /* the smile */
 static void disco_faders_create(lv_obj_t *root){
     for(int i = 0; i < NB; i++){
         int x = dxp(i), o = doff(i);
         g_dtrk[i] = lv_obj_create(root); lv_obj_remove_style_all(g_dtrk[i]);
         lv_obj_set_size(g_dtrk[i], 22, DBOT - DTOP); lv_obj_set_pos(g_dtrk[i], x - 11, DTOP + o);
-        lv_obj_set_style_radius(g_dtrk[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_radius(g_dtrk[i], th_null()?0:LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(g_dtrk[i], TC(SURFACE), 0); lv_obj_set_style_bg_opa(g_dtrk[i], 160, 0);
         lv_obj_set_style_border_color(g_dtrk[i], TC(TEXT_PRIMARY), 0); lv_obj_set_style_border_width(g_dtrk[i], 1, 0); lv_obj_set_style_border_opa(g_dtrk[i], 40, 0);
         lv_obj_t *z = lv_obj_create(g_dtrk[i]); lv_obj_remove_style_all(z);          /* the 0 dB tick */
@@ -225,7 +225,10 @@ static void disco_faders_create(lv_obj_t *root){
         lv_obj_set_style_radius(g_dknob[i], th_null()?0:LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(g_dknob[i], TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(g_dknob[i], LV_OPA_COVER, 0);
         lv_obj_t *ob[3] = { g_dtrk[i], g_dfill[i], g_dknob[i] };
-        for(int k = 0; k < 3; k++) lv_obj_clear_flag(ob[k], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        for(int k = 0; k < 3; k++){
+            lv_obj_clear_flag(ob[k], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+            if(th_null())kit_keep(ob[k]);
+        }
         lv_obj_set_style_text_font(g_rim[i], TF(UI_14), 0);
         lv_obj_align(g_rim[i], LV_ALIGN_TOP_MID, x - 180, DBOT + o + 6);
     }
@@ -235,7 +238,7 @@ static void disco_faders_paint(void){
     for(int i = 0; i < NB; i++){
         int x = dxp(i), o = doff(i), mid = DMID + o, t = clampi(g_t[i], -GMAX, GMAX), s = (i == g_sel && g_editable);
         int y = (int)lroundf(mid - t / 10.0f * DKPX);
-        lv_color_t c = !g_editable ? TC(TEXT_SECONDARY) : (th_null() || cfg_get_int("disco_eq", 0)) ? ui_current_accent() : theme_color_from_rgb(IRI[i]);   /* Display > Equalizer: Disco / Accent */
+        lv_color_t c = !g_editable ? TC(TEXT_SECONDARY) : (th_null() || cfg_get_int("disco_eq", 0)) ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : theme_color_from_rgb(IRI[i]);   /* Display > Equalizer: Disco / Accent */
         int a = y < mid ? y : mid, b = y < mid ? mid : y; if(b - a < 2){ a = mid - 1; b = mid + 1; }
         lv_obj_set_pos(g_dfill[i], x - 7, a); lv_obj_set_size(g_dfill[i], 14, b - a);
         lv_obj_set_style_bg_color(g_dfill[i], c, 0);
@@ -243,7 +246,26 @@ static void disco_faders_paint(void){
         lv_obj_set_size(g_dknob[i], k, k); lv_obj_set_pos(g_dknob[i], x - k / 2, y - k / 2);
         lv_obj_set_style_border_color(g_dknob[i], c, 0); lv_obj_set_style_border_width(g_dknob[i], s ? 4 : 3, 0);
         lv_obj_set_style_border_opa(g_dtrk[i], s ? 200 : 40, 0); lv_obj_set_style_border_width(g_dtrk[i], s ? 2 : 1, 0);
-        lv_obj_set_style_border_color(g_dtrk[i], s ? ui_current_accent() : TC(TEXT_PRIMARY), 0);
+        lv_obj_set_style_border_color(g_dtrk[i], s ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : TC(TEXT_PRIMARY), 0);
+        if(th_null()){
+            /* Thin off-colour rail, on-colour fill and a square pixel head.
+             * Pointer hit regions remain the existing wide band controls. */
+            lv_obj_set_pos(g_dtrk[i],x-1,DTOP+o);lv_obj_set_width(g_dtrk[i],3);
+            lv_obj_set_style_bg_color(g_dtrk[i],TC(TEXT_SECONDARY),0);
+            lv_obj_set_style_bg_opa(g_dtrk[i],LV_OPA_COVER,0);
+            lv_obj_set_style_border_width(g_dtrk[i],0,0);
+            lv_obj_t *zero=lv_obj_get_child(g_dtrk[i],0);
+            if(zero)lv_obj_add_flag(zero,LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(g_dfill[i],x-1,a);lv_obj_set_width(g_dfill[i],3);
+            lv_obj_set_style_bg_color(g_dfill[i],TC(TEXT_PRIMARY),0);
+            int head=s?9:7;
+            lv_obj_set_size(g_dknob[i],head,head);
+            lv_obj_set_pos(g_dknob[i],x-head/2,y-head/2);
+            lv_obj_set_style_bg_color(g_dknob[i],TC(TEXT_PRIMARY),0);
+            lv_obj_set_style_border_width(g_dknob[i],0,0);
+            lv_obj_set_style_opa(g_dfill[i],g_editable?255:100,0);
+            lv_obj_set_style_opa(g_dknob[i],g_editable?255:100,0);
+        }
     }
 }
 static void geometry(void){
@@ -285,7 +307,7 @@ static inline uint32_t mix32(uint32_t a, uint32_t b, int t256){       /* 0..256 
 static uint32_t c32(lv_color_t c){ return ((uint32_t)c.red << 16) | ((uint32_t)c.green << 8) | c.blue; }
 static void paint_band(int b, uint32_t *fb){
     int grey = !g_editable, s = (b == g_sel), disco = (th_disco() || th_null());
-    lv_color_t accc = grey ? TC(EQ_READONLY) : ui_current_accent();
+    lv_color_t accc = grey ? TC(EQ_READONLY) : (th_null()?TC(TEXT_PRIMARY):ui_current_accent());
     uint32_t acc = c32(accc), empty = theme_ring_light()?c32(TC(SURFACE_RAISED)):0x1A1A1C,
              lineE = theme_ring_light()?c32(TC(CONTROL_TRACK_STRONG)):0x2E2E32,
              dash = theme_ring_light()?c32(TC(TEXT_MUTED)):0x78787C;
@@ -313,7 +335,7 @@ static void paint(void){
     geometry(); if(!g_px) return;
     lv_draw_buf_t *db = lv_canvas_get_draw_buf(g_canvas); if(!db) return;
     uint32_t *fb = (uint32_t *)db->data;                                     /* 360 px rows, XRGB8888 */
-    uint32_t acc = c32(ui_current_accent()); int grey = !g_editable, all = (grey != g_lastgrey || acc != g_lastacc);
+    uint32_t acc = c32((th_null()?TC(TEXT_PRIMARY):ui_current_accent())); int grey = !g_editable, all = (grey != g_lastgrey || acc != g_lastacc);
     for(int b = 0; b < NB; b++){
         int lvl16 = (int)(rr(clampi(g_t[b], -GMAX, GMAX)) * 16.0f + 0.5f);
         if(all || lvl16 != g_lvl16[b] || b == g_sel || b == g_lastsel){
@@ -329,7 +351,7 @@ static void refresh_labels(void){
     for(int i = 0; i < NB; i++){                                    /* only labels that changed are touched */
         fmt_freq(b, sizeof b, g_f[i], 0);
         if(strcmp(lv_label_get_text(g_rim[i]), b)) lv_label_set_text(g_rim[i], b);
-        lv_color_t want = i == g_sel ? ui_current_accent() : (th_braun() || (th_disco() || th_null())) ? TC(TEXT_SECONDARY) : TC(TEXT_DISABLED);
+        lv_color_t want = i == g_sel ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : (th_braun() || (th_disco() || th_null())) ? TC(TEXT_SECONDARY) : TC(TEXT_DISABLED);
         if(!lv_color_eq(lv_obj_get_style_text_color(g_rim[i], 0), want)) lv_obj_set_style_text_color(g_rim[i], want, 0);
     }
     preset_name(g_preset, b, sizeof b);
@@ -342,9 +364,9 @@ static void refresh_labels(void){
         fmt_gain(b, sizeof b, clampi(g_t[g_sel], -GMAX, GMAX)); if(strcmp(lv_label_get_text(g_glbl), b)) lv_label_set_text(g_glbl, b);   /* old +-12 presets show at the edge */
         int br = th_braun();                                        /* Braun: the big value in black, the other in grey */
         lv_obj_set_style_text_font(g_flbl, g_mode_freq ? (br ? br_font(22, 1) : TH_F_TITLE) : (br ? br_font(14, 0) : TF(UI_14)), 0);
-        lv_obj_set_style_text_color(g_flbl, g_mode_freq ? (br ? TC(TEXT_PRIMARY) : ui_current_accent()) : br ? TC(TEXT_SECONDARY) : TC(TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(g_flbl, g_mode_freq ? (br ? TC(TEXT_PRIMARY) : (th_null()?TC(TEXT_PRIMARY):ui_current_accent())) : br ? TC(TEXT_SECONDARY) : TC(TEXT_SECONDARY), 0);
         lv_obj_set_style_text_font(g_glbl, g_mode_freq ? (br ? br_font(14, 0) : TF(UI_14)) : (br ? br_font(22, 1) : TH_F_TITLE), 0);
-        lv_obj_set_style_text_color(g_glbl, g_mode_freq ? br ? TC(TEXT_SECONDARY) : TC(TEXT_SECONDARY) : (br ? TC(TEXT_PRIMARY) : ui_current_accent()), 0);
+        lv_obj_set_style_text_color(g_glbl, g_mode_freq ? br ? TC(TEXT_SECONDARY) : TC(TEXT_SECONDARY) : (br ? TC(TEXT_PRIMARY) : (th_null()?TC(TEXT_PRIMARY):ui_current_accent())), 0);
         if(br){ lv_obj_align(g_flbl, LV_ALIGN_TOP_MID, 0, g_mode_freq ? 272 : 250); lv_obj_align(g_glbl, LV_ALIGN_TOP_MID, 0, g_mode_freq ? 250 : 272); }
         if((th_disco() || th_null())){                                  /* bigger text, bigger touch areas (the active value on the lower line) */
             lv_obj_set_style_text_font(g_flbl, g_mode_freq ? TF(UI_32) : TF(UI_22), 0);
@@ -488,8 +510,8 @@ static void pad_show(void){
     if(!g_pad) return;
     lv_label_set_text(g_pad_disp, g_pad_txt[0] ? g_pad_txt : "0");
     if(g_mode_freq){
-        lv_obj_set_style_bg_color(g_unit_hz,  g_pad_khz ? TC(EQ_CHIP) : ui_current_accent(), 0);
-        lv_obj_set_style_bg_color(g_unit_khz, g_pad_khz ? ui_current_accent() : TC(EQ_CHIP), 0);
+        lv_obj_set_style_bg_color(g_unit_hz,  g_pad_khz ? TC(EQ_CHIP) : (th_null()?TC(TEXT_PRIMARY):ui_current_accent()), 0);
+        lv_obj_set_style_bg_color(g_unit_khz, g_pad_khz ? (th_null()?TC(TEXT_PRIMARY):ui_current_accent()) : TC(EQ_CHIP), 0);
     } else lv_label_set_text(lv_obj_get_child(g_sign, 0), g_pad_neg ? "-" : "+");
 }
 static void pad_key_cb(lv_event_t *e){
@@ -562,7 +584,7 @@ static void pad_open(void){
         pad_btn(g_pad, !strcmp(K[i], "del") ? LV_SYMBOL_BACKSPACE : K[i], 132 + (i % 3) * 48, 124 + (i / 3) * 42, 42, 38,
                 TC(SURFACE), pad_key_cb, (void *)K[i]);
     pad_btn(g_pad, "Cancel", 143, 294, 62, 24, TC(SURFACE), pad_cancel_cb, NULL);
-    pad_btn(g_pad, "Set", 217, 294, 62, 24, ui_current_accent(), pad_set_cb, NULL);
+    pad_btn(g_pad, "Set", 217, 294, 62, 24, (th_null()?TC(TEXT_PRIMARY):ui_current_accent()), pad_set_cb, NULL);
     char lo[16], hi[16], r[64];
     if(g_mode_freq){ fmt_freq(lo, sizeof lo, band_lo(g_sel), 0); fmt_freq(hi, sizeof hi, band_hi(g_sel), 0);
                      snprintf(r, sizeof r, "%s - %s (between neighbours)", lo, hi); }
@@ -712,7 +734,7 @@ void eqcustom_create(lv_obj_t *root){
         lv_obj_t *pm[2] = { g_minus, g_plus };
         for(int k = 0; k < 2; k++){ lv_obj_set_size(pm[k], 52, 52); lv_obj_align(pm[k], LV_ALIGN_TOP_MID, k ? 94 : -94, 268); lv_obj_set_ext_click_area(pm[k], 8);
             lv_obj_set_style_bg_color(pm[k], TC(SURFACE), 0); lv_obj_set_style_bg_opa(pm[k], 190, 0);
-            lv_obj_set_style_border_width(pm[k], 1, 0); lv_obj_set_style_border_color(pm[k], ui_current_accent(), 0); lv_obj_set_style_border_opa(pm[k], 150, 0);
+            lv_obj_set_style_border_width(pm[k], 1, 0); lv_obj_set_style_border_color(pm[k], (th_null()?TC(TEXT_PRIMARY):ui_current_accent()), 0); lv_obj_set_style_border_opa(pm[k], 150, 0);
             kit_keep(pm[k]); lv_obj_add_flag(pm[k], LV_OBJ_FLAG_USER_2); }
         lv_obj_align(g_modecap, LV_ALIGN_TOP_MID, -4, 232);   /* right under the band labels */ lv_obj_set_style_text_color(g_modecap, TC(TEXT_SECONDARY), 0);
         lv_obj_set_style_text_font(g_modecap, TF(UI_12), 0);
