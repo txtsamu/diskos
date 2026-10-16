@@ -916,6 +916,12 @@ static const lv_font_t *font_for_role(theme_font_role_t role,int themed){
     case THEME_FONT_DATE: return &lv_font_montserrat_14;
     case THEME_FONT_ICON_20: return &font_icons_20;
     case THEME_FONT_ICON_28: return &font_icons_28;
+    case THEME_FONT_QS_ICON_28: {
+        static lv_font_t base, extra, symbols;
+        extern const lv_font_t font_theme_24;
+        symbols=font_theme_24; extra=font_icons_28; extra.fallback=&symbols;
+        base=lv_font_montserrat_28; base.fallback=&extra; return &base;
+    }
     default: return &lv_font_montserrat_16;
     }
 }
