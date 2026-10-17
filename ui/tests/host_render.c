@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
+#include "lvgl/src/misc/lv_timer_private.h"
 #include "simple_theme.h"
 #include "lvgl/src/misc/lv_timer_private.h"
 #include "null_theme.h"
@@ -1653,6 +1654,20 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(getenv("REVIEW_LIBRARY_FOCUS_AUDIT")){
+        assert(mdb_load()==40);screen_set_anim(0);screen_show(SCR_LIBRARY);
+        library_open_album_focus("Focus fixture","Focus Artist","/fixture/focus/01.flac");nav_wait(400);
+        lv_obj_t*list=library_scroller();lv_obj_t*text=find_text(list,"01 Focus audit track with a long title");assert(text);
+        lv_obj_t*row=lv_obj_get_parent(text);assert(lv_obj_get_style_bg_opa(row,0)==LV_OPA_COVER);
+        printf("FOCUS before manual scroll: state=%u background=%u\n",(unsigned)lv_obj_get_state(row),(unsigned)lv_obj_get_style_bg_opa(row,0));
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+        nav_pointer=(lv_indev_data_t){.point={180,260},.state=LV_INDEV_STATE_PRESSED};nav_wait(50);
+        for(int y=260;y>=220;y-=5){nav_pointer.point.y=y;nav_wait(20);}
+        nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(300);assert(lv_obj_get_scroll_y(list)>0);
+        printf("FOCUS after manual scroll: state=%u background=%u\n",(unsigned)lv_obj_get_state(row),(unsigned)lv_obj_get_style_bg_opa(row,0));
+        assert(lv_obj_get_style_bg_opa(row,0)==LV_OPA_COVER);
+        puts("CONFIRMED: jump-to-track filled highlight persists after manual scrolling, independently of LV_STATE_FOCUSED");return 0;
+    }
     if(th_simple()&&getenv("REVIEW_SIMPLE_MENU_REFLOW")){
         char id[33];const char*name="A Very Long Album Discovery Application";md5_hex("__squash_reflow_fixture",strlen("__squash_reflow_fixture"),id);
         cfg_set_str_deferred("simple_mnu","0ms");cfg_set_str_deferred("sm_app0",id);simple_nav_refresh();simple_nav_open(1);nav_wait(300);simple_test_nav_phase(1000);lv_obj_update_layout(screen_get_root(SCR_HOME));
@@ -1684,12 +1699,32 @@ render:
         puts("PASS: QS EQ tap toggles last preset, custom-name On/Off popup, active styling, failure preservation, invalid-preset fallback and Hold opens EQ without toggling");return 0;
     }
     if(th_simple()&&getenv("REVIEW_SQUASH_VOLUME")){
-        fixture=1;send_result=0;ui_show_volume(72);nav_wait(180);assert(ui_volume_overlay_visible());
-        lv_obj_t*number=find_visible_text(lv_layer_top(),"72");assert(number);lv_obj_t*sheet=lv_obj_get_parent(number),*arc=NULL;for(uint32_t i=0;i<lv_obj_get_child_count(sheet);i++){lv_obj_t*o=lv_obj_get_child(sheet,i);if(lv_obj_check_type(o,&lv_arc_class))arc=o;}assert(arc&&lv_arc_get_max_value(arc)==120);
+        fixture=1;send_result=0;screen_set_anim(1);
+        lv_timer_t*old_timers[256];int old_n=0;
+        for(lv_timer_t*t=lv_timer_get_next(NULL);t;t=lv_timer_get_next(t)){assert(old_n<256);old_timers[old_n++]=t;}
+        ui_show_volume(72);nav_wait(110);assert(ui_volume_overlay_visible());
+        lv_timer_t*dismiss=NULL,*retry=NULL;
+        for(lv_timer_t*t=lv_timer_get_next(NULL);t;t=lv_timer_get_next(t)){
+            int old=0;for(int i=0;i<old_n;i++)if(old_timers[i]==t)old=1;
+            if(!old&&t->period==1800)dismiss=t;if(!old&&t->period==120)retry=t;
+        }
+        assert(dismiss&&retry&&!lv_timer_get_paused(dismiss)&&lv_timer_get_paused(retry));
+        lv_obj_t*number=find_visible_text(lv_layer_top(),"72");assert(number);lv_obj_t*sheet=lv_obj_get_parent(number),*arc=NULL;for(uint32_t i=0;i<lv_obj_get_child_count(sheet);i++){lv_obj_t*o=lv_obj_get_child(sheet,i);if(lv_obj_check_type(o,&lv_arc_class))arc=o;}assert(arc&&lv_arc_get_max_value(arc)==120);assert(lv_obj_get_y(sheet)==0);nav_wait(100);
         int before=send_count;lv_arc_set_value(arc,80);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);lv_arc_set_value(arc,81);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);ui_show_volume(72);assert(lv_arc_get_value(arc)==81);lv_obj_send_event(arc,LV_EVENT_PRESS_LOST,NULL);assert(send_count==before+2);assert(find_visible_text(lv_layer_top(),"81"));
         before=send_count;send_result=-1;lv_arc_set_value(arc,82);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(130);assert(send_count>=before+2);send_result=0;nav_wait(150);int sent=send_count;assert(sent>=before+3);nav_wait(150);assert(send_count==sent);
-        ui_show_volume(83);assert(lv_arc_get_value(arc)==82);nav_wait(400);assert(lv_arc_get_value(arc)==83&&find_visible_text(lv_layer_top(),"83"));
+        ui_show_volume(83);assert(lv_arc_get_value(arc)==83&&find_visible_text(lv_layer_top(),"83"));
         before=send_count;send_result=-1;lv_arc_set_value(arc,84);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(700);assert(send_count==before+4);nav_wait(250);assert(send_count==before+4);send_result=0;
+        assert(lv_timer_get_paused(retry));
+        /* A failed final send survives dismissal and stops retrying after success. */
+        before=send_count;send_result=-1;lv_arc_set_value(arc,85);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);
+        assert(!lv_timer_get_paused(retry));lv_obj_send_event(lv_obj_get_parent(sheet),LV_EVENT_CLICKED,NULL);nav_wait(120);assert(!ui_volume_overlay_visible());
+        send_result=0;nav_wait(160);assert(send_count>before&&lv_timer_get_paused(retry)&&lv_timer_get_paused(dismiss));
+        ui_show_volume(86);nav_wait(110);assert(lv_arc_get_value(arc)==86);
+        /* Failed sends do not fight an ongoing drag. Release sends its latest target. */
+        send_result=-1;lv_obj_add_state(arc,LV_STATE_PRESSED);lv_arc_set_value(arc,87);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);
+        before=send_count;nav_wait(500);assert(send_count==before);ui_show_volume(70);assert(lv_arc_get_value(arc)==87);
+        send_result=0;lv_obj_remove_state(arc,LV_STATE_PRESSED);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);assert(send_count==before+1&&lv_timer_get_paused(retry));
+        ui_show_volume(88);assert(lv_arc_get_value(arc)==88);nav_wait(100);
         lv_obj_add_state(arc,LV_STATE_PRESSED);nav_wait(2200);assert(ui_volume_overlay_visible());lv_obj_remove_state(arc,LV_STATE_PRESSED);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(2000);assert(!ui_volume_overlay_visible());
         ui_show_volume(999);nav_wait(180);assert(lv_arc_get_value(arc)==120);ui_show_volume(-5);assert(lv_arc_get_value(arc)==0);
         lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
@@ -1697,7 +1732,18 @@ render:
         nav_touch((lv_point_t){180,316},50);nav_wait(180);assert(!ui_volume_overlay_visible());assert(screen_current()==SCR_HOME&&!simple_nav_is_open());
         ui_show_volume(60);nav_wait(180);nav_touch((lv_point_t){180,120},50);nav_wait(180);assert(!ui_volume_overlay_visible());
         ui_show_volume(60);nav_wait(180);number=find_visible_text(lv_layer_top(),"60");assert(number);kit_pass(lv_obj_get_parent(lv_obj_get_parent(number)));assert(lv_obj_get_style_bg_opa(lv_obj_get_parent(lv_obj_get_parent(number)),0)==0);
-        puts("PASS: Squash volume B native arc drag, 0..120 clamp, throttled final commit, echo guard, hold timeout, logo/outside dismissal and transparent scrim");return 0;
+        /* Fast close/reopen cannot let an old completion hide the reopened overlay. */
+        for(int anim=0;anim<=1;anim++){
+            screen_set_anim(anim);
+            for(int k=0;k<12;k++){
+                ui_show_volume(40+k);nav_wait(anim?160:20);lv_obj_update_layout(sheet);assert(lv_obj_get_y(sheet)==0&&ui_volume_overlay_visible());
+                lv_obj_send_event(lv_obj_get_parent(sheet),LV_EVENT_CLICKED,NULL);nav_wait(anim?20:2);
+                ui_show_volume(60+k);nav_wait(anim?160:20);lv_obj_update_layout(sheet);assert(ui_volume_overlay_visible()&&lv_obj_get_y(sheet)==0);
+            }
+            lv_obj_send_event(lv_obj_get_parent(sheet),LV_EVENT_CLICKED,NULL);nav_wait(anim?120:20);assert(!ui_volume_overlay_visible());
+        }
+        assert(lv_timer_get_paused(retry)&&lv_timer_get_paused(dismiss));
+        puts("PASS: Squash volume B native arc drag, 0..120 clamp, throttled final commit, immediate player reports, hold timeout, logo/outside dismissal and transparent scrim");return 0;
     }
     if(th_simple()&&getenv("REVIEW_SQUASH_HOLD")){
         lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);simple_cfg_set_int_deferred("disco_nav_v",2);

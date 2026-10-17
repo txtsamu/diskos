@@ -375,42 +375,42 @@ void simple_test_feedback_frame(int v){simple_action_feedback();lv_anim_delete(a
 
 /* Squash volume B: a bottom cap concentric with the launcher, without a full-screen scrim. */
 static lv_obj_t *sv_root,*sv_sheet,*sv_arc,*sv_value;
-static lv_timer_t *sv_timer;
-static int sv_pending,sv_closing,sv_offset=64,sv_local,sv_target,sv_failures;
-static int sv_echo,sv_echo_valid;
-static uint32_t sv_sent,sv_touch,sv_activity;
+static lv_timer_t *sv_timer,*sv_retry;
+static int sv_pending,sv_closing,sv_offset=12,sv_target,sv_failures;
+static uint32_t sv_sent;
 static void sv_frame(void*o,int32_t y){sv_offset=y;lv_obj_set_y(o,y);}
 static void sv_hidden(lv_anim_t*a){(void)a;if(sv_closing){lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);sv_closing=0;}}
 int simple_volume_visible(void){return sv_root&&!lv_obj_has_flag(sv_root,LV_OBJ_FLAG_HIDDEN);}
 static void sv_close(void){
  if(!simple_volume_visible()||sv_closing)return;
- if(sv_timer&&!sv_pending)lv_timer_pause(sv_timer);sv_closing=1;lv_anim_delete(sv_sheet,sv_frame);
- lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,144);lv_anim_set_duration(&a,110);lv_anim_set_path_cb(&a,lv_anim_path_ease_in);lv_anim_set_completed_cb(&a,sv_hidden);lv_anim_start(&a);
+ lv_timer_pause(sv_timer);sv_closing=1;lv_anim_delete(sv_sheet,sv_frame);
+ if(!screen_get_anim()){sv_frame(sv_sheet,12);lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);sv_closing=0;return;}
+ lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,12);lv_anim_set_duration(&a,70);lv_anim_set_path_cb(&a,lv_anim_path_ease_in);lv_anim_set_completed_cb(&a,sv_hidden);lv_anim_start(&a);
 }
 static void sv_dismiss(lv_event_t*e){(void)e;sv_close();}
-static void sv_wake(void){sv_activity=lv_tick_get();lv_timer_resume(sv_timer);}
+static void sv_wake(void){lv_timer_reset(sv_timer);lv_timer_resume(sv_timer);}
 static void sv_number(int v){char b[12];snprintf(b,sizeof b,"%d",v);if(strcmp(lv_label_get_text(sv_value),b))lv_label_set_text(sv_value,b);}
+/* Normal use has only the 1.8 s dismissal timer. Retry polling runs exclusively
+ * after a failed send, including after dismissal; it never resends an accepted value. */
 static void sv_flush(void){
  sv_sent=lv_tick_get();
- if(ui_set_volume(sv_target)==0){sv_pending=0;sv_failures=0;sv_echo_valid=0;sv_touch=lv_tick_get();}
- else if(++sv_failures>=4){sv_pending=0;ui_toast("Couldn't set volume");}
+ if(ui_set_volume(sv_target)==0){sv_pending=0;sv_failures=0;if(sv_retry)lv_timer_pause(sv_retry);}
+ else if(++sv_failures>=4||!sv_retry){sv_pending=0;if(sv_retry)lv_timer_pause(sv_retry);ui_toast("Couldn't set volume");}
+ else {lv_timer_reset(sv_retry);lv_timer_resume(sv_retry);}
+}
+static void sv_retry_send(lv_timer_t*t){
+ if(!sv_pending){lv_timer_pause(t);return;}
+ if(!lv_obj_has_state(sv_arc,LV_STATE_PRESSED))sv_flush();
 }
 static void sv_timeout(lv_timer_t*t){
- int pressed=lv_obj_has_state(sv_arc,LV_STATE_PRESSED);
- if(sv_pending&&!pressed&&lv_tick_elaps(sv_sent)>=120)sv_flush();
- /* Keep only the newest player report during a drag; reconcile once echoes settle. */
- if(!pressed&&!sv_pending&&sv_local&&lv_tick_elaps(sv_touch)>=350){
-  sv_local=0;
-  if(sv_echo_valid){lv_arc_set_value(sv_arc,sv_echo);sv_number(sv_echo);sv_echo_valid=0;}
- }
- if(!pressed&&lv_tick_elaps(sv_activity)>=1800)sv_close();
- if(!simple_volume_visible()&&!sv_pending)lv_timer_pause(t);
+ if(lv_obj_has_state(sv_arc,LV_STATE_PRESSED)){lv_timer_reset(t);return;}
+ sv_close();
 }
 static void sv_event(lv_event_t*e){
  lv_event_code_t c=lv_event_get_code(e);int v=lv_arc_get_value(sv_arc);
- if(c==LV_EVENT_VALUE_CHANGED){sv_local=1;sv_touch=lv_tick_get();sv_number(v);sv_target=v;sv_pending=1;sv_failures=0;sv_echo_valid=0;
+ if(c==LV_EVENT_VALUE_CHANGED){sv_number(v);sv_target=v;sv_pending=1;sv_failures=0;
   if(lv_tick_elaps(sv_sent)>=120)sv_flush();}
- if(c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST){if(sv_pending)sv_flush();if(sv_local)sv_touch=lv_tick_get();}
+ if((c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST)&&sv_pending)sv_flush();
  if(c==LV_EVENT_PRESSED||c==LV_EVENT_PRESSING||c==LV_EVENT_VALUE_CHANGED||c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST)sv_wake();
 }
 void simple_volume_show(int value){
@@ -424,11 +424,13 @@ void simple_volume_show(int value){
   lv_obj_t*hub=circle(sv_sheet,180,316,72);lv_obj_set_style_bg_color(hub,TC(CANVAS),0);lv_obj_set_style_bg_opa(hub,255,0);lv_obj_add_event_cb(hub,sv_dismiss,LV_EVENT_CLICKED,NULL);
   simple_logo(hub);
   label(sv_sheet,"0",49,282,36,TF(UI_14),TC(TEXT_SECONDARY));char max[12];snprintf(max,sizeof max,"%d",VOL_MAX);label(sv_sheet,max,275,282,36,TF(UI_14),TC(TEXT_SECONDARY));
-  sv_timer=lv_timer_create(sv_timeout,50,NULL);lv_timer_pause(sv_timer);lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);
+  sv_timer=lv_timer_create(sv_timeout,1800,NULL);lv_timer_pause(sv_timer);
+  sv_retry=lv_timer_create(sv_retry_send,120,NULL);if(sv_retry)lv_timer_pause(sv_retry);lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);
  }
  int opening=!simple_volume_visible()||sv_closing;
- sv_echo=value;sv_echo_valid=1;
- if(!sv_pending&&!lv_obj_has_state(sv_arc,LV_STATE_PRESSED)&&(!sv_local||lv_tick_elaps(sv_touch)>=350)){lv_arc_set_value(sv_arc,value);sv_number(value);sv_local=0;sv_echo_valid=0;}
+ /* Like Disco/Null, reflect player reports immediately outside an active drag.
+  * An unsent local value stays visible until its final commit/retry completes. */
+ if(!sv_pending&&!lv_obj_has_state(sv_arc,LV_STATE_PRESSED)){lv_arc_set_value(sv_arc,value);sv_number(value);}
  lv_obj_remove_flag(sv_root,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(sv_root);sv_wake();
- if(opening){sv_closing=0;lv_anim_delete(sv_sheet,sv_frame);if(sv_offset>64)sv_offset=64;sv_frame(sv_sheet,sv_offset);lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,0);lv_anim_set_duration(&a,140);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);}
+ if(opening){sv_closing=0;lv_anim_delete(sv_sheet,sv_frame);if(!screen_get_anim()){sv_frame(sv_sheet,0);return;}if(sv_offset>12)sv_offset=12;sv_frame(sv_sheet,sv_offset);lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,0);lv_anim_set_duration(&a,96);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);}
 }
