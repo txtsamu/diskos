@@ -8,6 +8,11 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
+- Fixed: Squash volume final-write retries and delayed player-level reconciliation, slow-swipe versus Title Hold handling, idle Go to Library navigation and unknown QS battery readings.
+- Changed: Squash QS artwork returns to Music, with a separate 40 px play/pause control; battery increases from left (0%) to right (100%).
+- Performance: retain unchanged Music status labels, remove hidden launcher counter updates, use an interpolated integer orbit table and adapt refresh scheduling between touch/animation and rest.
+- Validation: focused native regression checks pass; physical-device validation remains outstanding.
+
 ## [2.5.0] - 2026-10-17
 
 - Added: **Squash 🎃**, a bold Nunito-first theme with fixed 36/32/28 px Music text, touch playback, rising circular launcher and eight icon Quick Settings. Original and Inter keep the same sizing rules.

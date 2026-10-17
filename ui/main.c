@@ -3258,6 +3258,7 @@ int main(int argc, char **argv){
 #ifdef DISKOS_PROFILE
         struct timespec pa, pb; clock_gettime(CLOCK_MONOTONIC, &pa);
 #endif
+        simple_refresh_budget(bl_state!=2&&(lv_anim_count_running()>0||prev_ts==LV_INDEV_STATE_PRESSED));
         uint32_t wait = lv_timer_handler();
 #ifdef DISKOS_PROFILE
         clock_gettime(CLOCK_MONOTONIC, &pb);

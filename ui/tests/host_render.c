@@ -2,6 +2,7 @@
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
 #include "simple_theme.h"
+#include "lvgl/src/misc/lv_timer_private.h"
 #include "null_theme.h"
 #include "screens.h"
 #include "onboarding.h"
@@ -93,7 +94,7 @@ static int find_sharp_image(lv_obj_t *root){
 static int fixture, send_result, send_count;
 static int null_transport_calls;static char null_last_command[24];
 int __real_ui_transport_command(const char*);
-int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")||getenv("REVIEW_SQUASH_HOLD")||getenv("REVIEW_SIMPLE")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
+int __wrap_ui_transport_command(const char*cmd){if(getenv("REVIEW_NULL")||getenv("REVIEW_NULL_GESTURES")||getenv("REVIEW_SQUASH_HOLD")||getenv("REVIEW_SIMPLE_PERF")||getenv("REVIEW_SIMPLE")){null_transport_calls++;snprintf(null_last_command,sizeof null_last_command,"%s",cmd);return 0;}return __real_ui_transport_command(cmd);}
 int __real_ipc_send_cmd(const char *frame);
 int __wrap_ipc_send_cmd(const char *frame){send_count++;return fixture?send_result:__real_ipc_send_cmd(frame);}
 int __real_fw_custom_peq_writable(void);
@@ -151,7 +152,7 @@ static void assert_visible_icon_glyphs(lv_obj_t *root){
 /* Real pointer events exercise LVGL's hold/release handling, not direct callbacks. */
 static lv_indev_data_t nav_pointer;
 static void nav_read(lv_indev_t *in,lv_indev_data_t *data){(void)in;*data=nav_pointer;}
-static void nav_wait(int ms){for(int i=0;i<ms;i+=10){lv_tick_inc(10);lv_timer_handler();}}
+static void nav_wait(int ms){for(int i=0;i<ms;i+=10){lv_tick_inc(10);simple_refresh_budget(lv_anim_count_running()>0||nav_pointer.state==LV_INDEV_STATE_PRESSED);lv_timer_handler();}}
 static void nav_touch(lv_point_t point,int ms){
     nav_pointer.point=point;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(ms);
     nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
@@ -1635,6 +1636,9 @@ render:
         fixture=1;send_result=0;ui_show_volume(72);nav_wait(180);assert(ui_volume_overlay_visible());
         lv_obj_t*number=find_visible_text(lv_layer_top(),"72");assert(number);lv_obj_t*sheet=lv_obj_get_parent(number),*arc=NULL;for(uint32_t i=0;i<lv_obj_get_child_count(sheet);i++){lv_obj_t*o=lv_obj_get_child(sheet,i);if(lv_obj_check_type(o,&lv_arc_class))arc=o;}assert(arc&&lv_arc_get_max_value(arc)==120);
         int before=send_count;lv_arc_set_value(arc,80);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);lv_arc_set_value(arc,81);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);assert(send_count==before+1);ui_show_volume(72);assert(lv_arc_get_value(arc)==81);lv_obj_send_event(arc,LV_EVENT_PRESS_LOST,NULL);assert(send_count==before+2);assert(find_visible_text(lv_layer_top(),"81"));
+        before=send_count;send_result=-1;lv_arc_set_value(arc,82);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(130);assert(send_count>=before+2);send_result=0;nav_wait(150);int sent=send_count;assert(sent>=before+3);nav_wait(150);assert(send_count==sent);
+        ui_show_volume(83);assert(lv_arc_get_value(arc)==82);nav_wait(400);assert(lv_arc_get_value(arc)==83&&find_visible_text(lv_layer_top(),"83"));
+        before=send_count;send_result=-1;lv_arc_set_value(arc,84);lv_obj_send_event(arc,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(700);assert(send_count==before+4);nav_wait(250);assert(send_count==before+4);send_result=0;
         lv_obj_add_state(arc,LV_STATE_PRESSED);nav_wait(2200);assert(ui_volume_overlay_visible());lv_obj_remove_state(arc,LV_STATE_PRESSED);lv_obj_send_event(arc,LV_EVENT_RELEASED,NULL);nav_wait(2000);assert(!ui_volume_overlay_visible());
         ui_show_volume(999);nav_wait(180);assert(lv_arc_get_value(arc)==120);ui_show_volume(-5);assert(lv_arc_get_value(arc)==0);
         lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
@@ -1706,7 +1710,11 @@ render:
         for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t*c=lv_obj_get_child(root,i);if(lv_obj_check_type(c,&lv_arc_class)&&lv_obj_get_width(c)==344){if(lv_arc_get_bg_angle_start(c)==222)bright=c;if(lv_arc_get_bg_angle_start(c)==42)batt=c;}}
         assert(bright&&batt&&lv_arc_get_min_value(bright)==1&&lv_arc_get_max_value(bright)==40);
         int old=cfg_get_int("brightness",16);lv_arc_set_value(bright,30);lv_obj_send_event(bright,LV_EVENT_VALUE_CHANGED,NULL);assert(cfg_get_int("brightness",16)==old);lv_obj_send_event(bright,LV_EVENT_RELEASED,NULL);assert(cfg_get_int("brightness",0)==30);
-        quicksettings_set_battery(67,1);nav_wait(250);assert(find_visible_text(root,LV_SYMBOL_CHARGE));quicksettings_set_battery(67,0);assert(lv_obj_get_style_arc_opa(batt,LV_PART_INDICATOR)==255);quicksettings_set_battery(14,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(STATUS_DANGER)));quicksettings_set_battery(-1,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(ACCENT_PRIMARY)));
+        quicksettings_set_battery(67,1);nav_wait(250);assert(find_visible_text(root,LV_SYMBOL_CHARGE));quicksettings_set_battery(67,0);assert(lv_obj_get_style_arc_opa(batt,LV_PART_INDICATOR)==255);quicksettings_set_battery(14,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(STATUS_DANGER)));quicksettings_set_battery(-1,0);assert(lv_color_eq(lv_obj_get_style_arc_color(batt,LV_PART_INDICATOR),TC(TEXT_DISABLED)));assert(lv_arc_get_value(batt)==0&&find_visible_text(root,"?"));
+        assert(lv_arc_get_mode(batt)==LV_ARC_MODE_REVERSE);quicksettings_set_battery(25,0);assert(lv_arc_get_angle_start(batt)==114&&lv_arc_get_angle_end(batt)==138);quicksettings_set_battery(75,0);assert(lv_arc_get_angle_start(batt)==66);quicksettings_set_battery(100,0);assert(lv_arc_get_angle_start(batt)==42);
+        simple_refresh_budget(0);assert(lv_display_get_refr_timer(lv_display_get_default())->period==33);simple_refresh_budget(1);assert(lv_display_get_refr_timer(lv_display_get_default())->period==16);
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+        lv_obj_t*pp=ui_action_find("qs.pp");assert(pp&&lv_obj_get_width(pp)==40&&lv_obj_get_height(pp)==40);int before=null_transport_calls;nav_touch((lv_point_t){180,180},50);assert(screen_current()==SCR_QUICK&&null_transport_calls==before+1);nav_touch((lv_point_t){218,180},50);nav_wait(250);assert(screen_current()==SCR_HOME&&null_transport_calls==before+1);
         assert_visible_icon_glyphs(root);screen_home();assert(simple_test_qs_paused());
         printf("PASS: Squash cached launcher content (%d unchanged bindings over 40 frames), clean return geometry, QS timer pause, brightness 1..40/save-on-release, charge/unplug/low/unknown battery and icon glyphs\n",bindings);
         return 0;
@@ -1725,6 +1733,8 @@ render:
         nav_touch((lv_point_t){180,205},40);nav_wait(100);nav_touch((lv_point_t){180,205},40);nav_wait(100);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0000"));
         nav_pointer=(lv_indev_data_t){.point={95,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=95;x<=255;x+=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+2&&!strcmp(null_last_command,"0201000C0001"));
         nav_pointer=(lv_indev_data_t){.point={255,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);for(int x=255;x>=95;x-=8){nav_pointer.point.x=x;nav_wait(10);}nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(null_transport_calls==commands+3&&!strcmp(null_last_command,"0201000C0002"));
+        simple_cfg_set_int_deferred("disco_title_hold",0);
+        nav_pointer=(lv_indev_data_t){.point={95,205},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);nav_pointer.point.x=255;nav_wait(500);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(80);assert(screen_current()==SCR_HOME&&null_transport_calls==commands+4&&!strcmp(null_last_command,"0201000C0001"));
         simple_cfg_set_int_deferred("disco_title_hold",2);int calls=send_count;
         nav_touch((lv_point_t){180,210},800);nav_wait(450);assert(send_count==calls&&screen_current()==SCR_HOME&&!disco_track_overlay_visible());
         simple_cfg_set_int_deferred("disco_title_hold",0);
@@ -1732,7 +1742,8 @@ render:
         nav_touch((lv_point_t){180,210},40);nav_wait(450);assert(disco_track_overlay_visible());screen_back();assert(!disco_track_overlay_visible());
         simple_cfg_set_int_deferred("disco_nav_double",DISCO_NAV_SEARCH);simple_nav_open(1);nav_wait(250);nav_touch((lv_point_t){180,310},40);nav_wait(80);nav_touch((lv_point_t){180,310},40);nav_wait(200);assert(screen_current()==SCR_SEARCH&&search_landing_active());
         void search_landing_leave(void);search_landing_leave();screen_home();nav_wait(250);screen_show(SCR_SEARCH);nav_wait(100);assert(search_landing_active());
-        puts("PASS: Squash QS isolation, launcher drag/open/back, playback swipes/double-tap, Title hold None/Immersive, popup Back, logo shortcut and fresh Search landing");return 0;
+        screen_home();nav_wait(250);simple_cfg_set_int_deferred("memory_play",0);void dhome_set_now_playing(const char*,const char*,lv_color_t,bool);dhome_set_now_playing(NULL,NULL,TC(ACCENT_PRIMARY),false);nav_wait(100);nav_touch((lv_point_t){180,205},50);nav_wait(250);assert(screen_current()==SCR_LIBRARY);
+        puts("PASS: Squash QS isolation, launcher drag/open/back, playback swipes/double-tap, slow swipe versus Hold, Title hold None/Immersive, idle Library tap, popup Back, logo shortcut and fresh Search landing");return 0;
     }
     if(th_simple()&&getenv("SIMPLE_NAV")){simple_nav_open(1);int ms=getenv("SIMPLE_NAV_MS")?atoi(getenv("SIMPLE_NAV_MS")):350;for(int i=0;i<ms/10;i++){lv_tick_inc(10);lv_timer_handler();}}
     if(th_simple()&&getenv("SIMPLE_NAV_PHASE"))simple_test_nav_phase(atoi(getenv("SIMPLE_NAV_PHASE")));

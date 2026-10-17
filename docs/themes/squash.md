@@ -250,3 +250,12 @@ The D! circle is 72 px, centred at (180,316), with a larger centred logo and mat
 Squash volume now opens as a bottom circular cap concentric with the main launcher. A single orange arc controls the full device range, 0–120; the live value is above the same 72 px D! hub. Endpoint labels are read-only and there are no plus/minus buttons. The rest of the screen stays undimmed. Tap D! or outside to close; the flyout also closes after 1.8 seconds without input, but remains open while dragging. Entry/exit animations take 140/110 ms. The retained overlay allocates once and pauses its timer when hidden.
 
 Drag writes are limited to one per 120 ms, with the final deferred value committed on release or press-lost. Short-lived player echoes cannot pull the slider away from a drag. Active overlay touches are owned by Squash, so they cannot operate the Music gestures underneath. Null and other themes retain their existing volume overlays.
+
+## 2.5.0 follow-up fixes
+
+- Quick Settings: tapping artwork outside the central control returns to Music. The independent play/pause button and touch target are 40 px, with a 28 px icon. The battery arc runs from 0% at the left endpoint to 100% at the right; an unknown reading shows an empty arc and `?` instead of a full battery.
+- Volume: failed writes retry at 120 ms intervals while released, up to four failed attempts for the current target, including after dismissal. Exhaustion reports an error. The latest player report received during the echo guard is reconciled after 350 ms of quiet input, so hardware-button changes do not leave stale numbers.
+- Music: movement cancels Title Hold; a handled Hold cannot also skip a track on release. Tapping the idle Go to Library prompt opens Library.
+- Performance: unchanged status labels are retained; the hidden launcher counter is removed; launcher positioning interpolates LVGL's integer sine table. The display refresh schedule uses 16 ms during animation/touch and 33 ms at rest. These are scheduling changes, not measured device FPS or battery-life claims.
+
+Native regression checks cover failed volume writes and retry exhaustion, echo reconciliation, slow swipes, idle navigation, independent QS artwork/control targets, battery direction and unknown state, refresh scheduling, launcher gestures, metadata scrolling and shared QS editing in Squash, Disco and Null. Physical-device validation remains outstanding.

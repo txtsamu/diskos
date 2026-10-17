@@ -12,6 +12,7 @@ void simple_nav_init(lv_obj_t *);
 void simple_nav_open(int);
 void simple_nav_screen(int);
 void simple_nav_refresh(void);
+void simple_refresh_budget(int);
 int simple_nav_is_open(void);
 int simple_owns_point(int,int);
 int simple_music_protected(lv_obj_t *);

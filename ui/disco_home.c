@@ -155,13 +155,23 @@ static int gz_arc_point(int x, int y){                                 /* on the
 }
 static void ov_open(void);
 static lv_timer_t *simple_tap_timer;
+static int simple_gz_moved,simple_gz_consumed;
 static void simple_tap_done(lv_timer_t*t){lv_timer_delete(t);simple_tap_timer=NULL;if(screen_current()==SCR_HOME&&!simple_nav_is_open())ov_open();}
 static void gz_cb(lv_event_t *e){
     lv_event_code_t c = lv_event_get_code(e);
     if(c == LV_EVENT_HIT_TEST){ lv_hit_test_info_t *h = lv_event_get_hit_test_info(e); if(gz_arc_point(h->point->x, h->point->y)) h->res = false; return; }
     lv_indev_t *in = lv_indev_active(); lv_point_t p = { 0, 0 }; if(in) lv_indev_get_point(in, &p);
-    if(th_simple()&&c==LV_EVENT_LONG_PRESSED){if(simple_tap_timer){lv_timer_delete(simple_tap_timer);simple_tap_timer=NULL;}g_gz_last=0;int hold=simple_cfg_get_int("disco_title_hold",0);if(hold==0)disco_open_np_immersive();else if(hold==1)ui_np_fav_toggle();return;}
-    if(c == LV_EVENT_PRESSED){ g_gz_px = p.x; g_gz_py = p.y; g_gz_t0 = lv_tick_get(); return; }
+    if(th_simple()&&c==LV_EVENT_PRESSING){if(abs(p.x-g_gz_px)>18||abs(p.y-g_gz_py)>18)simple_gz_moved=1;return;}
+    if(th_simple()&&c==LV_EVENT_LONG_PRESSED){
+        if(simple_tap_timer){lv_timer_delete(simple_tap_timer);simple_tap_timer=NULL;}g_gz_last=0;
+        if(simple_gz_moved||!g_have)return;
+        simple_gz_consumed=1;int hold=simple_cfg_get_int("disco_title_hold",0);if(hold==0)disco_open_np_immersive();else if(hold==1)ui_np_fav_toggle();return;
+    }
+    if(c == LV_EVENT_PRESSED){ g_gz_px = p.x; g_gz_py = p.y; g_gz_t0 = lv_tick_get();simple_gz_moved=simple_gz_consumed=0;return; }
+    if(th_simple()&&c==LV_EVENT_RELEASED){
+        if(simple_gz_consumed)return;
+        if(g_idle){if(!simple_gz_moved&&lv_tick_elaps(g_gz_t0)<=400)screen_show(SCR_LIBRARY);return;}
+    }
     if(c != LV_EVENT_RELEASED || !g_have) return;
     int dx = p.x - g_gz_px, dy = p.y - g_gz_py, adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
     uint32_t now = lv_tick_get();
@@ -1072,7 +1082,10 @@ static void simple_music_indicators(void){
  if(!th_simple())return;
  int visible=!g_idle;
  static const char*const modes[5]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};
- if(simple_play_state){int playing=ui_is_playing();lv_label_set_text(simple_play_state,playing?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE);lv_obj_set_style_text_color(simple_play_state,playing?TC(STATUS_SUCCESS):TC(TEXT_SECONDARY),0);int mode=cfg_get_int("work_mode",0);lv_label_set_text(simple_mode_state,modes[mode>=0&&mode<5?mode:0]);lv_obj_set_style_text_color(simple_mode_state,TC(TEXT_SECONDARY),0);
+ if(simple_play_state){int playing=ui_is_playing();const char*glyph=playing?LV_SYMBOL_PLAY:LV_SYMBOL_PAUSE;
+  if(strcmp(lv_label_get_text(simple_play_state),glyph)){lv_label_set_text(simple_play_state,glyph);lv_obj_set_style_text_color(simple_play_state,playing?TC(STATUS_SUCCESS):TC(TEXT_SECONDARY),0);}
+  int mode=cfg_get_int("work_mode",0);glyph=modes[mode>=0&&mode<5?mode:0];
+  if(strcmp(lv_label_get_text(simple_mode_state),glyph)){lv_label_set_text(simple_mode_state,glyph);lv_obj_set_style_text_color(simple_mode_state,TC(TEXT_SECONDARY),0);}
   lv_obj_t*o[2]={simple_play_state,simple_mode_state};for(int k=0;k<2;k++){if(visible&&cfg_get_int(k?"simple_play_mode":"simple_play_state",1))lv_obj_remove_flag(o[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(o[k],LV_OBJ_FLAG_HIDDEN);}}
  int hints=0; /* Squash uses status icons, without gesture glyphs around the logo. */
  for(int k=0;k<4;k++)if(g_gz_hint[k]){if(hints&&k!=1)lv_obj_remove_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(g_gz_hint[k],LV_OBJ_FLAG_HIDDEN);}

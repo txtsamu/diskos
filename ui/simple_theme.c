@@ -65,7 +65,7 @@ static lv_obj_t *circle(lv_obj_t*p,int cx,int cy,int size){
  simple_shade(b);lv_obj_set_user_data(b,&simple_control_tag);lv_obj_remove_flag(b,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);kit_keep(b);return b;
 }
 /* ---- One-item wheel; rotation is about the bottom hub, never the screen centre. ---- */
-static lv_obj_t *nav_root,*nav_panel,*nav_hub,*nav_items[3],*nav_icons[3],*nav_names[3],*nav_pos;
+static lv_obj_t *nav_root,*nav_panel,*nav_hub,*nav_items[3],*nav_icons[3],*nav_names[3];
 static int nav_on,nav_count,nav_selected,dragged,nav_pressed;
 static int nav_content[3]={-1,-1,-1};
 static unsigned nav_bindings;
@@ -75,13 +75,28 @@ static uint32_t hub_last;
 static lv_timer_t *hub_timer;
 static void hub_timer_cancel(void){if(hub_timer){lv_timer_delete(hub_timer);hub_timer=NULL;}}
 static void hub_close(lv_timer_t*t){lv_timer_delete(t);hub_timer=NULL;hub_last=0;simple_nav_open(0);}
+void simple_refresh_budget(int busy){
+ if(!th_simple())return;
+ lv_timer_t*t=lv_display_get_refr_timer(lv_display_get_default());
+ static lv_timer_t*last_timer;static uint32_t last_period;
+ uint32_t period=busy?16:33;
+ if(t!=last_timer||last_period!=period){lv_timer_set_period(t,period);last_timer=t;last_period=period;}
+}
+/* Interpolate LVGL's integer sine table at 1/256 degree precision. */
+static int orbit_offset(int angle){
+ int whole=angle/256,frac=angle%256;if(frac<0){whole--;frac+=256;}
+ whole=(whole%360+360)%360;
+ int s=lv_trigo_sin(whole),next=lv_trigo_sin((whole+1)%360);
+ return (int)(((int64_t)s*256+(next-s)*frac)*293/(256*(1<<LV_TRIGO_SHIFT)));
+}
 static void nav_paint(void){
  if(!nav_panel||nav_count<1)return;
  int base=(int)lroundf(nav_phase);
  for(int j=0;j<3;j++){
   int off=j-1,index=(base+off)%nav_count;if(index<0)index+=nav_count;
-  float delta=(base+off-nav_phase),a=delta*0.6105f;
-  int x=360+(int)lroundf(sinf(a)*293),y=360-(int)lroundf(cosf(a)*293);
+  float delta=(base+off-nav_phase);
+  int angle=(int)lroundf(delta*34.9790734f*256);
+  int x=360+orbit_offset(angle),y=360-orbit_offset(angle+90*256);
   lv_obj_set_pos(nav_items[j],x-90,y-56);
   float distance=fabsf(delta);
   int opa=distance<=1?(int)(255-55*distance):(int)(200*fmaxf(0,1-(distance-1)/0.6f));
@@ -96,7 +111,6 @@ static void nav_paint(void){
   lv_obj_set_style_opa(nav_names[j],(int)(255*fmaxf(0,1-fabsf(delta))),0);
  }
  nav_selected=((int)lroundf(nav_phase)%nav_count+nav_count)%nav_count;
- char b[24];snprintf(b,sizeof b,"%d / %d",nav_selected+1,nav_count);lv_label_set_text(nav_pos,b);
 }
 static void nav_move(void*o,int32_t v){(void)o;nav_phase=v/1000.f;nav_paint();}
 static void nav_snap(void){
@@ -144,7 +158,7 @@ static void hub_event(lv_event_t*e){
 }
 void simple_nav_refresh(void){nav_count=disco_catalog_load();for(int j=0;j<3;j++)nav_content[j]=-1;if(nav_on)nav_paint();}
 void simple_nav_init(lv_obj_t*parent){
- lv_timer_set_period(lv_display_get_refr_timer(lv_display_get_default()),16);
+ simple_refresh_budget(0);
  nav_root=lv_obj_create(parent);lv_obj_remove_style_all(nav_root);lv_obj_set_size(nav_root,360,360);lv_obj_remove_flag(nav_root,LV_OBJ_FLAG_SCROLLABLE);
  lv_obj_set_style_bg_color(nav_root,TC(SCRIM),0);lv_obj_set_style_bg_opa(nav_root,100,0);lv_obj_add_flag(nav_root,LV_OBJ_FLAG_CLICKABLE);
  lv_obj_add_event_cb(nav_root,outside,LV_EVENT_CLICKED,NULL);
@@ -166,8 +180,6 @@ void simple_nav_init(lv_obj_t*parent){
   lv_obj_set_style_bg_color(v,TC(CANVAS),0);lv_obj_set_style_bg_grad_color(v,TC(CANVAS),0);lv_obj_set_style_bg_grad_dir(v,LV_GRAD_DIR_HOR,0);
   lv_obj_set_style_bg_opa(v,255,0);lv_obj_set_style_bg_main_opa(v,side?0:95,0);lv_obj_set_style_bg_grad_opa(v,side?95:0,0);lv_obj_remove_flag(v,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);kit_keep(v);
  }
- nav_pos=label(nav_panel,"",438,201,80,TF(UI_14),TC(TEXT_SECONDARY));
- lv_obj_add_flag(nav_pos,LV_OBJ_FLAG_HIDDEN);
  nav_hub=circle(parent,180,316,72);lv_obj_set_style_bg_color(nav_hub,TC(CANVAS),0);lv_obj_set_style_bg_opa(nav_hub,26,0);
  lv_obj_t*l=label(nav_hub,"D!",0,0,90,&diskos_splash_disco_72,TC(ACCENT_PRIMARY));lv_obj_set_style_transform_scale_x(l,124,0);lv_obj_set_style_transform_scale_y(l,124,0);lv_obj_set_style_transform_pivot_x(l,45,0);lv_obj_set_style_transform_pivot_y(l,36,0);lv_obj_center(l);
  ui_on(nav_hub,hub_event,LV_EVENT_ALL,NULL,"simple.nav.toggle.shortcuts",UI_CORE);
@@ -194,6 +206,7 @@ static void qs_tile(lv_event_t*e){
  else if(c==LV_EVENT_SHORT_CLICKED){qs_radio_valid=0;quicksettings_null_action(qs_ids[i],0);simple_action_feedback();}
 }
 static void qs_transport(lv_event_t*e){if(lv_event_get_code(e)!=LV_EVENT_SHORT_CLICKED)return;const char*g=ui_is_playing()?LV_SYMBOL_PAUSE:LV_SYMBOL_PLAY;if(ui_transport_command(lv_event_get_user_data(e))==0)simple_playback_feedback(g);}
+static void qs_music(lv_event_t*e){if(lv_event_get_code(e)==LV_EVENT_SHORT_CLICKED)screen_home();}
 static void qs_brightness(lv_event_t*e){int value=lv_arc_get_value(qs_bright);if(lv_event_get_code(e)==LV_EVENT_VALUE_CHANGED)ui_backlight(value);else ui_set_brightness(value);}
 static lv_obj_t *arc(lv_obj_t*p,int start,int end,int input){
  lv_obj_t*a=lv_arc_create(p);lv_obj_set_size(a,344,344);lv_obj_center(a);lv_arc_set_bg_angles(a,start,end);lv_arc_set_range(a,0,100);lv_arc_set_rotation(a,0);
@@ -207,9 +220,9 @@ void simple_qs_battery(int pct,int charging){
  pct=pct<0?-1:pct>100?100:pct;charging=!!charging;
  if(qs_percent==pct&&qs_charging==charging&&qs_batt)return;
  qs_percent=pct;qs_charging=charging;if(!qs_batt)return;
- lv_arc_set_value(qs_batt,pct<0?100:pct);lv_obj_set_style_arc_opa(qs_batt,255,LV_PART_INDICATOR);lv_color_t c=charging?TC(STATUS_SUCCESS):pct>=0&&pct<15?TC(STATUS_DANGER):TC(ACCENT_PRIMARY);
+ lv_arc_set_value(qs_batt,pct<0?0:pct);lv_obj_set_style_arc_opa(qs_batt,255,LV_PART_INDICATOR);lv_color_t c=charging?TC(STATUS_SUCCESS):pct<0?TC(TEXT_DISABLED):pct<15?TC(STATUS_DANGER):TC(ACCENT_PRIMARY);
  lv_obj_set_style_arc_color(qs_batt,c,LV_PART_INDICATOR);lv_obj_set_style_text_color(qs_batt_icon,c,0);
- lv_label_set_text(qs_batt_icon,charging?LV_SYMBOL_CHARGE:pct>=0&&pct<15?LV_SYMBOL_BATTERY_EMPTY:LV_SYMBOL_BATTERY_FULL);
+ lv_label_set_text(qs_batt_icon,charging?LV_SYMBOL_CHARGE:pct<0?"?":pct<15?LV_SYMBOL_BATTERY_EMPTY:LV_SYMBOL_BATTERY_FULL);
 }
 void simple_qs_refresh(int playing){
  if(!qs_root||screen_current()!=SCR_QUICK)return;
@@ -236,7 +249,7 @@ void simple_qs_art(const void*src){
 }
 void simple_qs_track(const char*t,const char*a,int p){(void)t;(void)a;simple_qs_refresh(p);}
 static void qs_tick(lv_timer_t*t){(void)t;if(screen_current()!=SCR_QUICK)return;simple_qs_refresh(ui_is_playing());
- if(qs_charging){int phase=lv_tick_get()%1600;lv_obj_set_style_arc_opa(qs_batt,140+115*(phase<800?phase:1600-phase)/800,LV_PART_INDICATOR);}
+ if(qs_charging&&qs_percent>=0){int phase=lv_tick_get()%1600;lv_obj_set_style_arc_opa(qs_batt,140+115*(phase<800?phase:1600-phase)/800,LV_PART_INDICATOR);}
 }
 void simple_qs_build(void){
  if(!qs_root)return;
@@ -254,7 +267,7 @@ void simple_qs_build(void){
 void simple_qs_create(lv_obj_t*r){
  qs_last_playing=qs_last_progress=-1;qs_root=r;lv_obj_set_style_bg_color(r,TC(CANVAS),0);lv_obj_set_style_bg_opa(r,255,0);
  qs_bright=arc(r,222,318,1);lv_arc_set_range(qs_bright,1,40);ui_on(qs_bright,qs_brightness,LV_EVENT_VALUE_CHANGED,NULL,"qs.brightness",UI_CORE);lv_obj_add_event_cb(qs_bright,qs_brightness,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(qs_bright,qs_brightness,LV_EVENT_PRESS_LOST,NULL);
- qs_batt=arc(r,42,138,0);
+ qs_batt=arc(r,42,138,0);lv_arc_set_mode(qs_batt,LV_ARC_MODE_REVERSE);
  label(r,"\xEF\x86\x85",166,20,28,TF(QS_ICON_28),TC(ACCENT_PRIMARY));
  qs_batt_icon=label(r,LV_SYMBOL_BATTERY_FULL,166,314,28,TF(UI_20),TC(ACCENT_PRIMARY));
  simple_qs_build();
@@ -262,9 +275,10 @@ void simple_qs_create(lv_obj_t*r){
  qs_cover=circle(r,180,180,116);lv_obj_set_style_clip_corner(qs_cover,1,0);lv_obj_set_style_bg_color(qs_cover,TC(CANVAS),0);lv_obj_set_style_bg_opa(qs_cover,255,0);
  qs_cover_img=lv_image_create(qs_cover);lv_obj_remove_flag(qs_cover_img,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_flag(qs_cover_img,LV_OBJ_FLAG_HIDDEN);kit_keep(qs_cover_img);
  lv_obj_t*wash=lv_obj_create(qs_cover);lv_obj_remove_style_all(wash);lv_obj_set_size(wash,116,116);lv_obj_set_style_bg_color(wash,TC(SCRIM),0);lv_obj_set_style_bg_opa(wash,55,0);lv_obj_remove_flag(wash,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);kit_keep(wash);
- lv_obj_t*badge=qs_pp_badge=circle(qs_cover,58,58,58);lv_obj_set_style_bg_color(badge,TC(CANVAS),0);lv_obj_set_style_bg_opa(badge,210,0);lv_obj_remove_flag(badge,LV_OBJ_FLAG_CLICKABLE);
- qs_pp_icon=label(badge,LV_SYMBOL_PLAY,0,0,58,TF(QS_ICON_36),TC(ACCENT_PRIMARY));lv_obj_center(qs_pp_icon);
- ui_on(qs_cover,qs_transport,LV_EVENT_SHORT_CLICKED,"0201000C0000","qs.pp",UI_CORE);
+  lv_obj_t*badge=qs_pp_badge=circle(qs_cover,58,58,40);lv_obj_set_style_bg_color(badge,TC(CANVAS),0);lv_obj_set_style_bg_opa(badge,210,0);
+ qs_pp_icon=label(badge,LV_SYMBOL_PLAY,0,0,40,TF(QS_ICON_28),TC(ACCENT_PRIMARY));lv_obj_center(qs_pp_icon);
+ ui_on(qs_cover,qs_music,LV_EVENT_SHORT_CLICKED,NULL,"qs.music",UI_CORE);
+ ui_on(badge,qs_transport,LV_EVENT_SHORT_CLICKED,"0201000C0000","qs.pp",UI_CORE);
  simple_qs_art(ui_current_cover_dsc()?ui_current_cover_dsc():ui_current_sharp_img());{int pct=qs_percent,charging=qs_charging;qs_percent=-2;simple_qs_battery(pct,charging);}simple_qs_refresh(ui_is_playing());if(!qs_timer)qs_timer=lv_timer_create(qs_tick,100,NULL);simple_qs_visible(screen_current()==SCR_QUICK);
 }
 /* Scoped component styler: keep inherited Disco geometry; change only this theme's surfaces. */
@@ -340,25 +354,41 @@ void simple_test_feedback_frame(int v){simple_action_feedback();lv_anim_delete(a
 /* Squash volume B: a bottom cap concentric with the launcher, without a full-screen scrim. */
 static lv_obj_t *sv_root,*sv_sheet,*sv_arc,*sv_value;
 static lv_timer_t *sv_timer;
-static int sv_pending,sv_closing,sv_offset=64,sv_local;
-static uint32_t sv_sent,sv_touch;
+static int sv_pending,sv_closing,sv_offset=64,sv_local,sv_target,sv_failures;
+static int sv_echo,sv_echo_valid;
+static uint32_t sv_sent,sv_touch,sv_activity;
 static void sv_frame(void*o,int32_t y){sv_offset=y;lv_obj_set_y(o,y);}
 static void sv_hidden(lv_anim_t*a){(void)a;if(sv_closing){lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);sv_closing=0;}}
 int simple_volume_visible(void){return sv_root&&!lv_obj_has_flag(sv_root,LV_OBJ_FLAG_HIDDEN);}
 static void sv_close(void){
  if(!simple_volume_visible()||sv_closing)return;
- if(sv_timer)lv_timer_pause(sv_timer);sv_closing=1;lv_anim_delete(sv_sheet,sv_frame);
+ if(sv_timer&&!sv_pending)lv_timer_pause(sv_timer);sv_closing=1;lv_anim_delete(sv_sheet,sv_frame);
  lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,144);lv_anim_set_duration(&a,110);lv_anim_set_path_cb(&a,lv_anim_path_ease_in);lv_anim_set_completed_cb(&a,sv_hidden);lv_anim_start(&a);
 }
 static void sv_dismiss(lv_event_t*e){(void)e;sv_close();}
-static void sv_wake(void){lv_timer_reset(sv_timer);lv_timer_resume(sv_timer);}
-static void sv_timeout(lv_timer_t*t){if(lv_obj_has_state(sv_arc,LV_STATE_PRESSED)){lv_timer_reset(t);return;}sv_close();}
+static void sv_wake(void){sv_activity=lv_tick_get();lv_timer_resume(sv_timer);}
 static void sv_number(int v){char b[12];snprintf(b,sizeof b,"%d",v);if(strcmp(lv_label_get_text(sv_value),b))lv_label_set_text(sv_value,b);}
+static void sv_flush(void){
+ sv_sent=lv_tick_get();
+ if(ui_set_volume(sv_target)==0){sv_pending=0;sv_failures=0;sv_echo_valid=0;sv_touch=lv_tick_get();}
+ else if(++sv_failures>=4){sv_pending=0;ui_toast("Couldn't set volume");}
+}
+static void sv_timeout(lv_timer_t*t){
+ int pressed=lv_obj_has_state(sv_arc,LV_STATE_PRESSED);
+ if(sv_pending&&!pressed&&lv_tick_elaps(sv_sent)>=120)sv_flush();
+ /* Keep only the newest player report during a drag; reconcile once echoes settle. */
+ if(!pressed&&!sv_pending&&sv_local&&lv_tick_elaps(sv_touch)>=350){
+  sv_local=0;
+  if(sv_echo_valid){lv_arc_set_value(sv_arc,sv_echo);sv_number(sv_echo);sv_echo_valid=0;}
+ }
+ if(!pressed&&lv_tick_elaps(sv_activity)>=1800)sv_close();
+ if(!simple_volume_visible()&&!sv_pending)lv_timer_pause(t);
+}
 static void sv_event(lv_event_t*e){
  lv_event_code_t c=lv_event_get_code(e);int v=lv_arc_get_value(sv_arc);
- if(c==LV_EVENT_VALUE_CHANGED){sv_local=1;sv_touch=lv_tick_get();sv_number(v);sv_pending=1;
-  if(lv_tick_elaps(sv_sent)>=120){sv_pending=ui_set_volume(v)!=0;sv_sent=lv_tick_get();}}
- if((c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST)&&sv_pending){sv_pending=ui_set_volume(v)!=0;sv_sent=lv_tick_get();sv_touch=lv_tick_get();}
+ if(c==LV_EVENT_VALUE_CHANGED){sv_local=1;sv_touch=lv_tick_get();sv_number(v);sv_target=v;sv_pending=1;sv_failures=0;sv_echo_valid=0;
+  if(lv_tick_elaps(sv_sent)>=120)sv_flush();}
+ if(c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST){if(sv_pending)sv_flush();if(sv_local)sv_touch=lv_tick_get();}
  if(c==LV_EVENT_PRESSED||c==LV_EVENT_PRESSING||c==LV_EVENT_VALUE_CHANGED||c==LV_EVENT_RELEASED||c==LV_EVENT_PRESS_LOST)sv_wake();
 }
 void simple_volume_show(int value){
@@ -372,10 +402,11 @@ void simple_volume_show(int value){
   lv_obj_t*hub=circle(sv_sheet,180,316,72);lv_obj_set_style_bg_color(hub,TC(CANVAS),0);lv_obj_set_style_bg_opa(hub,255,0);lv_obj_add_event_cb(hub,sv_dismiss,LV_EVENT_CLICKED,NULL);
   lv_obj_t*l=label(hub,"D!",0,0,90,&diskos_splash_disco_72,TC(ACCENT_PRIMARY));lv_obj_set_style_transform_scale_x(l,124,0);lv_obj_set_style_transform_scale_y(l,124,0);lv_obj_set_style_transform_pivot_x(l,45,0);lv_obj_set_style_transform_pivot_y(l,36,0);lv_obj_center(l);
   label(sv_sheet,"0",49,282,36,TF(UI_14),TC(TEXT_SECONDARY));char max[12];snprintf(max,sizeof max,"%d",VOL_MAX);label(sv_sheet,max,275,282,36,TF(UI_14),TC(TEXT_SECONDARY));
-  sv_timer=lv_timer_create(sv_timeout,1800,NULL);lv_timer_pause(sv_timer);lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);
+  sv_timer=lv_timer_create(sv_timeout,50,NULL);lv_timer_pause(sv_timer);lv_obj_add_flag(sv_root,LV_OBJ_FLAG_HIDDEN);
  }
  int opening=!simple_volume_visible()||sv_closing;
- if(opening||(!lv_obj_has_state(sv_arc,LV_STATE_PRESSED)&&(!sv_local||lv_tick_elaps(sv_touch)>=350))){lv_arc_set_value(sv_arc,value);sv_number(value);sv_pending=0;sv_local=0;}
+ sv_echo=value;sv_echo_valid=1;
+ if(!sv_pending&&!lv_obj_has_state(sv_arc,LV_STATE_PRESSED)&&(!sv_local||lv_tick_elaps(sv_touch)>=350)){lv_arc_set_value(sv_arc,value);sv_number(value);sv_local=0;sv_echo_valid=0;}
  lv_obj_remove_flag(sv_root,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(sv_root);sv_wake();
  if(opening){sv_closing=0;lv_anim_delete(sv_sheet,sv_frame);if(sv_offset>64)sv_offset=64;sv_frame(sv_sheet,sv_offset);lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,0);lv_anim_set_duration(&a,140);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);}
 }
