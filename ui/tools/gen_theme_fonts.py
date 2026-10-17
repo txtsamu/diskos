@@ -20,24 +20,12 @@ GLITCH = '0x20-0x7E'
 
 # theme -> [(face, source file, {axis: value} or None, sizes, range)]
 FONTS = {
-    'hifi': [('ui', 'concepts/Inter-VF.ttf', {'wght': 600}, (12, 14, 16, 18, 20, 24), TEXT),
-             ('seg', 'concepts/DSEG7Classic-Bold.ttf', None, (20, 64), CLOCK)],
-    'term': [('ui', 'concepts/JetBrainsMono-VF.ttf', {'wght': 500}, (12, 14, 16, 18, 20, 24), TEXT),
-             ('clk', 'concepts/JetBrainsMono-VF.ttf', {'wght': 800}, (72,), CLOCK)],
-    'bauh': [('ui', 'concepts/SpaceGrotesk-VF.ttf', {'wght': 500}, (12, 14, 16, 18, 20, 24), TEXT),
-             ('bold', 'concepts/SpaceGrotesk-VF.ttf', {'wght': 700}, (22, 32), TEXT),
-             ('clk', 'concepts/SpaceGrotesk-VF.ttf', {'wght': 700}, (96, 140), CLOCK)],
-    'blue': [('sans', 'concepts/IBMPlexSans-VF.ttf', {'wght': 500}, (14, 16, 18, 20), TEXT),
-             ('clk', 'something/IBMPlexMono-Regular.ttf', None, (56,), CLOCK)],
+    # Shared by Braun: retain this Inter Semibold face after hi-fi retirement.
+    'hifi': [('ui', 'concepts/Inter-VF.ttf', {'wght': 600}, (24,), TEXT)],
     'stone': [('ui', 'concepts/Nunito-VF.ttf', {'wght': 700}, (12, 14, 16, 18, 20, 24), TEXT),
               ('clk', 'concepts/Nunito-VF.ttf', {'wght': 800}, (64,), CLOCK)],
-    'zine': [('ui', 'concepts/CourierPrime-Regular.ttf', None, (12, 14, 16, 18, 20, 24), TEXT),
-             ('bold', 'concepts/CourierPrime-Bold.ttf', None, (16, 20), TEXT),
-             ('glitch', 'concepts/RubikGlitch-Regular.ttf', None, (26,), GLITCH),
-             ('clk', 'concepts/CourierPrime-Bold.ttf', None, (50,), CLOCK)],
-    # the boot splash wordmark: a light "disk" and a bold "OS", only those letters
     'splash': [('light', 'concepts/Inter-VF.ttf', {'wght': 300}, (26,), '0x64,0x69,0x6B,0x73'),
-               ('bold', 'concepts/Inter-VF.ttf', {'wght': 700}, (26,), '0x4F,0x53')],
+               ('bold', 'concepts/Inter-VF.ttf', {'wght': 700}, (26,), '0x4F,0x53')]
 }
 
 

@@ -39,9 +39,11 @@ int theme_font_size(void);   /* 0 Small, 1 Medium (default), 2 Large: cfg "font_
 void        theme_init(void);
 int         theme_variant(void);                    /* 0 dark, 1 light (the active one) */
 int         theme_outdoor(void);                    /* 1 = Outdoor mode (light variant + full backlight) this run */
-/* Built-in colour presets (cfg "theme_preset"): 0 = Default, then the generated ones (theme_presets.inc). Each has an
- * explicit dark and light palette; Appearance / Outdoor pick which of the two is active. */
-#define THEME_PRESET_COUNT 13
+/* Built-in presets keep their shipped configuration IDs. Retired slots are unavailable.
+ * Each active preset has dark/light palettes; Appearance / Outdoor selects the variant. */
+#define THEME_PRESET_COUNT 13 /* saved-ID capacity, including retired holes */
+#define THEME_PRESET_STONE 6
+int theme_preset_available(int preset);
 #define THEME_PRESET_SQUASH 12
 #define THEME_PRESET_SIMPLE THEME_PRESET_SQUASH /* saved ID / internal compatibility */
 int th_simple(void);

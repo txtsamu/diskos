@@ -17,7 +17,7 @@ def palette(name):
 base={'schema':1,'revision':1,'id':'custom','name':'Compatibility','accent_policy':'allow_album',
       'traits':{'background':'solid','now_playing':'standard','quick_settings':'fill'}}
 for variant in ('dark','light'):
-    pal=palette('PRESET_SOMETHING_'+variant.upper())
+    pal=palette('PRESET_STONE_'+variant.upper())
     base[variant]={key:pal[role] for role,key in keys.items() if role not in optional}
 source=r'''
 #include "theme_model.h"

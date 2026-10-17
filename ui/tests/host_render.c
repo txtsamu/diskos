@@ -565,6 +565,13 @@ int main(int argc, char **argv){
     if(getenv("NULL_FONTS"))cfg_set_int_deferred("null_music_fonts",atoi(getenv("NULL_FONTS")));
     if(getenv("NULL_CTRL"))cfg_set_int_deferred("null_controls",atoi(getenv("NULL_CTRL")));
     theme_init();
+    if(!strcmp(argv[3],"theme-retirement")){
+        int requested=atoi(argv[1]),expected=theme_preset_available(requested)?requested:THEME_PRESET_DISCO;
+        assert(theme_preset()==expected&&cfg_get_int("theme_preset",-1)==expected);
+        assert(THEME_PRESET_RING==8&&THEME_PRESET_BRAUN==9&&THEME_PRESET_STONE==6);
+        assert(!theme_def_find("something")&&!theme_def_find("hi-fi")&&!theme_def_find("terminal")&&!theme_def_find("bauhaus")&&!theme_def_find("blueprint")&&!theme_def_find("zine"));
+        puts("PASS: retired theme IDs migrate safely to Disco; visible IDs and definitions retained");return 0;
+    }
     if(!strcmp(argv[3],"shutdown")){
         screen_set_anim(0); screens_init(); ui_shutdown_screen();
         goto render;

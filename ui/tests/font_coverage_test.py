@@ -8,7 +8,7 @@ app = Path(__file__).resolve().parents[1]
 # vendored beside the sources (public ui/ tree) or one level up (dev tree)
 lvgl = next(c for c in (app/'lvgl', app.parent/'lvgl') if (c/'src/font/lv_font.c').exists())
 source = (app/'ui.c').read_text()
-a=source.rindex('static lv_font_t s_cjk;'); b=source.index('void ui_create(',a)
+a=source.rindex('static lv_font_t s_cjk;'); b=source.index('const lv_font_t *ui_font_user(',a)
 chain=source[a:b]
 points=sorted(set(map(ord,'世界贈予我的妖精帝國曼衍珠汝華Nada Upasana PundarikaLudwig GöranssonZeus’s Law‘’ЛенинградΑθήνα'))- {32})
 header=r'''

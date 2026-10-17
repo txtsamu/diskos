@@ -8,6 +8,9 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
+- Removed: hidden legacy theme registrations, component kits, palettes and 39 unshared font sources. Preserve visible Stone, Ring, Braun, Disco, Null and Squash at their original IDs; retired IDs migrate to Disco. Braun's shared 24 px title face remains.
+- Validation: 36 Ring/Braun render comparisons are byte-identical across light/dark Home, NP, QS, Library, Settings, EQ, Search, Queue and standby; active/retired ID migration and Stone palette preservation pass.
+
 - Changed: QS EQ tap toggles the remembered preset with an On/Off + preset popup; Hold opens Equalizer in all themes. Active styling follows the selected state, including renamed user presets.
 - Fixed: centred Squash overflow metadata returns to its beginning after scrolling; new short metadata restores configured alignment.
 - Performance: Squash reuses valid local artwork across folders for matching album/artist; faster fixed-ratio blur upscaling retains exact previous output bytes and compacts conversion in place.

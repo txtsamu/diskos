@@ -269,3 +269,9 @@ Squash Music overflow text returns to its first character after three scrolling 
 The 120-to-360 blur upscale uses exact fixed-ratio coefficients and two contributing pixels instead of generic zero-weight taps; blur-to-RGB conversion compacts in place. Output is byte-identical to the previous interpolation. Twelve direct pixel comparisons and four PNG/JPEG/EXIF fixtures across all decoder modes pass. A native upscale microbenchmark is about three times faster; device end-to-end decode performance remains unmeasured.
 
 Both appearances use a faint one-pixel D! shadow on the menu and volume hubs. Long launcher names wrap within a 224 px, two-line field with cached font fitting above D!; exceptionally long names use a bounded ellipsis rather than overflowing. Icon positions and touch targets retain their existing behavior.
+
+## Hidden legacy-theme retirement
+
+The hidden Default, something, hi-fi, terminal, bauhaus, blueprint and zine presets are retired. Their dedicated component implementations, palettes and 39 unshared font sources are removed. Ring remains ID 8 and Braun ID 9; Disco 10, Null 11, Squash 12 and the still-visible Stone 6 retain their original IDs. Old retired IDs migrate to Disco. Shared default palette/fallback infrastructure and Braun's reused Inter Semibold 24 px face are retained.
+
+Validation compares 36 Ring/Braun Home, Now Playing, QS, Library, Settings, EQ, Search, Queue and screensaver renders in light/dark before and after cleanup. All pixel bytes match with identical queue fixtures. Stone's palette bytes also match, and 26 valid/retired configuration checks pass.

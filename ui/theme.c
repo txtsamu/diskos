@@ -342,17 +342,19 @@ static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
 
 typedef struct { const char *name; const uint32_t *dark, *light; } theme_preset_t;
 static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], FORK_DISCO[2][THEME_CLR_COUNT], FORK_NULL[2][THEME_CLR_COUNT], FORK_SIMPLE[2][THEME_CLR_COUNT];
-static const theme_preset_t PRESETS[] = {
-    { "Default", DEFAULT_DARK, DEFAULT_LIGHT },
+/* Sparse slots preserve every shipped theme ID; retired IDs are unavailable. */
+static const theme_preset_t PRESETS[THEME_PRESET_COUNT] = {
     THEME_PRESETS_GENERATED
-    { "Ring", FORK_RING[0], FORK_RING[1] },
-    { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
-    { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
-    { "Null", FORK_NULL[0], FORK_NULL[1] },
-    { "Squash", FORK_SIMPLE[0], FORK_SIMPLE[1] },
+    [THEME_PRESET_RING] = { "Ring", FORK_RING[0], FORK_RING[1] },
+    [THEME_PRESET_BRAUN] = { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
+    [THEME_PRESET_DISCO] = { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
+    [THEME_PRESET_NULL] = { "Null", FORK_NULL[0], FORK_NULL[1] },
+    [THEME_PRESET_SIMPLE] = { "Squash", FORK_SIMPLE[0], FORK_SIMPLE[1] },
 };
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
-const char *const theme_preset_names[THEME_PRESET_COUNT] = { "Default", THEME_PRESET_NAMES_GENERATED, "Ring", "Braun", "Disco", "Null", "Squash" };
+const char *const theme_preset_names[THEME_PRESET_COUNT] = { THEME_PRESET_NAMES_GENERATED,
+ [THEME_PRESET_RING]="Ring",[THEME_PRESET_BRAUN]="Braun",[THEME_PRESET_DISCO]="Disco",[THEME_PRESET_NULL]="Null",[THEME_PRESET_SIMPLE]="Squash" };
+int theme_preset_available(int preset){return preset>=0&&preset<THEME_PRESET_COUNT&&PRESETS[preset].name!=NULL;}
 static int g_preset;
 static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
 static int g_custom_on, g_custom_fixed_accent;
@@ -615,6 +617,9 @@ void theme_init(void){
     g_outdoor = outdoor;
     g_variant = (outdoor || cfg_get_int("theme_variant", 1) == 1) ? 1 : 0;
     g_preset = cfg_get_int("theme_preset", THEME_PRESET_BRAUN);
+    if(g_preset!=THEME_PRESET_CUSTOM&&!theme_preset_available(g_preset)){
+        g_preset=THEME_PRESET_DISCO;cfg_set_int("theme_preset",g_preset);
+    }
     if(g_preset==THEME_PRESET_NULL)g_variant=0;
     if(theme_auto_supported() && cfg_get_int("theme_auto",0) && !outdoor){
         time_t now=time(NULL); struct tm tm; localtime_r(&now,&tm);
@@ -626,10 +631,9 @@ void theme_init(void){
         g_custom_on = 1;
         g_pal = g_custom[g_variant];
     } else if(g_preset == THEME_PRESET_CUSTOM){
-        g_preset = 0;                                   /* use Default this run; KEEP the choice (the file may be back) */
-        g_pal = g_variant ? DEFAULT_LIGHT : DEFAULT_DARK;
+        g_preset = THEME_PRESET_DISCO;  /* temporary fallback; KEEP the custom choice in configuration */
+        g_pal = g_variant ? FORK_DISCO[1] : FORK_DISCO[0];g_def=theme_def_find("Disco");
     } else {
-        if(g_preset < 0 || g_preset >= THEME_PRESET_COUNT){ g_preset = 0; cfg_set_int("theme_preset", 0); }   /* Settings shows it */
         g_pal = g_variant ? PRESETS[g_preset].light : PRESETS[g_preset].dark;
         g_def = theme_def_find(PRESETS[g_preset].name);   /* NULL for Default */
     }
@@ -637,7 +641,7 @@ void theme_init(void){
      * refused as a whole rather than half-applied */
     for(int r = THEME_CLR_FIXED_LASTFM; r <= THEME_CLR_FIXED_MEDIA_ARTIST; r++)
         if(g_pal[r] != DEFAULT_DARK[r]){ fprintf(stderr, "theme: palette changes fixed role %d, using dark\n", r);
-                                         g_pal = DEFAULT_DARK; g_variant = 0; g_preset = 0; g_custom_on = 0; g_def = NULL; break; }
+                                         g_pal = FORK_DISCO[0]; g_variant = 0; g_preset = THEME_PRESET_DISCO; g_custom_on = 0; g_def = theme_def_find("Disco"); break; }
     g_traits = g_def ? g_def->traits : 0;
     if(g_def && g_def->texture != THEME_TEX_NONE) g_traits |= 1u << THEME_TRAIT_DOT_GRID;   /* textured screens */
     theme_fonts_install();
@@ -648,7 +652,7 @@ int theme_outdoor(void){ return g_outdoor; }
 int theme_preset(void){ return g_preset; }
 int theme_custom_active(void){ return g_custom_on; }
 lv_color_t theme_preset_color(int preset, theme_color_role_t role){
-    if(preset < 0 || preset >= THEME_PRESET_COUNT || (unsigned)role >= THEME_CLR_COUNT) return lv_color_hex(0xFF00FF);
+    if(!theme_preset_available(preset) || (unsigned)role >= THEME_CLR_COUNT) return lv_color_hex(0xFF00FF);
     return lv_color_hex((g_variant ? PRESETS[preset].light : PRESETS[preset].dark)[role]);
 }
 
