@@ -1,17 +1,16 @@
 {
   "version": "2.5.0",
-  "revision": "Squash hero, bold touch playback, Volume B, How to and contextual hints",
-  "status": "native interaction, theme and website source checks passed; physical Disc flash not performed in this environment",
-  "source_commit": "bfe967b8df4618f2a0388cde47c50921dfe2db21",
-  "baseline": "005440795943c2af8865cc8e4b6a0f40e50febf9",
-  "previous_candidate": "67dccfdec879932b125821cd344514c5aff50d48",
-  "ui_source_sha256": "9baa13b601410e6d653a38eb64605ac6216c261f92f0a8ed49669d8fc12ff32b",
+  "revision": "Squash follow-up: volume retries and reconciliation, gesture fixes, QS cover navigation and right-end full battery, reduced redraw work",
+  "status": "Nine focused native regression runs and dark/light UI inspection passed; no physical Disc flash performed",
+  "source_commit": "277c63b0229e26de0e1814007bb0e2f35965c10e",
+  "baseline": "6329b789205713ff43802090870932daebafe859",
+  "ui_source_sha256": "0c06f6f79e2ee7b1a61fb3ae54c1c4bec62b1e3faaf2536c9b34a95c5f597ea5",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
   "binary": {
-    "sha256": "6d7a0989c5b1dedfa4b0329f7a64c78765566b55fcc3c09313a068f9e8c76912",
-    "md5": "87da76d361e8bcb1c144ac86bda75d6d",
-    "bytes": 6885704
+    "sha256": "1ad1d9c59d6c5d6ef2e6478209a3ef3cda1ee6f44ab8fa7c12cf3c8e88e0e112",
+    "md5": "148300f994247b2a3cc740bcbffc0d64",
+    "bytes": 6887084
   }
 }
