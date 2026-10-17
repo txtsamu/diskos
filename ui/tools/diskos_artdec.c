@@ -741,13 +741,39 @@ static int make(const pic_t *p, int N, int box, int blurred, uint16_t **res){
 
 /* Squash: a moderate blur at one third resolution, then bilinear upscale.
  * The old art profile remains byte-for-byte on its original filter path. */
+/* Exact 3x bilinear coefficients, matching resample()'s 14-bit weights and
+ * two-pass rounding. Only two source pixels contribute; avoid generic zero
+ * taps, coefficient allocations and a second copy of the axis table. */
+static uint16_t *soft_upscale3(const unsigned char *rgb){
+ enum { SMALL=120,N=360 };
+ uint16_t lo[N],hi[N],weight[N];
+ for(int i=0;i<N;i++){
+  int base=i?((i-1)/3):0,phase=i?((i-1)%3):0;
+  lo[i]=base;hi[i]=base<SMALL-1?base+1:base;
+  weight[i]=phase==1?5461:phase==2?10923:0;
+ }
+ uint16_t *tmp=bmalloc(sizeof(uint16_t)*SMALL*N*3),*out=bmalloc(sizeof(uint16_t)*N*N*3);
+ if(!tmp||!out){bfree(tmp);bfree(out);return NULL;}
+ for(int y=0;y<SMALL;y++)for(int x=0;x<N;x++){
+  const unsigned char *a=rgb+((size_t)y*SMALL+lo[x])*3,*b=rgb+((size_t)y*SMALL+hi[x])*3;
+  uint16_t *t=tmp+((size_t)y*N+x)*3;uint32_t w=weight[x];
+  for(int c=0;c<3;c++)t[c]=(uint16_t)(((WSUM-w)*a[c]+w*b[c]+32)>>6);
+ }
+ for(int y=0;y<N;y++){
+  const uint16_t *a=tmp+(size_t)lo[y]*N*3,*b=tmp+(size_t)hi[y]*N*3;uint16_t *o=out+(size_t)y*N*3;uint32_t w=weight[y];
+  if(!w||lo[y]==hi[y]){memcpy(o,a,sizeof(uint16_t)*N*3);continue;}
+  for(int x=0;x<N*3;x++)o[x]=(uint16_t)(((WSUM-w)*a[x]+w*b[x]+WSUM/2)>>WBITS);
+ }
+ bfree(tmp);return out;
+}
 static int make_soft_backdrop(const pic_t*p,uint16_t **res){
  enum { SMALL=120 };static const int boxes[3]={5,7,7};
  uint16_t*small=resample(p->rgb,p->w,p->h,SMALL,0);if(!small)return ST_LIMIT;
  if(orient(&small,SMALL,p->orient)||blur_boxes(small,SMALL,boxes)){bfree(small);return ST_LIMIT;}
- unsigned char*rgb=bmalloc(SMALL*SMALL*3);if(!rgb){bfree(small);return ST_LIMIT;}
+ /* Compact safely in place: each output byte precedes the next uint16 input. */
+ unsigned char*rgb=(unsigned char*)small;
  for(int i=0;i<SMALL*SMALL*3;i++){unsigned v=(small[i]+128u)>>8;rgb[i]=(unsigned char)(v>255?255:v);}
- bfree(small);*res=resample(rgb,SMALL,SMALL,360,0);bfree(rgb);return *res?ST_OK:ST_LIMIT;
+ *res=soft_upscale3(rgb);bfree(small);return *res?ST_OK:ST_LIMIT;
 }
 
 /* Resource limits for this process. Returns -1 if any could not be applied: the helper then refuses to run

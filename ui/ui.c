@@ -133,6 +133,8 @@ static char g_stat_path[256];   /* last track counted in play history (count onc
  * NOT reuse across two genuinely-different albums that merely share a title in different
  * folders. For a flat library it degrades to album-only - no worse than before. */
 static char last_art_key[420];
+static char simple_art_album[160],simple_art_artist[160];
+static int simple_art_reusable;
 void ui_art_redo(void){ last_path[0] = 0; last_art_key[0] = 0; g_art_force = 1; }  /* key of the art currently shown */
 static char want_art_key[420];  /* key the CURRENT track wants; a finished decode applies only if it matches */
 static char last_seed_a[160];
@@ -1976,6 +1978,9 @@ static void apply_art(const art_req_t *job)
     if(np_acc_set)np_acc=theme_color_from_rgb(job->rgb);
     apply_accent();   /* poster: album colour */
     copy_cstr(last_art_key, sizeof last_art_key, job->art_key);   /* cache key (album+dir) */
+    copy_cstr(simple_art_album,sizeof simple_art_album,job->album);
+    copy_cstr(simple_art_artist,sizeof simple_art_artist,job->artist);
+    simple_art_reusable=!job->from_net&&!mdb_is_book_path(job->track);
     if(backdrop) {
         lv_image_set_src(backdrop, backdrop_src);
         lv_obj_remove_flag(backdrop, LV_OBJ_FLAG_HIDDEN);
@@ -2312,8 +2317,12 @@ static void update_cover_for_path(const track_state_t *st)
     copy_cstr(want_art_key, sizeof want_art_key, art_key);   /* what the live track wants now */
 
     /* Art is shared within an album/folder: same key + valid art -> reuse, skip ffmpeg. */
-    if(st->album[0] && cover_valid && coverdsc_valid && strcmp(last_art_key, art_key) == 0) {
+    int same_simple_album=th_simple()&&simple_art_reusable&&last_art_key[0]&&
+        st->album[0]&&st->artist[0]&&!mdb_is_book_path(st->path)&&
+        !strcmp(simple_art_album,st->album)&&!strcmp(simple_art_artist,st->artist);
+    if(st->album[0] && cover_valid && coverdsc_valid && (strcmp(last_art_key, art_key) == 0||same_simple_album)) {
         copy_cstr(last_path, sizeof(last_path), st->path);
+        if(same_simple_album)copy_cstr(last_art_key,sizeof last_art_key,art_key);
         /* art is already valid for this album - ensure the cover is shown (recovers
          * if a previous in-flight load had swapped in the loading glyph and then a
          * same-album track arrived before that decode landed). If a different album

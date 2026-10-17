@@ -259,3 +259,13 @@ Drag writes are limited to one per 120 ms, with the final deferred value committ
 - Performance: unchanged status labels are retained; the hidden launcher counter is removed; launcher positioning interpolates LVGL's integer sine table. The display refresh schedule uses 16 ms during animation/touch and 33 ms at rest. These are scheduling changes, not measured device FPS or battery-life claims.
 
 Native regression checks cover failed volume writes and retry exhaustion, echo reconciliation, slow swipes, idle navigation, independent QS artwork/control targets, battery direction and unknown state, refresh scheduling, launcher gestures, metadata scrolling and shared QS editing in Squash, Disco and Null. Physical-device validation remains outstanding.
+
+## QS EQ, artwork and finishing follow-up
+
+The EQ shortcut now shares its behavior across every theme: tap toggles Off / the last non-Off preset, with an EQ On or EQ Off popup and the remembered preset name (including custom names). Hold opens the normal Equalizer screen. Failed sends keep the previous selection; QS active styling follows the current successfully selected preset.
+
+Squash Music overflow text returns to its first character after three scrolling cycles, even with centred text selected. A new short title restores the saved alignment. Artwork stays in memory for a matching nonempty album/artist across music folders, including multi-disc folders; existing same-folder compilation reuse remains. Different artists across folders, audiobooks, explicit art refresh and missing/stale art still load independently. Online track-specific images retain the existing refresh behavior.
+
+The 120-to-360 blur upscale uses exact fixed-ratio coefficients and two contributing pixels instead of generic zero-weight taps; blur-to-RGB conversion compacts in place. Output is byte-identical to the previous interpolation. Twelve direct pixel comparisons and four PNG/JPEG/EXIF fixtures across all decoder modes pass. A native upscale microbenchmark is about three times faster; device end-to-end decode performance remains unmeasured.
+
+Both appearances use a faint one-pixel D! shadow on the menu and volume hubs. Long launcher names wrap within a 224 px, two-line field with cached font fitting above D!; exceptionally long names use a bounded ellipsis rather than overflowing. Icon positions and touch targets retain their existing behavior.

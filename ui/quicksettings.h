@@ -7,6 +7,7 @@ const char *quicksettings_item_glyph(int id);
 int quicksettings_item_count(void);
 int quicksettings_item_limit(void);
 int quicksettings_playback_item(void);
+int quicksettings_equalizer_item(void);
 int quicksettings_item_active(int);
 const qs_item_t *quicksettings_item(int id);
 int quicksettings_items_load(int *items);

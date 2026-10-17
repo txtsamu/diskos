@@ -26,5 +26,6 @@ void null_volume_show(int value);
 void null_qs_battery(int percent, int charging);
 void null_qs_create(lv_obj_t *root);
 void null_qs_build(void);
+void null_qs_refresh(void);
 void null_qs_slide(int open);
 #endif

@@ -53,7 +53,8 @@ static const qs_item_t CATALOG[Q_COUNT]={
 int quicksettings_item_count(void){return Q_COUNT;}
 int quicksettings_item_limit(void){return (th_null()||th_simple())?8:th_disco()?7:6;}
 int quicksettings_playback_item(void){return Q_PLAYBACK;}
-int quicksettings_item_active(int id){return id==T_WIFI?wifi_radio_live()>0:id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():id==T_MODE?ui_get_source_mode()!=0:id==Q_EQ?simple_cfg_get_int("eq_preset",0)>0:id==Q_PLAYBACK?simple_cfg_get_int("work_mode",0)!=0:0;}
+int quicksettings_equalizer_item(void){return Q_EQ;}
+int quicksettings_item_active(int id){int p=simple_cfg_get_int("eq_preset",0);return id==T_WIFI?wifi_radio_live()>0:id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():id==T_MODE?ui_get_source_mode()!=0:id==Q_EQ?p>0&&p<=20:id==Q_PLAYBACK?simple_cfg_get_int("work_mode",0)!=0:0;}
 static const char*playback_glyph(void){static const char*const g[]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};int v=simple_cfg_get_int("work_mode",0);return g[v>=0&&v<5?v:0];}
 const qs_item_t *quicksettings_item(int id){return id>=0 && id<Q_COUNT?&CATALOG[id]:NULL;}
 int quicksettings_items_load(int *out){
@@ -127,6 +128,14 @@ static void paint_radios(void){
     orbit_set_pending(&g_orb,pending,acc);
 }
 static void rescan_go(void){ ui_rescan_library(); ui_toast("Rescan requested"); rescan_show(1); }
+static void eq_toggle(void){
+ int preset=0;
+ if(!quicksettings_item_active(Q_EQ)){preset=simple_cfg_get_int("eq_last",1);if(preset<1||preset>20)preset=1;}
+ if(ui_eq_select(preset)<0){ui_toast("Couldn't switch EQ");return;}
+ int remembered=preset?preset:simple_cfg_get_int("eq_last",1);if(remembered<1||remembered>20)remembered=1;
+ char message[160];snprintf(message,sizeof message,"EQ %s\nPreset: %s",preset?"On":"Off",ui_eq_name(remembered));ui_toast(message);
+ quicksettings_refresh(ui_is_playing());
+}
 static void pick_cb(int i){                                       /* short taps */
     switch(i){
         case T_WIFI: { int on = wifi_toggle(); orbit_set_on(&g_orb,T_WIFI,on,th_ringlike()?ui_current_accent():TC(ACCENT_PRIMARY));
@@ -138,7 +147,7 @@ static void pick_cb(int i){                                       /* short taps 
                        fileops_confirm("Rescan library?", "Looks for new and changed music", "Rescan", rescan_go); break;
         case T_MODE:   modes_open(); break;
         case T_SET:    screen_show(SCR_SETTINGS); break;
-        case Q_EQ: screen_show(SCR_EQ);break;
+        case Q_EQ: eq_toggle();break;
         case Q_SEARCH: screen_show(SCR_SEARCH);break;
         case Q_QUEUE: queue_open();break;
         case Q_UPNEXT: upnext_open();break;
@@ -210,14 +219,14 @@ static void dq_paint(void){
     if(!th_disco_family())return;
     lv_color_t acc=ui_current_accent();
     for(int i=0;i<g_nitems;i++){
-        int id=g_items[i],on=id==T_WIFI?wifi_radio_live():id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():0;
+        int id=g_items[i],on=quicksettings_item_active(id);
         if(!g_dq_ico[i])continue;
         if(g_dq_row[i] && !lv_color_eq(lv_obj_get_style_border_color(g_dq_row[i],0),acc)){
             lv_obj_set_style_border_color(g_dq_row[i],acc,0);
             lv_obj_set_style_border_color(g_dq_row[i],acc,LV_STATE_PRESSED);
         }
         set_col_if(g_dq_ico[i],on?acc:TC(TEXT_PRIMARY));
-        if(id==T_WIFI || id==T_BT){
+        if(id==T_WIFI || id==T_BT || id==Q_EQ){
             set_text_if(g_dq_val[i],id==T_BT && bt_state()==BT_TURNING_ON?"...":on?"On":"Off");
             if(g_dq_badge[i]){
                 lv_color_t color=on?acc:TC(SURFACE_RAISED);
@@ -233,7 +242,7 @@ static void dq_row_cb(lv_event_t *e){
     int slot=(int)(intptr_t)lv_event_get_user_data(e);if(slot<0 || slot>=g_nitems)return;
     int id=g_items[slot];
     if(lv_event_get_code(e)==LV_EVENT_LONG_PRESSED){
-        if(id==T_WIFI)wifi_open();else if(id==T_BT)bt_open();else ui_toast(CATALOG[id].name);
+        quicksettings_null_action(id,1);
     }else if(lv_event_get_code(e)==LV_EVENT_SHORT_CLICKED){pick_cb(id);dq_paint();}
 }
 static const lv_font_t *row_font_list(const char *text,int width,int height){   /* the Library's row font, smaller only if needed */
@@ -550,6 +559,7 @@ void quicksettings_set_volume(int vol){ (void)vol; }       /* the volume arc gav
 void quicksettings_refresh(int playing)
 {
     if(th_simple()){simple_qs_refresh(playing);return;}
+    if(th_null()){null_qs_refresh();return;}
     if(!g_prog)return;
     if(g_pp_glyph) lv_label_set_text(g_pp_glyph, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
     if(g_bright && !lv_obj_has_state(g_bright, LV_STATE_PRESSED))   /* don't fight an active drag */
@@ -597,4 +607,4 @@ void qsconfig_refresh(void){ }
 lv_obj_t *quicksettings_test_button(int slot){extern lv_obj_t*null_test_qs_field(int);if(th_simple())return simple_test_qs_button(slot);if(th_null())return null_test_qs_field(slot);return slot>=0&&slot<g_nitems?(th_disco()?g_dq_row[slot]:g_orb.btn[slot]):NULL;}
 lv_obj_t *quicksettings_test_disc(void){return g_cover_clip;}
 
-void quicksettings_null_action(int id,int hold){if(hold && (id==T_WIFI || id==T_BT))onboarding_discovered(HINT_RADIO_HOLD);if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(hold && id>=0 && id<Q_COUNT)ui_toast(CATALOG[id].name);else if(!hold)pick_cb(id);}
+void quicksettings_null_action(int id,int hold){if(hold && (id==T_WIFI || id==T_BT))onboarding_discovered(HINT_RADIO_HOLD);if(hold&&id==T_WIFI)wifi_open();else if(hold&&id==T_BT)bt_open();else if(hold&&id==Q_EQ)screen_show(SCR_EQ);else if(hold && id>=0 && id<Q_COUNT)ui_toast(CATALOG[id].name);else if(!hold)pick_cb(id);}

@@ -889,14 +889,12 @@ static void radio_state(void)
         return;
     for (int i = 0; i < qcount; i++) {
         if(simple_cfg_get_int("null_qs_layout",0)==1)text_set(qcaptions[i],quicksettings_item_glyph(qids[i]));
-        int on = qids[i] == 0   ? wifi_radio_live()
-                 : qids[i] == 1 ? bt_state() == BT_ON
-                 : qids[i] == 3 ? scanner_active()
-                 : qids[i]==quicksettings_playback_item()?quicksettings_item_active(qids[i]):0;
+        int on = quicksettings_item_active(qids[i]);
         if (!lv_obj_has_state(qfields[i], LV_STATE_PRESSED))
             lv_obj_set_style_text_color(qcaptions[i], on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0);
     }
 }
+void null_qs_refresh(void){radio_state();}
 void null_home_weather(const char *weather){
     char clean[128];size_t n=0;const unsigned char *p=(const unsigned char *)(weather?weather:"");
     while(*p && n+1<sizeof clean){if(p[0]==0xc2 && p[1]==0xb0){p+=2;continue;}clean[n++]=*p++;}

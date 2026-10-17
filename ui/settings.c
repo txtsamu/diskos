@@ -686,7 +686,10 @@ static const char *const OPT_BOOTDEF[] = { "diskOS", "Stock" };
 static const char *const OPT_ARTCACHE[] = { "Covers only","When Idle","Idle & Charging" };
 
 /* Public EQ preset name lookup (Quick Settings drawer toast, etc.); mirrors OPT_EQ indexing 0..20. */
-const char *ui_eq_name(int i){ return (i >= 0 && i < 21) ? OPT_EQ[i] : "Off"; }
+const char *ui_eq_name(int i){
+ if(i>=11&&i<=20){char key[24];snprintf(key,sizeof key,"eq_name%d",i);const char*name=simple_cfg_get_str(key,NULL);if(name&&*name)return name;}
+ return (i >= 0 && i < 21) ? OPT_EQ[i] : "Off";
+}
 /* audio cluster cyclers - all use min=-1 so the value can be "System default" (unmanaged) */
 static const char *const OPT_DRE[]    = { "Off", "On" };
 static const char *const OPT_AUTOTAG[] = { "Off", "On" };

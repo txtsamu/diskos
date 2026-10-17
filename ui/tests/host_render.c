@@ -31,10 +31,11 @@
 
 /* Host-only controlled failure: hold album B's load while the UI returns to A. */
 static void volume_concept(int);
-static atomic_int race_waiting, race_release;
+static atomic_int race_waiting, race_release,art_decode_calls;
 static const char *race_path="/tmp/diskos-art-race-unreadable.mp3";
 int __real_art_make_all_ex_gen(const char *,const char *,const char *,const char *,int,unsigned);
 int __wrap_art_make_all_ex_gen(const char *path,const char *c,const char *t,const char *b,int cancel,unsigned gen){
+    atomic_fetch_add(&art_decode_calls,1);
     if(!strcmp(path,race_path)){
         atomic_store(&race_waiting,1);
         while(!atomic_load(&race_release)) usleep(1000);
@@ -932,6 +933,19 @@ int main(int argc, char **argv){
         }
         ui_update(&st);
         int loaded=0;for(int i=0;i<500;i++){ui_art_poll(NULL);if(ui_current_cover_dsc()){loaded=1;break;}usleep(10000);}assert(loaded);
+        if(getenv("REVIEW_SIMPLE_ALBUM")){
+            unsigned ui_art_revision(void);
+            assert(th_simple());unsigned revision=ui_art_revision();int calls=atomic_load(&art_decode_calls);
+            track_state_t same=st;snprintf(same.path,sizeof same.path,"/tmp/squash-album-reuse/Disc2/track.png");ipc_seed_state(&same);ui_update(&same);
+            for(int i=0;i<50;i++){ui_art_poll(NULL);usleep(1000);}assert(ui_art_revision()==revision&&atomic_load(&art_decode_calls)==calls&&ui_current_cover_dsc());
+            snprintf(same.path,sizeof same.path,"/tmp/squash-album-reuse/Other/track.png");snprintf(same.artist,sizeof same.artist,"A different artist");ipc_seed_state(&same);ui_update(&same);
+            for(int i=0;i<500&&ui_art_revision()==revision;i++){ui_art_poll(NULL);usleep(1000);}assert(atomic_load(&art_decode_calls)>calls&&ui_art_revision()>revision&&ui_current_cover_dsc());
+            revision=ui_art_revision();calls=atomic_load(&art_decode_calls);void ui_art_redo(void);ui_art_redo();ui_update(&same);
+            for(int i=0;i<500&&ui_art_revision()==revision;i++){ui_art_poll(NULL);usleep(1000);}assert(atomic_load(&art_decode_calls)>calls&&ui_art_revision()>revision);
+            revision=ui_art_revision();calls=atomic_load(&art_decode_calls);snprintf(same.path,sizeof same.path,"/tmp/squash-album-reuse/Other/book.m4b");ipc_seed_state(&same);ui_update(&same);
+            for(int i=0;i<500&&ui_art_revision()==revision;i++){ui_art_poll(NULL);usleep(1000);}assert(atomic_load(&art_decode_calls)>calls&&ui_art_revision()>revision);
+            puts("PASS: Squash same-album/artist cross-folder skip preserves pixels and avoids decoder work; different artist, explicit refresh and audiobook load independently");return 0;
+        }
         if(getenv("REVIEW_TRACK_SWITCHES")){
             extern unsigned ui_art_revision(void);
             unsigned revision = ui_art_revision();
@@ -1632,6 +1646,36 @@ render:
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);
+    if(th_simple()&&getenv("REVIEW_SIMPLE_MENU_REFLOW")){
+        char id[33];const char*name="A Very Long Album Discovery Application";md5_hex("__squash_reflow_fixture",strlen("__squash_reflow_fixture"),id);
+        cfg_set_str_deferred("simple_mnu","0ms");cfg_set_str_deferred("sm_app0",id);simple_nav_refresh();simple_nav_open(1);nav_wait(300);simple_test_nav_phase(1000);lv_obj_update_layout(screen_get_root(SCR_HOME));
+        lv_obj_t*l=find_visible_text(lv_screen_active(),name);assert(l&&lv_obj_get_height(l)==54&&lv_label_get_long_mode(l)==LV_LABEL_LONG_WRAP);lv_area_t area;lv_obj_get_coords(l,&area);assert(area.y2<280&&area.x1>=0&&area.x2<360);
+        puts("PASS: long Squash launcher name wraps into bounded text above D! without per-frame rebinding");
+    }
+    if(getenv("REVIEW_QS_EQ")){
+        lv_obj_t *quicksettings_test_button(int);
+        fixture=1;send_result=0;qs_wifi=0;qs_bt=BT_OFF;
+        int eq=quicksettings_equalizer_item(),ids[]={eq,0,1,5};assert(quicksettings_items_save(ids,4)==0);
+        cfg_set_int_deferred("eq_preset",0);cfg_set_int_deferred("eq_last",11);cfg_set_str_deferred("eq_name11","Warm analogue");
+        screen_show(SCR_QUICK);nav_wait(500);lv_obj_t*button=quicksettings_test_button(0);assert(button);
+        lv_event_code_t tap=th_null()?LV_EVENT_CLICKED:LV_EVENT_SHORT_CLICKED;
+        int before=send_count;lv_obj_send_event(button,tap,NULL);nav_wait(150);
+        assert(screen_current()==SCR_QUICK&&send_count==before+1&&cfg_get_int("eq_preset",0)==11&&quicksettings_item_active(eq));
+        assert(find_visible_text(lv_layer_top(),"EQ On\nPreset: Warm analogue"));
+        lv_obj_t*glyph=find_text(button,"EQ");assert(glyph);
+        if(th_simple())assert(lv_color_eq(lv_obj_get_style_bg_color(button,0),TC(ACCENT_PRIMARY)));
+        if(th_null())assert(lv_color_eq(lv_obj_get_style_text_color(glyph,0),TC(TEXT_PRIMARY)));
+        if(th_disco())assert(lv_color_eq(lv_obj_get_style_text_color(glyph,0),ui_current_accent()));
+        lv_obj_send_event(button,tap,NULL);nav_wait(150);assert(cfg_get_int("eq_preset",-1)==0&&!quicksettings_item_active(eq)&&cfg_get_int("eq_last",0)==11);assert(find_visible_text(lv_layer_top(),"EQ Off\nPreset: Warm analogue"));
+        if(th_simple())assert(!lv_color_eq(lv_obj_get_style_bg_color(button,0),TC(ACCENT_PRIMARY)));
+        if(th_null())assert(lv_color_eq(lv_obj_get_style_text_color(glyph,0),TC(TEXT_SECONDARY)));
+        if(th_disco())assert(lv_color_eq(lv_obj_get_style_text_color(glyph,0),TC(TEXT_PRIMARY)));
+        send_result=-1;lv_obj_send_event(button,tap,NULL);nav_wait(150);assert(cfg_get_int("eq_preset",-1)==0&&!quicksettings_item_active(eq));assert(find_visible_text(lv_layer_top(),"Couldn't switch EQ"));send_result=0;
+        cfg_set_int_deferred("eq_last",999);lv_obj_send_event(button,tap,NULL);nav_wait(150);assert(cfg_get_int("eq_preset",0)==1&&quicksettings_item_active(eq));assert(find_visible_text(lv_layer_top(),"EQ On\nPreset: Jazz"));
+        before=send_count;lv_obj_send_event(button,LV_EVENT_LONG_PRESSED,NULL);nav_wait(350);assert(screen_current()==SCR_EQ&&send_count==before&&cfg_get_int("eq_preset",0)==1);
+        screen_back();nav_wait(350);assert(screen_current()==SCR_QUICK);assert(ui_eq_select(2)==0);quicksettings_refresh(1);nav_wait(150);assert(quicksettings_item_active(eq));
+        puts("PASS: QS EQ tap toggles last preset, custom-name On/Off popup, active styling, failure preservation, invalid-preset fallback and Hold opens EQ without toggling");return 0;
+    }
     if(th_simple()&&getenv("REVIEW_SQUASH_VOLUME")){
         fixture=1;send_result=0;ui_show_volume(72);nav_wait(180);assert(ui_volume_overlay_visible());
         lv_obj_t*number=find_visible_text(lv_layer_top(),"72");assert(number);lv_obj_t*sheet=lv_obj_get_parent(number),*arc=NULL;for(uint32_t i=0;i<lv_obj_get_child_count(sheet);i++){lv_obj_t*o=lv_obj_get_child(sheet,i);if(lv_obj_check_type(o,&lv_arc_class))arc=o;}assert(arc&&lv_arc_get_max_value(arc)==120);
@@ -1697,10 +1741,12 @@ render:
         track_state_t st;ipc_get_state(&st);snprintf(st.title,sizeof st.title,"A long track title that extends beyond this field");snprintf(st.artist,sizeof st.artist,"An artist with a deliberately long readable name");snprintf(st.album,sizeof st.album,"An album with a deliberately long readable name");snprintf(st.path,sizeof st.path,"/fixture/scroll-test.flac");ipc_set_external(st.title,st.artist,st.album,st.path,st.duration_ms,st.position_ms,0,0);home_set_now_playing(st.title,st.artist,ui_current_accent(),1);
         lv_obj_t*root=screen_get_root(SCR_HOME),*title=find_text(root,st.title),*artist=find_text(root,st.artist),*album=find_text(root,st.album);assert(title&&artist&&album);kit_pass(root);nav_wait(50);
         lv_obj_t*labels[]={title,artist,album};for(int i=0;i<3;i++){assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_SCROLL_CIRCULAR);lv_anim_t*a=lv_anim_get(labels[i],NULL);assert(a&&lv_anim_get_repeat_count(a)==3);}
-        home_set_now_playing(st.title,st.artist,ui_current_accent(),1);nav_wait(120000);for(int i=0;i<3;i++)assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_CLIP);
+        home_set_now_playing(st.title,st.artist,ui_current_accent(),1);nav_wait(120000);for(int i=0;i<3;i++){assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_CLIP);assert(lv_obj_get_style_text_align(labels[i],0)==LV_TEXT_ALIGN_LEFT);lv_point_t first;lv_label_get_letter_pos(labels[i],0,&first);assert(first.x==0);}
         snprintf(st.path,sizeof st.path,"/fixture/next-track.flac");ipc_set_external(st.title,st.artist,st.album,st.path,st.duration_ms,st.position_ms,0,0);home_set_now_playing(st.title,st.artist,ui_current_accent(),1);for(int i=0;i<3;i++)assert(lv_label_get_long_mode(labels[i])==LV_LABEL_LONG_SCROLL_CIRCULAR);
         const char*g[]={LV_SYMBOL_PLAY,LV_SYMBOL_PAUSE,LV_SYMBOL_NEXT,LV_SYMBOL_PREV};for(int i=0;i<4;i++){simple_playback_feedback(g[i]);nav_wait(30);assert(find_visible_text(lv_layer_top(),g[i]));nav_wait(350);}
-        puts("PASS: Squash metadata starts three cycles, stops, restarts on track identity change, and action-specific logo feedback");return 0;
+        snprintf(st.title,sizeof st.title,"Short title");snprintf(st.artist,sizeof st.artist,"Artist");snprintf(st.album,sizeof st.album,"Album");snprintf(st.path,sizeof st.path,"/fixture/short.flac");ipc_set_external(st.title,st.artist,st.album,st.path,st.duration_ms,st.position_ms,0,0);home_set_now_playing(st.title,st.artist,ui_current_accent(),1);nav_wait(50);
+        for(int i=0;i<3;i++)assert(lv_obj_get_style_text_align(labels[i],0)==(cfg_get_int("simple_title_al",0)==1?LV_TEXT_ALIGN_LEFT:LV_TEXT_ALIGN_CENTER));
+        puts("PASS: Squash long metadata scrolls three cycles and settles at the first character; new short text restores saved alignment; identity restart and action feedback preserved");return 0;
     }
     if(th_simple()&&getenv("REVIEW_SIMPLE_PERF")){
         screen_home();nav_wait(250);assert(simple_test_qs_paused());simple_nav_open(1);nav_wait(250);int bindings=simple_test_nav_bindings();
