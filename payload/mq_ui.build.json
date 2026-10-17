@@ -1,16 +1,16 @@
 {
   "version": "2.5.0",
-  "revision": "Squash and QS follow-up, EQ toggle, artwork and blur optimizations, hidden legacy theme retirement",
-  "status": "Native interaction, migration, rendering, glyph, artwork and device build checks passed; no physical Disc flash performed",
-  "source_commit": "973f68c9ce30b7a3e8f4924f449f6fe65a92de45",
-  "baseline": "6329b789205713ff43802090870932daebafe859",
-  "ui_source_sha256": "380915f03f7823a0f1641fe865796a9ef7b5a133788834d6fd8b2058ba91591f",
+  "revision": "Squash volume simplification on public main; performance/size audit",
+  "baseline": "f4c7af680553a70b52a633eb0fd7a6b38c46a60a",
+  "source_commit": "28c61441f813a934e2c0d6b037fa7fdfc1372d18",
+  "ui_source_sha256": "9c7b613750a7d04cb1804b772bb8e6c781fa3b64d990f206ba9ba96dcb927059",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
-  "compiler": "mipsel-linux-musl-gcc (GCC) 11.2.0",
+  "compiler": "GCC 11.2.0 (xgcc), musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
+  "status": "Native interaction and render regressions passed; device compile/link passed; no physical Disc installation or listening test",
   "binary": {
-    "sha256": "e06949d4e46e1a311a640eebd6d518d0b1359dec885123d18b796e1090751135",
-    "md5": "685ea58bc1bd78248558d7d3eab43846",
-    "bytes": 6185624
+    "bytes": 6185528,
+    "sha256": "a1f9c8f0f2db304047baf0483728a040f0cad83167625a0e54cab6fec976ea7d",
+    "md5": "d81940c81912da2a7a8cea6482ab87be"
   }
 }
