@@ -3,7 +3,8 @@
 #include <stdatomic.h>
 #include <stdint.h>
 #include "musicdb.h"
-#define DISC 268
+#define DISC 268                     /* displayed diameter: animation geometry stays the same */
+#define ROULETTE_ART_SIZE 224         /* stored cover, upscaled by LVGL */
 #define POOL 37
 #define MIN_TRACKS 4
 typedef struct {

@@ -598,8 +598,17 @@ static void fork_config_migrate(void){
     cfg_begin();
     if(cfg_get_int("theme_preset",-1)<0){
         int old=cfg_get_int("ui_theme",-1);
-        cfg_set_int("theme_preset",old==0 ? THEME_PRESET_RING : THEME_PRESET_BRAUN);
-        cfg_set_int("theme_variant",(old==0 || old==2) ? 0 : 1);
+        if(old<0){
+            /* First flash: never replace saved theme or Music preferences. */
+            cfg_set_int("theme_preset",THEME_PRESET_DISCO);
+            if(cfg_get_int("theme_variant",-1)<0) cfg_set_int("theme_variant",0);
+            if(cfg_get_int("disco_hints",-1)<0) cfg_set_int("disco_hints",1);
+            if(cfg_get_int("disco_prog_shape",-1)<0) cfg_set_int("disco_prog_shape",0);
+            if(cfg_get_int("disco_trackno",-1)<0) cfg_set_int("disco_trackno",0);
+        } else {
+            cfg_set_int("theme_preset",old==0 ? THEME_PRESET_RING : THEME_PRESET_BRAUN);
+            cfg_set_int("theme_variant",(old==0 || old==2) ? 0 : 1);
+        }
     } else if(cfg_get_int("theme_variant",-1)<0){
         /* Upstream configurations without this key used the dark variant. */
         cfg_set_int("theme_variant",0);
@@ -615,8 +624,8 @@ void theme_init(void){
     fork_config_migrate();
     int outdoor = cfg_get_int("outdoor", 0) == 1;
     g_outdoor = outdoor;
-    g_variant = (outdoor || cfg_get_int("theme_variant", 1) == 1) ? 1 : 0;
-    g_preset = cfg_get_int("theme_preset", THEME_PRESET_BRAUN);
+    g_variant = (outdoor || cfg_get_int("theme_variant", 0) == 1) ? 1 : 0;
+    g_preset = cfg_get_int("theme_preset", THEME_PRESET_DISCO);
     if(g_preset!=THEME_PRESET_CUSTOM&&!theme_preset_available(g_preset)){
         g_preset=THEME_PRESET_DISCO;cfg_set_int("theme_preset",g_preset);
     }

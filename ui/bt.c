@@ -7,6 +7,7 @@
 #include "braun.h"
 #include "theme.h"
 #include "null_theme.h"
+#include "simple_theme.h"
 #include "curvelist.h"
 #include "theme_kit.h"
 #include "config.h"       /* cfg_get_int/cfg_set_int: persist the BT on/off intent */
@@ -977,7 +978,7 @@ static void add_dev_row(const char *mac, const char *name, int connected, const 
     lv_label_set_text(t, name);
     lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 42, 6); lv_obj_set_size(t, BROW_W - 42 - (connected ? 40 : 16), 24);
-    lv_obj_set_style_text_font(t, th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* BT device names are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, th_simple()?TF(UI_20):th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* BT device names are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_t *sl = lv_label_create(r);
     char st[40]; snprintf(st, sizeof st, "Connected%s%s", (codec && codec[0]) ? " - " : "", (codec && codec[0]) ? codec : "");
@@ -1347,6 +1348,7 @@ void bt_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     curvelist_attach(&g_bcl, g_list, root, BROW_W);
     hdr_set(BT_OFF, "Bluetooth", "");
+    if(th_simple())simple_radio_skin(g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_null())null_radio_skin(root,"BLUETOOTH",g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_braun()){
         lv_obj_add_flag(g_hring, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_hglyph, LV_OBJ_FLAG_HIDDEN);

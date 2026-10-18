@@ -1,14 +1,12 @@
-# 2.5.1 website refresh
+# 2.5.2 website
 
-A static GitHub Pages update, retaining the 2.5.1 application and release tag.
+GitHub Pages source remains in `docs/`.
 
-- The hero gives Disco, Null and Squash equal space, with nine real UI screenshots.
-- Each theme's small screenshots swap with its main preview; the large image opens an accessible native dialog. Links still open images without JavaScript.
-- Local, lossless WebP screenshots; local Nunito font and its existing licence; no third-party JavaScript, analytics or autoplay.
-- Responsive layouts, visible keyboard focus, a skip link, reduced-motion handling, descriptive image text and 44px-minimum small-screen preview targets.
-- Newcomer copy links to the tour, built-in hints/How to, installation and update guides. Seasonal Squash branding is removed.
-- `hero-251.jpg` is the social/README artwork; the live hero uses separate responsive screen elements.
+- Consistent orange/black palette, small rainbow accents, sans-serif typography and a restrained shared type scale.
+- The local Monoton font is the same face as the firmware's Disco! boot lettering; its OFL licence is included alongside the font.
+- Three theme galleries, original copy, screenshots, tour and newcomer guidance retained.
+- On wide/tall desktop viewports, chapters briefly pin as the document scrolls. Tall sections scroll completely into view. Mobile, short viewports and reduced-motion preferences use normal flow.
+- The right-side CD rotates with page position and shows reading progress on its rim; clicking returns to the top. Scroll input is never intercepted. No autoplay, trackers or third-party JavaScript.
+- Existing screenshot swap controls and native dialog remain; without JavaScript the images and page still open normally.
 
-Validation: JavaScript syntax, local assets, repository guide links, anchors, unique IDs, alt text, seasonal-reference scan, unchanged executable hash and clean bundle import. Hero artwork visually inspected. Browser viewport/interaction QA was unavailable in this workspace; no browser-rendered screenshot is claimed.
-
-The native Sites browser-control capability was unavailable, so no preview server or browser installation was used. Hosting remains the existing GitHub Pages site.
+Browser-control QA was unavailable. Further test and verification runs were stopped at the owner's request. No browser-rendered screenshot or device performance result is claimed.

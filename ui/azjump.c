@@ -85,6 +85,16 @@ static void wheel_open(azjump_t*a){
     lv_obj_set_style_bg_opa(a->wheel,LV_OPA_50,0);lv_obj_remove_flag(a->wheel,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(a->wheel,LV_OBJ_FLAG_CLICKABLE);kit_keep(a->wheel);
     lv_obj_add_event_cb(a->wheel,wheel_event,LV_EVENT_ALL,a);
+    /* Opaque annulus behind every letter, matching the centre control. The
+     * surrounding overlay stays half-transparent so the Library remains visible. */
+    lv_obj_t *ring=lv_arc_create(a->wheel);lv_obj_remove_style_all(ring);
+    lv_obj_set_size(ring,308,308);lv_obj_center(ring);
+    lv_arc_set_bg_angles(ring,0,360);lv_arc_set_angles(ring,0,0);
+    lv_obj_set_style_arc_width(ring,48,LV_PART_MAIN);
+    lv_obj_set_style_arc_color(ring,TC(SURFACE),LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(ring,LV_OPA_COVER,LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(ring,LV_OPA_TRANSP,LV_PART_INDICATOR);
+    lv_obj_remove_flag(ring,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);kit_keep(ring);
     for(int i=0;i<27;i++){
         float angle=(-90+i*360.0f/27)*3.14159265f/180;
         char text[2]={wheel_letters[i],0};lv_obj_t*l=wheel_text(a->wheel,text,TF(UI_18),TC(TEXT_SECONDARY));a->letter[i]=l;

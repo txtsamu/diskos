@@ -43,7 +43,7 @@ recovery-only rather than putting it into the current UI.
 Before promising a build in a new environment:
 
 1. Fetch `dev`; verify HEAD, dirty files, and `ui/version.h`.
-2. Download the exact toolchain asset and verify its checksum and archive integrity.
+2. Download the prebuilt compiler from the repository release `toolchain-gcc11.2`: `mipsel-n2008-musl-cross-gcc11.2.0-musl1.2.6-linux-x86_64.tar.xz` and its `.sha256` asset. Verify its checksum and archive integrity.
 3. Verify compiler, linker, headers, musl libraries and CRT objects are present.
 4. Compile and link a small static MIPS program; verify MIPS32r2, FP64, NaN2008.
 5. Read the handoff, then build and run the checks appropriate to the change.

@@ -4,6 +4,7 @@
 #include "braun.h"
 #include "theme.h"
 #include "null_theme.h"
+#include "simple_theme.h"
 #include "curvelist.h"
 #include <spawn.h>
 #include <poll.h>
@@ -851,7 +852,7 @@ static void add_net_row(const char *ssid, int signal, int secured, int connected
     lv_label_set_text(t, ssid);
     lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, tx, 13); lv_obj_set_size(t, WROW_W - 78 - tx, 24);
-    lv_obj_set_style_text_font(t, th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, th_simple()?TF(UI_20):th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
     if(secured){
@@ -1132,6 +1133,7 @@ void wifi_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     curvelist_attach(&g_wcl, g_list, root, WROW_W);
     hdr_set(WS_OFF, "Wi-Fi", "", 0);
+    if(th_simple())simple_radio_skin(g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_null())null_radio_skin(root,"WI-FI",g_hring,g_hglyph,g_hname,g_hsub,g_sw,rb,g_list);
     if(th_braun()){
         lv_obj_add_flag(g_hring, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(g_hglyph, LV_OBJ_FLAG_HIDDEN);

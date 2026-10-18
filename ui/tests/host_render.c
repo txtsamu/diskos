@@ -517,9 +517,9 @@ int main(int argc, char **argv){
             assert(!cfg_set_int_deferred("theme_preset",prior));
             if(variant>=0) assert(!cfg_set_int_deferred("theme_variant",variant));
         }
-        int want=prior>=0 ? prior : (prior==-2 && variant==0 ? 8 : 9);
+        int want=prior>=0 ? prior : (prior==-2 ? (variant==0 ? 8 : 9) : 10);
         int light=prior>=0 ? (variant>=0 ? variant : 0) :
-                  (prior==-2 && (variant==0 || variant==2) ? 0 : 1);
+                  (prior==-2 && variant!=0 && variant!=2 ? 1 : 0);
         if(!strcmp(argv[3],"reset")){
             cfg_set_int_deferred("fork_theme_migrated",1);
             cfg_set_int_deferred("theme_auto",1);
@@ -533,7 +533,7 @@ int main(int argc, char **argv){
             assert(cfg_get_int("np_poster_v1",0)==0);
             assert(cfg_get_int("saver_ring_v1",0)==0);
             assert(cfg_get_int("accent_red_v1",0)==0);
-            want=9; light=1;
+            want=10; light=0;
         }
         theme_init();
         assert(theme_preset()==want && theme_variant()==light);
@@ -1750,6 +1750,7 @@ render:
             assert(lv_obj_get_style_anim(label,0)==NULL); /* LVGL default repeats forever. */
         }
         if(th_simple()){assert(lv_obj_get_width(title)==220);assert(lv_obj_get_width(artist)==210);}
+        assert(lv_obj_get_height(artist)>=lv_font_get_line_height(lv_obj_get_style_text_font(artist,0)));
         nav_wait(120000); kit_restyle(ov);
         assert(lv_label_get_long_mode(title)==LV_LABEL_LONG_SCROLL_CIRCULAR);
         assert(lv_label_get_long_mode(artist)==LV_LABEL_LONG_SCROLL_CIRCULAR);

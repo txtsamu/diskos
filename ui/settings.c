@@ -123,7 +123,12 @@ void ui_set_memory(int mode);
 void ui_set_maxvol(int v);
 void ui_set_balance(int v);
 
-static void apply_open_colorpick(int v){ (void)v; colorpick_open(); }   /* seed sliders from cfg + open */
+static const char *squash_accent_reason = "Squash uses its own theme palette. This accent setting doesn't apply.";
+static void apply_open_colorpick(int v){
+    (void)v;
+    if(th_simple()){ui_toast(squash_accent_reason);return;}
+    colorpick_open();
+}   /* seed sliders from cfg + open */
 static void apply_debug_mode(int v){ (void)v; debug_open(); }           /* Settings -> System -> Debug Mode */
 static void apply_artcache(int v){ ui_set_prewarm_mode(v); }   /* every mode preloads album covers; the mode picks the per-track sweep */
 void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);   /* main.c: Restart card drain */
@@ -797,9 +802,9 @@ static const setting_t TABLE[] = {
       "What the screen does when you leave it: screensaver and when the screen switches off.", NULL },
     { "Display", "Online & Extras", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_onlineextras, 0,
       "Online album art and lyrics, the art cache, weather on Home, Shortcuts and the album view.", NULL },
-    { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_BRAUN,
+    { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_DISCO,
       "Choose the UI theme. Restarts the screen; music continues.", NULL },
-    { "Theme Colours",  "Appearance",  ST_CYCLER, "theme_variant", 0,0,0, OPT_APPEARANCE, 2, NULL, apply_appearance, 1,
+    { "Theme Colours",  "Appearance",  ST_CYCLER, "theme_variant", 0,0,0, OPT_APPEARANCE, 2, NULL, apply_appearance, 0,
       "Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.", NULL },
     { "Theme Colours",  "Automatic Appearance", ST_TOGGLE, "theme_auto", 0,1,1, NULL,0,NULL,apply_theme_auto,0,
       "Ring, Braun and Disco: Light 07:00-20:00, Dark otherwise. Applies at screen-off. Outdoor stays Light.",NULL },
@@ -1044,6 +1049,9 @@ static void fmt_slider(const setting_t *s, int v, char *buf, int n){
 /* A setting the running firmware cannot apply (only Gain today: its player command is mapped per verified
  * firmware in fwcaps.c, and an unmapped firmware gets no command). The row stays visible so it is not a mystery,
  * but says so and is not editable - otherwise the menu would show a choice that silently does nothing. */
+static int squash_accent_disabled(const setting_t *s){
+    return th_simple() && s->apply==apply_open_colorpick;
+}
 static int setting_unavailable(const setting_t *s){
     return s->cfg_key && ((!strcmp(s->cfg_key, "audio_gain") && fw_gain_tag() == NULL)
                        || (!strcmp(s->cfg_key, "artist_class") && !fw_artist_class_settable())
@@ -1424,6 +1432,7 @@ static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int idx = (int)(uintptr_t)lv_event_get_user_data(e);
     const setting_t *s = &TABLE[idx];
+    if(squash_accent_disabled(s)){ui_toast(squash_accent_reason);return;}
     if(s->type == ST_TOGGLE){
         if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }   /* only Allow diskOS Updates is a toggle that can be unavailable */
         int nv = !get_val(s); set_val(s, nv);
@@ -1541,6 +1550,7 @@ void settings_create(lv_obj_t *root){
 /* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
 static const char *row_value(const setting_t *s,char *buf,int n){
+    if(squash_accent_disabled(s)){snprintf(buf,n,"Disabled");return buf;}
     if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){snprintf(buf,n,"Disabled");return buf;}
     if(s->type==ST_CYCLER && s->nopts==2 && !strcmp(s->opts[0],"Off") && !strcmp(s->opts[1],"On")) return val_text(s,buf,n);
     if(s->type==ST_SLIDER || s->type==ST_CYCLER || s->type==ST_CHOICE ||
@@ -1635,7 +1645,7 @@ void setlist_refresh(void){
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Squash Options":!strcmp(s->label,"Disco Menu")?"Menu items":!strcmp(s->label,"Quick Settings")?"Quick settings":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
         lv_obj_set_pos(lbl,18,16);
-        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
+        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(lbl, TH_F_LIST, 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
@@ -1643,8 +1653,8 @@ void setlist_refresh(void){
         char b[40]; row_value(s, b, sizeof b);
         lv_obj_t *vl = lv_label_create(row);
         lv_label_set_text(vl, b);
-        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
-        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
+        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
+        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
         lv_label_set_long_mode(vl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_style_text_font(vl, TH_F_DETAIL, 0);
@@ -1661,6 +1671,12 @@ void setlist_refresh(void){
             }
         }
         theme_list_row(row);
+        /* Keep the explanatory tap available while clearly dimming the inactive action. */
+        if(squash_accent_disabled(s)){
+            lv_obj_set_style_opa(row,150,0);
+            lv_obj_set_style_text_color(lbl,TC(TEXT_MUTED),0);
+            lv_obj_set_style_text_color(vl,TC(TEXT_MUTED),0);
+        }
         if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){lv_obj_set_style_text_color(lbl,TC(TEXT_MUTED),0);lv_obj_set_style_text_color(vl,TC(TEXT_MUTED),0);}
     }
     curvelist_update(&cl);

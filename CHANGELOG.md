@@ -6,6 +6,15 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.5.2]
+
+- Fresh-install defaults: Disco dark, hints On, linear progress, no Music track-number prefix; saved choices retained.
+- Roulette result actions beside Play, larger two-line metadata, 224px stored covers, direct capped built-in decoding and safe release of hidden artwork.
+- Squash Working mode larger curved rows; clearer Wi-Fi/BT controls, names/status and centred larger logos; disabled shared Accent Colour with explanation.
+- Popup horizontal metadata scrolling and white unselected favourite icon; opaque A–Z letter-ring backing.
+- Orange/black website with the firmware logo font, restrained rainbow accents, pinned desktop chapters and a CD scroll-progress indicator.
+- Further tests/checks stopped at owner's request; device validation pending.
+
 ## [Unreleased]
 
 ### 2.5.1 test candidate

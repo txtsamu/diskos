@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Album Roulette, built in (2.2.0): the album sampler and cover preparation, from the Album Roulette 1.3.1 app,
  * unchanged in behaviour. A background thread reservoir-samples up to POOL albums (4+ tracks) from the whole library
- * and prepares a round 268 px cover for each: from its SD cache (read-only file mappings, reclaimable), else decoded
- * by diskos-artdec in its own process (only with 16 MiB free, stopped below 8 MiB), else a shared placeholder.
+ * and prepares a round 224 px cover for each: from its SD cache (read-only file mappings, reclaimable), else decoded
+ * by the serialised built-in decoder with a 4-16 MiB cap, else a shared placeholder.
  * Playing the winner is mq_ui's own album plan (roulette_spin.c), so the old player hand-over is gone. */
 #include "roulette_backend.h"
 #include "sqlite3.h"
@@ -33,7 +33,7 @@ atomic_int prepared, progress, cancelled;
 char load_error[160];
 static uint32_t rng;
 /* One shared fallback, never 37 separately allocated placeholders. */
-static uint32_t fallback_pixels[DISC*DISC];
+static uint32_t fallback_pixels[ROULETTE_ART_SIZE*ROULETTE_ART_SIZE];
 static pthread_once_t fallback_once=PTHREAD_ONCE_INIT;
 static unsigned heap_covers;
 #define HEAP_COVER_LIMIT 3
@@ -54,7 +54,7 @@ static const char *sidecars[]={"cover.jpg","folder.jpg","cover.jpeg","folder.jpe
 #define ART_HELPER "/opt/diskos/bin/diskos-artdec"
 #endif
 #define CACHE_LIMIT 128
-/* Cache only successfully decoded covers, bounded to ~35 MiB; failure is harmless. */
+/* Cache only successfully decoded covers, bounded to ~25 MiB; failure is harmless. */
 static int cache_available;
 static void cache_init(void){
     struct statvfs fs;struct statfs filesystem;
@@ -77,7 +77,7 @@ static uint64_t hash_file(uint64_t h,const char *path){
 static int cache_key(const album_t *a,char *out,size_t cap){
     struct stat s;if(!cache_available || stat(a->path,&s))return 0;
     uint64_t h=hash_file(1469598103934665603ULL,a->path);
-    static const char recipe[]="roulette-1.2.1-268-aa-bilinear";
+    static const char recipe[]="roulette-224-direct-aa-v1";
     h=hash_bytes(h,recipe,sizeof recipe);
     char side[1200];snprintf(side,sizeof side,"%s",a->path);char *slash=strrchr(side,'/');
     if(slash)for(unsigned i=0;i<sizeof sidecars/sizeof *sidecars;i++){
@@ -87,7 +87,7 @@ static int cache_key(const album_t *a,char *out,size_t cap){
 }
 void release_artwork(album_t *a){
     if(a->pixels && a->pixels!=fallback_pixels){
-        if(a->pixels_mapped)munmap(a->pixels,DISC*DISC*4);else {free(a->pixels);if(heap_covers)heap_covers--;}
+        if(a->pixels_mapped)munmap(a->pixels,ROULETTE_ART_SIZE*ROULETTE_ART_SIZE*4);else {free(a->pixels);if(heap_covers)heap_covers--;}
     }
     a->pixels=NULL;a->pixels_mapped=0;
 }
@@ -95,8 +95,8 @@ void release_artwork(album_t *a){
 static int cache_map(const char *path,album_t *a){
     int fd=open(path,O_RDONLY|O_CLOEXEC);if(fd<0)return 0;
     struct stat st;
-    if(fstat(fd,&st) || !S_ISREG(st.st_mode) || st.st_size!=DISC*DISC*4){close(fd);return 0;}
-    void *pixels=mmap(NULL,DISC*DISC*4,PROT_READ,MAP_PRIVATE,fd,0);close(fd);
+    if(fstat(fd,&st) || !S_ISREG(st.st_mode) || st.st_size!=ROULETTE_ART_SIZE*ROULETTE_ART_SIZE*4){close(fd);return 0;}
+    void *pixels=mmap(NULL,ROULETTE_ART_SIZE*ROULETTE_ART_SIZE*4,PROT_READ,MAP_PRIVATE,fd,0);close(fd);
     if(pixels==MAP_FAILED)return 0;
     release_artwork(a);a->pixels=pixels;a->pixels_mapped=1;utime(path,NULL);
     return 1;
@@ -104,7 +104,7 @@ static int cache_map(const char *path,album_t *a){
 static void cache_write(const char *path,const uint32_t *pixels){
     char temp[300];snprintf(temp,sizeof temp,"%s.XXXXXX",path);int fd=mkstemp(temp);if(fd<0)return;
     FILE *f=fdopen(fd,"wb");if(!f){close(fd);unlink(temp);return;}
-    int ok=fwrite(pixels,4,DISC*DISC,f)==DISC*DISC;if(fclose(f))ok=0;
+    int ok=fwrite(pixels,4,ROULETTE_ART_SIZE*ROULETTE_ART_SIZE,f)==ROULETTE_ART_SIZE*ROULETTE_ART_SIZE;if(fclose(f))ok=0;
     if(ok)rename(temp,path);
     unlink(temp);
 }
@@ -123,15 +123,15 @@ static void cache_trim(void){
         closedir(d);if(n<=CACHE_LIMIT || !victim[0])return;if(unlink(victim))return;
     }
 }
-static unsigned char mask[DISC*DISC];
+static unsigned char mask[ROULETTE_ART_SIZE*ROULETTE_ART_SIZE];
 static pthread_once_t mask_once=PTHREAD_ONCE_INIT;
 static void init_mask(void){
-    for(int y=0;y<DISC;y++)for(int x=0;x<DISC;x++){
+    for(int y=0;y<ROULETTE_ART_SIZE;y++)for(int x=0;x<ROULETTE_ART_SIZE;x++){
         int count=0;for(int sy=0;sy<4;sy++)for(int sx=0;sx<4;sx++){
-            int dx=x*8+sx*2+1-DISC*4,dy=y*8+sy*2+1-DISC*4;
-            count+=dx*dx+dy*dy<=DISC*DISC*16;
+            int dx=x*8+sx*2+1-ROULETTE_ART_SIZE*4,dy=y*8+sy*2+1-ROULETTE_ART_SIZE*4;
+            count+=dx*dx+dy*dy<=ROULETTE_ART_SIZE*ROULETTE_ART_SIZE*16;
         }
-        mask[y*DISC+x]=(unsigned char)((count*255+8)/16);
+        mask[y*ROULETTE_ART_SIZE+x]=(unsigned char)((count*255+8)/16);
     }
 }
 uint32_t random_below(uint32_t n){
@@ -143,35 +143,26 @@ uint32_t random_below(uint32_t n){
 }
 void placeholder(uint32_t *p,int seed){
     pthread_once(&mask_once,init_mask);
-    for(int y=0;y<DISC;y++) for(int x=0;x<DISC;x++){
-        int dx=2*x-DISC+1,dy=2*y-DISC+1,d=dx*dx+dy*dy;
+    for(int y=0;y<ROULETTE_ART_SIZE;y++) for(int x=0;x<ROULETTE_ART_SIZE;x++){
+        int dx=2*x-ROULETTE_ART_SIZE+1,dy=2*y-ROULETTE_ART_SIZE+1,d=dx*dx+dy*dy;
         unsigned c=36+(unsigned)((x+y+seed*7)%28);
         if(d<110*110 && d>100*100) c=110;
         if(d<26*26) c=220;
         if(d<10*10) c=20;
-        p[y*DISC+x]=mask[y*DISC+x] ? ((uint32_t)mask[y*DISC+x]<<24)|c*0x010101u:0;
+        p[y*ROULETTE_ART_SIZE+x]=mask[y*ROULETTE_ART_SIZE+x] ? ((uint32_t)mask[y*ROULETTE_ART_SIZE+x]<<24)|c*0x010101u:0;
     }
 }
-/* Per-call private output; decoder owns no shared artwork paths. No shell interpolation. */
+/* Share mq_ui's serialised, budgeted decoder: no extra process and no dependency
+ * on an old read-only helper during a raw mq_ui/SD update. It checks cancellation
+ * after acquiring the decoder lock, before starting any new work. */
+static uint64_t available_kib(void);
+int artdec_roulette(const char *,const char *,size_t,const atomic_int *);
 static int decode(const char *input,const char *output){
-    /* Start with practical headroom; watch pressure while the bounded helper runs. */
-    if(!memory_headroom(16u*1024u)){
-        runtime_log("Cover decode skipped: less than 16 MiB available RAM.");return 0;
-    }
-    const char *helper=ART_HELPER;
-    char *av[]={(char*)helper,"saver",(char*)input,(char*)output,NULL};
-    pid_t child; if(posix_spawn(&child,helper,NULL,NULL,av,environ)) return 0;
-    int status=0,done=0,waitable=1;
-    for(int i=0;i<160 && !atomic_load(&cancelled);i++){
-        pid_t r=waitpid(child,&status,WNOHANG);
-        if(r==child){done=1;break;} if(r<0 && errno!=EINTR){waitable=0;runtime_log("Decoder wait failed; its PID will not be signalled.");break;}
-        if(!memory_headroom(8u*1024u)){
-            runtime_log("Decoder stopped: less than 8 MiB available RAM.");break;
-        }
-        usleep(25000);
-    }
-    if(!done && waitable){kill(child,SIGKILL);while(waitpid(child,&status,0)<0 && errno==EINTR){} }
-    return done && WIFEXITED(status) && WEXITSTATUS(status)==0;
+    uint64_t available=available_kib();
+    if(available<16u*1024u || atomic_load(&cancelled))return 0;
+    uint64_t budget=available-12u*1024u;
+    if(budget>16u*1024u)budget=16u*1024u;
+    return artdec_roulette(input,output,(size_t)budget*1024u,&cancelled)==0;
 }
 static void artwork(album_t *a,const char *dir,int index){
     char cached[256];int cacheable=cache_key(a,cached,sizeof cached);
@@ -191,30 +182,19 @@ static void artwork(album_t *a,const char *dir,int index){
         unlink(out);ok=decode(side,out);
     }
     if(ok){
-        FILE *f=fopen(out,"rb"); uint32_t *raw=malloc(360*360*4);
-        if(f && raw && fread(raw,4,360*360,f)==360*360 && fgetc(f)==EOF){
-            uint32_t *destination=calloc(DISC*DISC,4);
-            if(!destination){fclose(f);free(raw);unlink(out);return;}
-            a->pixels=destination;heap_covers++;
-            for(int y=0;y<DISC;y++)for(int x=0;x<DISC;x++){
-                if(!mask[y*DISC+x])continue;
-                int u=x*359*256/(DISC-1),v=y*359*256/(DISC-1),ix=u>>8,iy=v>>8;
-                int nx=ix<359?ix+1:ix,ny=iy<359?iy+1:iy,fx=u&255,fy=v&255;
-                uint32_t result=(uint32_t)mask[y*DISC+x]<<24;
-                for(int shift=0;shift<24;shift+=8){
-                    unsigned a0=(raw[iy*360+ix]>>shift)&255,b0=(raw[iy*360+nx]>>shift)&255;
-                    unsigned a1=(raw[ny*360+ix]>>shift)&255,b1=(raw[ny*360+nx]>>shift)&255;
-                    unsigned top=a0*(256-fx)+b0*fx,bottom=a1*(256-fx)+b1*fx;
-                    result|=((top*(256-fy)+bottom*fy+32768)>>16)<<shift;
-                }
-                a->pixels[y*DISC+x]=result;
-            }
+        FILE *f=fopen(out,"rb");
+        const size_t count=ROULETTE_ART_SIZE*ROULETTE_ART_SIZE;
+        uint32_t *destination=f?malloc(count*4):NULL;
+        if(destination && fread(destination,4,count,f)==count && fgetc(f)==EOF){
+            /* The helper already area-resamples to the storage size: just apply the round alpha mask. */
+            pthread_once(&mask_once,init_mask);
+            for(size_t i=0;i<count;i++)destination[i]=(destination[i]&0x00ffffffu)|((uint32_t)mask[i]<<24);
+            a->pixels=destination;destination=NULL;heap_covers++;
             if(cacheable){cache_write(cached,a->pixels);cache_map(cached,a);}
-            /* Cache write/map failure must not accumulate unbounded heap images. */
             if(!a->pixels_mapped && heap_covers>HEAP_COVER_LIMIT)use_fallback(a);
         }
-        if(f) fclose(f);
-        free(raw);
+        free(destination);
+        if(f)fclose(f);
     }
     unlink(out);
 }
@@ -266,7 +246,7 @@ void runtime_log(const char *message){
     FILE *f=fopen(path,mode);if(!f)return;
     fprintf(f,"%ld %s\n",(long)time(NULL),message);fclose(f);
 }
-int memory_headroom(uint64_t required_kib){
+static uint64_t available_kib(void){
     FILE *f=fopen("/proc/meminfo","r");if(!f)return 0;
     char line[256];unsigned long long value,available=0,free_kib=0,cached=0,buffers=0,reclaimable=0,shmem=0;int have_available=0,have_free=0;
     while(fgets(line,sizeof line,f)){
@@ -281,8 +261,10 @@ int memory_headroom(uint64_t required_kib){
     /* Older kernels: count only half of potentially reclaimable cache, excluding tmpfs. */
     uint64_t cache=cached+buffers+reclaimable;
     uint64_t estimate=free_kib+(cache>shmem?(cache-shmem)/2:0);
-    return have_available?available>=required_kib:have_free && estimate>=required_kib;
+    return have_available?available:have_free?estimate:0;
 }
+int memory_headroom(uint64_t required_kib){return available_kib()>=required_kib;}
+
 /* Before a new sample: drop the last one's covers (only when its loader has finished) */
 void roulette_reset(void){
     for(int i=0;i<POOL;i++)release_artwork(&albums[i]);

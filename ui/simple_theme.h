@@ -8,6 +8,8 @@ int simple_cfg_set_int(const char *,int);
 int simple_cfg_set_str(const char *,const char *);
 int simple_cfg_set_int_deferred(const char *,int);
 int simple_cfg_set_str_deferred(const char *,const char *);
+void simple_radio_skin(lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *name,lv_obj_t *status,
+                       lv_obj_t *toggle,lv_obj_t *scan,lv_obj_t *list);
 void simple_nav_init(lv_obj_t *);
 void simple_nav_open(int);
 void simple_nav_screen(int);

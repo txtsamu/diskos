@@ -37,9 +37,9 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.1
+## New in 2.5.2
 
-Smoother Squash volume, an optional Library letter wheel, always-scrolling track popups, and Again/Exit in Album Roulette. [See what’s new](docs/releases/v2.5.1.md).
+Smoother Squash volume, an optional Library letter wheel, always-scrolling track popups, and Again/Exit in Album Roulette. [See what’s new](docs/releases/v2.5.2.md).
 
 ## Big. Bold. Squash.
 

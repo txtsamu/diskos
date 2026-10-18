@@ -41,12 +41,20 @@ static pthread_t loader;
 static int loader_joinable,restart_pending;
 static atomic_int loader_done;                       /* the loader thread has returned: joining it can't block */
 static lv_timer_t *reaper;
+static void release_visit(void);
+static lv_obj_t *wheel_image;
+/* Storage resolution is independent of the original on-screen animation geometry. */
+#define COVER_SCALE ((DISC*256+ROULETTE_ART_SIZE/2)/ROULETTE_ART_SIZE)
+#define COVER_Y ((DISC-ROULETTE_ART_SIZE)/2)
 static void *loader_main(void *arg){ void *r = prepare_albums(arg); atomic_store(&loader_done, 1); return r; }
 /* after leaving: collect the finished loader in the background, so its thread never lingers until the next visit */
 static void reap_cb(lv_timer_t *t){
-    if(loader_joinable && !atomic_load(&loader_done)) return;
-    if(loader_joinable){ pthread_join(loader, NULL); loader_joinable = 0; }
-    lv_timer_delete(t); reaper = NULL;
+    if(loader_joinable && !atomic_load(&loader_done))return;
+    if(loader_joinable){pthread_join(loader,NULL);loader_joinable=0;}
+    /* The outgoing root can still be visible during a slide. Detach sources only once hidden. */
+    if(stage==LEFT && !lv_obj_has_flag(screen_get_root(SCR_ROULETTE_SPIN),LV_OBJ_FLAG_HIDDEN))return;
+    if(stage==LEFT)release_visit();
+    lv_timer_delete(t);reaper=NULL;
     int restart=restart_pending;restart_pending=0;
     if(restart && screen_current()==SCR_ROULETTE)roulette_spin_open();
 }
@@ -62,6 +70,16 @@ static const lv_font_t *roulette_font(theme_font_role_t role){return th_null()?t
 #define TF(role) roulette_font(THEME_FONT_##role)
 static uint32_t *themed_rim;
 static lv_point_t orbit[360];
+static void release_wheel(void){
+    if(wheel_image)lv_image_set_src(wheel_image,NULL);
+    lv_image_cache_drop(&rim);rim.data=NULL;
+    free(themed_rim);themed_rim=NULL;
+}
+static void release_visit(void){
+    for(int i=0;i<3;i++)if(discs[i])lv_image_set_src(discs[i],NULL);
+    for(int i=0;i<POOL;i++){lv_image_cache_drop(&images[i]);images[i].data=NULL;}
+    roulette_reset();release_wheel();
+}
 
 static void plain(lv_obj_t *o){ lv_obj_remove_style_all(o); lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE); }
 static lv_obj_t *label(lv_obj_t *parent, const char *s, int x, int y, int w, const lv_font_t *font, lv_color_t color){
@@ -90,11 +108,11 @@ static float clamp01(float p){ return p < 0 ? 0 : p > 1 ? 1 : p; }
 /* Zero velocity and acceleration at both ends; no abrupt fade/zoom edges. */
 static float smooth(float p){ p = clamp01(p); return p * p * p * (p * (p * 6 - 15) + 10); }
 static void winner_text(void){
-    /* Restart the reading pause at the beginning of each new winner/error retry. */
+    /* Two readable lines per label; overflow beyond those lines is ellipsized. */
     lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP); lv_label_set_long_mode(artist, LV_LABEL_LONG_CLIP);
     lv_label_set_text(title, albums[winning].key.album);
     lv_label_set_text(artist, albums[winning].key.owner[0] ? albums[winning].key.owner : "Unknown artist");
-    lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_DOT); lv_label_set_long_mode(artist, LV_LABEL_LONG_DOT);
 }
 static void winner_opacity(lv_opa_t opacity){
     lv_obj_set_style_opa(title, opacity, 0); lv_obj_set_style_opa(artist, opacity, 0); lv_obj_set_style_opa(ball, opacity, 0);if(winner_actions)lv_obj_set_style_opa(winner_actions,opacity,0);
@@ -108,8 +126,8 @@ static void set_images(void){
     for(int i = 0; i < album_count; i++){
         lv_image_cache_drop(&images[i]);  /* Descriptors are reused after a re-roll. */
         images[i].header.magic = LV_IMAGE_HEADER_MAGIC; images[i].header.cf = LV_COLOR_FORMAT_ARGB8888;
-        images[i].header.w = DISC; images[i].header.h = DISC; images[i].header.stride = DISC * 4;
-        images[i].data_size = DISC * DISC * 4; images[i].data = (const uint8_t *)albums[i].pixels;
+        images[i].header.w = ROULETTE_ART_SIZE; images[i].header.h = ROULETTE_ART_SIZE; images[i].header.stride = ROULETTE_ART_SIZE * 4;
+        images[i].data_size = ROULETTE_ART_SIZE * ROULETTE_ART_SIZE * 4; images[i].data = (const uint8_t *)albums[i].pixels;
     }
 }
 /* Reuse three sprites. Only change source when crossing to another album. */
@@ -118,7 +136,7 @@ static void strip(float position){
     for(int k = 0; k < 3; k++){
         int ordinal = center + k - 1, index = ((ordinal % album_count) + album_count) % album_count;
         if(slot_image[k] != index){ lv_image_set_src(discs[k], &images[index]); slot_image[k] = index; }
-        lv_obj_set_pos(discs[k], (360 - DISC) / 2 + (int)lroundf((k - 1 - fraction) * (DISC + 16)), 0);
+        lv_obj_set_pos(discs[k], (360 - ROULETTE_ART_SIZE) / 2 + (int)lroundf((k - 1 - fraction) * (DISC + 16)), COVER_Y);
     }
 }
 static int same_album(const mdb_album_key_t *a, const mdb_album_key_t *b){
@@ -152,10 +170,10 @@ static void start_spin(void){
     lv_obj_add_flag(error_panel, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_state(ball_btn, LV_STATE_DISABLED); winner_opacity(255);
     for(int i = 0; i < 3; i++){
         slot_image[i] = -1; lv_obj_remove_flag(discs[i], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(discs[i], LV_OBJ_FLAG_CLICKABLE); lv_image_set_scale(discs[i], 256); lv_obj_set_y(discs[i], 0);
+        lv_obj_remove_flag(discs[i], LV_OBJ_FLAG_CLICKABLE); lv_image_set_scale(discs[i], COVER_SCALE); lv_obj_set_y(discs[i], COVER_Y);
     }
     stage = SPINNING; started = lv_tick_get();
-    lv_obj_add_flag(landing, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(spin, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(landing, LV_OBJ_FLAG_HIDDEN); release_wheel(); lv_obj_remove_flag(spin, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(selection_mark, LV_OBJ_FLAG_HIDDEN); lv_obj_set_style_opa(selection_mark, 255, 0);
     lv_label_set_text(hint, "Let chance choose."); lv_timer_set_period(anim_timer, FRAME_MS); strip(0);
 }
@@ -202,8 +220,10 @@ static void cover_cb(lv_event_t *e){
     if(code == LV_EVENT_HIT_TEST){
         lv_hit_test_info_t *hit = lv_event_get_param(e); lv_area_t area;
         lv_obj_get_coords(lv_event_get_target(e), &area);
-        int dx = 2 * (hit->point->x - area.x1) + 1 - DISC, dy = 2 * (hit->point->y - area.y1) + 1 - DISC;
-        hit->res = hit->res && dx * dx + dy * dy <= DISC * DISC; return;
+        int dx = 2 * (hit->point->x - area.x1) + 1 - ROULETTE_ART_SIZE;
+        int dy = 2 * (hit->point->y - area.y1) + 1 - ROULETTE_ART_SIZE;
+        int diameter=(ROULETTE_ART_SIZE*(int)lv_image_get_scale_x(lv_event_get_target(e))+128)/256;
+        hit->res = hit->res && dx * dx + dy * dy <= diameter * diameter; return;
     }
     if(stage != WINNER || !lv_obj_has_flag(error_panel, LV_OBJ_FLAG_HIDDEN)) return;
     if(code == LV_EVENT_SHORT_CLICKED) play_cb(e);
@@ -218,14 +238,15 @@ static void again_cb(lv_event_t *e){(void)e;if(stage==WINNER)lv_obj_send_event(d
 static void winner(void){
     stage = WINNER; strip(finish); remember_winner(); lv_obj_add_flag(selection_mark, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(discs[1], LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(discs[0], LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(discs[2], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_y(discs[1],COVER_Y-24);
     winner_text();
     lv_obj_remove_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(ball, LV_OBJ_FLAG_HIDDEN);lv_obj_remove_flag(winner_actions,LV_OBJ_FLAG_HIDDEN); lv_label_set_text(hint, "");
     revealing = 1; started = lv_tick_get(); winner_opacity(0); lv_timer_set_period(anim_timer, FRAME_MS);
 }
 static void zoom(float p){
     p = clamp01(p); float e = smooth(p);
-    lv_image_set_scale(discs[1], (int)lroundf(256 + e * 150));
-    lv_obj_set_y(discs[1], (int)lroundf((180 - DISC / 2) * e));
+    lv_image_set_scale(discs[1], (int)lroundf(COVER_SCALE * (1 + e * 150.0f/256.0f)));
+    lv_obj_set_y(discs[1], (int)lroundf(COVER_Y -24 + (180 - DISC / 2 +24) * e));
     lv_obj_set_style_opa(fade, (int)lroundf(255 * smooth((p - 0.15f) / 0.85f)), 0);
 }
 static void place_orbit(float degrees){
@@ -242,7 +263,7 @@ static void left(void){
     stage = LEFT; atomic_store(&cancelled, 1);
     lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP); lv_label_set_long_mode(artist, LV_LABEL_LONG_CLIP);
     if(anim_timer) lv_timer_pause(anim_timer);
-    if(loader_joinable && !reaper) reaper = lv_timer_create(reap_cb, 500, NULL);
+    if(!reaper) reaper = lv_timer_create(reap_cb, 100, NULL);
 }
 static void timer(lv_timer_t *unused){
     (void)unused; uint32_t now = lv_tick_get();
@@ -270,7 +291,7 @@ static void timer(lv_timer_t *unused){
         float q = 1 - t; strip(finish * (1 - q * q * q));
     } else if(stage == SETTLING){
         float p = clamp01((now - started) / 220.0f), q = 1 - p;
-        lv_obj_set_x(discs[1], (360 - DISC) / 2 - (int)lroundf(3 * 16 * p * p * q * q));
+        lv_obj_set_x(discs[1], (360 - ROULETTE_ART_SIZE) / 2 - (int)lroundf(3 * 16 * p * p * q * q));
         lv_obj_set_style_opa(selection_mark, (int)lroundf(255 * (1 - smooth(((now - started) - 220.0f) / 100))), 0);
         if(now - started >= SETTLE_MS) winner();
     } else if(stage == REDO){                                                       /* held cover: through black, spin again */
@@ -311,7 +332,7 @@ static void build(void){
         for(int y=0;y<360;y++)for(int x=0;x<360;x++){int dx=x-180,dy=y-180;if(dx*dx+dy*dy<145*145)themed_rim[y*360+x]=canvas;}
         lv_image_cache_drop(&rim);rim.data=(const uint8_t*)themed_rim;
     }else{free(themed_rim);themed_rim=NULL;rim.data=NULL;ui_toast("Not enough memory for the roulette wheel");}
-    lv_obj_t *wheel = lv_image_create(landing); if(rim.data)lv_image_set_src(wheel, &rim);
+    wheel_image = lv_image_create(landing); if(rim.data)lv_image_set_src(wheel_image, &rim);
     for(int i = 0; i < 360; i++){ float a = i * 6.283185307f / 360; orbit[i].x = 180 + (int)lroundf(146 * sinf(a)); orbit[i].y = 180 - (int)lroundf(146 * cosf(a)); }
     orbit_ball = lv_obj_create(landing); plain(orbit_ball); lv_obj_set_size(orbit_ball, 10, 10); lv_obj_set_style_radius(orbit_ball, 5, 0);
     lv_obj_set_style_bg_color(orbit_ball, TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(orbit_ball, 255, 0);
@@ -320,20 +341,22 @@ static void build(void){
     status_label = label(landing, "Shuffling the shelf...", 65, 148, 230, TF(UI_20), TC(TEXT_SECONDARY));
     button(landing, "Exit", 121, 250, 118, 42, 0, exit_cb);
     spin = lv_obj_create(root_obj); plain(spin); lv_obj_set_size(spin, 360, 360); lv_obj_add_flag(spin, LV_OBJ_FLAG_HIDDEN);
-    for(int i = 0; i < 3; i++){ discs[i] = lv_image_create(spin); lv_image_set_pivot(discs[i], DISC / 2, DISC / 2); lv_image_set_antialias(discs[i], true); }
+    for(int i = 0; i < 3; i++){ discs[i] = lv_image_create(spin); lv_image_set_pivot(discs[i], ROULETTE_ART_SIZE / 2, ROULETTE_ART_SIZE / 2); lv_image_set_antialias(discs[i], true); }
     selection_mark = lv_obj_create(spin); plain(selection_mark); lv_obj_remove_flag(selection_mark, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_pos(selection_mark, 177, 7); lv_obj_set_size(selection_mark, 6, 14); lv_obj_set_style_radius(selection_mark, 3, 0);
     lv_obj_set_style_bg_color(selection_mark, TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(selection_mark, 255, 0);
     lv_obj_set_style_border_width(selection_mark, 1, 0); lv_obj_set_style_border_color(selection_mark, TC(BORDER_STRONG), 0);
     lv_obj_add_flag(discs[1], LV_OBJ_FLAG_ADV_HITTEST); lv_obj_add_event_cb(discs[1], cover_cb, LV_EVENT_ALL, NULL);
-    title = label(spin, "", 57, 266, 246, TF(UI_20), TC(TEXT_PRIMARY)); lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL);
-    artist = label(spin, "", 85, 290, 190, TF(UI_14), TC(TEXT_SECONDARY)); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL);
+    title = label(spin, "", 54, 248, 252, TF(UI_22), TC(TEXT_PRIMARY));
+    lv_obj_set_height(title, 54); lv_obj_set_style_text_line_space(title, -2, 0); lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+    artist = label(spin, "", 98, 302, 164, TF(UI_18), TC(TEXT_SECONDARY));
+    lv_obj_set_height(artist, 42); lv_label_set_long_mode(artist, LV_LABEL_LONG_DOT);
     lv_obj_set_style_anim(title, &text_scroll, 0); lv_obj_set_style_anim(artist, &text_scroll, 0);
     lv_obj_set_style_anim_duration(title, lv_anim_speed_clamped(24, 1600, 60000), 0);
     lv_obj_set_style_anim_duration(artist, lv_anim_speed_clamped(24, 1600, 60000), 0);
     /* Play!: the roulette ball, white with black type in every theme. The type sits beside the ball, not in it,
      * so no theme's button styling can recolour it; `ball` (the pair) is what shows, hides and fades. */
-    ball = lv_obj_create(spin); plain(ball); lv_obj_set_pos(ball, 144, DISC - 72 - 6); lv_obj_set_size(ball, 72, 72);
+    ball = lv_obj_create(spin); plain(ball); lv_obj_set_pos(ball, 144, 176); lv_obj_set_size(ball, 72, 72);
     lv_obj_remove_flag(ball, LV_OBJ_FLAG_CLICKABLE);
     ball_btn = lv_obj_create(ball); plain(ball_btn); lv_obj_set_size(ball_btn, 72, 72);
     lv_obj_add_flag(ball_btn, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(ball_btn, 6); lv_obj_set_style_radius(ball_btn, LV_RADIUS_CIRCLE, 0);
@@ -347,8 +370,8 @@ static void build(void){
     lv_obj_set_style_text_font(bl, &font_inter_bold_22, 0); lv_obj_set_style_text_color(bl, TC(FIXED_MEDIA_BLACK), 0); lv_obj_center(bl);
     lv_obj_remove_flag(bl, LV_OBJ_FLAG_CLICKABLE);
     winner_actions=lv_obj_create(spin);plain(winner_actions);lv_obj_set_size(winner_actions,360,360);lv_obj_remove_flag(winner_actions,LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_t *again=button(winner_actions,"Again",100,308,76,34,0,again_cb);
-    lv_obj_t *exit=button(winner_actions,"Exit",184,308,76,34,0,final_exit_cb);
+    lv_obj_t *again=button(winner_actions,"Again",54,194,78,40,0,again_cb);
+    lv_obj_t *exit=button(winner_actions,"Exit",228,194,78,40,0,final_exit_cb);
     lv_obj_set_style_text_font(lv_obj_get_child(again,0),TF(UI_16),0);lv_obj_set_style_text_font(lv_obj_get_child(exit,0),TF(UI_16),0);
     kit_keep(again);kit_keep(exit);lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
     hint = label(spin, "", 40, 283, 280, TF(UI_22), TC(TEXT_SECONDARY));
@@ -375,13 +398,14 @@ void roulette_spin_open(void){
         pthread_join(loader,NULL);loader_joinable=0;
     }
     restart_pending=0;
+    if(reaper){lv_timer_delete(reaper);reaper=NULL;}
     for(int i = 0; i < POOL; i++) lv_image_cache_drop(&images[i]);
     roulette_reset();
     build();
     stage = LANDING; ready_seen = 0; settled = 0; revealing = 0; opened = lv_tick_get();
     if(!anim_timer) anim_timer = lv_timer_create(timer, FRAME_MS, NULL);
     lv_timer_set_period(anim_timer, FRAME_MS); lv_timer_resume(anim_timer);
-    pthread_attr_t attr; pthread_attr_init(&attr); pthread_attr_setstacksize(&attr, 512 * 1024);
+    pthread_attr_t attr; pthread_attr_init(&attr); pthread_attr_setstacksize(&attr, 256 * 1024);
     atomic_store(&loader_done, 0);
     loader_joinable = !pthread_create(&loader, &attr, loader_main, NULL);
     pthread_attr_destroy(&attr);

@@ -543,7 +543,7 @@ static void ov_mark(int i, int on){
     lv_obj_t *b = g_ov_btn[i], *l = lv_obj_get_child(b, 0);
     lv_obj_set_style_border_width(b, on ? 2 : 1, 0); lv_obj_set_style_border_color(b, g_acc, 0); lv_obj_set_style_border_opa(b, on ? LV_OPA_COVER : 140, 0);
     lv_obj_set_style_border_opa(b, on ? LV_OPA_COVER : 60, 0);
-    lv_obj_set_style_text_color(l, g_acc, 0); lv_obj_set_style_bg_color(b, on ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
+    lv_obj_set_style_text_color(l, i==OV_FAV && !on ? TC(FIXED_MEDIA_WHITE) : g_acc, 0); lv_obj_set_style_bg_color(b, on ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
 }
 static void ov_place_cap(int i, int x, int y){ lv_obj_update_layout(g_ov_cap[i]); lv_obj_set_pos(g_ov_cap[i], x - lv_obj_get_width(g_ov_cap[i]) / 2, y + 40); }
 static void ov_paint(void){
@@ -629,6 +629,10 @@ static void ov_open(void){
     lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, th_null() ? TF(UI_16) : ui_font_cjk(16), 0);
     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
     if(th_null()) lv_obj_set_style_text_font(ar, TF(HEADER_SM), 0);
+    /* Scroll modes choose a vertical loop if the line is taller than a fixed box.
+     * Content height guarantees a single full line: only over-wide text can animate. */
+    lv_obj_set_height(t,LV_SIZE_CONTENT);lv_obj_set_height(ar,LV_SIZE_CONTENT);
+    lv_obj_set_height(tb,42+lv_font_get_line_height(lv_obj_get_style_text_font(ar,0)));
     if(th_simple()) simple_keep_label(ar); else kit_keep(ar);
     static const struct { int x, y; const char *cap; } P[OV_N] = {          /* two gentle arcs of three */
         { 84, 146, "Favourite" }, { 180, 160, "Album" }, { 276, 146, "Artist" },

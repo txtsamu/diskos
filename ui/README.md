@@ -40,6 +40,7 @@ Help is directly below Battery in Squash/Disco/Null: one-topic How to pages, con
 
 ## Build
 Requires:
+- Ready-built toolchain: [toolchain-gcc11.2 release](https://github.com/zmd22/diskos-disco/releases/tag/toolchain-gcc11.2). Download the Linux x86_64 archive and its checksum; no compiler rebuild is needed.
 - A static **mipsel-linux-musl** cross toolchain built for the stock firmware's float ABI: **MIPS32r2, FP64,
   NaN2008** (GCC 11.2.0, musl 1.2.6). Build it with [musl-cross-make](https://github.com/richfelker/musl-cross-make)
   and the pinned config in [`toolchain/mcm-config.mak`](toolchain/mcm-config.mak), or just use the Docker builder

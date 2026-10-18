@@ -9,6 +9,7 @@
  *
  * Usage:
  *   diskos-artdec art   <input> <outdir>   writes <outdir>/c.bmp (148x148), t.bmp (42x42), b.bmp (360x360 blurred)
+ *   diskos-artdec roulette <input> <outfile> [budget_kib] writes 224x224 BGRA, bounded Roulette job
  *   diskos-artdec saver <input> <outfile>  writes 360x360 top-down BGRA (518400 bytes), for the vinyl screensaver
  * <input> is an audio file with an embedded picture (MP3/ID3v2.2-2.4, FLAC, MP4/M4A, WAV with an ID3 chunk) or a
  * plain JPEG/PNG/BMP/GIF picture, recognised by content, not by name. <outdir> must be an existing directory made
@@ -798,11 +799,22 @@ static int artdec_main(int argc, char **argv){
 #else
 int main(int argc, char **argv){
 #endif
-    if(argc != 4) return ST_USAGE;
+    int roulette = argc>=2 && !strcmp(argv[1], "roulette");
+    if(argc != 4 && !(roulette && argc==5)) return ST_USAGE;
+    if(roulette){
+        /* Roulette-only cap: all existing artwork modes keep their current budget. */
+        size_t cap=16u<<20;
+        if(argc==5){
+            char *end=NULL;errno=0;unsigned long kb=strtoul(argv[4],&end,10);
+            if(errno || !end || *end || kb<4096 || kb>16384)return ST_USAGE;
+            cap=(size_t)kb*1024u;
+        }
+        if(g_budget>cap)g_budget=cap;
+    }
     int soft = !strcmp(argv[1],"art-soft");
     int saver = !strcmp(argv[1], "saver");
     int poster = !strcmp(argv[1], "poster");
-    if(!saver && !poster && !soft && strcmp(argv[1], "art")) return ST_USAGE;
+    if(!roulette && !saver && !poster && !soft && strcmp(argv[1], "art")) return ST_USAGE;
 #ifndef ARTDEC_INPROC
     if(limits()) return ST_LIMIT;                             /* in-process: the budget above still applies */
 #endif
@@ -851,8 +863,8 @@ int main(int argc, char **argv){
     free_tags();                                              /* compressed bytes no longer needed */
 
     int rc = ST_OK;
-    if(saver || poster){
-        int size = poster ? 364 : 360;
+    if(saver || poster || roulette){
+        int size = roulette ? 224 : poster ? 364 : 360;
         uint16_t *img = NULL;
         rc = make(&pic, size, 0, 0, &img);
         stbi_image_free(pic.rgb);
@@ -881,6 +893,7 @@ int main(int argc, char **argv){
 
 #ifdef ARTDEC_INPROC
 #include <pthread.h>
+#include <stdatomic.h>
 /* The helper's whole job as one call inside mq_ui: same modes, outputs and exit codes as the standalone
  * `diskos-artdec <mode> <input> <out>`. Serialised (the decoder keeps file-scope state); every run starts from
  * a clean state and releases its file and memory afterwards, whatever path it returned by. */
@@ -898,10 +911,12 @@ static size_t artdec_mem_budget(void){
     avail -= reserve;
     return avail < BUDGET_BYTES ? (size_t)avail : BUDGET_BYTES;
 }
-int artdec_inproc(const char *mode, const char *input, const char *out){
+static int artdec_run(const char *mode, const char *input, const char *out, size_t cap, const atomic_int *cancel){
     static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mu);
+    if(cancel && atomic_load(cancel)){pthread_mutex_unlock(&mu);return ST_LIMIT;}
     g_budget = artdec_mem_budget();
+    if(cap && g_budget>cap)g_budget=cap;
     if(g_budget < (4u << 20)){ g_budget = BUDGET_BYTES; pthread_mutex_unlock(&mu); return ST_LIMIT; }
     g_fd = -1; g_fsize = 0; g_ioerr = 0; g_ncand = g_saw_picture = g_malformed = g_limited = 0;
     g_ntags = 0; g_atoms = 0; g_live = g_peak = 0; g_over_budget = 0; g_blocks = NULL;
@@ -913,5 +928,11 @@ int artdec_inproc(const char *mode, const char *input, const char *out){
     g_live = 0; g_ntags = 0; g_budget = BUDGET_BYTES;
     pthread_mutex_unlock(&mu);
     return rc;
+}
+int artdec_inproc(const char *mode,const char *input,const char *out){
+    return artdec_run(mode,input,out,0,NULL);
+}
+int artdec_roulette(const char *input,const char *out,size_t cap,const atomic_int *cancel){
+    return artdec_run("roulette",input,out,cap,cancel);
 }
 #endif

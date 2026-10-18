@@ -436,3 +436,34 @@ void simple_volume_show(int value){
  lv_obj_remove_flag(sv_root,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(sv_root);sv_wake();
  if(opening){sv_closing=0;lv_anim_delete(sv_sheet,sv_frame);if(!screen_get_anim()){sv_frame(sv_sheet,0);return;}if(sv_offset>12)sv_offset=12;sv_frame(sv_sheet,sv_offset);lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,sv_sheet);lv_anim_set_exec_cb(&a,sv_frame);lv_anim_set_values(&a,sv_offset,0);lv_anim_set_duration(&a,96);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);}
 }
+
+/* Shared Squash connection header: generous controls inside the round top safe area.
+ * Fonts keep the theme's user-text fallbacks; live radio state still comes from wifi.c / bt.c. */
+void simple_radio_skin(lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *name,lv_obj_t *status,
+                       lv_obj_t *toggle,lv_obj_t *scan,lv_obj_t *list){
+    if(!th_simple())return;
+    lv_obj_set_size(ring,84,84);lv_obj_align(ring,LV_ALIGN_TOP_MID,0,40);
+    lv_obj_set_style_arc_width(ring,5,LV_PART_MAIN);lv_obj_set_style_arc_width(ring,5,LV_PART_INDICATOR);
+    lv_obj_set_style_text_font(glyph,TF(UI_40),0);
+    lv_obj_set_size(glyph,60,60);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);
+    int icon_height=lv_font_get_line_height(TF(UI_40));
+    lv_obj_set_style_pad_top(glyph,(60-icon_height)/2,0);
+    lv_obj_align(glyph,LV_ALIGN_TOP_MID,0,52);
+    lv_obj_set_width(name,268);lv_obj_set_height(name,32);lv_obj_set_style_text_font(name,TF(UI_24),0);
+    lv_obj_align(name,LV_ALIGN_TOP_MID,0,132);simple_keep_label(name);
+    lv_obj_set_width(status,268);lv_obj_set_height(status,26);lv_obj_set_style_text_font(status,TF(UI_18),0);
+    lv_obj_align(status,LV_ALIGN_TOP_MID,0,166);simple_keep_label(status);
+    lv_obj_set_size(scan,48,48);lv_obj_align(scan,LV_ALIGN_TOP_MID,-86,58);lv_obj_set_ext_click_area(scan,6);
+    lv_obj_set_style_radius(scan,24,0);lv_obj_set_style_border_width(scan,1,0);
+    lv_obj_set_style_border_color(scan,TC(ACCENT_PRIMARY),0);lv_obj_set_style_border_opa(scan,100,0);
+    lv_obj_set_style_bg_color(scan,TC(SURFACE_RAISED),0);lv_obj_set_style_bg_opa(scan,255,0);
+    lv_obj_t *ic=lv_obj_get_child(scan,0);lv_obj_set_style_text_font(ic,TF(UI_22),0);
+    lv_obj_set_style_text_color(ic,TC(ACCENT_PRIMARY),0);lv_obj_center(ic);
+    lv_obj_set_size(toggle,56,32);lv_obj_align(toggle,LV_ALIGN_TOP_MID,92,66);lv_obj_set_ext_click_area(toggle,6);
+    lv_obj_set_style_bg_color(toggle,TC(CONTROL_TRACK),LV_PART_MAIN);
+    lv_obj_set_style_bg_color(toggle,TC(ACCENT_PRIMARY),LV_PART_INDICATOR|LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(toggle,TC(TEXT_PRIMARY),LV_PART_KNOB);
+    lv_obj_set_pos(list,30,202);lv_obj_set_size(list,300,144);lv_obj_set_style_pad_bottom(list,54,0);
+    lv_obj_set_style_pad_row(list,6,0);
+    kit_keep(ring);kit_keep(glyph);kit_keep(scan);kit_keep(ic);kit_keep(toggle);
+}
