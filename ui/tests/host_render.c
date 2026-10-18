@@ -2,6 +2,8 @@
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
 #include "azjump.h"
+#include "roulette_backend.h"
+#include "lvgl/src/widgets/label/lv_label_private.h"
 #include "lvgl/src/misc/lv_timer_private.h"
 #include "simple_theme.h"
 #include "lvgl/src/misc/lv_timer_private.h"
@@ -33,6 +35,7 @@
 
 /* Host-only controlled failure: hold album B's load while the UI returns to A. */
 static void volume_concept(int);
+void settings_open_group(const char *);
 static atomic_int race_waiting, race_release,art_decode_calls;
 static const char *race_path="/tmp/diskos-art-race-unreadable.mp3";
 int __real_art_make_all_ex_gen(const char *,const char *,const char *,const char *,int,unsigned);
@@ -536,6 +539,14 @@ int main(int argc, char **argv){
             want=10; light=0;
         }
         theme_init();
+        if(prior==-1 && strcmp(argv[3],"reset")){
+            assert(cfg_get_int("disco_hints",-1)==1);
+            assert(cfg_get_int("disco_prog_shape",-1)==0);
+            assert(cfg_get_int("disco_trackno",-1)==0);
+            cfg_set_int("disco_hints",2);cfg_set_int("disco_prog_shape",1);cfg_set_int("disco_trackno",1);
+            theme_init();
+            assert(cfg_get_int("disco_hints",-1)==2 && cfg_get_int("disco_prog_shape",-1)==1 && cfg_get_int("disco_trackno",-1)==1);
+        }
         assert(theme_preset()==want && theme_variant()==light);
         assert(cfg_get_int("volume",0)==37);
         assert(cfg_get_int("fork_theme_migrated",0)==1);
@@ -1036,6 +1047,20 @@ int main(int argc, char **argv){
         screen_show(scr);
         if(!strcmp(page,"bt")){extern void bt_preview_null(void);bt_preview_null();}
         if(!strcmp(page,"wifi")){extern void wifi_preview_null(void);wifi_preview_null();}
+        if(th_simple() && getenv("REVIEW_SQUASH_RADIO")){
+            lv_obj_t *root=screen_get_root(scr),*ring=NULL,*toggle=NULL;
+            for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=lv_obj_get_child(root,i);if(lv_obj_check_type(o,&lv_arc_class))ring=o;if(lv_obj_check_type(o,&lv_switch_class))toggle=o;}
+            lv_obj_t *glyph=find_text(root,!strcmp(page,"wifi")?LV_SYMBOL_WIFI:LV_SYMBOL_BLUETOOTH),*scan_icon=find_text(root,LV_SYMBOL_REFRESH);
+            assert(ring&&toggle&&glyph&&scan_icon);lv_obj_update_layout(root);lv_area_t r,g;
+            lv_obj_get_coords(ring,&r);lv_obj_get_coords(glyph,&g);
+            assert(r.x1+r.x2==g.x1+g.x2 && r.y1+r.y2==g.y1+g.y2);
+            assert(lv_obj_get_style_text_font(glyph,0)==TF(UI_40));
+            lv_obj_t *scan=lv_obj_get_parent(scan_icon);assert(lv_obj_get_width(scan)==48&&lv_obj_get_height(scan)==48);
+            assert(lv_obj_get_width(toggle)==56&&lv_obj_get_height(toggle)==32);
+            lv_obj_t *controls[]={scan,toggle};
+            for(int i=0;i<2;i++){lv_area_t a;lv_obj_get_coords(controls[i],&a);fprintf(stderr,"RADIO control %d rect %d %d %d %d ring %d %d %d %d\n",i,(int)a.x1,(int)a.y1,(int)a.x2,(int)a.y2,(int)r.x1,(int)r.y1,(int)r.x2,(int)r.y2);assert(a.x2<r.x1 || a.x1>r.x2);for(int x=a.x1-6;x<=a.x2+6;x+=a.x2-a.x1+12)for(int y=a.y1-6;y<=a.y2+6;y+=a.y2-a.y1+12){int dx=x-180,dy=y-180;assert(dx*dx+dy*dy<180*180);}}
+            puts("PASS: Squash radio logo centred, larger controls separated and touch corners inside round display");
+        }
         if(!strncmp(page,"immersive",9)){
             if(th_disco() || th_null()) disco_open_np_immersive(); else ui_np_fsart_open();assert(ui_np_fsart_active());
             for(int i=0;i<100;i++){lyrics_poll(NULL);usleep(1000);}
@@ -1258,6 +1283,15 @@ int main(int argc, char **argv){
             puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
         }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(th_simple() && getenv("REVIEW_SQUASH_ACCENT")){
+            setlist_open("Display");settings_open_group("Theme Colours");nav_wait(100);
+            lv_obj_t *root=screen_get_root(SCR_SETLIST),*label=find_text(root,"Disabled");assert(label);
+            lv_obj_t *row=lv_obj_get_parent(label);assert(lv_obj_get_style_opa(row,0)==150);
+            int before=simple_cfg_get_int("accent_color",-1);lv_obj_send_event(row,LV_EVENT_CLICKED,NULL);nav_wait(50);
+            assert(screen_current()==SCR_SETLIST&&simple_cfg_get_int("accent_color",-1)==before);
+            assert(find_text(lv_layer_top(),"Squash uses its own theme palette. This accent setting doesn't apply."));
+            puts("PASS: Squash Accent Colour is visibly disabled, explains why on tap, preserves saved colour");return 0;
+        }
         if(getenv("REVIEW_DISCO_SETTINGS")){
             void settings_open_group(const char *);
             setlist_open("Display");settings_open_group("Theme Colours");nav_wait(80);
@@ -1397,18 +1431,21 @@ int main(int argc, char **argv){
             lv_obj_t *root=screen_get_root(SCR_WORKMODE); lv_obj_update_layout(root);
             for(int i=0;i<5;i++){
                 lv_obj_t *label=find_text(root,names[i]); assert(label);
-                assert(lv_obj_get_style_text_font(label,0)==TF(UI_22));
-                lv_obj_t *row=lv_obj_get_parent(label); assert(lv_obj_get_height(row)==56);
+                assert(lv_obj_get_style_text_font(label,0)==(th_simple()?ui_font_cjk(20):TF(UI_22)));
+                lv_obj_t *row=lv_obj_get_parent(label); assert(lv_obj_get_height(row)==(th_simple()?50:56));
                 lv_point_t size; lv_text_get_size(&size,names[i],lv_obj_get_style_text_font(label,0),lv_obj_get_style_text_letter_space(label,0),0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
                 assert(size.x<=lv_obj_get_width(label));
                 assert(lv_obj_get_width(row)>130);
                 lv_area_t area;lv_obj_get_coords(row,&area);
-                assert(disco_mirror()?area.x2<292:area.x1>=68);
-                assert(lv_obj_get_width(row)<=260);
+                assert(th_simple()?area.x1>=24:(disco_mirror()?area.x2<292:area.x1>=68));
+                assert(lv_obj_get_width(row)<=280);
             }
             lv_obj_t *last=lv_obj_get_parent(find_text(root,"AirPlay"));
-            assert(lv_obj_get_y(last)+lv_obj_get_height(last)==342);
-            puts("PASS: Modes 56px rows, labels fit, protected edge gutter, shortened caps, bottom y=342");
+            if(th_simple()){
+                assert(lv_obj_get_parent(last)==root && !lv_obj_has_flag(root,LV_OBJ_FLAG_SCROLLABLE));
+                for(int i=0;i<5;i++){lv_area_t a;lv_obj_get_coords(lv_obj_get_parent(find_text(root,names[i])),&a);assert(a.x1>=24 && a.x2<=299 && a.y1>=60 && a.y2<326);}
+            }else assert(lv_obj_get_y(last)+lv_obj_get_height(last)==342);
+            puts("PASS: mode rows retain theme sizing, readable labels, safety gutter and fixed five-row Squash layout shared with Shortcuts");
         }
         if(getenv("REVIEW_IMM_REOPEN")){
             screen_set_anim(1);
@@ -1663,6 +1700,29 @@ render:
         screen_home();nav_wait(100);
         puts("PASS: Album Wall queued work survives repeated enter/drag/leave, hidden trim and reopen");return 0;
     }
+    if(getenv("REVIEW_ROULETTE_MEMORY")){
+        assert(mdb_load()==40);screen_set_anim(1);
+        for(int cycle=0;cycle<6;cycle++){
+            screen_show(SCR_ROULETTE);roulette_spin_open();lv_obj_t *again=NULL;
+            for(int i=0;i<5000;i++){nav_wait(10);if(i%10==0)usleep(3000);again=find_visible_text(screen_get_root(SCR_ROULETTE_SPIN),"Again");if(again)break;}
+            assert(again && album_count==10);
+            lv_obj_t *root=screen_get_root(SCR_ROULETTE_SPIN),*landing=lv_obj_get_child(root,0),*spin=lv_obj_get_child(root,1);
+            assert(lv_image_get_src(lv_obj_get_child(landing,0))==NULL);
+            for(int i=0;i<3;i++){const lv_image_dsc_t *image=lv_image_get_src(lv_obj_get_child(spin,i));assert(image&&image->header.w==224&&image->data_size==224*224*4);}
+            lv_obj_t *exit=find_visible_text(root,"Exit");assert(exit);lv_obj_send_event(lv_obj_get_parent(exit),LV_EVENT_CLICKED,NULL);
+            nav_wait(30);if(lv_obj_is_visible(root))assert(album_count==10);
+            nav_wait(1500);assert(album_count==0);
+            for(int i=0;i<POOL;i++)assert(!albums[i].pixels);
+            for(int i=0;i<3;i++)assert(lv_image_get_src(lv_obj_get_child(spin,i))==NULL);
+        }
+        for(int cycle=0;cycle<6;cycle++){
+            screen_show(SCR_ROULETTE);roulette_spin_open();nav_wait(10);screen_home();nav_wait(10);
+            screen_show(SCR_ROULETTE);roulette_spin_open();nav_wait(3000);screen_home();
+            for(int i=0;i<1000 && album_count;i++){nav_wait(10);usleep(1000);}
+            nav_wait(1500);assert(album_count==0);
+        }
+        puts("PASS: Roulette releases hidden wheel, 224px covers and mappings after animated exits; repeated close/reopen and cancellation recover");return 0;
+    }
     if(getenv("REVIEW_ROULETTE_ACTIONS")){
         assert(mdb_load()==40);screen_set_anim(0);roulette_spin_open();
         lv_obj_t *again=NULL;
@@ -1684,6 +1744,9 @@ render:
         lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
         lv_obj_update_layout(parent);
         nav_touch((lv_point_t){30,180},700);nav_wait(40);assert(azjump_active());
+        lv_obj_t *backing=lv_obj_get_child(picker.wheel,0);assert(lv_obj_check_type(backing,&lv_arc_class));
+        assert(lv_obj_get_style_arc_opa(backing,LV_PART_MAIN)==LV_OPA_COVER);
+        assert(lv_obj_get_style_bg_opa(picker.wheel,0)==LV_OPA_50);
         nav_pointer=(lv_indev_data_t){.point={180,50},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);
         for(int degrees=-90;degrees<=-30;degrees+=3){float a=degrees*3.14159265f/180;nav_pointer.point=(lv_point_t){180+(int)lround(130*cos(a)),180+(int)lround(130*sin(a))};nav_wait(20);}
         assert(picker.current==16); /* M + four clockwise sectors = Q. */
@@ -1751,6 +1814,7 @@ render:
         }
         if(th_simple()){assert(lv_obj_get_width(title)==220);assert(lv_obj_get_width(artist)==210);}
         assert(lv_obj_get_height(artist)>=lv_font_get_line_height(lv_obj_get_style_text_font(artist,0)));
+        for(int i=0;i<40;i++){nav_wait(137);assert(((lv_label_t*)artist)->offset.y==0 && ((lv_label_t*)title)->offset.y==0);}
         nav_wait(120000); kit_restyle(ov);
         assert(lv_label_get_long_mode(title)==LV_LABEL_LONG_SCROLL_CIRCULAR);
         assert(lv_label_get_long_mode(artist)==LV_LABEL_LONG_SCROLL_CIRCULAR);

@@ -34,11 +34,22 @@ class SharpDecoderTest(unittest.TestCase):
     def test_sharp_dimensions_and_channel_order(self):
         source = self.root / "solid.png"
         source.write_bytes(png(32, 32, (209, 57, 12)))
-        for mode, size in (("saver", 360), ("poster", 364)):
+        for mode, size in (("saver", 360), ("poster", 364), ("roulette", 224)):
             with self.subTest(mode=mode):
                 output = self.root / (mode + ".bgra")
                 subprocess.run([str(self.exe), mode, str(source), str(output)], check=True)
                 self.assertEqual(output.read_bytes(), bytes((12, 57, 209, 255)) * size * size)
+
+    def test_roulette_budget_rejects_large_decode_and_invalid_caps(self):
+        source = self.root / "budget.png"
+        source.write_bytes(png(1200,1200,(10,20,30)))
+        output = self.root / "budget.bgra"
+        self.assertEqual(subprocess.run([str(self.exe),"roulette",str(source),str(output),"4096"]).returncode,6)
+        self.assertFalse(output.exists())
+        self.assertEqual(subprocess.run([str(self.exe),"roulette",str(source),str(output),"16384"]).returncode,0)
+        self.assertEqual(output.stat().st_size,224*224*4)
+        for cap in ("0","32768","oops","-1"):
+            self.assertEqual(subprocess.run([str(self.exe),"roulette",str(source),str(output),cap]).returncode,2)
 
     def test_malformed_picture_never_publishes(self):
         source = self.root / "broken.png"

@@ -344,44 +344,17 @@ void modes_open(void){
 }
 
 static void disco_row_cb(lv_event_t *e){ row_cb((int)(intptr_t)lv_event_get_user_data(e)); }
-/* Squash: broad, tall rows; curved free edge outside the Back gesture strip,
- * fixed right column, with geometry recalculated only while the list scrolls. */
-static void squash_modes_curve(lv_event_t *e){
-    lv_obj_t *list=lv_event_get_target(e);lv_obj_update_layout(list);
-    for(int k=0;k<N_DISCO;k++){
-        lv_obj_t *row=g_drow[DISCO_ORD[k]];if(!row)continue;
-        lv_area_t a;lv_obj_get_coords(row,&a);
-        int dy=abs((a.y1+a.y2)/2-180);
-        if(dy>170)dy=170;
-        int bow=(int)(0.5f*(180-sqrtf((float)(180*180-dy*dy))));
-        int left=68+bow,right=326,width=right-left;
-        if(lv_obj_get_x(row)!=left)lv_obj_set_x(row,left);
-        if(lv_obj_get_width(row)!=width)lv_obj_set_width(row,width);
-        lv_obj_t *name=lv_obj_get_child(row,1);
-        lv_obj_set_width(name,width-82);lv_obj_align(name,LV_ALIGN_LEFT_MID,44,0);
-    }
-}
+/* Match Shortcuts: five fixed pill rows, with a larger shared header. */
 static void squash_modes_create(lv_obj_t *root){
     disco_title(root,"Working mode");
     static const char *names[N_MODES]={"Playback","USB DAC","Bluetooth DAC","BT streaming","AirPlay","USB storage"};
-    lv_obj_t *list=lv_obj_create(root);lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list,0,58);lv_obj_set_size(list,360,288);
-    lv_obj_set_scroll_dir(list,LV_DIR_VER);lv_obj_set_scrollbar_mode(list,LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLL_MOMENTUM);lv_obj_set_style_pad_bottom(list,76,0);
     memset(g_drow,0,sizeof g_drow);
     for(int k=0;k<N_DISCO;k++){
-        int i=DISCO_ORD[k];lv_obj_t *r=disco_row(list,8+k*76,68,MODES[i].glyph,TF(UI_24),names[i],NULL,NULL);
-        g_drow[i]=r;lv_obj_set_style_radius(r,34,0);lv_obj_set_style_bg_opa(r,LV_OPA_COVER,0);
+        int i=DISCO_ORD[k];
+        lv_obj_t *r=squash_menu_row(root,k,MODES[i].glyph,TF(UI_24),names[i],NULL,NULL);g_drow[i]=r;
         ui_on(r,disco_row_cb,LV_EVENT_CLICKED,(void *)(intptr_t)i,"modes.select",UI_CORE);
-        lv_obj_set_style_border_width(r,2,LV_STATE_PRESSED);lv_obj_set_style_border_color(r,TC(ACCENT_PRIMARY),LV_STATE_PRESSED);
-        lv_obj_align(lv_obj_get_child(r,0),LV_ALIGN_LEFT_MID,12,0);
-        lv_obj_t *name=lv_obj_get_child(r,1);lv_obj_set_style_text_font(name,TF(UI_26),0);
-        lv_label_set_long_mode(name,LV_LABEL_LONG_SCROLL_CIRCULAR);simple_keep_label(name);
-        lv_obj_set_style_text_font(lv_obj_get_child(r,2),TF(UI_22),0);lv_obj_align(lv_obj_get_child(r,2),LV_ALIGN_RIGHT_MID,-12,0);
-        kit_keep(r);for(int j=0;j<3;j++)kit_keep(lv_obj_get_child(r,j));
     }
-    lv_obj_add_event_cb(list,squash_modes_curve,LV_EVENT_SCROLL,NULL);
-    lv_obj_send_event(list,LV_EVENT_SCROLL,NULL);mark_selected();
+    lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);mark_selected();
 }
 void modes_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);

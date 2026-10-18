@@ -878,10 +878,31 @@ lv_obj_t *disco_row(lv_obj_t *root, int y, int h, const char *glyph, const lv_fo
     lv_obj_align(v, LV_ALIGN_RIGHT_MID, -16, 0);
     return r;
 }
+/* Squash uses one fixed five-row layout for Shortcuts and Working mode. */
+lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_font_t *font,const char *name,lv_event_cb_t cb,void *ud){
+    lv_obj_t *r=disco_row(root,60+slot*54,50,glyph,font,name,cb,ud);
+    int y=60+slot*54,h=50,dy=abs(y+h/2-180),radius=h/2;
+    int half=(int)sqrtf((float)((176-radius)*(176-radius)-dy*dy))+radius;
+    int left=24+(int)(0.5f*(180-sqrtf((float)(180*180-dy*dy))));
+    if(left<180-half)left=180-half;
+    int right=180+half;if(right>300)right=300;
+    lv_obj_set_pos(r,left,y);lv_obj_set_size(r,right-left,h);
+    lv_obj_align(lv_obj_get_child(r,0),LV_ALIGN_LEFT_MID,12,0);
+    lv_obj_t *label=lv_obj_get_child(r,1);
+    lv_obj_align(label,LV_ALIGN_LEFT_MID,46,0);
+    lv_obj_set_style_text_font(label,ui_font_cjk(20),0);
+    lv_obj_set_size(label,right-left-72,lv_font_get_line_height(ui_font_cjk(20)));
+    simple_keep_label(label);
+    lv_obj_set_style_border_width(r,2,LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(r,TC(ACCENT_PRIMARY),LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(r,LV_OPA_COVER,LV_STATE_PRESSED);
+    return r;
+}
 lv_obj_t *disco_title(lv_obj_t *root, const char *t){
     lv_obj_t *l = lv_label_create(root); lv_label_set_text(l, t);
-    lv_obj_set_style_text_font(l, TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+    lv_obj_set_style_text_font(l, th_simple()?TF(UI_26):TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 28);
+    if(th_simple())simple_keep_label(l);
     return l;
 }
 /* the vector icons for other screens (Apps' tiles): "@boom", "@stats", "@vinyl", "@apps" */

@@ -206,6 +206,10 @@ static void disco_build(void){
     }
     for(int i = 0; i < cnt; i++){
         int f = g_items[first + i].font;
+        if(th_simple()){
+            squash_menu_row(g_box,i,g_items[first+i].icon,f==1?TF(ICON_28):f==2?&font_theme_20:TF(UI_24),g_items[first+i].name,disco_pick_cb,(void *)(intptr_t)i);
+            continue;
+        }
         lv_obj_t *r = disco_row(g_box, 60 + i * 54, 50, g_items[first + i].icon, f == 1 ? TF(ICON_28) : f == 2 ? &font_theme_20 : TF(UI_24),
                                 g_items[first + i].name, disco_pick_cb, (void *)(intptr_t)(g_all ? i : i));
         lv_obj_update_layout(r);

@@ -286,6 +286,10 @@ are written to the player, and only when you change something.
 
 ### Working mode
 
+In Squash, Working mode and Shortcuts use matching pill rows and larger headers. All five working modes stay visible without scrolling; the narrow edge gutter remains available for Back.
+
+![Squash Working mode](site/screens/squash-modes.webp)
+
 Choose where the music comes from and goes to: **Playback** (normal listening), **USB storage** (the computer
 sees the card; eject it there before switching back), **Bluetooth DAC**, **USB DAC** and **AirPlay**. The active
 mode has an accent outline and a tick; while a change is in progress, spinning arrows take the tick's place.

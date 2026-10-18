@@ -9,4 +9,6 @@ GitHub Pages source remains in `docs/`.
 - The right-side CD rotates with page position and shows reading progress on its rim; clicking returns to the top. Scroll input is never intercepted. No autoplay, trackers or third-party JavaScript.
 - Existing screenshot swap controls and native dialog remain; without JavaScript the images and page still open normally.
 
-Browser-control QA was unavailable. Further test and verification runs were stopped at the owner's request. No browser-rendered screenshot or device performance result is claimed.
+Browser-control QA was unavailable. JavaScript syntax, scroll/progress logic and local asset/link checks passed. No browser-rendered screenshot or device performance result is claimed.
+
+Squash Working mode and Shortcuts now share fixed pill rows and larger headers; all five modes fit without scrolling. Preview: `screens/squash-modes.webp`.

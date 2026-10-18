@@ -477,6 +477,7 @@ int  library_back(void);
 /* Disco: hand-built list rows (disco.c) - children [0] icon, [1] name, [2] value */
 lv_obj_t *disco_row(lv_obj_t *root, int y, int h, const char *glyph, const lv_font_t *gfont, const char *name, lv_event_cb_t cb, void *ud);
 lv_obj_t *disco_title(lv_obj_t *root, const char *t);
+lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_font_t *font,const char *name,lv_event_cb_t cb,void *ud);
 void ui_np_open_album(void);    /* the playing song's album in the Library, the song focused */
 void ui_np_open_artist(void);   /* the playing song's artist, its album focused */
 void library_open_artist_focus(const char *artist, const char *album);
