@@ -1,16 +1,21 @@
 {
-  "version": "2.5.1",
-  "revision": "test candidate: performance, log maintenance, Roulette and optional Library letter wheel",
-  "baseline": "f4c7af680553a70b52a633eb0fd7a6b38c46a60a",
-  "source_commit": "5263bcd7a6da52da52061ebcc3c411f7276898dc",
-  "ui_source_sha256": "bc769bc9b55f5b648c73bd352671882d2e60a6a66e6c529a158fef0aef3a0124",
+  "version": "2.5.2",
+  "revision": "Roulette memory/layout, first-flash defaults, Squash connection/mode screens, popup and letter-ring fixes; orange website",
+  "baseline": "50a402a87a3dd6f6177e1eab03e5afb2b87f1b0c",
+  "source_commit": "e84f33e4fdce718d1f500775e1868de18764b5a8",
+  "ui_source_sha256": "737a976cca32016a029a442fe13aa042e5bfd3b583d97054dc7be4b1f989f336",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
-  "compiler": "GCC 11.2.0 (xgcc), musl 1.2.6",
+  "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Native regression checks and MIPS build passed; no physical device test; not published",
+  "status": "Rebuilt; further test and verification runs stopped at owner request; physical device tests pending; not published",
   "binary": {
-    "bytes": 5730516,
-    "sha256": "18172be601b84c765c8732981e89f791ab9a4d2f6f943684c830b1e22f594106",
-    "md5": "74311ee31f85ce5abc283dc41dd674c8"
+    "bytes": 5734500,
+    "sha256": "4b8eeedd02f843da14239a7017217024aa3b771334e0dc0f021c2814c690d8d4",
+    "md5": "d69da3bff611e594a80f519ed5d0c8b0"
+  },
+  "artwork_helper": {
+    "bytes": 119424,
+    "sha256": "e45d44851deefb4fa7dbbd3e3d01bfe701c66fad0c253cc796fe9a1fa02419da",
+    "note": "Roulette uses the capped built-in decoder; the raw mq_ui works with the previously flashed read-only helper."
   }
 }
