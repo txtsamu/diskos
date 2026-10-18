@@ -1,0 +1,23 @@
+10 REVIEW_DISPLAY: PASS: Display pages, back destinations, 10 disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme 10)
+11 REVIEW_DISPLAY: PASS: Display pages, back destinations, 15 disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme 11)
+12 REVIEW_DISPLAY: PASS: Display pages, back destinations, 13 disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme 12)
+8 REVIEW_DISPLAY: PASS: Display pages, back destinations, 27 disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme 8)
+9 REVIEW_DISPLAY: PASS: Display pages, back destinations, 28 disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme 9)
+11 REVIEW_DISPLAY_IDLE: PASS: Null idle timer pauses/resumes; no Music state reads while panel off; wake resumes updates
+11 REVIEW_NULL: PASS: Null real-pointer drag suppression, menu destination, stationary NP under QS, radios, prev/next, close arrow, button swipe suppression, backgrounds, gesture double-tap, autofade wake and repeated QS lifecycle
+11 REVIEW_NULL_GESTURES: PASS: Null metadata double-tap, delayed popup tap, album next swipe, title previous swipe
+PASS: preview-home preset=11 variant=0 up_next=0
+11 REVIEW_NULL_VOLUME: PASS: Null volume strip adjusts, dismisses, reopens and times out
+12 REVIEW_MODES: PASS: mode rows retain theme sizing, readable labels, safety gutter and fixed five-row Squash layout shared with Shortcuts
+PASS: preview-home preset=12 variant=0 up_next=0
+11 REVIEW_MODES: PASS: mode rows retain theme sizing, readable labels, safety gutter and fixed five-row Squash layout shared with Shortcuts
+PASS: preview-home preset=11 variant=0 up_next=0
+10 REVIEW_NAV: PASS: open-only nav gestures, every action, hold-release suppression, cancellation, Apply/Back
+10 REVIEW_HINTS: PASS: hint lifetime/discovery, click-through, Auto/On/Off, healthy-start limit, reset/persistence/save failure
+10 REVIEW_DISCO_SETTINGS: PASS: Disco first in theme picker; Progress shape in Music progress, absent from Appearance
+12 REVIEW_SQUASH_ACCENT: PASS: Squash Accent Colour is visibly disabled, explains why on tap, preserves saved colour
+11 REVIEW_SQUASH_ACCENT: PASS: Squash Accent Colour is visibly disabled, explains why on tap, preserves saved colour
+10 REVIEW_HELP_MENU: PASS: Help below Battery, How to and back path, independent hint preferences
+11 REVIEW_HELP_MENU: PASS: Help below Battery, How to and back path, independent hint preferences
+12 REVIEW_HELP_MENU: PASS: Help below Battery, How to and back path, independent hint preferences
+PASS: focused Display and visual-idle regression suite
