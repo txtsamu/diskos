@@ -1,17 +1,17 @@
 {
-  "version": "2.5.2",
-  "revision": "Fixed matching Squash Working mode/Shortcuts menus and larger headers; validated 2.5.2 UI, Roulette and website changes",
-  "baseline": "50a402a87a3dd6f6177e1eab03e5afb2b87f1b0c",
-  "source_commit": "1fab2764467982e3a2634b7154e650003ffb5b4c",
-  "ui_source_sha256": "9b1a81d57a0412d56f9b576000502873894a50355d661827955c4404204a87cf",
+  "version": "2.5.3",
+  "revision": "Null Matrix, efficient menu/QS/scrollbar updates, unified fixed menus, all-theme Shortcuts feedback, screen-off History recording",
+  "baseline": "4ca0a0f25f3bf8ec6a4347ffc248bb55056feaf0",
+  "source_commit": "a657d78cf06318eeedee32b77ef99e9430a7d1f2",
+  "ui_source_sha256": "bec990f36a59c411e72780a3271ace1ccaba8b17042db7e9ba317425704fa13d",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Native regression, decoder and LVGL checks passed; physical Disc tests pending; not published",
+  "status": "Native full Null pointer checks passed for all three palettes; fixed menus, accent explanations, gestures, volume, History hook and SQLite contention passed; physical Disc testing pending; not published",
   "binary": {
-    "bytes": 5734152,
-    "sha256": "00805bbebec5e011d3de1cb5ec286bfaff9e8996a15ee3ae2ab5973845e428fe",
-    "md5": "ff4f648316b1e6efa955dc75513a115a"
+    "bytes": 5737900,
+    "sha256": "b5b062bd71808be70909a3eb3b306e9a1c85578305cd3a0052936c519fd2bbec",
+    "md5": "9fddb1a330e70983064f4d9a7dfe988b"
   },
   "artwork_helper": {
     "bytes": 119424,
