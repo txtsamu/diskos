@@ -616,19 +616,20 @@ static void ov_open(void){
     lv_obj_set_style_bg_color(g_ov, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_ov, th_simple()?255:245, 0);
     lv_obj_add_flag(g_ov, LV_OBJ_FLAG_CLICKABLE); lv_obj_clear_flag(g_ov, LV_OBJ_FLAG_SCROLLABLE);   /* swallows taps */
     lv_obj_t *tb = lv_obj_create(g_ov); lv_obj_remove_style_all(tb);   /* the title + artist: tap here to close */
-    lv_obj_set_size(tb, 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 38 - lift / 2);
+    lv_obj_set_size(tb, th_simple() ? 228 : 260, 64); lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 38 - lift / 2);
     lv_obj_add_flag(tb, LV_OBJ_FLAG_CLICKABLE); lv_obj_set_ext_click_area(tb, 10);
     lv_obj_add_event_cb(tb, ov_title_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *t = lv_label_create(tb); lv_label_set_text(t, L_TITLE.cur);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(t, 250, 28);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(t, th_simple() ? 220 : 250, 28);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(t, th_null() ? TF(HEADER_SM) : ui_font_cjk(22), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
-    if(th_null()) kit_keep(t);
+    if(th_simple()) simple_keep_label(t); else kit_keep(t); /* Never ellipsize popup metadata. */
     lv_obj_t *ar = lv_label_create(tb); lv_label_set_text(ar, L_ARTIST.cur);
-    lv_label_set_long_mode(ar, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(ar, 230, 22);
+    lv_label_set_long_mode(ar, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(ar, th_simple() ? 210 : 230, 22);
     lv_obj_set_style_text_align(ar, LV_TEXT_ALIGN_CENTER, 0); lv_obj_set_style_text_font(ar, th_null() ? TF(UI_16) : ui_font_cjk(16), 0);
     lv_obj_set_style_text_color(ar, TC(TEXT_SECONDARY), 0); lv_obj_align(ar, LV_ALIGN_TOP_MID, 0, 38);
-    if(th_null()){ lv_obj_set_style_text_font(ar, TF(HEADER_SM), 0); kit_keep(ar); }
+    if(th_null()) lv_obj_set_style_text_font(ar, TF(HEADER_SM), 0);
+    if(th_simple()) simple_keep_label(ar); else kit_keep(ar);
     static const struct { int x, y; const char *cap; } P[OV_N] = {          /* two gentle arcs of three */
         { 84, 146, "Favourite" }, { 180, 160, "Album" }, { 276, 146, "Artist" },
         { 94, 250, "Queue" },     { 180, 270, "Lyrics" }, { 266, 250, "Info" } };

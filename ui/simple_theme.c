@@ -45,6 +45,8 @@ int simple_cfg_set_str(const char*k,const char*v){char b[64];return cfg_set_str(
 int simple_cfg_set_int_deferred(const char*k,int v){char b[64];return cfg_set_int_deferred(scope(k,b,sizeof b),v);}
 int simple_cfg_set_str_deferred(const char*k,const char*v){char b[64];return cfg_set_str_deferred(scope(k,b,sizeof b),v);}
 static char simple_label_tag,simple_control_tag;
+/* App-owned metadata keeps its long mode even during a forced restyle. */
+void simple_keep_label(lv_obj_t *o){lv_obj_set_user_data(o,&simple_label_tag);kit_keep(o);}
 static lv_obj_t *label(lv_obj_t*p,const char*s,int x,int y,int w,const lv_font_t*f,lv_color_t c){
  lv_obj_t*l=lv_label_create(p);lv_label_set_text(l,s);lv_obj_set_pos(l,x,y);lv_obj_set_width(l,w);
  lv_label_set_long_mode(l,LV_LABEL_LONG_WRAP);lv_obj_set_style_text_font(l,f,0);lv_obj_set_style_text_color(l,c,0);

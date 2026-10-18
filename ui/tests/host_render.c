@@ -1651,6 +1651,26 @@ render:
     if(getenv("SETKEY")){ void settings_open_key(const char*); settings_open_key(getenv("SETKEY")); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }
     if(getenv("IDLE")){ void dhome_set_now_playing(const char*,const char*,lv_color_t,bool); void disco_art_changed(void);   /* Disco Music with nothing playing */
         dhome_set_now_playing(NULL,NULL,lv_color_hex(0x8080FF),false); for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();} }
+    if(getenv("REVIEW_TRACK_POPUP")){
+        extern void disco_track_overlay_open(void);
+        disco_track_overlay_open(); assert(disco_track_overlay_visible());
+        lv_obj_t *ov=lv_obj_get_child(lv_layer_top(),-1);
+        lv_obj_t *tb=lv_obj_get_child(ov,0);
+        lv_obj_t *title=lv_obj_get_child(tb,0),*artist=lv_obj_get_child(tb,1);
+        lv_label_set_text(title,"An exceptionally long track title that must continue scrolling in the track popup forever");
+        lv_label_set_text(artist,"An exceptionally long artist name and collaborators that must continue scrolling forever");
+        kit_pass(ov); nav_wait(200);
+        for(int i=0;i<2;i++){
+            lv_obj_t *label=i?artist:title;
+            assert(lv_label_get_long_mode(label)==LV_LABEL_LONG_SCROLL_CIRCULAR);
+            assert(lv_obj_get_style_anim(label,0)==NULL); /* LVGL default repeats forever. */
+        }
+        if(th_simple()){assert(lv_obj_get_width(title)==220);assert(lv_obj_get_width(artist)==210);}
+        nav_wait(120000); kit_restyle(ov);
+        assert(lv_label_get_long_mode(title)==LV_LABEL_LONG_SCROLL_CIRCULAR);
+        assert(lv_label_get_long_mode(artist)==LV_LABEL_LONG_SCROLL_CIRCULAR);
+        puts("PASS: popup title and artist retain infinite scrolling after two minutes and theme passes");
+    }
     if(th_null()&&getenv("NULL_POPUP")){extern void disco_track_overlay_open(void);disco_track_overlay_open();}
     if(th_null()&&getenv("NULL_NAV")){null_nav_set_open(atoi(getenv("NULL_NAV")));for(int i=0;i<24;i++){lv_tick_inc(10);lv_timer_handler();}}
     lv_refr_now(d);

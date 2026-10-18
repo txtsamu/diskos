@@ -16,6 +16,7 @@ void simple_refresh_budget(int);
 int simple_nav_is_open(void);
 int simple_owns_point(int,int);
 int simple_music_protected(lv_obj_t *);
+void simple_keep_label(lv_obj_t *);
 void simple_test_nav_phase(int);
 int simple_test_nav_bindings(void);
 int simple_test_nav_y(void);
