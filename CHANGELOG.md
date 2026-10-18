@@ -12,7 +12,8 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 - Roulette result actions beside Play, larger two-line metadata, 224px stored covers, direct capped built-in decoding and safe release of hidden artwork.
 - Squash Working mode and Shortcuts share fixed pill rows and larger headers, with all five modes visible without scrolling; clearer Wi-Fi/BT controls, names/status and centred larger logos; disabled shared Accent Colour with explanation.
 - Popup horizontal metadata scrolling and white unselected favourite icon; opaque A–Z letter-ring backing.
-- Orange/black website with the firmware logo font, restrained rainbow accents, pinned desktop chapters and a CD scroll-progress indicator.
+- macOS installation guide using upstream 1.2.0 Apple Silicon tools, plus the Intel build route.
+- Orange/black website with the firmware logo font, restrained rainbow accents, pinned desktop chapters.
 - Native UI, artwork/decoder and regression checks passed; device validation pending.
 
 ## [Unreleased]

@@ -6,9 +6,10 @@ GitHub Pages source remains in `docs/`.
 - The local Monoton font is the same face as the firmware's Disco! boot lettering; its OFL licence is included alongside the font.
 - Three theme galleries, original copy, screenshots, tour and newcomer guidance retained.
 - On wide/tall desktop viewports, chapters briefly pin as the document scrolls. Tall sections scroll completely into view. Mobile, short viewports and reduced-motion preferences use normal flow.
-- The right-side CD rotates with page position and shows reading progress on its rim; clicking returns to the top. Scroll input is never intercepted. No autoplay, trackers or third-party JavaScript.
 - Existing screenshot swap controls and native dialog remain; without JavaScript the images and page still open normally.
 
-Browser-control QA was unavailable. JavaScript syntax, scroll/progress logic and local asset/link checks passed. No browser-rendered screenshot or device performance result is claimed.
+Browser-control QA was unavailable. JavaScript syntax, chapter layout logic and local asset/link checks passed. No browser-rendered screenshot or device performance result is claimed.
 
 Squash Working mode and Shortcuts now share fixed pill rows and larger headers; all five modes fit without scrolling. Preview: `screens/squash-modes.webp`.
+
+Installation links include the macOS guide and external Apple Silicon flash tools. The floating disc progress indicator and its scroll listener have been removed.

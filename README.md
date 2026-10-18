@@ -227,6 +227,10 @@ Download **[diskOS-Disco-for-Windows.zip](https://github.com/zmd22/diskos-disco/
 extract it and run `diskOS-Disco.exe`. It walks you through everything, including your update keys and later SD
 updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
 
+### From macOS
+
+Follow the **[macOS installation guide](docs/MACOS.md)**. Apple Silicon Macs can use the ready-built native flash tools from b0hemia/diskOS 1.2.0 with the Disco installer. Intel Macs build the tools once.
+
 ### From Linux
 
 The installer is upstream diskOS's (`./diskos-installer --help`).
@@ -312,6 +316,7 @@ Stock is never far:
 | [Tour](docs/DISCO_TOUR.md) | Every screen, gesture and setting, with screenshots |
 | [How-to](docs/HOWTO.md) | Short answers for everyday tasks |
 | [Updating](docs/UPDATING.md) | Keys, signing, flashing once, troubleshooting |
+| [macOS](docs/MACOS.md) | Install Disco on Apple Silicon or Intel Macs |
 | [Windows](docs/WINDOWS.md) | diskOS Disco! for Windows: install and update from a Windows PC |
 | [UI choices](docs/UI_CHOICES.md) | Why things look and work the way they do |
 | [Changelog](CHANGELOG.md) | Every Disco! release, newest first |

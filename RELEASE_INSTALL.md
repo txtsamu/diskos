@@ -3,6 +3,8 @@
 **On Windows:** download `diskOS-Disco-for-Windows.zip` from the release, extract it and run `diskOS-Disco.exe`. It
 checks your PC, flashes the Disc and makes SD updates ([guide](docs/WINDOWS.md)).
 
+**On macOS:** follow the [Mac guide](docs/MACOS.md), including links to upstream’s ready-built Apple Silicon flash tools.
+
 **On Linux:** flash with the installer from the repository or source download, using your update key
 ([README](README.md#install)). **Already on 1.4.1 or later? 2.5.0 is an SD update.** Older than that? Reflash once first
 (the 1.4.1 boot-script fixes can't arrive by SD card). See [RELEASE-NOTES.md](RELEASE-NOTES.md).
