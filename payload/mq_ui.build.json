@@ -1,17 +1,17 @@
 {
   "version": "2.5.2",
-  "revision": "Roulette memory/layout, first-flash defaults, Squash connection/mode screens, popup and letter-ring fixes; orange website",
+  "revision": "Fixed matching Squash Working mode/Shortcuts menus and larger headers; validated 2.5.2 UI, Roulette and website changes",
   "baseline": "50a402a87a3dd6f6177e1eab03e5afb2b87f1b0c",
-  "source_commit": "e84f33e4fdce718d1f500775e1868de18764b5a8",
-  "ui_source_sha256": "737a976cca32016a029a442fe13aa042e5bfd3b583d97054dc7be4b1f989f336",
+  "source_commit": "3d7f49e2a6e4ee687458dfb5437fb619ed905193",
+  "ui_source_sha256": "a87b7688eb9a4961f0e93ad51c8c15bae6fab88fdb49b3f6ab6193c95dff6f5e",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Rebuilt; further test and verification runs stopped at owner request; physical device tests pending; not published",
+  "status": "Native regression, decoder and LVGL checks passed; physical Disc tests pending; not published",
   "binary": {
-    "bytes": 5734500,
-    "sha256": "4b8eeedd02f843da14239a7017217024aa3b771334e0dc0f021c2814c690d8d4",
-    "md5": "d69da3bff611e594a80f519ed5d0c8b0"
+    "bytes": 5734152,
+    "sha256": "00805bbebec5e011d3de1cb5ec286bfaff9e8996a15ee3ae2ab5973845e428fe",
+    "md5": "ff4f648316b1e6efa955dc75513a115a"
   },
   "artwork_helper": {
     "bytes": 119424,
