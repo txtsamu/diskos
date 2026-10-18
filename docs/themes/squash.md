@@ -4,7 +4,7 @@ A separate, opt-in theme, featured in diskOS Disco! 2.5.0. Existing presets keep
 configuration keys and presentation paths. Squash uses Disco's menus, track
 popup, editor and system actions rather than duplicating their behaviour.
 
-## Start here: big, bold, touch-first 🎃
+## Start here: big, bold, touch-first
 
 Choose Display → Theme → Squash. Double-tap Music text for play/pause, swipe right/left to skip, single-tap for actions/Mood. D! opens a rising launcher; drag, release to snap, and tap the icon to open. The configured Hold works on the logo and large icon. Pull down for eight editable Quick Settings.
 

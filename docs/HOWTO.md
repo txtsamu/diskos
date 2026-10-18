@@ -4,7 +4,7 @@ Short answers for everyday tasks. For a walk through every screen, see the [tour
 
 [Home](../README.md) | [Tour](DISCO_TOUR.md) | [Docs](README.md)
 
-## Squash quick start 🎃
+## Squash quick start
 
 Select **Display → Theme → Squash**. Its options are under **Display → Squash Options**. Menu items and Quick settings are the first two entries.
 

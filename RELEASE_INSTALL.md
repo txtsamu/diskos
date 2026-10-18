@@ -18,6 +18,6 @@ Boomshine and [Album Roulette](docs/ALBUM_ROULETTE_INSTALL.md) are built into `m
 
 This package is not a flasher. It contains no FiiO firmware, music, signing keys or account details.
 
-## Try Squash 🎃
+## Try Squash
 
 Choose Display → Theme → Squash for big bold Music text, touch playback and the D! launcher. Keep Null or your existing theme if you prefer; their saved settings remain. Settings → Help, below Battery, contains How to and first-use hints. See [the 2.5.0 notes](docs/releases/v2.5.0.md).

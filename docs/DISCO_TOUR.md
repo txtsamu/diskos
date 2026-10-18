@@ -470,7 +470,7 @@ Display > Theme selects the presentation. Squash, Disco, Ring and Braun offer Da
 
 | Theme | Look |
 |---|---|
-| **Squash 🎃** | Big bold text, orange round controls, touch playback, a rising bottom launcher and eight icon QS slots. [Guide](themes/squash.md). |
+| **Squash** | Big bold text, orange round controls, touch playback, a rising bottom launcher and eight icon QS slots. [Guide](themes/squash.md). |
 | **Null** | Pixel typography, vivid palettes, pixelated/dark/black backgrounds and a sliding drawer. [Guide](NULL_THEME.md). |
 | **Disco** | The album cover as the interface; glass panels, a CD sheen, the navigation circle on the right edge. |
 | **Ring** | Black (or off-white in Ring Light), the cover in a progress ring, round orbit menus, red or lime button rims. |

@@ -1,13 +1,13 @@
 <h1 align="center">diskOS Disco!</h1>
 
 <p align="center">
-  <b>Big. Bold. Squash. 🎃</b><br>
+  <b>Your music. Your kind of Disco.</b><br>
   A touch UI for the round screen of the FiiO Snowsky Disc, built on
   <a href="https://github.com/b0hemia/diskos">b0hemia's diskOS</a>.
 </p>
 
 <p align="center">
-  <img src="docs/squash/hero.png" width="1000" alt="Squash: big Music text, rising launcher, eight-icon Quick Settings and bottom volume arc">
+  <img src="docs/site/hero-251.jpg" width="1000" alt="Disco, Null and Squash: three ways to make your Snowsky Disc your own">
 </p>
 
 <p align="center">
@@ -37,7 +37,11 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.0: Big. Bold. Squash. 🎃
+## New in 2.5.1
+
+Smoother Squash volume, an optional Library letter wheel, always-scrolling track popups, and Again/Exit in Album Roulette. [See what’s new](docs/releases/v2.5.1.md).
+
+## Big. Bold. Squash.
 
 **[Squash](docs/themes/squash.md)** is our warm, readable take on the round screen: large Nunito Bold text, charcoal or off-white with orange accents, and controls made for touch. Double-tap track text to play/pause, swipe to skip, and tap D! for a rising circular launcher. Eight editable Quick Settings and a clean bottom volume arc keep everyday actions close.
 

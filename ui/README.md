@@ -12,7 +12,7 @@ Built with **LVGL 9.2.2** (software renderer) on a static-musl mipsel toolchain.
 > different choice from the diskOS *installer/tooling*, which is MIT - the UI is the part meant to be
 > forked and kept open. Bundled third-party components keep their own licenses (see [License](#license)).
 
-## 2.5.0: Squash 🎃 and shared guidance
+## 2.5.0: Squash and shared guidance
 
 [Squash](../docs/themes/squash.md) is preset 12: fixed 36/32/28 px Music typography, touch playback, a bottom launcher, eight icon QS slots and Volume B. It retains `simple_*` keys for compatibility, with an independent `simple_track_font` choice. Null and all older themes keep their presentation paths and preferences.
 

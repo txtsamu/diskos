@@ -2,7 +2,7 @@
 
 Select Display > Theme > Null. Theme settings are under Display > Null Options.
 
-Null stays the complete pixel theme alongside the new Squash 🎃. Its existing appearance, font/background choices, drawer and vertical QS remain. Menu items and Quick settings lead its options; Music and Settings cannot be removed from the main menu. Help is directly below Battery, with How to, First-use hints and Show hints again, saved independently per theme. [2.5.0 notes](releases/v2.5.0.md) · [Squash](themes/squash.md).
+Null stays the complete pixel theme alongside the new Squash. Its existing appearance, font/background choices, drawer and vertical QS remain. Menu items and Quick settings lead its options; Music and Settings cannot be removed from the main menu. Help is directly below Battery, with How to, First-use hints and Show hints again, saved independently per theme. [2.5.0 notes](releases/v2.5.0.md) · [Squash](themes/squash.md).
 
 The Null.N entries below retain the original device-test history; current cumulative fixes are described in the 2.4.0 polish and shared Help sections.
 

@@ -31,7 +31,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [2.5.0] - 2026-10-17
 
-- Added: **Squash 🎃**, a bold Nunito-first theme with fixed 36/32/28 px Music text, touch playback, rising circular launcher and eight icon Quick Settings. Original and Inter keep the same sizing rules.
+- Added: **Squash**, a bold Nunito-first theme with fixed 36/32/28 px Music text, touch playback, rising circular launcher and eight icon Quick Settings. Original and Inter keep the same sizing rules.
 - Added: Squash’s bottom Volume B arc with D! dismissal, undimmed background, drag-aware auto-hide and throttled final commits.
 - Changed: website leads with Squash; customizer, Null and existing links are retained. Help, How to and contextual hints receive prominent guidance and current Squash instructions.
 - Fixed: metadata auto-shrinking, duplicate track-time shadows, header-arrow centring and configured Hold actions on Squash launcher icons. Status icons have independent toggles beside D!; blurred backgrounds use a 20% overlay.
