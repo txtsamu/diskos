@@ -15,6 +15,8 @@ playing album fills the screen, blurred and tinted behind every menu, with a fai
 **Getting it on your Disc:** from Windows with the [diskOS Disco! for Windows](WINDOWS.md) app, or from Linux with the
 [installer](../README.md#install).
 
+**Development build 2.5.4-dev1:** Display has a common layout across themes. See the [current Display map](DISPLAY_SETTINGS.md). The screenshots elsewhere in this tour may show the earlier menu paths.
+
 ## On this page
 
 - **Getting around:** [The navigation circle](#the-navigation-circle), [Left-handed mode](#left-handed-mode), [Gestures](#gestures), [Quick Settings](#quick-settings), [Volume](#volume), [Standby](#standby).
@@ -29,7 +31,7 @@ playing album fills the screen, blurred and tinted behind every menu, with a fai
 
 Squash is the featured theme in this release: big fixed-size Nunito Bold metadata, gesture playback, a larger bottom D! hub and a planet-like launcher. Double-tap track text to play/pause; swipe right/left for next/previous. Tap text for actions/Mood. The hub and large launcher icon honor your configured Hold action; dragging does not fire it. See [the Squash quick start](HOWTO.md) and [full settings](themes/squash.md).
 
-In **Squash, Disco and Null**, Help sits directly below Battery. It contains **How to**, **First-use hints** and **Show hints again**. How to is one topic per page, with large text and a next-page arrow. Contextual hints explain the less obvious gestures, and every theme keeps its own hint preferences and learning counters.
+In **Squash, Disco and Null**, Help sits directly below Battery. It contains **How to**. Interaction hints and Show hints again now live under Display > Navigation. How to is one topic per page, with large text and a next-page arrow. Contextual hints explain the less obvious gestures, and every theme keeps its own hint preferences and learning counters.
 
 ## Getting around
 
@@ -46,18 +48,18 @@ edge of the screen (on the left in [left-handed mode](#left-handed-mode)).
   swipe up) for the next one. The screen behind changes as you go.
 - **Tap the middle** to open the section at its top level.
 - **Hold** the open circle to go straight back to Music, and **double-tap** it to open Search. Both are yours to
-  change under Disco Options > Layout > Hold / Double tap (Music, Search, Queue, Up Next, Shortcuts, Quick Settings, Volume, Screen off,
+  change under Display > Navigation > Gestures > Menu hold / Menu double tap (Music, Search, Queue, Up Next, Shortcuts, Quick Settings, Volume, Screen off,
   Play/Pause, Next track or Nothing).
 - **Close it** with a tap anywhere outside it, or on the small › at its right end.
 
-The sections are yours to choose under [Disco Options](#disco-options) > Disco Menu: Music, Library, Artists,
+The sections are yours to choose under Display > Navigation > Menu items: Music, Library, Artists,
 Songs, Albums, Search, Queue, Up Next, Folders, Books, Settings, Working mode, Shortcuts, EQ, Weather, Sendspin,
 Album Roulette, [Boomshine](#boomshine) and [any app installed on the Disc](#apps-in-the-menu). The circle holds
 up to ten. Music and Settings can be moved but never removed, so you can't lock yourself out.
 
 ### Left-handed mode
 
-Display > Disco Options > Layout > **Side**: pick **Left** and tap **Apply**; the interface restarts. The circle and
+Display > Navigation > **Navigation side**: pick **Left** and tap **Apply**; the interface restarts. The circle and
 everything that sits around it move to the left: the shard, Quick Settings' music disc, Weather, Working mode,
 Shortcuts, the Equalizer, Battery, the edge that lists keep clear and the scroll dots (now on the right rim). The
 back swipe starts at the **right** edge. Text still reads left to right, and the arcs keep their direction: the
@@ -94,7 +96,7 @@ takes, so nothing important ever hides behind it.
 | Drag along the **rim** of a long list | Scroll fast; a big letter shows where you are. |
 | **Hold** a back control | Go straight to Music instead of one step back. |
 
-The distance a back swipe needs can be changed under Display > Text & Layout > Back-swipe.
+The distance a back swipe needs can be changed under Display > Navigation > Gestures > Back-swipe distance.
 
 <table>
 <tr>
@@ -109,7 +111,7 @@ Pull down from the top edge; swipe up to close. The playing album sits in the ro
 progress ring and a play/pause button; tap the cover to go to Music. Drag the **arc at the top** for brightness;
 the **arc at the bottom** shows the battery.
 
-Two styles (Disco Options > Quick Settings > Style):
+Two styles (Display > Navigation > Quick settings > Layout):
 
 - **Arc** (the default): up to eight round buttons around the music disc.
 - **List**: rows on the left that curve and sit like the Library's.
@@ -136,7 +138,7 @@ to use it. Hold Wi-Fi or Bluetooth for its settings; hold any other button to se
 Press a volume key and the volume pops up over whatever is on screen: the round field on the right shows the
 level as a big number, and an arc along the right rim fills from the bottom up. Drag the arc to set the level,
 or tap anywhere else to close it; it also closes by itself after a moment. The arc fills in the CD rainbow, or
-in your accent colour (Disco Options > Colours > Volume). Audio > Max Volume caps the level.
+in your accent colour (Display > Appearance > Volume colours). Audio > Max Volume caps the level.
 
 <table>
 <tr>
@@ -168,14 +170,14 @@ Music is Disco's home: the playing album's cover fills the screen, sharp, with e
 - **Top:** Wi-Fi, Bluetooth and battery icons, the time, and the weather. Tap the clock or weather to open
   [Weather](#weather); **hold** it to hide the whole block (hold the same spot to bring it back), or use Disco
   Options > Music Screen > Show Clock.
-- **Middle:** the title and artist, large, centred or from the left (Disco Options > Music Screen > Title Position). A long
+- **Middle:** the title and artist, large, centred or from the left (Display > Music screen > Text > Text alignment). A long
   name scrolls five times, then settles with "…". **Tap the title** to open [the title menu](#the-title-menu);
-  **hold it** to open the cover full screen or to favourite the song (Disco Options > Music Screen > Title Hold).
-- **The progress** fills in the CD rainbow (or the accent, or not at all: Disco Options > Colours > Progress Bar). It is
-  either a **line** under the title or an **arc** around the rim (Disco Options > Layout > Progress Shape): the arc
+  **hold it** to open the cover full screen or to favourite the song (Display > Navigation > Gestures > Title hold).
+- **The progress** fills in the CD rainbow (or the accent, or not at all: Display > Music screen > Progress > Progress colour). It is
+  either a **line** under the title or an **arc** around the rim (Display > Music screen > Progress > Progress shape): the arc
   starts just below the open navigation circle, runs clockwise past the bottom and the left, over the top, and
   ends just above it. **Drag or tap either one to seek.** Small elapsed and remaining times sit under the line's
-  ends, or side by side in the middle with the arc (Disco Options > Music Screen > Track Times).
+  ends, or side by side in the middle with the arc (Display > Music screen > Information > Track times).
 - **Below:** previous and next on the sides, play/pause at the bottom, and the **play mode** in the middle:
   tap it to cycle Sequential, Shuffle, Repeat One, Repeat All and Single (a toast names the new mode).
 
@@ -218,7 +220,7 @@ Tap the title on Music. The cover dims and six buttons appear under the song's n
 | Info | Open Song Info as a readable album back sleeve. |
 
 Tap the song's name at the top to close the menu. **Holding** the title on Music (instead of tapping it) goes
-straight to Immersive or toggles Favourite, whichever you chose under Disco Options > Music Screen > Title Hold.
+straight to Immersive or toggles Favourite, whichever you chose under Display > Navigation > Gestures > Title hold.
 
 <table>
 <tr>
@@ -263,7 +265,7 @@ presets (Jazz, Rock, R&B, Hip-Hop, Pop, Dance, Classical, Retro, Sibilance 1 and
 (USER1–USER10, which you can rename). **Edit** opens the band editor.
 
 The editor shows ten bands as rainbow faders, each filled up or down from 0 dB in its own colour (or all in
-the accent: Disco Options > Colours > Equalizer):
+the accent: Display > Appearance > Equalizer colours):
 
 - **tap a band** to select it; **drag the selected band** up or down to set its gain;
 - **double-tap** a band to reset it to 0 dB;
@@ -312,7 +314,7 @@ speaker. While Music Assistant plays to it, **Music** shows the track like any s
 progress, Immersive) and its play/pause, next, previous and seeking control Music Assistant. The Disc stays awake
 while it plays.
 
-- **Turn it on** with **Sendspin** in the navigation circle (add it in Disco Options > Disco Menu) or in
+- **Turn it on** with **Sendspin** in the navigation circle (add it in Display > Navigation > Menu items) or in
   Settings > Network > MA Sendspin. It switches the Disc to AirPlay (the sound goes through the Disc's own AirPlay
   receiver) and waits for Music Assistant; picking another working mode turns it off. It comes back on after a
   restart if it was on.
@@ -406,7 +408,7 @@ straight to its results.
 ### Shortcuts
 
 Swipe left on Music (or pick Shortcuts in the navigation circle) for five shortcuts of your choice. Choose them
-under Display > Online & Extras > Shortcuts from: Weather, Immersive, Equalizer, Folders, Lyrics, Queue, Audiobooks, Search,
+under Display > Navigation > Shortcuts from: Weather, Immersive, Equalizer, Folders, Lyrics, Queue, Audiobooks, Search,
 Battery, Song Info, Last.fm, All apps, Boomshine, and any app installed on the Disc (such as Disc Shelf or Album Roulette).
 **All apps** lists the apps five at a time; tap its title for the next page.
 
@@ -422,17 +424,15 @@ Battery, Song Info, Last.fm, All apps, Boomshine, and any app installed on the D
 
 Settings opens Playback, Audio, Display, Network, System and Battery. Each page is a curved list, four rows in
 view; tap a row to cycle its value, open it, or run it. Display and System are split into short pages so there's
-little scrolling, and back steps up one page at a time. Settings that only matter for Disco are gathered in
-[Disco Options](#disco-options); those that don't apply to Disco (Now Playing style, Disc Colour, Saver Style) are
-hidden while Disco is on.
+little scrolling, and back steps up one page at a time. Display uses common categories across themes. Unsupported controls remain dimmed and explain why when tapped.
 
 | Page | What's in it |
 |---|---|
 | Playback | Play Mode, Equalizer, Up Next, Auto-tag, Custom EQ, Resume Playback (Off / Song / Position), Artists by artist or album artist, Play Through Folders. |
 | Audio | Working Mode, Gain, DAC Filter, ReplayGain, DRE, Gapless, Max Volume, Balance. |
-| Display | **Brightness**; **Theme** (Theme, Appearance, Automatic Appearance, Outdoor Mode, Accent Colour); **Disco Options**; **Text & Layout** (Font Size, Screen Rotation, 24-Hour Time, Track Numbers, Animations, Back-swipe, **Immersive**: Vinyl, CD or None, **Immersive Lyrics**: on or off); **Standby** (Screensaver, Screen Off); **Online & Extras** (Online Album Art, Online Lyrics, Album Art Cache, Weather on Home, Shortcuts, Album View). |
+| Display | Brightness; Theme; Appearance; Music screen; Standby; Navigation; Layout & extras. See the [complete map](DISPLAY_SETTINGS.md). |
 | Network | Wi-Fi, MA Sendspin, Bluetooth, Bluetooth Codec (SBC, AAC, LDAC levels). |
-| System | **Power** (Sleep Timer, When Sleep Ends, Idle Power-off, Charging Limit, Shut down player); **Date & Time**; **Library** (Rescan, Import Playlists); **Controls** (Volume Keys, Default UI, Language); **Maintenance** (Update from SD Card, Restart, Reset diskOS Settings, Debug Mode); **Help** (First-use hints, Show hints again); **About** (About, Device Info, Temperature). |
+| System | **Power** (Sleep Timer, When Sleep Ends, Idle Power-off, Charging Limit, Shut down player); **Date & Time**; **Library** (Rescan, Import Playlists); **Controls** (Volume Keys, Default UI, Language); **Maintenance** (Update from SD Card, Restart, Reset diskOS Settings, Debug Mode); **About** (About, Device Info, Temperature). |
 | Battery | The [battery](#battery) page. |
 
 Font Size changes the text of lists, titles and search results.
@@ -450,23 +450,18 @@ for a capital, **123** and **#+=** for digits and symbols, Backspace (hold to cl
 
 ### Disco Options
 
-Display > Disco Options (only shown with the Disco theme):
+The former theme-specific options are now grouped by purpose for every theme. See [Display settings](DISPLAY_SETTINGS.md) for the complete map.
 
-| Page | Rows |
+| Former option | Current location |
 |---|---|
-| Disco Menu | The sections of the navigation circle: reorder, add, remove. |
-| Music Screen | **Track Font** (Original, Inter Semibold or Nunito Bold; larger alternatives with international/CJK fallbacks), **Show Clock** (clock, status icons and weather; holding the clock does the same), **Track Times**, **Number Before Title** ("3. Northern Lights", from the tags), **Title Position** (Centred or Left), **Title Hold** (Immersive, Favourite or Nothing). |
-| Colours | **Rim Sheen** (the faint CD rainbow round Music and playlists), **Equalizer** and **Volume** (Disco rainbow or Accent), **Progress Bar** (Disco, Accent or Off). |
-| Quick Settings | **Style** (Arc or List) and **Items** (choose and order up to eight buttons). |
-| Layout | **Double tap** and **Hold** on the open navigation circle, **Progress Shape** (Linear under the title, or Arc round the rim), **Side** (Right or Left, then Apply: see [left-handed mode](#left-handed-mode)) and **Scroll**: Classic (rows follow the screen's edge), Straight (flat rows) or Disco (rows swing round the navigation circle like a CD, the times in one straight column). |
-
-<table>
-<tr>
-<td align="center" valign="top" width="33%"><img src="disco/disco-options.png" width="220" alt="Disco Options"><br><sub>Disco Options</sub></td>
-<td align="center" valign="top" width="33%"><img src="disco/disco-options-2.png" width="220" alt="Music Screen options"><br><sub>Music Screen</sub></td>
-<td align="center" valign="top" width="33%"><img src="disco/accent.png" width="220" alt="Accent colour"><br><sub>Accent colour</sub></td>
-</tr>
-</table>
+| Menu items, QS and shortcuts | Display > Navigation |
+| Track font and alignment | Display > Music screen > Text |
+| Clock, track times and Music track number | Display > Music screen > Information |
+| Title hold and menu gestures | Display > Navigation > Gestures |
+| Accent, rim sheen, EQ and volume colours | Display > Appearance |
+| Progress colour and shape | Display > Music screen > Progress |
+| Navigation side | Display > Navigation |
+| List motion | Display > Layout & extras |
 
 ### Themes
 
@@ -526,7 +521,7 @@ lists and popups follow this project's layouts in Stone's colours and fonts.
 
 Weather shows the current conditions in the round field on the right (icon, temperature, sky, place, today's
 high and low) and the next 12 hours in 3-hour rows on the left. **Tap the place** to type a city; **hold it** to
-go back to automatic location (by your internet connection). Weather needs Wi-Fi; Display > Online & Extras > Weather on Home
+go back to automatic location (by your internet connection). Weather needs Wi-Fi; Display > Layout & extras > Online & cache > Weather
 turns it off.
 
 <table>
@@ -590,7 +585,7 @@ half an hour on battery. Without a set clock the figures show "-".
 catches bursts too, and so on down the chain. Catch enough dots to clear the level; twenty levels, each one
 busier than the last. Built in since 1.5.0, so there is nothing to install.
 
-1. Add **Boomshine** to the menu (Disco Options > Disco Menu), or open it from All apps or a Shortcut.
+1. Add **Boomshine** to the menu (Display > Navigation > Menu items), or open it from All apps or a Shortcut.
 2. Its landing page shows the game's name and a **Play** button. Moving past it in the navigation circle only
    shows this page; the game starts when you tap **Play**.
 3. Pick a look: **NeoN** (bright rings on black) or **Pop!** (soft pastels on deep blue). Same levels, same score.
@@ -611,7 +606,7 @@ If the game ever stops responding, hold **Volume Up** for 3 seconds to close it.
 
 ## Listening Stats
 
-**Your music, in numbers.** Built in: add **Stats** to the menu (Disco Options > Disco Menu), or open
+**Your music, in numbers.** Built in: add **Stats** to the menu (Display > Navigation > Menu items), or open
 **Listening Stats** from Apps, All apps or a Shortcut. Its landing page reads nothing until you tap **Show me**.
 
 - **Week, Month or Year** on the arc at the top; swipe the period below it (or tap a neighbour) to go back in time.
@@ -637,7 +632,7 @@ Disc.
 
 ## Apps
 
-**Your apps, one tap away.** Add **Apps** to the menu (Disco Options > Disco Menu): up to five apps you choose, each
+**Your apps, one tap away.** Add **Apps** to the menu (Display > Navigation > Menu items): up to five apps you choose, each
 with its icon. Tap one for its landing page. **Choose apps** (under the list) picks them: tap to add or remove; the
 number is the order. Until you choose, the first five are shown. App makers can give their app an icon: `icon=` in
 its `app.conf`, or an `icon.bmp` in its folder.
@@ -653,7 +648,7 @@ its `app.conf`, or an `icon.bmp` in its folder.
 
 Since 1.5.0, **every app installed on the Disc** can sit in the navigation circle next to the built-in sections.
 
-- **Add one:** Disco Options > Disco Menu lists installed apps after the built-in entries. Add, reorder or remove
+- **Add one:** Display > Navigation > Menu items lists installed apps after the built-in entries. Add, reorder or remove
   them like any section. They keep their place even when you install more apps later; if you remove an app, its
   entry quietly disappears.
 - **Open one:** choosing an app in the circle shows its **landing page**: a picture, the name, a short line and
@@ -749,7 +744,7 @@ SD card, so they play offline like the rest of your library.
 
 **Setting it up** takes one small text file, `shelf.conf`, with your server address, username, password and the
 card folder to download into. The [install guide](DISC_SHELF_INSTALL.md) walks through it. Add Disc Shelf to the
-navigation circle (Disco Options > Disco Menu), to Shortcuts, or open it from All apps. Like Album Roulette, it is
+navigation circle (Display > Navigation > Menu items), to Shortcuts, or open it from All apps. Like Album Roulette, it is
 installed separately: SD updates of the interface don't install or change it.
 
 **Good to know:** your password is stored as plain text on the Disc (readable only by the system), so use a

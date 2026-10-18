@@ -1,5 +1,8 @@
 # Squash — 2.5.0
 
+Development build 2.5.4-dev1 uses the [common Display settings layout](../DISPLAY_SETTINGS.md). Historical change notes below retain their original paths.
+
+
 A separate, opt-in theme, featured in diskOS Disco! 2.5.0. Existing presets keep their IDs,
 configuration keys and presentation paths. Squash uses Disco's menus, track
 popup, editor and system actions rather than duplicating their behaviour.
