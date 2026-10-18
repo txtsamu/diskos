@@ -6,6 +6,13 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.5.3]
+
+- Null Matrix palette, fixed palette accents and less repeated UI styling.
+- Matching fixed Shortcuts/Working mode layouts in Null and Squash; Shortcuts swipe feedback in all themes.
+- History tracking while screen is off and guarded History row interactions.
+- Native validation only; physical testing pending. No experimental migration feature.
+
 ## [2.5.2]
 
 - Fresh-install defaults: Disco dark, hints On, linear progress, no Music track-number prefix; saved choices retained.

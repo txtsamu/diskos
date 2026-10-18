@@ -166,7 +166,12 @@ static void nav_touch(lv_point_t point,int ms){
     nav_pointer.point=point;nav_pointer.state=LV_INDEV_STATE_PRESSED;nav_wait(ms);
     nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(40);
 }
+static void nav_touch_object(lv_obj_t *obj,int ms){
+ assert(obj && lv_obj_is_visible(obj));lv_obj_update_layout(obj);lv_area_t a;lv_obj_get_coords(obj,&a);
+ nav_touch((lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2},ms);
+}
 static void review_null(void){
+ qs_wifi=qs_bt=0;
  assert(th_null()&&theme_variant()==0);
  lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_indev_set_long_press_time(in,400);lv_timer_set_period(lv_indev_get_read_timer(in),10);
  screen_home();null_nav_set_open(1);nav_wait(250);
@@ -178,10 +183,11 @@ static void review_null(void){
  screen_home();null_nav_set_open(0);nav_wait(250);
  lv_obj_t*t=find_text(screen_get_root(SCR_HOME),"NORTHERN LIGHTS");assert(t);lv_area_t start,after;lv_obj_get_coords(t,&start);
  screen_show(SCR_QUICK);nav_wait(250);lv_obj_get_coords(t,&after);assert(!memcmp(&start,&after,sizeof start));assert(screen_current()==SCR_QUICK);
- int wifi=qs_wifi_taps;nav_touch((lv_point_t){120,42},80);assert(qs_wifi_taps==wifi+1);
- commands=null_transport_calls;nav_touch((lv_point_t){96,180},80);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0002"));
- commands=null_transport_calls;nav_touch((lv_point_t){264,180},80);assert(null_transport_calls==commands+1);
- nav_touch((lv_point_t){180,336},90);nav_wait(250);assert(screen_current()==SCR_HOME);
+ lv_obj_t *null_test_qs_field(int);
+ int wifi=qs_wifi_taps;nav_touch_object(null_test_qs_field(0),80);assert(qs_wifi_taps==wifi+1);
+ commands=null_transport_calls;nav_touch_object(ui_action_find("np.prev"),80);assert(null_transport_calls==commands+1&&!strcmp(null_last_command,"0201000C0002"));
+ commands=null_transport_calls;nav_touch_object(ui_action_find("np.next"),80);assert(null_transport_calls==commands+1);
+ nav_touch_object(ui_action_find("qs.close"),90);nav_wait(250);assert(screen_current()==SCR_HOME);
  // Navigation and seek gestures must not send playback commands when they merely move.
  commands=null_transport_calls;nav_pointer=(lv_indev_data_t){.point={120,308},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);nav_pointer.point.x=190;nav_wait(30);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(null_transport_calls==commands);
  for(int bg=0;bg<3;bg++){cfg_set_int_deferred("null_music_background",bg);null_options_changed();nav_wait(30);}

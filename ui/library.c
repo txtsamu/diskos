@@ -695,8 +695,8 @@ static void add_row(int i){
             row_two(r, g_favs[i].title, g_favs[i].artist, dur);
             break;
         case VIEW_MOSTPLAYED: case VIEW_RECENT:   /* tap plays the song (via song_cb, by id) */
-            lv_obj_add_event_cb(r, song_cb, LV_EVENT_SHORT_CLICKED, (void*)(uintptr_t)g_favs[i].id);
-            lv_obj_add_event_cb(r, song_long_cb, LV_EVENT_LONG_PRESSED, (void*)(uintptr_t)g_favs[i].id);
+            ui_on(r, song_cb, LV_EVENT_SHORT_CLICKED, (void*)(uintptr_t)g_favs[i].id,"library.history.song",UI_CORE);
+            ui_on(r, song_long_cb, LV_EVENT_LONG_PRESSED, (void*)(uintptr_t)g_favs[i].id,"library.history.song.long",UI_CORE);
             fmt_dur(dur,sizeof dur,g_favs[i].dur_ms);
             row_two(r, g_favs[i].title[0]?g_favs[i].title:"Untitled", g_favs[i].artist, dur);
             break;
