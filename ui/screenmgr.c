@@ -1,5 +1,6 @@
 #include "simple_theme.h"
 #include "onboarding.h"
+#include "azjump.h"
 #include "null_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
@@ -111,6 +112,8 @@ void crash_crumb(int screen);
 int disco_editor_back(void);
 static void transition(int from, int to, int dir)
 {
+    azjump_close_active();
+    albumwall_visible(to==SCR_ALBUMWALL);
     crash_crumb(to);
     if(!th_disco_family()&&!th_null())disco_editor_back();
     if(th_null())null_screen_leaving();
@@ -274,6 +277,7 @@ void screen_home(void)
  * input event, so they always step back one screen. */
 void screen_back(void)
 {
+    if(azjump_close_active())return;
     if(th_simple()&&simple_nav_is_open()){simple_nav_open(0);return;}
     if(disco_editor_back())return;
     if(disco_track_overlay_visible()){dhome_overlay_close();return;}

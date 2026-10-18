@@ -18,6 +18,7 @@ int modes_output_busy(void){return 0;}
 int ui_local_playback_allowed(void){return local;}
 void ipc_get_state(track_state_t *out){*out=state;}
 int cfg_get_int(const char *key,int fallback){(void)key;return fallback;}
+int simple_cfg_get_int(const char *key,int fallback){return cfg_get_int(key,fallback);}
 uint32_t lv_tick_get(void){return 10000;}
 uint32_t lv_tick_elaps(uint32_t t){return 10000-t;}
 void ui_queue_changed(void){}

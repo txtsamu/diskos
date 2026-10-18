@@ -351,6 +351,7 @@ static void apply_null_qs_layout(int v){(void)v;null_qs_build();}
 static void apply_null_live(int v){(void)v;null_options_changed();}
 static void apply_null_menu(int v){(void)v;disco_menu_open();}
 static void apply_null_qs(int v){(void)v;disco_qs_menu_open();}
+static const char *OPT_LIBRARY_SEEK[]={"A-Z picker","Letter wheel"};
 static const char *OPT_NULLFONTS[]={"Original","Jersey","Handjet","Matrix"};
 static const char *OPT_NULLQS[]={"Text","Icons"};
 static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime"};
@@ -721,6 +722,8 @@ static const char *const D_NPSTYLE[] = {
 };
 
 static const setting_t TABLE[] = {
+    { "Playback", "Library seeking", ST_CYCLER,"library_seeking",0,0,0,OPT_LIBRARY_SEEK,2,NULL,NULL,0,
+      "A-Z picker uses the letter grid. Letter wheel: hold the scrollbar letter, turn around the screen, then tap the centre to jump. After release, 1 second without touching also jumps.",NULL },
     { "Playback", "Play Mode",   ST_CYCLER, "work_mode", 0,0,0, OPT_MODE, 5, NULL, apply_mode, 0,
       "How the player advances through tracks.", D_MODE },
     { "Playback", "Equalizer",   ST_CYCLER, "eq_preset", 0,0,0, OPT_EQ,  21, NULL, apply_eq,   0,

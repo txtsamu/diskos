@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Render actual LVGL screens without starting diskOS's hardware main loop. */
 #include "md5.h"
+#include "azjump.h"
 #include "lvgl/src/misc/lv_timer_private.h"
 #include "simple_theme.h"
 #include "lvgl/src/misc/lv_timer_private.h"
@@ -115,6 +116,9 @@ int __wrap_mdb_get_peq_readonly(int p,double *m,int *g,int *hz,int *ed,double *q
 }
 int __real_mdb_song_accent(const char *p);
 int __wrap_mdb_song_accent(const char *p){return fixture?0xCE713E:__real_mdb_song_accent(p);}
+static char wheel_test_letter;
+static int wheel_test_commits;
+static void wheel_test_jump(char letter){wheel_test_letter=letter;wheel_test_commits++;}
 static void assert_no_tokens(lv_obj_t *o){
  if(lv_obj_check_type(o,&lv_label_class))assert(lv_label_get_text(o)[0]!='@');
  for(uint32_t i=0;i<lv_obj_get_child_count(o);i++)assert_no_tokens(lv_obj_get_child(o,i));
@@ -1409,7 +1413,9 @@ int main(int argc, char **argv){
         if(getenv("REVIEW_IMM_REOPEN")){
             screen_set_anim(1);
             for(int j=0;j<8;j++){
-                disco_open_np_immersive(); assert(ui_np_fsart_active());
+                disco_open_np_immersive();
+                for(int i=0;i<30 && !ui_np_fsart_active();i++){lv_tick_inc(10);lv_timer_handler();}
+                assert(ui_np_fsart_active());
                 for(int i=0;i<5;i++){lv_tick_inc(10);lv_timer_handler();}
                 ui_np_fsart_close();
                 for(int i=0;i<3;i++){lv_tick_inc(10);lv_timer_handler();}
@@ -1643,6 +1649,84 @@ int main(int argc, char **argv){
         puts("PASS: real bounded decoder feeds 364px immersive image and async timed lyrics; close/reopen works");
     }
 render:
+    /* Design preview only: gesture replacement is not enabled in production. */
+    if(getenv("REVIEW_ALBUMWALL_LIFETIME")){
+        assert(mdb_load()==40);screen_set_anim(0);
+        for(int i=0;i<8;i++){
+            screen_show(SCR_ALBUMWALL);nav_wait(30);
+            assert(find_text(screen_get_root(SCR_ALBUMWALL),"Focus fixture"));
+            albumwall_drag_begin(180);albumwall_drag(80);albumwall_drag_end();nav_wait(30);
+            screen_home();nav_wait(20);usleep(2000);
+        }
+        nav_wait(31000);screen_show(SCR_ALBUMWALL);nav_wait(500);
+        assert(find_text(screen_get_root(SCR_ALBUMWALL),"Focus fixture"));
+        screen_home();nav_wait(100);
+        puts("PASS: Album Wall queued work survives repeated enter/drag/leave, hidden trim and reopen");return 0;
+    }
+    if(getenv("REVIEW_ROULETTE_ACTIONS")){
+        assert(mdb_load()==40);screen_set_anim(0);roulette_spin_open();
+        lv_obj_t *again=NULL;
+        for(int i=0;i<3000;i++){nav_wait(10);if(i%10==0)usleep(2000);again=find_visible_text(screen_get_root(SCR_ROULETTE_SPIN),"Again");if(again)break;}
+        assert(again);lv_obj_t*root=screen_get_root(SCR_ROULETTE_SPIN);lv_obj_t*exit=find_visible_text(root,"Exit");assert(exit);assert(!find_visible_text(root,"Back"));
+        lv_obj_t*ab=lv_obj_get_parent(again),*eb=lv_obj_get_parent(exit);assert(lv_obj_get_y(ab)==lv_obj_get_y(eb));assert(lv_obj_get_style_radius(ab,0)>=lv_obj_get_height(ab)/2);assert(lv_obj_get_style_radius(eb,0)>=lv_obj_get_height(eb)/2);
+        lv_obj_send_event(ab,LV_EVENT_CLICKED,NULL);nav_wait(300);assert(!find_visible_text(root,"Again"));
+        for(int i=0;i<1500;i++){nav_wait(10);if(i%10==0)usleep(1000);again=find_visible_text(root,"Again");if(again)break;}
+        assert(again);exit=find_visible_text(root,"Exit");assert(exit);lv_obj_send_event(lv_obj_get_parent(exit),LV_EVENT_CLICKED,NULL);nav_wait(100);assert(screen_current()==SCR_HOME);
+        puts("PASS: Roulette themed pill row, Again rerolls prepared pool, Exit leaves app, no Back button");return 0;
+    }
+    if(getenv("REVIEW_LETTER_WHEEL")){
+        static azjump_t picker;lv_obj_t*parent=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(parent);lv_obj_set_size(parent,360,360);
+        azjump_create(&picker,parent,wheel_test_jump,"library");
+        cfg_set_int_deferred("library_seeking",0);azjump_show(&picker,1);
+        lv_obj_send_event(picker.btn,LV_EVENT_SHORT_CLICKED,NULL);assert(!azjump_active()&&!lv_obj_has_flag(picker.grid,LV_OBJ_FLAG_HIDDEN));azjump_show(&picker,0);
+        cfg_set_int_deferred("library_seeking",1);azjump_show(&picker,1);azjump_position(&picker,'M',30,180);
+        assert(!strcmp(lv_label_get_text(lv_obj_get_child(picker.btn,0)),"M"));
+        lv_indev_t*in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+        lv_obj_update_layout(parent);
+        nav_touch((lv_point_t){30,180},700);nav_wait(40);assert(azjump_active());
+        nav_pointer=(lv_indev_data_t){.point={180,50},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);
+        for(int degrees=-90;degrees<=-30;degrees+=3){float a=degrees*3.14159265f/180;nav_pointer.point=(lv_point_t){180+(int)lround(130*cos(a)),180+(int)lround(130*sin(a))};nav_wait(20);}
+        assert(picker.current==16); /* M + four clockwise sectors = Q. */
+        nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(100);assert(azjump_active());
+        nav_touch((lv_point_t){180,180},50);nav_wait(30);assert(!azjump_active()&&wheel_test_letter=='Q'&&wheel_test_commits==1&&!picker.timeout);
+        azjump_position(&picker,'Z',30,180);nav_touch((lv_point_t){30,180},700);nav_wait(20);assert(azjump_active());
+        nav_pointer=(lv_indev_data_t){.point={50,182},.state=LV_INDEV_STATE_PRESSED};nav_wait(30);
+        for(int degrees=179;degrees<=209;degrees+=3){float a=degrees*3.14159265f/180;nav_pointer.point=(lv_point_t){180+(int)lround(130*cos(a)),180+(int)lround(130*sin(a))};nav_wait(20);}
+        assert(picker.current==0); /* Z -> # -> A, across atan2's wrap. */
+        for(int degrees=209;degrees>=179;degrees-=3){float a=degrees*3.14159265f/180;nav_pointer.point=(lv_point_t){180+(int)lround(130*cos(a)),180+(int)lround(130*sin(a))};nav_wait(20);}
+        assert(picker.current==25);
+        nav_wait(1800);assert(azjump_active()); /* Held touch never times out. */
+        nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(1100);assert(!azjump_active()&&wheel_test_letter=='Z'&&wheel_test_commits==2);
+        for(int i=0;i<12;i++){
+            lv_obj_send_event(picker.btn,LV_EVENT_SHORT_CLICKED,NULL);assert(azjump_active());screen_back();assert(!azjump_active()&&!picker.wheel&&!picker.timeout);
+        }
+        assert(wheel_test_commits==2);
+        cfg_set_int_deferred("library_seeking",0);azjump_show(&picker,1);assert(!strcmp(lv_label_get_text(lv_obj_get_child(picker.btn,0)),th_disco_family()||th_null()?"A - Z":"A-Z"));
+        lv_obj_delete(parent);lv_indev_delete(in);
+        puts("PASS: legacy picker, clockwise/reverse, Z/#/A wrap, tap/timeout confirmation, held touch, repeated cancel and option restore");return 0;
+    }
+    if(getenv("LETTER_WHEEL_PREVIEW")){
+        lv_obj_t *ov=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(ov);
+        lv_obj_set_size(ov,360,360);lv_obj_set_style_bg_color(ov,TC(CANVAS),0);lv_obj_set_style_bg_opa(ov,LV_OPA_COVER,0);kit_keep(ov);
+        {
+            lv_obj_t *heading=lv_label_create(ov);lv_label_set_text(heading,"ARTISTS");lv_obj_set_style_text_font(heading,TF(HEADER_SM),0);lv_obj_set_style_text_color(heading,TC(TEXT_PRIMARY),0);lv_obj_align(heading,LV_ALIGN_TOP_MID,0,40);kit_keep(heading);
+            const char *names[]={"Massive Attack","Metallica","MF DOOM","Mogwai","Morcheeba"};
+            for(int i=0;i<5;i++){
+                lv_obj_t *l=lv_label_create(ov);char text[40];snprintf(text,sizeof text,"%s",names[i]);if(th_null())for(char *p=text;*p;p++)if(*p>='a'&&*p<='z')*p-=32;
+                lv_label_set_text(l,text);lv_obj_set_style_text_font(l,TF(UI_24),0);lv_obj_set_style_text_color(l,TC(TEXT_PRIMARY),0);lv_obj_set_pos(l,58,96+i*39);kit_keep(l);
+            }
+            lv_obj_t *arc=lv_arc_create(ov);lv_obj_remove_style_all(arc);lv_obj_set_size(arc,306,306);lv_obj_center(arc);lv_arc_set_bg_angles(arc,148,212);lv_arc_set_angles(arc,180,212);
+            lv_obj_set_style_arc_width(arc,3,LV_PART_MAIN);lv_obj_set_style_arc_color(arc,TC(BORDER),LV_PART_MAIN);lv_obj_set_style_arc_opa(arc,LV_OPA_COVER,LV_PART_MAIN);
+            lv_obj_set_style_arc_width(arc,3,LV_PART_INDICATOR);lv_obj_set_style_arc_color(arc,TC(ACCENT_PRIMARY),LV_PART_INDICATOR);lv_obj_set_style_arc_opa(arc,LV_OPA_COVER,LV_PART_INDICATOR);kit_keep(arc);
+            lv_obj_t *mark=lv_obj_create(ov);lv_obj_remove_style_all(mark);lv_obj_set_size(mark,28,28);lv_obj_set_pos(mark,16,166);lv_obj_set_style_radius(mark,th_null()?0:LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(mark,TC(ACCENT_PRIMARY),0);lv_obj_set_style_bg_opa(mark,LV_OPA_COVER,0);kit_keep(mark);
+            lv_obj_t *ml=lv_label_create(mark);lv_label_set_text(ml,"M");lv_obj_set_style_text_font(ml,TF(UI_18),0);lv_obj_set_style_text_color(ml,TC(ON_ACCENT),0);lv_obj_center(ml);kit_keep(ml);
+        }
+        if(strcmp(getenv("LETTER_WHEEL_PREVIEW"),"marker")){
+            static azjump_t preview;azjump_create(&preview,ov,NULL,"library");cfg_set_int_deferred("library_seeking",1);azjump_show(&preview,1);azjump_position(&preview,'M',30,180);
+            lv_obj_send_event(preview.btn,LV_EVENT_SHORT_CLICKED,NULL);
+        }
+        lv_refr_now(d);
+    }
     if(getenv("IMM_IN")){ void ui_test_imm_in(int); ui_test_imm_in(atoi(getenv("IMM_IN"))); }
     if(getenv("IMM_OUT")){ void ui_test_imm_out(int); ui_test_imm_out(atoi(getenv("IMM_OUT"))); }
     if(getenv("IMM_PARTS")){ void dhome_test_imm_parts(int); dhome_test_imm_parts(atoi(getenv("IMM_PARTS"))); }
@@ -1685,8 +1769,8 @@ render:
         for(int y=260;y>=220;y-=5){nav_pointer.point.y=y;nav_wait(20);}
         nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(300);assert(lv_obj_get_scroll_y(list)>0);
         printf("FOCUS after manual scroll: state=%u background=%u\n",(unsigned)lv_obj_get_state(row),(unsigned)lv_obj_get_style_bg_opa(row,0));
-        assert(lv_obj_get_style_bg_opa(row,0)==LV_OPA_COVER);
-        puts("CONFIRMED: jump-to-track filled highlight persists after manual scrolling, independently of LV_STATE_FOCUSED");return 0;
+        assert(lv_obj_get_style_bg_opa(row,0)==LV_OPA_TRANSP);
+        puts("PASS: jump-to-track highlight clears after manual scrolling");return 0;
     }
     if(th_simple()&&getenv("REVIEW_SIMPLE_MENU_REFLOW")){
         char id[33];const char*name="A Very Long Album Discovery Application";md5_hex("__squash_reflow_fixture",strlen("__squash_reflow_fixture"),id);

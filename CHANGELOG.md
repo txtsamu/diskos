@@ -8,6 +8,14 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
+### 2.5.1 test candidate
+
+- Squash volume and Library highlight fixes; bounded Album Wall background work, deferred prewarm, nonblocking database reads and lazy cold buffers.
+- Lossless Roulette resource compression; themed Again/Exit actions.
+- Continuous track-popup metadata; optional Library letter wheel with a 50% background and one-second release deadline.
+- Bounded previous log copies, version identification and rate-limited slow/failure diagnostics.
+- Test scope and limitations: `docs/performance/2.5.1-test-notes.md`.
+
 - Removed: hidden legacy theme registrations, component kits, palettes and 39 unshared font sources. Preserve visible Stone, Ring, Braun, Disco, Null and Squash at their original IDs; retired IDs migrate to Disco. Braun's shared 24 px title face remains.
 - Validation: 36 Ring/Braun render comparisons are byte-identical across light/dark Home, NP, QS, Library, Settings, EQ, Search, Queue and standby; active/retired ID migration and Stone palette preservation pass.
 

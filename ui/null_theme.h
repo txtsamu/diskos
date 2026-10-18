@@ -4,6 +4,7 @@
 #include "lvgl/lvgl.h"
 void null_radio_skin(lv_obj_t *root,const char *name,lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *device,lv_obj_t *status,lv_obj_t *toggle,lv_obj_t *scan,lv_obj_t *list);
 void null_init(lv_obj_t *parent);
+const lv_font_t *null_track_font(void);
 void null_home_create(lv_obj_t *root);
 void null_saver_create(lv_obj_t *root);
 void null_saver_clock(const char *clock, const char *date);

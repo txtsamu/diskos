@@ -1,6 +1,9 @@
 #include "simple_theme.h"
 #include "null_theme.h"
 #include "onboarding.h"
+#include "version.h"
+#include "logrotate.h"
+#include "azjump.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include <stdio.h>
@@ -919,7 +922,8 @@ int ui_set_volume(int vol){
     if(vol < 0) vol = 0; if(vol > VOL_MAX) vol = VOL_MAX;
     char f[16]; snprintf(f, sizeof f, "0715000C%04X", vol);
     int rc = ipc_send_cmd(f);
-    fprintf(stderr,"set volume %d -> %s (rc=%d)\n", vol, f, rc); fflush(stderr);
+    /* Successful drags can send many frames; retain failures and opt-in detail. */
+    if(rc || g_dbg){fprintf(stderr,"set volume %d -> %s (rc=%d)\n", vol, f, rc);fflush(stderr);}
     return rc;   /* 0 = queued OK, -1 = send failed (caller can retry) */
 }
 /* Play a library list. The player builds the list itself (drop LIST_SONG_0 then
@@ -2077,6 +2081,29 @@ static int coldplug_mounted(void){
     fclose(m);
     return ok;
 }
+static void *log_maintenance(void *unused){
+    (void)unused;
+    for(;;){
+        sleep(30);
+        /* Both streams share one append descriptor. Lock in a fixed order. */
+        flockfile(stdout);flockfile(stderr);
+        fflush(stdout);fflush(stderr);
+        diskos_log_rotate("/usr/data/diskos_boot.log",256*1024);
+        funlockfile(stderr);funlockfile(stdout);
+        diskos_log_rotate("/usr/data/coldplug.log",64*1024);
+        diskos_log_rotate("/usr/data/volup_boot.log",64*1024);
+        diskos_log_rotate("/usr/data/diskos_rmguard.log",64*1024);
+    }
+    return NULL;
+}
+static void log_maintenance_start(void){
+    pthread_attr_t attr;pthread_t thread;
+    if(pthread_attr_init(&attr))return;
+    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+    pthread_attr_setstacksize(&attr,64*1024);
+    (void)pthread_create(&thread,&attr,log_maintenance,NULL);
+    pthread_attr_destroy(&attr);
+}
 static void coldplug_log(const char *msg){
     FILE *f = fopen("/usr/data/coldplug.log", "a");
     if(f){ fprintf(f, "%ld %s\n", (long)time(NULL), msg); fclose(f); }
@@ -2864,15 +2891,9 @@ int main(int argc, char **argv){
         static const char msg[]="diskos: another test UI owns the display, or instance lock unavailable\n";
         (void)write(2,msg,sizeof msg-1);return 75;
     }
-    /* Boot diagnostics: route BOTH stdout and stderr through ONE fd (dup2) so they
-     * share a file offset and don't clobber each other; line-buffered so the last
-     * step before a crash is flushed. Truncates each launch (boot launch is what
-     * we care about; avoids unbounded NAND growth). */
-    /* APPEND, so a launcher note written before this point survives; rotate once when it grows past a
-     * cap rather than truncating on every launch (which lost the previous boot AND the launcher's lines). */
-    { struct stat lb; if(stat("/usr/data/diskos_boot.log", &lb) == 0 && lb.st_size > 256*1024)
-          freopen("/usr/data/diskos_boot.log", "w", stderr);
-      else freopen("/usr/data/diskos_boot.log", "a", stderr); }
+    /* Preserve recent evidence across boots; keep open append descriptors valid. */
+    diskos_log_rotate("/usr/data/diskos_boot.log",256*1024);
+    freopen("/usr/data/diskos_boot.log", "a", stderr);
     dup2(fileno(stderr), fileno(stdout));
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
@@ -2892,7 +2913,7 @@ int main(int argc, char **argv){
     { struct sigaction al; memset(&al,0,sizeof al);
       al.sa_handler = boot_alarm_handler; sigemptyset(&al.sa_mask); al.sa_flags = 0;
       sigaction(SIGALRM,&al,NULL); alarm(BOOT_DEADLINE_S); }
-    fprintf(stderr,"=== diskos main start argc=%d ===\n", argc); fflush(stderr);
+    fprintf(stderr,"=== diskOS Disco %s main start argc=%d ===\n", DISCO_VERSION, argc); fflush(stderr);
     /* WiFi bring-up + keep-alive is handled by wifi_supervise() in the main loop (which
      * also restarts the supplicant if it dies, so a known net returning in range auto-
      * joins). Intent is seeded from SYSCONFIG.WIFI_STATUS after cfg_load, below. */
@@ -3089,6 +3110,7 @@ int main(int argc, char **argv){
       alarm(0);
       signal(SIGALRM, SIG_IGN);
       sigprocmask(SIG_UNBLOCK, &as, NULL); }
+    log_maintenance_start();
     for(;;){
         if(ipc_take_reconnected()){       /* player restarted + /ui reattached: resync UI-owned state */
             /* Arm the post-restart settle window so BT routing (and the v2.40 local-init) wait out the
@@ -3255,15 +3277,17 @@ int main(int argc, char **argv){
             else if(ipc_take_send_error())  ui_toast("Player didn't respond");
         }
         ipc_tx_pump();   /* frames that waited for a busy player go out as soon as it reads again (in order) */
-#ifdef DISKOS_PROFILE
         struct timespec pa, pb; clock_gettime(CLOCK_MONOTONIC, &pa);
-#endif
         simple_refresh_budget(bl_state!=2&&(lv_anim_count_running()>0||prev_ts==LV_INDEV_STATE_PRESSED));
         uint32_t wait = lv_timer_handler();
-#ifdef DISKOS_PROFILE
         clock_gettime(CLOCK_MONOTONIC, &pb);
         unsigned long long prof_h = (unsigned long long)(pb.tv_sec - pa.tv_sec) * 1000000000ULL + (unsigned long long)(pb.tv_nsec - pa.tv_nsec);
-#endif
+        { static time_t last_slow;
+          if(prof_h>=150000000ULL && (!last_slow || pb.tv_sec-last_slow>=10)){
+              last_slow=pb.tv_sec;
+              fprintf(stderr,"slow UI frame: %llu ms screen=%d animations=%u\n",prof_h/1000000ULL,screen_current(),(unsigned)lv_anim_count_running());
+          }
+        }
         /* (boot watchdog was already disarmed before the loop, after the first frame
          * actually painted - see lv_refr_now above.) */
 
@@ -3294,7 +3318,7 @@ int main(int argc, char **argv){
                     s_press_scr=screen_current();   /* a gesture belongs to the screen it STARTED on */
                     cover_tap = 0;
                     fsart_touch = ui_np_fsart_active();   /* latch: overlay owns this whole gesture */
-                    sleep_touch = ui_np_overlay_active()   /* latch: the sleep popover owns this whole gesture, */
+                    sleep_touch = ui_np_overlay_active() || azjump_owns_point(p.x,p.y)   /* latch: the sleep popover owns this whole gesture, */
                                || (screen_current()==SCR_EQ_EDITOR && eqcustom_owns_point(p.x, p.y))    /* and so does the EQ dial (fork) */
                                || (screen_current()==SCR_SPHERE && sphere_ui_owns_point(p.x, p.y));     /* and SongSphere's marker */
                     seek_touch = dhome_owns_point(p.x, p.y) || simple_owns_point(p.x,p.y);

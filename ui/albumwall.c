@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <unistd.h>
+#include "art.h"
 
 /* Album Wall: an Apple-style COVER FLOW that FLOWS. The centred album faces the viewer; the covers to
  * each side are angled (an affine squash, dimmed) with a faded reflection. A swipe slides the whole strip
@@ -50,7 +54,6 @@ static int     g_cur;
 static float    g_off;                /* strip offset during a step animation (0 at rest) */
 static int      g_animating;
 static uint32_t g_tickctr;
-static uint8_t  g_src[AW_SRC*AW_SRC*4];   /* scratch decode buffer (UI thread only) */
 
 /* a baked cover: facing sprite (front) + turned sprite (side), each cover + reflection */
 typedef struct {
@@ -59,7 +62,8 @@ typedef struct {
     uint8_t *fbuf;                     /* AW_SRC   * AW_SPR_H * 4 ARGB */
     uint8_t *sbuf;                     /* AW_SIDE_W* AW_SPR_H * 4 ARGB */
     lv_image_dsc_t fdsc, sdsc;
-    uint32_t tick;
+    uint32_t tick,serial,retry_at;
+    int pending;
 } sprite_t;
 static sprite_t g_lru[AW_LRU];
 static sprite_t g_blank;               /* dark placeholder (no art) */
@@ -120,30 +124,86 @@ static void aw_bake_side(const uint8_t *src, uint8_t *s){
     }
 }
 
-static void aw_bake(sprite_t *sp, int idx){
-    sp->idx = idx; sp->has_cover = 0;
-    if(idx >= 0 && idx < g_nalb){
-        int ids[6]; int n = mdb_album_track_ids(g_names[idx], ids, 6);
-        for(int i=0;i<n;i++){
-            char track[512]; track[0]=0; mdb_song_path(ids[i], track, sizeof track);
-            char cov[600];
-            int loaded = 0;
-            if(track[0] && sd_io_begin()){
-                loaded = artcache_cover_path(track, cov, sizeof cov)==0 && aw_read_bmp(cov, g_src)==0;
-                sd_io_end();
+/* One bounded worker owns SD reads/decoding/baking. Only the UI owns widgets and
+ * LRU descriptors. A single completed result bounds scratch even while leaving. */
+typedef struct {int slot,idx,n,ids[6];unsigned epoch,serial;} aw_job_t;
+typedef struct {aw_job_t job;uint8_t*front,*side;int ok;} aw_result_t;
+static pthread_mutex_t aw_mu=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t aw_cond=PTHREAD_COND_INITIALIZER;
+static aw_job_t aw_jobs[AW_LRU];static int aw_head,aw_tail,aw_count,aw_worker_started;
+static aw_result_t aw_result;static int aw_result_ready;
+static atomic_uint aw_epoch=1;static atomic_int aw_on;
+void ui_decode_lock(void);void ui_decode_unlock(void);int ui_art_foreground_busy(void);
+static void aw_result_free(aw_result_t*r){free(r->front);free(r->side);memset(r,0,sizeof*r);}
+static void aw_cancel_jobs(void){
+    atomic_fetch_add(&aw_epoch,1);pthread_mutex_lock(&aw_mu);aw_head=aw_tail=aw_count=0;
+    if(aw_result_ready){aw_result_free(&aw_result);aw_result_ready=0;}pthread_cond_broadcast(&aw_cond);pthread_mutex_unlock(&aw_mu);
+    for(int i=0;i<AW_LRU;i++)g_lru[i].pending=0;
+}
+static int aw_job_current(const aw_job_t*j){return atomic_load(&aw_on)&&atomic_load(&aw_epoch)==j->epoch;}
+static void*aw_worker(void*unused){
+    (void)unused;nice(15);
+    for(;;){
+        pthread_mutex_lock(&aw_mu);while(!aw_count||aw_result_ready)pthread_cond_wait(&aw_cond,&aw_mu);
+        aw_job_t j=aw_jobs[aw_head];aw_head=(aw_head+1)%AW_LRU;aw_count--;pthread_mutex_unlock(&aw_mu);
+        aw_result_t result={.job=j};uint8_t*src=malloc(AW_SRC*AW_SRC*4);
+        if(src&&aw_job_current(&j)&&sd_io_begin()){
+            for(int i=0;i<j.n&&aw_job_current(&j);i++){
+                char path[512],cover[600];int loaded=0;
+                if(!mdb_song_path(j.ids[i],path,sizeof path)||!path[0])continue;
+                loaded=artcache_cover_path(path,cover,sizeof cover)==0&&aw_read_bmp(cover,src)==0;
+                if(!loaded&&!ui_art_foreground_busy()&&aw_job_current(&j)){
+                    char dir[]="/tmp/.diskos-wall-XXXXXX";
+                    if(mkdtemp(dir)){
+                        char c[128],t[128],bg[128],fp[24];snprintf(c,sizeof c,"%s/c.bmp",dir);snprintf(t,sizeof t,"%s/t.bmp",dir);snprintf(bg,sizeof bg,"%s/b.bmp",dir);
+                        int keyed=artcache_key(path,fp,sizeof fp)==0;
+                        ui_decode_lock();
+                        int rc=aw_job_current(&j)&&!ui_art_foreground_busy()?art_make_all_ex_gen(path,c,t,bg,1,art_cancel_gen()):-2;
+                        ui_decode_unlock();
+                        if(!rc&&aw_job_current(&j)){loaded=aw_read_bmp(c,src)==0;if(keyed)artcache_put_if(path,fp,c,t,bg);}
+                        unlink(c);unlink(t);unlink(bg);rmdir(dir);
+                    }
+                }
+                if(loaded){
+                    result.front=malloc(AW_SRC*AW_SPR_H*4);result.side=malloc(AW_SIDE_W*AW_SPR_H*4);
+                    if(result.front&&result.side){aw_bake_front(src,result.front);aw_bake_side(src,result.side);result.ok=1;}break;
+                }
             }
-            if(loaded){
-                aw_bake_front(g_src, sp->fbuf); aw_bake_side(g_src, sp->sbuf);
-                aw_set_dsc(&sp->fdsc, sp->fbuf, AW_SRC, AW_SPR_H);
-                aw_set_dsc(&sp->sdsc, sp->sbuf, AW_SIDE_W, AW_SPR_H);
-                sp->has_cover = 1; return;
-            }
+            sd_io_end();
+        }
+        free(src);
+        pthread_mutex_lock(&aw_mu);
+        if(aw_job_current(&j)){aw_result=result;aw_result_ready=1;}else aw_result_free(&result);
+        pthread_cond_broadcast(&aw_cond);pthread_mutex_unlock(&aw_mu);
+        /* Demand covers still yield between albums rather than saturating playback. */
+        usleep(100000);
+    }
+    return NULL;
+}
+static void aw_apply_ready(void){
+    pthread_mutex_lock(&aw_mu);if(!aw_result_ready){pthread_mutex_unlock(&aw_mu);return;}
+    aw_result_t r=aw_result;memset(&aw_result,0,sizeof aw_result);aw_result_ready=0;pthread_cond_broadcast(&aw_cond);pthread_mutex_unlock(&aw_mu);
+    sprite_t*sp=&g_lru[r.job.slot];
+    if(aw_job_current(&r.job)&&sp->serial==r.job.serial&&sp->idx==r.job.idx){
+        sp->pending=0;sp->retry_at=r.ok?0:(lv_tick_get()|1);
+        if(r.ok){lv_image_cache_drop(&sp->fdsc);lv_image_cache_drop(&sp->sdsc);free(sp->fbuf);free(sp->sbuf);
+            sp->fbuf=r.front;sp->sbuf=r.side;r.front=r.side=NULL;aw_set_dsc(&sp->fdsc,sp->fbuf,AW_SRC,AW_SPR_H);aw_set_dsc(&sp->sdsc,sp->sbuf,AW_SIDE_W,AW_SPR_H);sp->has_cover=1;
+            for(int i=0;i<AW_CARDS;i++){if(g_front[i])lv_obj_invalidate(g_front[i]);if(g_side[i])lv_obj_invalidate(g_side[i]);}
         }
     }
-    /* MISS: point at the shared placeholder. Never leave the descriptors untouched - a reused LRU slot
-     * would otherwise still display the PREVIOUS album's baked cover. */
-    sp->fdsc = g_blank.fdsc;
-    sp->sdsc = g_blank.sdsc;
+    aw_result_free(&r);
+}
+static void aw_bake(sprite_t*sp,int idx){
+    if(sp->idx==idx&&sp->retry_at&&lv_tick_elaps(sp->retry_at)<1500)return;
+    if(sp->idx!=idx)sp->retry_at=0;
+    sp->idx=idx;sp->has_cover=0;sp->fdsc=g_blank.fdsc;sp->sdsc=g_blank.sdsc;
+    if(idx<0||idx>=g_nalb||sp->pending)return;
+    aw_job_t j={.slot=(int)(sp-g_lru),.idx=idx,.epoch=atomic_load(&aw_epoch),.serial=++sp->serial};
+    j.n=mdb_album_track_ids(g_names[idx],j.ids,6);if(j.n<=0)return;
+    if(!aw_worker_started){pthread_t th;pthread_attr_t attr;pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,256*1024);
+        if(!pthread_create(&th,&attr,aw_worker,NULL)){pthread_detach(th);aw_worker_started=1;}pthread_attr_destroy(&attr);}
+    if(!aw_worker_started)return;
+    pthread_mutex_lock(&aw_mu);if(aw_count<AW_LRU){aw_jobs[aw_tail]=j;aw_tail=(aw_tail+1)%AW_LRU;aw_count++;sp->pending=1;pthread_cond_broadcast(&aw_cond);}pthread_mutex_unlock(&aw_mu);
 }
 /* is this album currently on screen (a card)? Such entries must never be evicted while their image
  * widget still points at their pixel buffer, or the prefetch would swap the cover under a visible card. */
@@ -155,16 +215,14 @@ static int aw_visible(int idx){
 }
 static sprite_t *aw_sprite(int idx){
     for(int i=0;i<AW_LRU;i++)
-        if(g_lru[i].idx == idx){ g_lru[i].tick = ++g_tickctr; return &g_lru[i]; }
+        if(g_lru[i].idx == idx){ g_lru[i].tick = ++g_tickctr;if(!g_lru[i].has_cover&&!g_lru[i].pending)aw_bake(&g_lru[i],idx);return &g_lru[i]; }
     sprite_t *lru = NULL;
     for(int i=0;i<AW_LRU;i++){                              /* evict the oldest NON-visible entry */
         if(aw_visible(g_lru[i].idx)) continue;
         if(!lru || g_lru[i].tick < lru->tick) lru = &g_lru[i];
     }
     if(!lru) lru = &g_lru[0];                               /* unreachable: AW_LRU > visible span */
-    if(!lru->fbuf) lru->fbuf = malloc(AW_SRC*AW_SPR_H*4);
-    if(!lru->sbuf) lru->sbuf = malloc(AW_SIDE_W*AW_SPR_H*4);
-    if(!lru->fbuf || !lru->sbuf){ free(lru->fbuf); free(lru->sbuf); lru->fbuf=NULL; lru->sbuf=NULL; lru->idx=-1; return NULL; }
+    if(lru->pending){lru->serial++;lru->pending=0;}
     aw_bake(lru, idx); lru->tick = ++g_tickctr; return lru;
 }
 
@@ -321,12 +379,17 @@ static void aw_rebake_new_covers(void){
  * (cheap: one indexed lookup per album - the WORKER skips albums whose cover is already cached, so no SD
  * file checks run on the UI thread) so it catches same-count library changes, and needs no visit to the
  * Album view. Started at boot, after each scan, and on Cover Flow open. */
-static char (*g_seed_names)[MDB_STR];
+static char (*g_seed_names)[MDB_STR],(*g_seed_artists)[MDB_STR];
+static int *g_seed_counts,g_seed_cap;
 static int         g_seed_n, g_seed_cur;
 static lv_timer_t *g_seed_timer;
 static int *g_seed_rep;                                     /* per album: representative SONG.ID (0 = none) */
+static void aw_seed_free(void){
+    free(g_seed_names);free(g_seed_artists);free(g_seed_counts);free(g_seed_rep);
+    g_seed_names=g_seed_artists=NULL;g_seed_counts=g_seed_rep=NULL;g_seed_cap=g_seed_n=g_seed_cur=0;
+}
 static void aw_seed_cb(lv_timer_t *t){
-    if(!g_seed_names || g_seed_cur >= g_seed_n){ lv_timer_delete(t); g_seed_timer = NULL; return; }
+    if(!g_seed_names || g_seed_cur >= g_seed_n){ lv_timer_delete(t); g_seed_timer = NULL;aw_seed_free(); return; }
     lv_timer_set_period(t, 50);                                 /* back to full pace (a full queue slows it below) */
     for(int k=0; k<3 && g_seed_cur < g_seed_n; k++){
         /* The album's representative song (its first in library order, recorded when the album cache was built):
@@ -356,26 +419,34 @@ static void aw_seed_cb(lv_timer_t *t){
     }
 }
 void albumwall_prewarm_seed(void){                          /* MAIN thread: (re)start the incremental enqueue walk */
-    static char (*artists)[MDB_STR]; static int *counts; static int seed_cap = 0;
-    int want = mdb_album_count();                           /* size to the real album count (no >600 truncation) */
-    if(want < 1) return;                                    /* <0 = OOM building the cache, 0 = empty -> nothing to seed (retry next start) */
-    if(!g_seed_names || seed_cap < want){                   /* main-thread only + repopulated below -> free+malloc safe */
-        free(g_seed_names); free(artists); free(counts); free(g_seed_rep);
-        g_seed_names = malloc((size_t)want*MDB_STR);
-        artists      = malloc((size_t)want*MDB_STR);
-        counts       = malloc((size_t)want*sizeof(int));
-        g_seed_rep   = malloc((size_t)want*sizeof(int));
-        if(!g_seed_names || !artists || !counts || !g_seed_rep){ free(g_seed_names); free(artists); free(counts); free(g_seed_rep); g_seed_names=NULL; artists=NULL; counts=NULL; g_seed_rep=NULL; seed_cap=0; return; }
-        seed_cap = want;
-    }
-    g_seed_n = mdb_albums(g_seed_names, artists, counts, seed_cap); g_seed_cur = 0;
-    if(mdb_album_rep_ids(g_seed_rep, seed_cap) != g_seed_n)
-        for(int i=0;i<seed_cap;i++) g_seed_rep[i] = 0;      /* reps unavailable -> every album uses the fallback scan */
-    if(g_seed_n > 0 && !g_seed_timer) g_seed_timer = lv_timer_create(aw_seed_cb, 50, NULL);
+    int want=mdb_album_count();if(want<1)return;
+    aw_seed_free();
+    g_seed_names=malloc((size_t)want*MDB_STR);g_seed_artists=malloc((size_t)want*MDB_STR);
+    g_seed_counts=malloc((size_t)want*sizeof(int));g_seed_rep=malloc((size_t)want*sizeof(int));
+    if(!g_seed_names||!g_seed_artists||!g_seed_counts||!g_seed_rep){aw_seed_free();return;}
+    g_seed_cap=want;g_seed_n=mdb_albums(g_seed_names,g_seed_artists,g_seed_counts,want);
+    if(mdb_album_rep_ids(g_seed_rep,want)!=g_seed_n)memset(g_seed_rep,0,(size_t)want*sizeof(int));
+    /* These fields are outputs only; enumeration needs names and representative IDs. */
+    free(g_seed_artists);g_seed_artists=NULL;free(g_seed_counts);g_seed_counts=NULL;
+    if(g_seed_n>0&&!g_seed_timer)g_seed_timer=lv_timer_create(aw_seed_cb,50,NULL);
+    if(!g_seed_timer)aw_seed_free();
 }
 
-static lv_timer_t *g_prefetch;
+static lv_timer_t *g_prefetch,*g_cache_trim;
+static void aw_trim_cb(lv_timer_t*t){
+    lv_timer_pause(t);if(screen_current()==SCR_ALBUMWALL)return;
+    for(int i=0;i<AW_CARDS;i++){if(g_front[i])lv_image_set_src(g_front[i],NULL);if(g_side[i])lv_image_set_src(g_side[i],NULL);}
+    for(int i=0;i<AW_LRU;i++){lv_image_cache_drop(&g_lru[i].fdsc);lv_image_cache_drop(&g_lru[i].sdsc);free(g_lru[i].fbuf);free(g_lru[i].sbuf);memset(&g_lru[i],0,sizeof g_lru[i]);g_lru[i].idx=-1;}
+    free(g_names);free(g_artists);free(g_counts);g_names=g_artists=NULL;g_counts=NULL;g_names_cap=0;
+}
+void albumwall_visible(int visible){
+    atomic_store(&aw_on,!!visible);if(!visible)aw_cancel_jobs();
+    if(g_prefetch){if(visible){lv_timer_reset(g_prefetch);lv_timer_resume(g_prefetch);}else lv_timer_pause(g_prefetch);}
+    if(visible){if(g_cache_trim)lv_timer_pause(g_cache_trim);}
+    else if(g_aw_inited){if(!g_cache_trim)g_cache_trim=lv_timer_create(aw_trim_cb,30000,NULL);else{lv_timer_reset(g_cache_trim);lv_timer_resume(g_cache_trim);}}
+}
 static void aw_prefetch_cb(lv_timer_t *t){ (void)t;
+    aw_apply_ready();
     if(screen_current()!=SCR_ALBUMWALL || g_nalb<=0) return;
     unsigned g = artcache_gen();
     if(g != g_last_ac_gen){ g_last_ac_gen = g; aw_rebake_new_covers(); }   /* pick up freshly-decoded covers */
@@ -393,11 +464,12 @@ static lv_obj_t *aw_img(void){ lv_obj_t *im = lv_image_create(g_root); lv_obj_ad
 
 void albumwall_create(lv_obj_t *root){
     g_root = root;
-    if(!g_prefetch) g_prefetch = lv_timer_create(aw_prefetch_cb, 40, NULL);
+    if(!g_prefetch){g_prefetch=lv_timer_create(aw_prefetch_cb,40,NULL);if(g_prefetch)lv_timer_pause(g_prefetch);}
 }
 
 void albumwall_refresh(void){
     if(!g_root) return;
+    aw_cancel_jobs();atomic_store(&aw_on,1);
     if(!g_aw_inited){
         /* placeholder sprites (built once; BGRA from the theme's art-wall roles) */
         static uint8_t fb[AW_SRC*AW_SPR_H*4], sb[AW_SIDE_W*AW_SPR_H*4];

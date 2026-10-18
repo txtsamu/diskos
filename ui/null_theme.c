@@ -43,6 +43,7 @@ static const lv_font_t *music_font(int role)
     int set=simple_cfg_get_int("null_music_fonts",0);if(set<0 || set>3)set=0;
     return &music_fonts[set][role];
 }
+const lv_font_t *null_track_font(void){return music_font(0);}
 static lv_obj_t *home, *bg, *wash, *title, *artist, *album, *seek, *fill, *playhead, *times, *mode,
     *buttons[3], *icons[3], *gesture;
 static lv_obj_t *nav, *band, *edge, *edge_line[5];

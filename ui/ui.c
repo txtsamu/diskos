@@ -513,7 +513,7 @@ const void *ui_current_backdrop_img(void){
     if(g_bd_ok) return &g_bddsc;
     return backdrop_valid ? (const void *)backdrop_src : NULL;
 }
-static uint8_t g_posterx[PSZ * PSZ * 4];               /* poster: cover + its static shading, XRGB8888 */
+static uint8_t *g_posterx;               /* poster: cover + its static shading, XRGB8888 */
 static lv_image_dsc_t g_posterxdsc;
 static int g_poster_baked;
 static int g_poster_stale = 1;           /* cover.jpg not decoded for this track yet */
@@ -530,6 +530,7 @@ static float grad_a(float y, float y0, float h, float a_top, float a_bot, float 
 static void poster_bake(int w, int h){
     g_poster_baked = 0;
     if(w <= 0 || h <= 0) return;
+    if(!g_posterx)g_posterx=malloc(PSZ*PSZ*4);if(!g_posterx)return;
     int ox = (w - 360) / 2, oy = (h - 360) / 2;             /* the image is centred on the 360 panel */
     for(int y = 0; y < h; y++){
         float sy = (float)(y - oy);                         /* screen row */
@@ -554,12 +555,12 @@ static void poster_bake(int w, int h){
 static void poster_shading_live(int on){                    /* the live layers, only when nothing is baked */
     SHOW(poster_dim, on); SHOW(poster_top, on); SHOW(poster_fade, on); SHOW(np_scrim, on);
 }
-static uint8_t g_spinbuf[PSZ * PSZ * 4];               /* immersive: the same cover as XRGB8888 */
+static uint8_t *g_spinbuf;               /* immersive: the same cover as XRGB8888 */
 static lv_image_dsc_t g_spindsc;
 static int g_spin_ok;
 static uint32_t *imm_frame;
 static lv_image_dsc_t imm_frame_dsc;
-static int imm_fast;
+static int imm_fast,imm_out_tag;
 static uint32_t imm_frame_period=41;
 static int imm_fade_height = 170;
 static int imm_playing;                                   /* defined below (tentative declaration) */
@@ -691,6 +692,7 @@ static void spin_from_poster(void){                       /* RGB888 -> the displ
     g_spin_ok = 0;
     int w = g_posterdsc.header.w, h = g_posterdsc.header.h;
     if(!g_posterdsc.data || w <= 0 || h <= 0) return;
+    if(!g_spinbuf)g_spinbuf=malloc(PSZ*PSZ*4);if(!g_spinbuf)return;
     const uint8_t *s = g_posterbuf; uint8_t *d = g_spinbuf;
     for(int i = 0; i < w * h; i++){ d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 0xFF; s += 3; d += 4; }
     memset(&g_spindsc, 0, sizeof g_spindsc);
@@ -780,8 +782,8 @@ static void poster_reload(void){
     lv_image_set_src(poster_img, NULL);
     g_spin_ok = 0; g_poster_baked = 0;
     if(g_sharp_valid){
-        spin_from_poster();                              /* the immersive record uses the sharp cover too */
-        poster_bake(g_posterdsc.header.w, g_posterdsc.header.h);
+        if(fsart_on)spin_from_poster();
+        if(g_np_poster)poster_bake(g_posterdsc.header.w, g_posterdsc.header.h);
         lv_image_set_src(poster_img, g_poster_baked ? (const void *)&g_posterxdsc : (const void *)&g_posterdsc);
     }
     else if(backdrop_valid)
@@ -879,7 +881,7 @@ static void imm_tick(lv_timer_t *t){
 }
 void ui_np_fsart_open(void){
     if(!fsart || fsart_on || !g_np_have) return;       /* nothing to show if no track */
-    lv_anim_delete(fsart, NULL); /* reopening must cancel the previous close callback */
+    lv_anim_delete(fsart, NULL);lv_anim_delete(&imm_out_tag,NULL); /* reopening cancels every previous close callback */
     imm_fast = 0;imm_frame_period=41;imm_record_set_smoothing(1);imm_overlay_mode(0);
     if(imm_scrim) lv_obj_remove_flag(imm_scrim,LV_OBJ_FLAG_HIDDEN);
     fsart_path[0] = '\0';
@@ -894,6 +896,7 @@ void ui_np_fsart_open(void){
     if(g_np_poster || g_np_ring){                       /* Ring and Braun share this immersive path */
         if(imm_still()) imm_angle = 0;                  /* None: upright, standing still */
         if(g_poster_stale) poster_reload();               /* decode the sharp cover now, not on every track */
+        else if(!g_spin_ok)spin_from_poster();
         if(imm_spin){
             if(g_spin_ok){                              /* sharp 364px cover, native format, 1:1 - best quality */
                 lv_image_set_src(imm_spin, &g_spindsc);
@@ -963,21 +966,28 @@ static void imm_out_exec(void *x, int32_t v){
     if(imm_prog) lv_obj_set_style_opa(imm_prog, o, 0);
     for(int j = 0; j < 3; j++) if(imm_lyr[j]) lv_obj_set_style_opa(imm_lyr[j], o, 0);
 }
+static void imm_cold_release(void){
+    if(fsart_on)return;
+    if(imm_spin){lv_image_set_src(imm_spin,NULL);lv_obj_add_flag(imm_spin,LV_OBJ_FLAG_HIDDEN);}
+    lv_image_cache_drop(&g_spindsc);lv_image_cache_drop(&imm_frame_dsc);
+    imm_overlay_mode(0);for(int k=0;k<4;k++)if(imm_snap[k]){lv_draw_buf_destroy(imm_snap[k]);imm_snap[k]=NULL;}
+    free(g_spinbuf);g_spinbuf=NULL;free(imm_frame);imm_frame=NULL;g_spin_ok=imm_fast=0;
+}
 static void imm_out_done(lv_anim_t *a){
-    (void)a;
+    (void)a;if(fsart_on)return;
     imm_boost = 0; if(imm_spin) lv_image_set_scale(imm_spin, imm_fast || g_spin_ok ? 256 : (uint32_t)(364 * 256 / CBMP));   /* rest for next time */
     screen_skip_anim_once(); screen_home(); if(th_disco_family()) dhome_imm_return();
-    if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);
+    if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);imm_cold_release();
 }
-static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(fsart) lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN); }
+static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(!fsart_on){if(fsart)lv_obj_add_flag(fsart,LV_OBJ_FLAG_HIDDEN);imm_cold_release();} }
 void ui_np_fsart_close(void){
     if(!fsart || !fsart_on) return;
     fsart_on = 0;
     if(imm_timer){ lv_timer_delete(imm_timer); imm_timer = NULL; }
     if((th_disco_family() || th_null()) && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
-        static int tag; lv_anim_delete(&tag, NULL);                  /* the record lifts off, then Music slides back in */
+        lv_anim_delete(&imm_out_tag, NULL);                  /* the record lifts off, then Music slides back in */
         lv_obj_set_style_opa(fsart, LV_OPA_COVER, 0);
-        lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_out_exec);
+        lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &imm_out_tag); lv_anim_set_exec_cb(&a, imm_out_exec);
         lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, th_simple()?180:240); lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
         lv_anim_set_completed_cb(&a, imm_out_done); lv_anim_start(&a);
         return;
@@ -1500,6 +1510,7 @@ void kit_fork_np_braun(void){
                      if(lv_obj_check_type(c, &lv_label_class) && lv_obj_get_child_count(c) == 0 && k == 0) lv_obj_set_style_text_color(c, TC(TEXT_SECONDARY), 0); } }
 }
 static void np_layout(int poster){
+    if(!poster&&g_posterx){if(poster_img)lv_image_set_src(poster_img,NULL);lv_image_cache_drop(&g_posterxdsc);free(g_posterx);g_posterx=NULL;g_poster_baked=0;}
     SHOW(poster_img, poster); poster_shading_live(poster && !g_poster_baked);
     SHOW(btn_imm, poster); SHOW(vol_arc, 0);   /* volume arc retired: the bottom rim is the seek bar */
     SHOW(cover, !poster); SHOW(album, !poster); SHOW(np_dots[0], !poster); SHOW(np_dots[1], !poster);
@@ -1908,7 +1919,7 @@ static int pwq_pop(char *out, int cap){            /* worker thread; 1 if an ite
 }
 static int pwq_pending(void){ pthread_mutex_lock(&pwq_mu); int p = (pwq_head != pwq_tail); pthread_mutex_unlock(&pwq_mu); return p; }
 static void pw_sleep(int secs){                    /* idle sleep, but wake early the moment cover work is queued */
-    for(int i=0;i<secs;i++){ if(pwq_pending()) return; sleep(1); }
+    for(int i=0;i<secs;i++){ if(pwq_pending()&&ui_main_is_idle()) return; sleep(1); }
 }
 
 static pthread_mutex_t g_art_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -1920,6 +1931,8 @@ static int       g_art_rc       = -1;
 static unsigned  g_art_done_req = 0;
 static art_req_t g_art_result;      /* the req the waiting result is for (guarded) */
 /* g_art_applied is declared above clear_art_state (main-thread only) */
+
+int ui_art_foreground_busy(void){pthread_mutex_lock(&g_art_mu);int busy=g_art_inflight;pthread_mutex_unlock(&g_art_mu);return busy;}
 
 /* main thread only: push a finished decode onto the NP cover + validity flags */
 /* The helper supplies A's original 364px geometry without relying on stock cover.jpg or ffmpeg. */
@@ -2037,7 +2050,7 @@ static void *art_worker(void *arg)
         pthread_mutex_unlock(&g_art_mu);
 
         char sharp_src[512]; copy_cstr(sharp_src,sizeof sharp_src,job.track);
-        int rc, from_net = 0, cache_primary = 0, cache_sharp = 0;                             /* from_net: the picture came from Online Album Art */
+        int rc, decode_exit = -1, from_net = 0, cache_primary = 0, cache_sharp = 0;                             /* from_net: the picture came from Online Album Art */
         char fp0[24] = "";                                /* the cover's fingerprint (for the accent's freshness) */
         if(job.is_clear) rc = -1;
         else if(artcache_get(job.track, job.out, job.tout, job.bout) == 0){ rc = 0;   /* cached -> fast copy, no decode */
@@ -2059,6 +2072,7 @@ static void *art_worker(void *arg)
                        if(rc != 0 && (ex == 3 || ex == 4 || ex == 5)) netart_reject(np);   /* never offer it again */
                    }
                }
+               decode_exit=art_last_exit();
                pthread_mutex_unlock(&g_decode_mu);
                /* an online picture is never cached as the song's own cover: turning the setting off must drop it */
                cache_primary = rc == 0 && have_fp && !from_net; }
@@ -2077,6 +2091,13 @@ static void *art_worker(void *arg)
         /* Superseded requests never allocate large preparation buffers. */
         pthread_mutex_lock(&g_art_mu);int current=g_art_req==my_req;pthread_mutex_unlock(&g_art_mu);
         if(!current)continue;
+        if(rc && rc!=-2 && !job.is_clear && decode_exit!=3){
+            static time_t last_failure;time_t now=time(NULL);
+            if(!last_failure || now-last_failure>=10){
+                last_failure=now;
+                fprintf(stderr,"artwork: decode failed rc=%d exit=%d track=%.160s\n",rc,decode_exit,job.track);
+            }
+        }
         job.pixels=NULL;job.rgb=0;
         if(rc==0 && !job.is_clear && art_pixels_memory_ok(sizeof(art_pixels_t)+(job.disco?BDW*BDW*4:0))){
             job.pixels=calloc(1,sizeof *job.pixels);
@@ -2491,6 +2512,7 @@ static int pw_window_open(void){
 /* Block until heat + the live decode allow another ffmpeg. Shared by both prewarm phases. */
 static void pw_wait_window(int *hot){
     for(;;){
+        if(!ui_main_is_idle()){usleep(500000);continue;}
         int t = pw_temp_dc();                       /* battery temp, tenths-C; fail-closed if unreadable */
         if(t < 0){ sleep(15); continue; }
         if(*hot){ if(t < 400) *hot=0; else { sleep(15); continue; } }   /* hysteresis: pause >=42C, resume <40C */
@@ -2507,7 +2529,7 @@ static int pw_decode(const char *path, const char *cover, const char *thumb,
         pw_wait_window(hot);
         pthread_mutex_lock(&g_decode_mu);
         pthread_mutex_lock(&g_art_mu);
-        int busy = g_art_inflight || art_interactive();
+        int busy = g_art_inflight || art_interactive() || !ui_main_is_idle();
         unsigned gen = art_cancel_gen();
         pthread_mutex_unlock(&g_art_mu);
         if(busy){ pthread_mutex_unlock(&g_decode_mu); usleep(300000); continue; }
@@ -2535,7 +2557,7 @@ static void *art_prewarm_worker(void *arg)
          * in-memory cache is touched off the UI thread. Runs regardless of the idle gate (users want
          * covers while browsing) but stays temp-throttled and serialized with the live NP decoder. */
         char qpath[512];
-        if(pwq_pop(qpath, sizeof qpath)){
+        if(ui_main_is_idle()&&pwq_pop(qpath, sizeof qpath)){
             pw_wait_window(&hot);                        /* heat gate + yields to the live decode */
             if(artcache_has(qpath)){ usleep(15*1000); continue; }   /* already cached (the UI thread no longer checks) */
             char fp0[24];

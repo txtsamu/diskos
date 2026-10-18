@@ -481,6 +481,8 @@ void ui_np_open_album(void);    /* the playing song's album in the Library, the 
 void ui_np_open_artist(void);   /* the playing song's artist, its album focused */
 void library_open_artist_focus(const char *artist, const char *album);
 void library_open_artists(void); void library_open_songs(void);   /* Library at Artists / Songs (Disco menu) */
+void albumwall_visible(int visible);
+
 #endif
 
 void roulette_create(lv_obj_t *root);

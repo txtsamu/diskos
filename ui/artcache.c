@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -64,7 +65,7 @@ static void cache_paths(const char *fp, char *cv, char *th, char *bg, int cap){
     snprintf(th,cap,"%s/%s/t.bmp",CACHE_ROOT,fp);
     snprintf(bg,cap,"%s/%s/b.bmp",CACHE_ROOT,fp);
 }
-static int copy_file(const char *src, const char *dst){
+static int copy_file_ex(const char *src, const char *dst,int durable){
     FILE *in=fopen(src,"rb"); if(!in) return -1;
     /* unique tmp per call: a live decode + a prewarm decode can copy the SAME dst
      * concurrently; a shared "<dst>.tmp" would let them interleave and expose a
@@ -82,15 +83,24 @@ static int copy_file(const char *src, const char *dst){
     /* fsync the data onto the card BEFORE the rename publishes it, so a power cut / yanked card can't
      * surface a rename pointing at unflushed content (the exact non-journaled-exFAT corruption window).
      * A driver that doesn't implement fsync (EINVAL/ENOSYS/EOPNOTSUPP) is tolerated. */
-    if(ok){
+    if(ok&&durable){
         int fd = fileno(out);
         if(fd >= 0 && fsync(fd) != 0 && errno != EINVAL && errno != ENOSYS && errno != EOPNOTSUPP) ok = 0;
     }
     fclose(out);
     if(!ok){ unlink(tmp); return -1; }
     if(rename(tmp,dst)!=0){ unlink(tmp); return -1; }
-    fsync_parent_dir(dst);                     /* make the rename itself durable */
+    if(durable)fsync_parent_dir(dst);                     /* make the rename itself durable */
     return 0;
+}
+static int copy_file(const char*src,const char*dst){return copy_file_ex(src,dst,1);}
+static int copy_temporary(const char*src,const char*dst){
+    /* Only known RAM-backed destinations skip durability; arbitrary caller paths
+     * still use the durable SD publication contract. */
+    char parent[600];snprintf(parent,sizeof parent,"%s",dst);char*slash=strrchr(parent,'/');
+    struct statfs fs;int ram=0;if(slash){if(slash==parent)slash[1]=0;else *slash=0;
+        if(!statfs(parent,&fs))ram=fs.f_type==0x01021994||(unsigned long)fs.f_type==0x858458f6u;}
+    return copy_file_ex(src,dst,!ram);
 }
 static int enough_free(void){
     struct statvfs v;
@@ -109,9 +119,9 @@ static int artcache_get_leased(const char *track, const char *cover_out, const c
     char cv[600],th[600],bg[600]; cache_paths(fp,cv,th,bg,600);
     if(!(CV_OK(cv) && TH_OK(th) && BG_OK(bg))) return -1;
     /* copy cache -> the worker's /tmp output paths (fast vs ffmpeg) */
-    if(copy_file(cv,cover_out)!=0) return -1;
-    if(copy_file(th,thumb_out)!=0) return -1;
-    if(copy_file(bg,bg_out)!=0)    return -1;
+    if(copy_temporary(cv,cover_out)!=0) return -1;
+    if(copy_temporary(th,thumb_out)!=0) return -1;
+    if(copy_temporary(bg,bg_out)!=0)    return -1;
     return 0;
 }
 
@@ -119,7 +129,7 @@ static int artcache_get_thumb_leased(const char *track, const char *thumb_out){
     char fp[24]; if(fingerprint(track,fp,sizeof fp)!=0) return -1;
     char cv[600],th[600],bg[600]; cache_paths(fp,cv,th,bg,600);
     if(!TH_OK(th)) return -1;            /* thumb not cached (or damaged) */
-    if(copy_file(th,thumb_out)!=0) return -1;
+    if(copy_temporary(th,thumb_out)!=0) return -1;
     return 0;
 }
 
@@ -139,7 +149,7 @@ static int artcache_get_cover_leased(const char *track, const char *cover_out){
     char fp[24]; if(fingerprint(track,fp,sizeof fp)!=0) return -1;
     char cv[600],th[600],bg[600]; cache_paths(fp,cv,th,bg,600);
     if(!CV_OK(cv)) return -1;
-    if(copy_file(cv,cover_out)!=0) return -1;
+    if(copy_temporary(cv,cover_out)!=0) return -1;
     return 0;
 }
 
@@ -223,7 +233,7 @@ int artcache_get_sharp(const char *track, const char *out){
     char fp[24], path[600]; int r = -1;
     if(fingerprint(track, fp, sizeof fp) == 0){
         snprintf(path, sizeof path, "%s/%s/p7.bgra", CACHE_ROOT, fp);
-        if(sharp_valid(path) && copy_file(path, out) == 0 && sharp_valid(out)) r = 0;
+        if(sharp_valid(path) && copy_temporary(path, out) == 0 && sharp_valid(out)) r = 0;
     }
     sd_io_end(); return r;
 }

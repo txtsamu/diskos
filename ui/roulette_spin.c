@@ -11,6 +11,7 @@
 #include "screens.h"
 #include "theme.h"
 #include "config.h"
+#include "theme_kit.h"
 #include "musicdb.h"
 #include "roulette_backend.h"
 #include "lvgl/src/core/lv_obj_event_private.h"
@@ -37,7 +38,7 @@ static lv_style_transition_dsc_t press_transition;
 static const lv_style_prop_t press_properties[] = { LV_STYLE_TRANSFORM_WIDTH, LV_STYLE_TRANSFORM_HEIGHT, 0 };
 static lv_anim_t text_scroll;
 static pthread_t loader;
-static int loader_joinable;
+static int loader_joinable,restart_pending;
 static atomic_int loader_done;                       /* the loader thread has returned: joining it can't block */
 static lv_timer_t *reaper;
 static void *loader_main(void *arg){ void *r = prepare_albums(arg); atomic_store(&loader_done, 1); return r; }
@@ -46,13 +47,19 @@ static void reap_cb(lv_timer_t *t){
     if(loader_joinable && !atomic_load(&loader_done)) return;
     if(loader_joinable){ pthread_join(loader, NULL); loader_joinable = 0; }
     lv_timer_delete(t); reaper = NULL;
+    int restart=restart_pending;restart_pending=0;
+    if(restart && screen_current()==SCR_ROULETTE)roulette_spin_open();
 }
-static lv_obj_t *ball_btn;
+static lv_obj_t *ball_btn,*winner_actions;
 static lv_obj_t *root_obj, *landing, *spin, *status_label, *discs[3], *title, *artist, *ball, *hint, *fade, *orbit_ball, *selection_mark;
 static lv_obj_t *error_panel, *error_text;
 static lv_timer_t *anim_timer;
 static lv_image_dsc_t images[POOL];
 static lv_image_dsc_t rim;
+int ui_resource_inflate(void*,int,const unsigned char*,int);
+static const lv_font_t *roulette_font(theme_font_role_t role){return th_null()?theme_font_default(role):theme_font(role);}
+#undef TF
+#define TF(role) roulette_font(THEME_FONT_##role)
 static uint32_t *themed_rim;
 static lv_point_t orbit[360];
 
@@ -90,12 +97,13 @@ static void winner_text(void){
     lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL);
 }
 static void winner_opacity(lv_opa_t opacity){
-    lv_obj_set_style_opa(title, opacity, 0); lv_obj_set_style_opa(artist, opacity, 0); lv_obj_set_style_opa(ball, opacity, 0);
+    lv_obj_set_style_opa(title, opacity, 0); lv_obj_set_style_opa(artist, opacity, 0); lv_obj_set_style_opa(ball, opacity, 0);if(winner_actions)lv_obj_set_style_opa(winner_actions,opacity,0);
 }
 static void show_error(const char *s){
     lv_label_set_text(error_text, s); lv_obj_remove_flag(error_panel, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(error_panel);
 }
 static void exit_cb(lv_event_t *e){ (void)e; screen_back(); }
+static void final_exit_cb(lv_event_t *e){(void)e;screen_home();}
 static void set_images(void){
     for(int i = 0; i < album_count; i++){
         lv_image_cache_drop(&images[i]);  /* Descriptors are reused after a re-roll. */
@@ -139,7 +147,7 @@ static void start_spin(void){
     finish = POOL - 1; winning = ((int)finish) % album_count;
     int chosen = choose_winner(); album_t selected = albums[chosen]; albums[chosen] = albums[winning]; albums[winning] = selected;
     set_images(); revealing = 0;
-    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);if(winner_actions)lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(fade, LV_OBJ_FLAG_HIDDEN); lv_obj_set_style_opa(fade, 0, 0);
     lv_obj_add_flag(error_panel, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_state(ball_btn, LV_STATE_DISABLED); winner_opacity(255);
     for(int i = 0; i < 3; i++){
@@ -183,7 +191,7 @@ static void play_cb(lv_event_t *e){
     char error[160];
     if(!play_winner(error, sizeof error)){ playback_failed(error); return; }
     stage = ZOOMING; started = lv_tick_get();
-    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);if(winner_actions)lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
     lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP); lv_label_set_long_mode(artist, LV_LABEL_LONG_CLIP);
     lv_obj_remove_flag(fade, LV_OBJ_FLAG_HIDDEN); lv_timer_set_period(anim_timer, FRAME_MS);
 }
@@ -206,11 +214,12 @@ static void cover_cb(lv_event_t *e){
         lv_timer_set_period(anim_timer, FRAME_MS);
     }
 }
+static void again_cb(lv_event_t *e){(void)e;if(stage==WINNER)lv_obj_send_event(discs[1],LV_EVENT_LONG_PRESSED,NULL);}
 static void winner(void){
     stage = WINNER; strip(finish); remember_winner(); lv_obj_add_flag(selection_mark, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(discs[1], LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(discs[0], LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(discs[2], LV_OBJ_FLAG_HIDDEN);
     winner_text();
-    lv_obj_remove_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(ball, LV_OBJ_FLAG_HIDDEN); lv_label_set_text(hint, "");
+    lv_obj_remove_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(ball, LV_OBJ_FLAG_HIDDEN);lv_obj_remove_flag(winner_actions,LV_OBJ_FLAG_HIDDEN); lv_label_set_text(hint, "");
     revealing = 1; started = lv_tick_get(); winner_opacity(0); lv_timer_set_period(anim_timer, FRAME_MS);
 }
 static void zoom(float p){
@@ -243,7 +252,7 @@ static void timer(lv_timer_t *unused){
         if(!ready_seen && ready){
             ready_seen = ready; ready_at = now; settle_from = spinner_phase;
             if(ready > 0){ char s[80]; snprintf(s, sizeof s, "%d album%s.\nOne lucky pick.", album_count, album_count == 1 ? "" : "s"); lv_label_set_text(status_label, s); }
-            else { lv_obj_set_style_text_font(status_label, &font_inter_medium_16, 0); lv_label_set_text(status_label, load_error); }
+            else { lv_obj_set_style_text_font(status_label, TF(UI_16), 0); lv_label_set_text(status_label, load_error); }
         }
         if(!ready){ place_orbit(((now - opened) % 2400) * 360.0f / 2400);
             int n = atomic_load(&progress); if(n > 0){ char s[48]; snprintf(s, sizeof s, "Shuffling the shelf...\n%d covers", n); lv_label_set_text(status_label, s); } }
@@ -268,7 +277,7 @@ static void timer(lv_timer_t *unused){
         float p = clamp01((now - started) / (float)REDO_MS);
         lv_obj_set_style_opa(fade, (int)lroundf(255 * smooth(p < 0.5f ? p * 2 : (1 - p) * 2)), 0);
         if(p >= 0.5f && stage == REDO && lv_obj_has_flag(title, LV_OBJ_FLAG_HIDDEN) == false){
-            lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);if(winner_actions)lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
             lv_label_set_long_mode(title, LV_LABEL_LONG_CLIP); lv_label_set_long_mode(artist, LV_LABEL_LONG_CLIP);
         }
         if(p >= 1){ lv_obj_add_flag(fade, LV_OBJ_FLAG_HIDDEN); start_spin(); }
@@ -295,21 +304,20 @@ static void build(void){
     lv_obj_set_style_bg_color(root_obj, TC(CANVAS), 0);
     landing = lv_obj_create(root_obj); plain(landing); lv_obj_set_size(landing, 360, 360);
     rim.header.magic = LV_IMAGE_HEADER_MAGIC; rim.header.cf = LV_COLOR_FORMAT_XRGB8888; rim.header.w = 360; rim.header.h = 360;
-    rim.header.stride = 360 * 4; rim.data_size = sizeof rim_pixels;
-    if(!themed_rim) themed_rim = malloc(sizeof rim_pixels);
-    if(themed_rim){                                                                /* the wheel, its centre in the screen colour */
-        memcpy(themed_rim, rim_pixels, sizeof rim_pixels); uint32_t canvas = 0xff000000u | (lv_color_to_u32(TC(CANVAS)) & 0xffffffu);
-        for(int y = 0; y < 360; y++) for(int x = 0; x < 360; x++){ int dx = x - 180, dy = y - 180; if(dx * dx + dy * dy < 145 * 145) themed_rim[y * 360 + x] = canvas; }
-        lv_image_cache_drop(&rim);
-    }
-    rim.data = (const uint8_t *)(themed_rim ? themed_rim : rim_pixels);
-    lv_obj_t *wheel = lv_image_create(landing); lv_image_set_src(wheel, &rim);
+    rim.header.stride = 360 * 4; rim.data_size = ROULETTE_RIM_BYTES;
+    if(!themed_rim) themed_rim = malloc(ROULETTE_RIM_BYTES);
+    if(themed_rim && ui_resource_inflate(themed_rim,ROULETTE_RIM_BYTES,rim_deflate,sizeof rim_deflate)==0){
+        uint32_t canvas=0xff000000u|(lv_color_to_u32(TC(CANVAS))&0xffffffu);
+        for(int y=0;y<360;y++)for(int x=0;x<360;x++){int dx=x-180,dy=y-180;if(dx*dx+dy*dy<145*145)themed_rim[y*360+x]=canvas;}
+        lv_image_cache_drop(&rim);rim.data=(const uint8_t*)themed_rim;
+    }else{free(themed_rim);themed_rim=NULL;rim.data=NULL;ui_toast("Not enough memory for the roulette wheel");}
+    lv_obj_t *wheel = lv_image_create(landing); if(rim.data)lv_image_set_src(wheel, &rim);
     for(int i = 0; i < 360; i++){ float a = i * 6.283185307f / 360; orbit[i].x = 180 + (int)lroundf(146 * sinf(a)); orbit[i].y = 180 - (int)lroundf(146 * cosf(a)); }
     orbit_ball = lv_obj_create(landing); plain(orbit_ball); lv_obj_set_size(orbit_ball, 10, 10); lv_obj_set_style_radius(orbit_ball, 5, 0);
     lv_obj_set_style_bg_color(orbit_ball, TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(orbit_ball, 255, 0);
     lv_obj_set_style_border_width(orbit_ball, 1, 0); lv_obj_set_style_border_color(orbit_ball, TC(BORDER_STRONG), 0); place_orbit(0);
     label(landing, "ALBUM", 60, 75, 240, TF(UI_28), TC(TEXT_PRIMARY)); label(landing, "ROULETTE", 40, 106, 280, TF(UI_28), TC(TEXT_PRIMARY));
-    status_label = label(landing, "Shuffling the shelf...", 65, 148, 230, &font_inter_medium_20, TC(TEXT_SECONDARY));
+    status_label = label(landing, "Shuffling the shelf...", 65, 148, 230, TF(UI_20), TC(TEXT_SECONDARY));
     button(landing, "Exit", 121, 250, 118, 42, 0, exit_cb);
     spin = lv_obj_create(root_obj); plain(spin); lv_obj_set_size(spin, 360, 360); lv_obj_add_flag(spin, LV_OBJ_FLAG_HIDDEN);
     for(int i = 0; i < 3; i++){ discs[i] = lv_image_create(spin); lv_image_set_pivot(discs[i], DISC / 2, DISC / 2); lv_image_set_antialias(discs[i], true); }
@@ -318,8 +326,8 @@ static void build(void){
     lv_obj_set_style_bg_color(selection_mark, TC(FIXED_MEDIA_WHITE), 0); lv_obj_set_style_bg_opa(selection_mark, 255, 0);
     lv_obj_set_style_border_width(selection_mark, 1, 0); lv_obj_set_style_border_color(selection_mark, TC(BORDER_STRONG), 0);
     lv_obj_add_flag(discs[1], LV_OBJ_FLAG_ADV_HITTEST); lv_obj_add_event_cb(discs[1], cover_cb, LV_EVENT_ALL, NULL);
-    title = label(spin, "", 57, 274, 246, TF(UI_26), TC(TEXT_PRIMARY)); lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL);
-    artist = label(spin, "", 85, 306, 190, TF(UI_22), TC(TEXT_SECONDARY)); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL);
+    title = label(spin, "", 57, 266, 246, TF(UI_20), TC(TEXT_PRIMARY)); lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL);
+    artist = label(spin, "", 85, 290, 190, TF(UI_14), TC(TEXT_SECONDARY)); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL);
     lv_obj_set_style_anim(title, &text_scroll, 0); lv_obj_set_style_anim(artist, &text_scroll, 0);
     lv_obj_set_style_anim_duration(title, lv_anim_speed_clamped(24, 1600, 60000), 0);
     lv_obj_set_style_anim_duration(artist, lv_anim_speed_clamped(24, 1600, 60000), 0);
@@ -338,21 +346,35 @@ static void build(void){
     lv_obj_t *bl = lv_label_create(ball); lv_label_set_text(bl, "Play!");
     lv_obj_set_style_text_font(bl, &font_inter_bold_22, 0); lv_obj_set_style_text_color(bl, TC(FIXED_MEDIA_BLACK), 0); lv_obj_center(bl);
     lv_obj_remove_flag(bl, LV_OBJ_FLAG_CLICKABLE);
-    hint = label(spin, "", 40, 283, 280, &font_inter_bold_22, TC(TEXT_SECONDARY));
-    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);
+    winner_actions=lv_obj_create(spin);plain(winner_actions);lv_obj_set_size(winner_actions,360,360);lv_obj_remove_flag(winner_actions,LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t *again=button(winner_actions,"Again",100,308,76,34,0,again_cb);
+    lv_obj_t *exit=button(winner_actions,"Exit",184,308,76,34,0,final_exit_cb);
+    lv_obj_set_style_text_font(lv_obj_get_child(again,0),TF(UI_16),0);lv_obj_set_style_text_font(lv_obj_get_child(exit,0),TF(UI_16),0);
+    kit_keep(again);kit_keep(exit);lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
+    hint = label(spin, "", 40, 283, 280, TF(UI_22), TC(TEXT_SECONDARY));
+    lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(artist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(ball, LV_OBJ_FLAG_HIDDEN);if(winner_actions)lv_obj_add_flag(winner_actions,LV_OBJ_FLAG_HIDDEN);
     fade = lv_obj_create(root_obj); plain(fade); lv_obj_set_size(fade, 360, 360);
     lv_obj_set_style_bg_color(fade, TC(FIXED_MEDIA_BLACK), 0); lv_obj_set_style_bg_opa(fade, 255, 0); lv_obj_set_style_opa(fade, 0, 0);
     lv_obj_add_flag(fade, LV_OBJ_FLAG_HIDDEN); lv_obj_remove_flag(fade, LV_OBJ_FLAG_CLICKABLE);
     error_panel = lv_obj_create(root_obj); plain(error_panel); lv_obj_set_size(error_panel, 360, 360);
     lv_obj_set_style_bg_color(error_panel, TC(CANVAS), 0); lv_obj_set_style_bg_opa(error_panel, 255, 0);
-    label(error_panel, "Couldn't start the album", 35, 80, 290, &font_inter_bold_22, TC(TEXT_PRIMARY));
-    error_text = label(error_panel, "", 55, 124, 250, &font_inter_medium_16, TC(TEXT_SECONDARY));
+    label(error_panel, "Couldn't start the album", 35, 80, 290, TF(UI_22), TC(TEXT_PRIMARY));
+    error_text = label(error_panel, "", 55, 124, 250, TF(UI_16), TC(TEXT_SECONDARY));
     button(error_panel, "Retry", 90, 209, 180, 44, 1, retry_cb); button(error_panel, "Exit", 121, 266, 118, 40, 0, exit_cb);
-    lv_obj_add_flag(error_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(error_panel, LV_OBJ_FLAG_HIDDEN);kit_keep(root_obj);
 }
 /* The landing page's I feel lucky!: a fresh sample of albums, the wheel while they're prepared, then the spin */
 void roulette_spin_open(void){
-    if(loader_joinable){ atomic_store(&cancelled, 1); pthread_join(loader, NULL); loader_joinable = 0; }
+    if(loader_joinable){
+        atomic_store(&cancelled,1);
+        if(!atomic_load(&loader_done)){
+            restart_pending=1;
+            if(!reaper)reaper=lv_timer_create(reap_cb,100,NULL);
+            ui_toast("Finishing the previous spin...");return;
+        }
+        pthread_join(loader,NULL);loader_joinable=0;
+    }
+    restart_pending=0;
     for(int i = 0; i < POOL; i++) lv_image_cache_drop(&images[i]);
     roulette_reset();
     build();

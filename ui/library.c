@@ -62,7 +62,7 @@ static library_song_click_cb_t g_song_cb;
  * so g_favs grows to the favourite count on its own (g_fav_cap). Allocated after mdb_load(); regrown after a
  * rescan (library_ensure_capacity) and for favourites (lib_ensure_fav_cap). */
 static int  g_alloc_n = 0;              /* song-bounded buffers (g_buf; g_favs for Most-Played/Recent) */
-static int  g_fav_cap = 0;              /* g_favs slots: >= g_alloc_n, grown past it for favourites (lib_ensure_fav_cap) */
+static int  g_fav_cap = 0;              /* history/favourites slots, allocated lazily (lib_ensure_fav_cap) */
 static int  g_grp_cap = 0;             /* group buffers: artists are tokenized so DISTINCT artists can exceed the
                                         * song count - give the album/artist/genre + g_first buffers headroom */
 static char *g_first = NULL;            /* per-row first letter, drives the A-Z scrubber (sized to g_grp_cap) */
@@ -113,6 +113,7 @@ static void position_tick(void){
     lv_obj_remove_flag(g_position,LV_OBJ_FLAG_HIDDEN);g_position_tick=lv_tick_get();g_position_fading=0;
 }
 static void focus_clear(void);
+static void focus_scroll_begin(lv_event_t*);
 /* album order: disc, then track number (untagged tracks after tagged ones), then title */
 static int track_cmp(const void *pa, const void *pb){
     const mdb_song_t *a = *(const mdb_song_t *const *)pa, *b = *(const mdb_song_t *const *)pb;
@@ -209,6 +210,15 @@ static void pdots_update(void){
     if(!g_pdot[0] || !g_list) return;
     lv_obj_update_layout(g_list);
     int32_t sy = lv_obj_get_scroll_y(g_list), sb = lv_obj_get_scroll_bottom(g_list), tot = sy + sb;
+    if(g_count>0 && g_first && g_az.btn && !lv_obj_has_flag(g_az.btn,LV_OBJ_FLAG_HIDDEN)){
+        int row=(sy-g_hdr_extra_px)/(ROW_H+4)-g_has_header;
+        if(row<0)row=0;if(row>=g_count)row=g_count-1;
+        float fraction=tot>0?(float)sy/tot:0;if(fraction<0)fraction=0;if(fraction>1)fraction=1;
+        float angle=(212-64*fraction)*3.14159265f/180;
+        int x=th_null()?30:disco_mx((int)(180+153*cosf(angle))-14,28)+14;
+        int y=th_null()?108+(int)(140*fraction):(int)(180+153*sinf(angle));
+        azjump_position(&g_az,g_first[row],x,y);
+    }
     if(th_null()){null_scroll_line(g_pdot,N_PDOTS,sy,tot);return;}
     int idx = (tot <= 24) ? -1 : (int)((sy * (N_PDOTS - 1) + tot / 2) / tot);   /* -1: fits on one screen */
     if(idx > N_PDOTS - 1) idx = N_PDOTS - 1;
@@ -594,6 +604,20 @@ static void focus_resolve(int n){      /* find the focused song among this list'
      * the focus has to survive that. It is dropped on the user's next move - focus_clear() below. */
 }
 static void focus_clear(void){ g_focus_album[0] = 0; g_focus_artist[0] = 0; g_focus_path[0] = 0; g_focus_idx = -1; g_focus_row = NULL; g_np_jump = 0; }
+/* A location marker belongs to the initial Music jump, not subsequent manual
+ * browsing. Scroll ownership distinguishes a real drag from automatic positioning. */
+static void focus_scroll_begin(lv_event_t*e){
+    (void)e;lv_indev_t*in=lv_indev_active();
+    if(!th_simple()||!in||lv_indev_get_type(in)!=LV_INDEV_TYPE_POINTER||lv_indev_get_scroll_obj(in)!=g_list)return;
+    if(g_focus_row){
+        lv_obj_set_style_bg_opa(g_focus_row,LV_OPA_TRANSP,0);
+        lv_obj_set_style_radius(g_focus_row,LV_RADIUS_CIRCLE,0);
+        lv_obj_t*t=lv_obj_get_child(g_focus_row,0);
+        if(t&&lv_obj_check_type(t,&lv_label_class))lv_obj_set_style_text_color(t,TC(TEXT_PRIMARY),0);
+    }
+    g_focus_album[0]=g_focus_artist[0]=g_focus_path[0]=0;g_focus_idx=-1;g_focus_row=NULL;
+    /* Keep g_np_jump: the back gesture must still return to Music. */
+}
 static void focus_mark(lv_obj_t *r){   /* lifted row + accent title: "you are here" */
     lv_obj_set_style_bg_color(r, TC(SURFACE_SELECTED), 0);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
@@ -796,6 +820,7 @@ static void jump_to_letter(char L){
 }
 static void az_show(int on){
     azjump_show(&g_az, on);
+    if(on)pdots_update();
     /* fork: the list always sits on the centre line, rows centred, so the curve narrows them evenly on both sides
      * (as History and the folder browser do); the A-Z button sits just outside the widest row on the right rim */
     if(g_list){
@@ -1133,7 +1158,9 @@ static void library_reload_inner(void){
         for(int i=0;i<n;i++) g_first[i]=first_letter(g_favs[i].title);
         g_count=n; fill_start(n); az_show(1);
     } else if(g_view==VIEW_MOSTPLAYED || g_view==VIEW_RECENT){
-        int n = (g_view==VIEW_MOSTPLAYED) ? mdb_mostplayed(g_favs, g_alloc_n) : mdb_recent(g_favs, g_alloc_n);
+        lib_ensure_fav_cap(g_alloc_n);
+        int cap=g_fav_cap<g_alloc_n?g_fav_cap:g_alloc_n;
+        int n = (g_view==VIEW_MOSTPLAYED) ? mdb_mostplayed(g_favs, cap) : mdb_recent(g_favs, cap);
         if(n<=0){ empty_label(tr("Nothing played yet")); return; }
         g_count=n; fill_start(n);   /* ordered by plays / recency -> no Play-All header, no A-Z */
     } else { /* VIEW_PLAYLISTS */
@@ -1273,19 +1300,19 @@ void library_scroll_letter_tick(void){
 static void lib_alloc_buffers(int songs){
     int n = songs > 0 ? songs : 1, gc = n * 2 + 64;   /* group buffers: headroom for tokenized artists */
     const mdb_song_t **buf = malloc((size_t)n * sizeof *buf);
-    mdb_song_t *favs = malloc((size_t)n * sizeof *favs);
+    mdb_song_t *favs = NULL; /* History/favourites allocate only when opened. */
     char *first = malloc((size_t)gc);
     char (*gnames)[MDB_STR] = malloc((size_t)gc * sizeof *gnames);
     char (*gartists)[MDB_STR] = malloc((size_t)gc * sizeof *gartists);
     int *gcounts = malloc((size_t)gc * sizeof *gcounts);
-    if(!buf || !favs || !first || !gnames || !gartists || !gcounts){
+    if(!buf || !first || !gnames || !gartists || !gcounts){
         fprintf(stderr, "library: buffer alloc failed for %d songs (keeping %d)\n", n, g_alloc_n);
         free(buf); free(favs); free(first); free(gnames); free(gartists); free(gcounts);
         return;
     }
     free(g_buf); free(g_favs); free(g_first); free(g_gnames); free(g_gartists); free(g_gcounts);
     g_buf = buf; g_favs = favs; g_first = first; g_gnames = gnames; g_gartists = gartists; g_gcounts = gcounts;
-    g_alloc_n = n; g_fav_cap = n; g_grp_cap = gc;
+    g_alloc_n = n; g_fav_cap = 0; g_grp_cap = gc;
 }
 /* Grow the buffers if the library outgrew them - e.g. a clean first boot allocated for 1 song
  * and a rescan then added thousands. Call after any mdb_load() that may have added tracks. */
@@ -1331,6 +1358,7 @@ void library_create(lv_obj_t *root){
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* narrowed rows stay centred */
     lv_obj_add_event_cb(g_list, curve_scroll_cb, LV_EVENT_SCROLL, NULL);
+    lv_obj_add_event_cb(g_list, focus_scroll_begin, LV_EVENT_SCROLL_BEGIN, NULL);
     ui_library_list_watch(g_list);
     pdots_create(root);                          /* after the list, so they draw on top of it */
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
