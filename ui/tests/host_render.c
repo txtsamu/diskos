@@ -49,6 +49,11 @@ int __wrap_art_make_all_ex_gen(const char *path,const char *c,const char *t,cons
     return __real_art_make_all_ex_gen(path,c,t,b,cancel,gen);
 }
 
+static int test_panel_off,test_state_reads;
+int __real_ui_display_is_off(void);
+int __wrap_ui_display_is_off(void){return test_panel_off || __real_ui_display_is_off();}
+void __real_ipc_get_state(track_state_t *out);
+void __wrap_ipc_get_state(track_state_t *out){test_state_reads++;__real_ipc_get_state(out);}
 int __real_ui_is_playing(void);
 int __wrap_ui_is_playing(void){const char*p=getenv("NP_PLAYING");return p?atoi(p):__real_ui_is_playing();}
 
@@ -1293,6 +1298,23 @@ int main(int argc, char **argv){
             puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
         }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(getenv("REVIEW_DISPLAY_IDLE")){
+            assert(th_null());extern int null_test_heartbeat_paused(void);
+            screen_home();nav_wait(200);assert(!null_test_heartbeat_paused());
+            test_state_reads=0;nav_wait(350);assert(test_state_reads>0);
+            test_panel_off=1;test_state_reads=0;nav_wait(350);assert(test_state_reads==0);
+            test_panel_off=0;nav_wait(350);assert(test_state_reads>0);
+            setlist_open("Display");nav_wait(200);assert(null_test_heartbeat_paused());
+            screen_show(SCR_LIBRARY);nav_wait(200);assert(null_test_heartbeat_paused());
+            null_nav_set_open(1);nav_wait(200);assert(!null_test_heartbeat_paused());
+            null_nav_set_open(0);nav_wait(200);assert(null_test_heartbeat_paused());
+            for(int i=0;i<10;i++){
+                screen_home();assert(!null_test_heartbeat_paused());
+                screen_show(SCR_QUICK);nav_wait(200);assert(!null_test_heartbeat_paused());
+                setlist_open("Display");nav_wait(200);assert(null_test_heartbeat_paused());
+            }
+            puts("PASS: Null idle timer pauses/resumes; no Music state reads while panel off; wake resumes updates");return 0;
+        }
         if(getenv("REVIEW_DISPLAY")){
             extern int settings_back_consumed(void);
             const char *top[]={"Brightness","Theme","Appearance","Music screen","Standby","Navigation","Layout & extras"};

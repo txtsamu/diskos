@@ -77,6 +77,13 @@ static lv_point_t seek_start, gz_start, edge_start;
 static uint32_t gz_t0, gz_last, last_touch;
 static int edge_drag;
 static lv_timer_t *clock_timer;
+/* Only Home, QS and an open drawer consume the heartbeat. */
+static void heartbeat_sync(void){
+    if(!clock_timer)return;
+    int cur=screen_current();
+    if(cur==SCR_HOME || cur==SCR_QUICK || nav_open)lv_timer_resume(clock_timer);
+    else lv_timer_pause(clock_timer);
+}
 static char last_title[192], last_artist[192], last_album[192], last_times[64];
 static int left(void) { return 0; }
 static lv_text_align_t alignment(void)
@@ -357,6 +364,7 @@ static void nav_anim(void *u, int32_t v)
 static void nav_set(int on)
 {
     nav_open = !!on;
+    heartbeat_sync();
     onboarding_screen(screen_current(),nav_open);
     if(on)onboarding_discovered(HINT_MENU);
     if (menu)
@@ -961,11 +969,11 @@ static void controls_visibility(int cm, int visible)
 static void heartbeat(lv_timer_t *t)
 {
     (void)t;
-    if (!th_null())
+    if (!th_null() || ui_display_is_off())
         return;
     int cur = screen_current();
     track_state_t st = {0};
-    if (cur == SCR_HOME || cur == SCR_QUICK)
+    if (cur == SCR_HOME)
         ipc_get_state(&st);
     if (cur == SCR_HOME && home) {
         char b[192], a[32], z[32];
@@ -1067,6 +1075,7 @@ void null_screen_entered(int which)
 {
     if (!th_null() || !nav)
         return;
+    heartbeat_sync();
     lv_obj_t *root = screen_get_root(which);
     if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER && which != SCR_BT && which != SCR_WIFI && which != SCR_SONGINFO && which != SCR_APPS && which != SCR_WORKMODE)
         kit_restyle(root);
@@ -1386,6 +1395,7 @@ void null_qs_battery(int percent, int charging)
 static void battery_motion(lv_timer_t *t)
 {
     (void)t;
+    if(ui_display_is_off())return;
     if(!qs_open || !qbcharging || screen_current()!=SCR_QUICK){battery_motion_sync();return;}
     int h=qbpercent>0?qbpercent*160/100:0;
     if(qbflow && h){
@@ -1551,3 +1561,6 @@ int null_volume_visible(void){return volume_panel && !lv_obj_has_flag(volume_pan
 /* Native interaction checks inspect the real tiles, including empty slots. */
 lv_obj_t *null_test_qs_field(int slot){return slot>=0 && slot<8?qfields[slot]:NULL;}
 int null_test_qs_item(int slot){return slot>=0 && slot<qcount?qids[slot]:-1;}
+
+/* Host regression probe; unreferenced device section is removed by the linker. */
+int null_test_heartbeat_paused(void){return !clock_timer || lv_timer_get_paused(clock_timer);}

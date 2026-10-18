@@ -371,6 +371,7 @@ lv_color_t ring_border_color(void);   /* Ring button rings: the theme accent, or
 void ui_set_prewarm_mode(int m);          /* 0=covers only 1=+per-track sweep when idle 2=+sweep when idle & charging */
 int  ui_run_cap_bounded(const char *cmd, char *out, int cap, int timeout_ms);   /* bt.c: popen-like capture, killed at timeout */
 int  bt_radio_on(void);              /* current mode; 0 = Album Art Cache off */
+int  ui_display_is_off(void);            /* fully-off panel; visual callbacks may skip work */
 int  ui_main_is_idle(void);               /* main.c: 1 when the screen is dimmed/off (no active use) */
 const lv_font_t *ui_font_cjk(int size);   /* international/CJK user-text chain */
 void ui_reveal_title(lv_obj_t *label);

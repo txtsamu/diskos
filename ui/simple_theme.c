@@ -272,7 +272,7 @@ void simple_qs_art(const void*src){
  lv_obj_center(qs_cover_img);lv_obj_remove_flag(qs_cover_img,LV_OBJ_FLAG_HIDDEN);
 }
 void simple_qs_track(const char*t,const char*a,int p){(void)t;(void)a;simple_qs_refresh(p);}
-static void qs_tick(lv_timer_t*t){(void)t;if(screen_current()!=SCR_QUICK)return;simple_qs_refresh(ui_is_playing());
+static void qs_tick(lv_timer_t*t){(void)t;if(ui_display_is_off()||screen_current()!=SCR_QUICK)return;simple_qs_refresh(ui_is_playing());
  if(qs_charging&&qs_percent>=0){int phase=lv_tick_get()%1600;lv_obj_set_style_arc_opa(qs_batt,140+115*(phase<800?phase:1600-phase)/800,LV_PART_INDICATOR);}
 }
 void simple_qs_build(void){

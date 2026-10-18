@@ -1115,6 +1115,9 @@ static lv_obj_t *g_list_rows[N_SETTINGS];   /* value labels, to refresh in place
 /* Rescan Library row: title shows "Scanning... N songs" and the action word reads "Stop" ("Cancel" is cut off in the 96 px box) while the scanner thread
  * runs. The timer lives and dies with the row, so leaving the screen and coming back rebuilds it from the counter. */
 typedef struct { lv_obj_t *lbl, *vl; lv_timer_t *tm; } rescan_row_t;
+static void setting_text_if_changed(lv_obj_t *label,const char *text){
+    if(strcmp(lv_label_get_text(label),text))lv_label_set_text(label,text);
+}
 static void rescan_row_tick(lv_timer_t *t){
     rescan_row_t *rr = lv_timer_get_user_data(t);
     char b[40];
@@ -1122,11 +1125,11 @@ static void rescan_row_tick(lv_timer_t *t){
         int done = 0; scanner_progress(&done, NULL);
         if(done >= 1000) snprintf(b, sizeof b, "Scanning... %d,%03d", done / 1000, done % 1000);
         else             snprintf(b, sizeof b, "Scanning... %d", done);
-        lv_label_set_text(rr->lbl, b);
-        lv_label_set_text(rr->vl, tr("Stop"));
+        setting_text_if_changed(rr->lbl, b);
+        setting_text_if_changed(rr->vl, tr("Stop"));
     } else {
-        lv_label_set_text(rr->lbl, tr("Rescan Library"));
-        lv_label_set_text(rr->vl, tr("Scan"));
+        setting_text_if_changed(rr->lbl, tr("Rescan Library"));
+        setting_text_if_changed(rr->vl, tr("Scan"));
     }
 }
 static void rescan_row_del_cb(lv_event_t *e){
@@ -1585,7 +1588,7 @@ static const char *row_value(const setting_t *s,char *buf,int n){
 }
 void settings_row_values_refresh(void){
     char b[40];
-    for(int i=0;i<N_SETTINGS;i++) if(g_list_rows[i] && lv_obj_is_valid(g_list_rows[i])) lv_label_set_text(g_list_rows[i], row_value(&TABLE[i],b,sizeof b));
+    for(int i=0;i<N_SETTINGS;i++) if(g_list_rows[i] && lv_obj_is_valid(g_list_rows[i])) setting_text_if_changed(g_list_rows[i], row_value(&TABLE[i],b,sizeof b));
 }
 
 /* ---- one category's rows (SCR_SETLIST), rebuilt on every entry so values are always live ---- */

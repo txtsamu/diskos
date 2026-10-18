@@ -135,7 +135,7 @@ static void ctl_show(int on){
 }
 static void ctl_tick(lv_timer_t *t){
     (void)t;
-    if(ctl_mode() != 1 || screen_current() != SCR_HOME) return;
+    if(ui_display_is_off() || ctl_mode() != 1 || screen_current() != SCR_HOME) return;
     uint32_t idle = lv_display_get_inactive_time(NULL);
     if(g_ctl_shown && idle >= 5000 && !g_scrub && !g_ov) ctl_show(0);
     else if(!g_ctl_shown && idle < 300) ctl_show(1);                  /* any touch brings them back */
@@ -317,7 +317,7 @@ void dhome_times_apply(void){
 }
 static void prog_tick(lv_timer_t *t){
     (void)t;
-    if(!g_ul_fill || g_scrub || screen_current() != SCR_HOME) return;
+    if(ui_display_is_off() || !g_ul_fill || g_scrub || screen_current() != SCR_HOME) return;
     track_state_t st; ipc_get_state(&st);
     int f = (st.have_track && st.duration_ms > 0) ? (int)((long long)st.position_ms * 1000 / st.duration_ms) : 0;
     ul_set(f); pa_set(f);

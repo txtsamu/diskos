@@ -112,6 +112,7 @@ int ui_press_travel(void){
  * _Atomic: written here (main thread), read by the prewarm worker thread. */
 static _Atomic int g_bl_idle = 0;
 int ui_main_is_idle(void){ return g_bl_idle; }
+int ui_display_is_off(void){ return g_screen_off; }
 void ui_apply_swipe_thresh(int px){   /* live, no flash write */
     if(px < 20) px = 20; if(px > 200) px = 200;
     g_swipe_thresh = px;
@@ -146,7 +147,7 @@ static int read_int_file(const char *path){
 }
 
 static void clock_tick(lv_timer_t *t){
-    (void)t;
+    if(t && g_screen_off)return; /* Explicit refresh still works; wake refreshes immediately. */
     time_t now = time(NULL);
     struct tm lt; localtime_r(&now, &lt);
     char hm[12], date[24];
@@ -2996,7 +2997,7 @@ int main(int argc, char **argv){
     lv_timer_create(clock_tick, 10000, NULL);   /* refresh wall clock every 10s */
     lv_timer_create(book_tick, 400, NULL);   /* drive the audiobook session: confirm load, resume, checkpoint */
     clock_tick(NULL);                           /* set immediately */
-    g_t_status = lv_timer_create(status_poll_cb, 3000, NULL); /* charging/battery/wifi every 3s (BT every ~12s inside); paused at screen-off */
+    g_t_status = lv_timer_create(status_poll_cb, 3000, NULL); /* battery/status hardware keep-alive: deliberately continues at screen-off */
     status_poll_cb(NULL);                        /* populate immediately */
     bt_boot_restore();                           /* re-enable BT + arm auto-route if it was on (persist like WiFi) */
     g_t_wx  = lv_timer_create(weather_poll, 1000, NULL);  /* apply weather + retry/refresh */
@@ -3681,7 +3682,9 @@ int main(int argc, char **argv){
             }
         }
         polls_set_paused(bl_state == 2);
-        g_screen_off = (bl_state == 2);   /* publish for the slow polls (skip the hcitool spawn while off) */
+        int was_screen_off=g_screen_off;
+        g_screen_off = (bl_state == 2);
+        if(was_screen_off && !g_screen_off)ui_clock_refresh();
         /* A's day/night appearance switches at an idle boundary, preserving the user's manual variant. */
         if(bl_state==2 && theme_auto_supported() && simple_cfg_get_int("theme_auto",0) && !theme_outdoor()){
             static uint32_t checked; uint32_t tick=lv_tick_get();
