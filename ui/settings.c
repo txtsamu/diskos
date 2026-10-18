@@ -125,7 +125,7 @@ void ui_set_balance(int v);
 
 static const char *squash_accent_reason = "Squash uses its own theme palette. This accent setting doesn't apply.";
 static const char *accent_disabled_reason(void){
-    return th_null() ? "Null uses fixed colour schemes. Choose a palette in Null Options instead of a custom accent." : squash_accent_reason;
+    return th_null() ? "Null uses fixed colour schemes. Choose a colour scheme in Appearance instead of a custom accent." : squash_accent_reason;
 }
 static void apply_open_colorpick(int v){
     (void)v;
@@ -366,6 +366,10 @@ static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime","Matrix"};
 static const char *OPT_NULLTEXT[]={"Center","Left"};
 static const char *OPT_NULLBG[]={"Black","Dark cover","Pixel cover"};
 static const char *OPT_NULLAUTO[]={"Off","5 seconds","10 seconds","30 seconds"};
+static void apply_grp_musictext(int v);
+static void apply_grp_musicinfo(int v);
+static void apply_grp_musicprogress(int v);
+static void apply_grp_immersive(int v);
 static void apply_grp_themecolours(int v);
 static void apply_grp_textlayout(int v);
 static void apply_grp_screenstandby(int v);
@@ -774,6 +778,10 @@ static const setting_t TABLE[] = {
     { "Audio",    "SPDIF Output", ST_TOGGLE, "spdif",   0,1,1, NULL,0, NULL, apply_spdif, 0,
       "Use digital SPDIF instead of the internal DAC. Switching briefly pauses playback.", NULL },
 #endif
+    {"Music screen","Text",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_grp_musictext,0,"Track font and alignment",NULL},
+    {"Music screen","Information",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_grp_musicinfo,0,"Clock, album and track details",NULL},
+    {"Music screen","Progress",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_grp_musicprogress,0,"Progress colour and shape",NULL},
+    {"Music screen","Immersive",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_grp_immersive,0,"Disc style and lyrics",NULL},
     { "Display",  "Brightness",  ST_SLIDER, "brightness", 4,40,2, NULL,0, NULL, apply_brightness_row, 16,
       "Screen backlight level. While Outdoor Mode is on the screen stays at full brightness.", NULL },
     { "Display", "Theme", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_themecolours, 0,
@@ -990,6 +998,8 @@ static const setting_t TABLE[] = {
 };
 #define N_SETTINGS ((int)(sizeof(TABLE)/sizeof(TABLE[0])))
 
+#include "settings_display.h"
+
 static int nav_setting(const setting_t *s){return s->cfg_key && (!strcmp(s->cfg_key,"disco_nav_double") || !strcmp(s->cfg_key,"disco_nav_hold"));}
 static const char *setting_key(const setting_t *s){
     if(th_simple()&&s->cfg_key&&!strcmp(s->cfg_key,"np_font"))return "simple_track_font";
@@ -999,6 +1009,7 @@ static int get_val(const setting_t *s){const char *key=setting_key(s);return key
 static void set_val(const setting_t *s, int v){
     /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
      * leaves a stale eq_preset; every other setting persists up front here. */
+    if(display_blocked(s))return;
     g_set_prev = get_val(s);
     if(s->cfg_key && strcmp(s->cfg_key, "eq_preset") && simple_cfg_set_int(setting_key(s), v) < 0){
         ui_toast("Couldn't save settings"); return;
@@ -1052,9 +1063,6 @@ static void fmt_slider(const setting_t *s, int v, char *buf, int n){
 /* A setting the running firmware cannot apply (only Gain today: its player command is mapped per verified
  * firmware in fwcaps.c, and an unmapped firmware gets no command). The row stays visible so it is not a mystery,
  * but says so and is not editable - otherwise the menu would show a choice that silently does nothing. */
-static int theme_accent_disabled(const setting_t *s){
-    return (th_simple() || th_null()) && s->apply==apply_open_colorpick;
-}
 static int setting_unavailable(const setting_t *s){
     return s->cfg_key && ((!strcmp(s->cfg_key, "audio_gain") && fw_gain_tag() == NULL)
                        || (!strcmp(s->cfg_key, "artist_class") && !fw_artist_class_settable())
@@ -1131,17 +1139,21 @@ static const setting_t *g_active;           /* setting shown in the detail scree
 static lv_obj_t *g_detail_root;
 static lv_obj_t *g_setlist_root;            /* SCR_SETLIST root: one category's rows, rebuilt per entry */
 static const char *g_active_group;          /* which category SCR_SETLIST is currently showing */
-static void apply_null_options(int v){(void)v;g_active_group="Null Options";setlist_refresh();}
-static void apply_disco_options(int v){ (void)v; g_active_group = "Disco Options"; setlist_refresh(); }
+static void apply_grp_musictext(int v){(void)v;g_active_group="Music text";setlist_refresh();}
+static void apply_grp_musicinfo(int v){(void)v;g_active_group="Music info";setlist_refresh();}
+static void apply_grp_musicprogress(int v){(void)v;g_active_group="Music progress";setlist_refresh();}
+static void apply_grp_immersive(int v){(void)v;g_active_group="Immersive";setlist_refresh();}
+static void apply_null_options(int v){(void)v;g_active_group="Navigation";setlist_refresh();}
+static void apply_disco_options(int v){ (void)v; g_active_group = "Music screen"; setlist_refresh(); }
 /* Settings sub-groups (Display, Disco Options and System are split into short pages; back steps up one level) */
-static void apply_grp_themecolours(int v){ (void)v; g_active_group = "Theme Colours"; setlist_refresh(); }
-static void apply_grp_textlayout(int v){ (void)v; g_active_group = "Text & Layout"; setlist_refresh(); }
+static void apply_grp_themecolours(int v){ (void)v; g_active_group = "Appearance"; setlist_refresh(); }
+static void apply_grp_textlayout(int v){ (void)v; g_active_group = "Layout & extras"; setlist_refresh(); }
 static void apply_grp_screenstandby(int v){ (void)v; g_active_group = "Standby"; setlist_refresh(); }
-static void apply_grp_onlineextras(int v){ (void)v; g_active_group = "Online & Extras"; setlist_refresh(); }
-static void apply_grp_musicscreen(int v){ (void)v; g_active_group = "Music Screen"; setlist_refresh(); }
-static void apply_grp_discocolours(int v){ (void)v; g_active_group = "Disco Colours"; setlist_refresh(); }
-static void apply_grp_discoqs(int v){(void)v;g_active_group="Quick Settings";setlist_refresh();}
-static void apply_grp_discolayout(int v){ (void)v; g_active_group = "Disco Layout"; setlist_refresh(); }
+static void apply_grp_onlineextras(int v){ (void)v; g_active_group = "Online & cache"; setlist_refresh(); }
+static void apply_grp_musicscreen(int v){ (void)v; g_active_group = "Music screen"; setlist_refresh(); }
+static void apply_grp_discocolours(int v){ (void)v; g_active_group = "Appearance"; setlist_refresh(); }
+static void apply_grp_discoqs(int v){(void)v;g_active_group="Quick settings";setlist_refresh();}
+static void apply_grp_discolayout(int v){ (void)v; g_active_group = "Gestures"; setlist_refresh(); }
 static void apply_grp_power(int v){ (void)v; g_active_group = "Power"; setlist_refresh(); }
 static void apply_grp_datetime(int v){ (void)v; g_active_group = "Date & Time"; setlist_refresh(); }
 static void apply_grp_library(int v){ (void)v; g_active_group = "Library"; setlist_refresh(); }
@@ -1156,14 +1168,18 @@ void settings_open_volkeys(void){ apply_volkeys_group(0); }   /* host renders */
 void settings_open_ma_delay(void){ for(int i = 0; i < (int)(sizeof TABLE / sizeof TABLE[0]); i++) if(TABLE[i].cfg_key && !strcmp(TABLE[i].cfg_key, "ma_delay_ms")){ settings_open_detail(i); return; } }
 /* screen_back() on SCR_SETLIST: a sub-group (Disco Options, Music Assistant) steps back to its parent on the same screen */
 static const struct { const char *child, *parent; } SUBGROUP[] = {
-    { "Theme Colours", "Display" },
-    { "Text & Layout", "Display" },
+    { "Appearance", "Display" },
+    { "Music screen", "Display" },
     { "Standby", "Display" },
-    { "Online & Extras", "Display" },
-    { "Music Screen", "Disco Options" },
-    { "Disco Colours", "Disco Options" },
-    { "Disco Layout", "Disco Options" },
-    { "Quick Settings", "Disco Options" },
+    { "Navigation", "Display" },
+    { "Layout & extras", "Display" },
+    { "Online & cache", "Layout & extras" },
+    { "Gestures", "Navigation" },
+    { "Quick settings", "Navigation" },
+    { "Music text", "Music screen" },
+    { "Music info", "Music screen" },
+    { "Music progress", "Music screen" },
+    { "Immersive", "Music screen" },
     { "Power", "System" },
     { "Date & Time", "System" },
     { "Library", "System" },
@@ -1171,8 +1187,6 @@ static const struct { const char *child, *parent; } SUBGROUP[] = {
     { "Maintenance", "System" },
     { "About", "System" },
     { "How to", "Help" },
-    { "Disco Options", "Display" },
-    { "Null Options", "Display" },
     { "MA Sendspin", "Network" },
     { "Volume Keys", "Controls" } };
 int settings_back_consumed(void){
@@ -1193,6 +1207,7 @@ static void detail_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLI
 /* VALUE_CHANGED: apply live only (no flash write); RELEASED persists once. This
  * avoids rewriting the whole config file on every pixel of a slider drag. */
 static void detail_slider_cb(lv_event_t *e){
+    if(!g_active || display_blocked(g_active))return;
     lv_obj_t *sl = lv_event_get_target(e);
     int v = lv_slider_get_value(sl);
     if(g_active->apply) g_active->apply(v);
@@ -1201,12 +1216,14 @@ static void detail_slider_cb(lv_event_t *e){
 }
 static int outdoor_holds(const setting_t *s){ return theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "brightness"); }
 static void detail_slider_release_cb(lv_event_t *e){
+    if(!g_active || display_blocked(g_active))return;
     lv_obj_t *sl = lv_event_get_target(e);
     if(outdoor_holds(g_active)) return;                 /* Outdoor keeps the user's own level untouched */
     if(g_active->cfg_key) simple_cfg_set_int(g_active->cfg_key, lv_slider_get_value(sl));
     if(g_active->cfg_key && !strcmp(g_active->cfg_key, "ma_delay_ms")) ma_delay_changed();   /* restart with the saved value */
 }
 static void detail_cycle_cb(lv_event_t *e){
+    if(!g_active || display_blocked(g_active))return;
     if(th_null() && g_active->cfg_key && !strcmp(g_active->cfg_key,"null_side")){ui_toast("Null is right-handed only");return;}
     if(th_null() && g_active->cfg_key && !strcmp(g_active->cfg_key,"theme_variant")){ui_toast("Null uses a fixed dark appearance");return;}
     if(theme_outdoor() && g_active->cfg_key && !strcmp(g_active->cfg_key, "theme_variant")){
@@ -1225,6 +1242,7 @@ static void detail_cycle_cb(lv_event_t *e){
     void setting_detail_refresh(void); setting_detail_refresh();
 }
 static void detail_toggle_cb(lv_event_t *e){
+    if(!g_active || display_blocked(g_active))return;
     lv_obj_t *sw = lv_event_get_target(e);
     set_val(g_active, lv_obj_has_state(sw, LV_STATE_CHECKED) ? 1 : 0);
 }
@@ -1246,6 +1264,7 @@ static void detail_choice_cb(lv_event_t *e){
 }
 
 static void nav_apply_cb(lv_event_t *e){
+    if(!g_active || display_blocked(g_active))return;
     (void)e;if(!g_active || !nav_setting(g_active))return;
     if(simple_cfg_set_int(g_active->cfg_key,g_nav_pending)<0){ui_toast("Couldn't save settings");return;}
     ui_toast("Saved");screen_back();
@@ -1255,7 +1274,7 @@ void setting_detail_refresh(void){
     lv_obj_clean(g_detail_root);
     lv_obj_set_style_bg_color(g_detail_root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(g_detail_root, LV_OPA_COVER, 0);
-    ui_header_cb(g_detail_root, g_active->label, detail_back_cb);   /* shared header */
+    ui_header_cb(g_detail_root, display_label(g_active), detail_back_cb);   /* shared header */
 
     const setting_t *s = g_active;
     int v = nav_setting(s)?g_nav_pending:get_val(s);
@@ -1411,6 +1430,7 @@ void setting_detail_create(lv_obj_t *root){ g_detail_root = root; }
 /* open a specific setting's detail page directly (verification / deep-link) */
 void settings_open_detail(int idx){
     if(idx<0 || idx>=N_SETTINGS) return;
+    if(display_blocked(&TABLE[idx]))return;
     g_active = &TABLE[idx];
     if(nav_setting(g_active)){g_nav_pending=get_val(g_active);if(g_nav_pending<0 || g_nav_pending>=DISCO_NAV_COUNT)g_nav_pending=g_active->def;}
     screen_show(SCR_SETTING_DETAIL);
@@ -1435,7 +1455,7 @@ static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int idx = (int)(uintptr_t)lv_event_get_user_data(e);
     const setting_t *s = &TABLE[idx];
-    if(theme_accent_disabled(s)){ui_toast(accent_disabled_reason());return;}
+    if(display_blocked(s))return;
     if(s->type == ST_TOGGLE){
         if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }   /* only Allow diskOS Updates is a toggle that can be unavailable */
         int nv = !get_val(s); set_val(s, nv);
@@ -1444,6 +1464,7 @@ static void row_cb(lv_event_t *e){
         return;
     }
     if(s->type == ST_ACTION){
+        if(th_null() && s->apply==apply_disco_menu){apply_null_menu(0);return;}
         /* Actions provide their own completion feedback via ui_toast (in-place
          * actions like Rescan/Import) or by navigating to a screen (Wi-Fi/BT).
          * No permanent "Working..." label (it never resolved). */
@@ -1553,7 +1574,7 @@ void settings_create(lv_obj_t *root){
 /* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
 static const char *row_value(const setting_t *s,char *buf,int n){
-    if(theme_accent_disabled(s)){snprintf(buf,n,"Disabled");return buf;}
+    if(display_disabled_reason(s)){snprintf(buf,n,"Disabled");return buf;}
     if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){snprintf(buf,n,"Disabled");return buf;}
     if(s->type==ST_CYCLER && s->nopts==2 && !strcmp(s->opts[0],"Off") && !strcmp(s->opts[1],"On")) return val_text(s,buf,n);
     if(s->type==ST_SLIDER || s->type==ST_CYCLER || s->type==ST_CHOICE ||
@@ -1628,27 +1649,29 @@ void setlist_refresh(void){
     if(!strcmp(g_active_group,"How to")){howto_body(g_setlist_root);return;}
     lv_obj_t *list = make_list(g_setlist_root);
     static curvelist_t cl; curvelist_attach(&cl, list, g_setlist_root, 288);   /* theme: every list curves + dots */
+    int indices[N_SETTINGS],count=0;
     for(int i=0;i<N_SETTINGS;i++){
-        const setting_t *s = &TABLE[i];
-        if(th_disco_family()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
-        if(th_null()&&!strcmp(s->group,"Text & Layout")&&s->apply==apply_disco_qs_items)continue;
-        if(!th_simple()&&s->cfg_key&&!strncmp(s->cfg_key,"simple_",7))continue;
-        if(th_simple()&&s->cfg_key&&(!strcmp(s->cfg_key,"disco_sheen")||!strcmp(s->cfg_key,"disco_controls")||!strcmp(s->cfg_key,"disco_side_pick")||!strcmp(s->cfg_key,"disco_qs_style")))continue;
-        if(!th_disco_family() && (s->apply==apply_grp_discoqs || !strcmp(s->group,"Quick Settings") || nav_setting(s)))continue;
-        if(!th_disco_family() && !th_null() && !strcmp(s->group,"Help"))continue;
-        if(!th_null()&&(s->apply==apply_null_options||!strcmp(s->group,"Null Options")))continue;
-        if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
-        if((th_disco_family()||th_null()) && (s->apply == apply_np_style || !strcmp(s->label, "Disc Colour") || !strcmp(s->label, "Saver Style"))) continue;   /* Disco has its own Music + standby: these don't apply */
-        if(!th_disco_family() && s->apply == apply_disco_options) continue;
-        if(!th_disco_family() && (s->apply == apply_disco_menu || s->apply == apply_disco_clock || s->apply == apply_disco_progress || s->apply == apply_disco_sheen || s->apply == apply_disco_times || s->apply == apply_disco_eq || s->apply == apply_disco_title || s->apply == apply_disco_hold || s->apply == apply_disco_controls)) continue;   /* fork: Disco rows */
-
+        const setting_t *s=&TABLE[i];const display_entry_t *d=display_entry(s);
+        const char *page=d?d->page:s->group;
+        if(!page || strcmp(page,g_active_group) || display_variant_hidden(s))continue;
+        if(s->apply==apply_disco_qs_items && !strcmp(s->group,"Text & Layout"))continue;
+        int at=count,order=d?d->order:1000+i;
+        while(at>0){
+            const display_entry_t *prev=display_entry(&TABLE[indices[at-1]]);
+            if((prev?prev->order:1000+indices[at-1])<=order)break;
+            indices[at]=indices[at-1];--at;
+        }
+        indices[at]=i;++count;
+    }
+    for(int ri=0;ri<count;ri++){
+        int i=indices[ri];const setting_t *s=&TABLE[i];
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
 
         lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Squash Options":!strcmp(s->label,"Disco Menu")?"Menu items":!strcmp(s->label,"Quick Settings")?"Quick settings":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
+        lv_label_set_text(lbl, display_label(s));
         lv_obj_set_pos(lbl,18,16);
-        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
+        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || display_disabled_reason(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(lbl, TH_F_LIST, 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
@@ -1656,8 +1679,8 @@ void setlist_refresh(void){
         char b[40]; row_value(s, b, sizeof b);
         lv_obj_t *vl = lv_label_create(row);
         lv_label_set_text(vl, b);
-        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
-        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
+        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || display_disabled_reason(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
+        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || display_disabled_reason(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
         lv_label_set_long_mode(vl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_style_text_font(vl, TH_F_DETAIL, 0);
@@ -1675,7 +1698,7 @@ void setlist_refresh(void){
         }
         theme_list_row(row);
         /* Keep the explanatory tap available while clearly dimming the inactive action. */
-        if(theme_accent_disabled(s)){
+        if(display_disabled_reason(s)){
             lv_obj_set_style_opa(row,150,0);
             lv_obj_set_style_text_color(lbl,TC(TEXT_MUTED),0);
             lv_obj_set_style_text_color(vl,TC(TEXT_MUTED),0);
@@ -1685,7 +1708,7 @@ void setlist_refresh(void){
     curvelist_update(&cl);
 }
 void settings_open_disco(void){ apply_disco_options(0); }   /* host renders */
-void settings_open_group(const char *g){ for(size_t i = 0; i < sizeof SUBGROUP / sizeof SUBGROUP[0]; i++) if(!strcmp(g, SUBGROUP[i].child)){ g_active_group = SUBGROUP[i].child; setlist_refresh(); return; } }   /* host renders */
+void settings_open_group(const char *g){ if(!g)return;g=display_group_alias(g); for(size_t i = 0; i < sizeof SUBGROUP / sizeof SUBGROUP[0]; i++) if(!strcmp(g, SUBGROUP[i].child)){ g_active_group = SUBGROUP[i].child; setlist_refresh(); return; } }   /* host renders */
 void settings_test_scroll(int y){                                     /* host renders: scroll the rows by y px */
     if(!g_setlist_root) return;
     lv_obj_t *st[64]; int n = 0; st[n++] = g_setlist_root;
