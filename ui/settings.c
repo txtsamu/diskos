@@ -1697,6 +1697,14 @@ void setlist_refresh(void){
             }
         }
         theme_list_row(row);
+        if(display_entry(s)){
+            int disabled=display_disabled_reason(s)!=NULL;
+            lv_obj_set_width(lbl,disabled?180:202);
+            lv_label_set_long_mode(lbl,LV_LABEL_LONG_WRAP);
+            lv_obj_set_height(lbl,LV_SIZE_CONTENT);
+            lv_obj_align(lbl,LV_ALIGN_LEFT_MID,18,0);
+            if(disabled){lv_obj_set_x(vl,204);lv_obj_set_width(vl,76);lv_obj_set_style_text_font(vl,TF(UI_14),0);lv_label_set_long_mode(vl,LV_LABEL_LONG_CLIP);kit_keep(vl);}
+        }
         /* Keep the explanatory tap available while clearly dimming the inactive action. */
         if(display_disabled_reason(s)){
             lv_obj_set_style_opa(row,150,0);

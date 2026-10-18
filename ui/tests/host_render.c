@@ -137,6 +137,11 @@ static lv_obj_t *find_text(lv_obj_t *o,const char *text){
     }
     return NULL;
 }
+static lv_obj_t *find_heading(lv_obj_t *root,const char *text){
+    lv_obj_t *label=find_text(root,text);if(label)return label;
+    char upper[160];theme_upper(upper,sizeof upper,text);return find_text(root,upper);
+}
+
 static lv_obj_t *find_visible_text(lv_obj_t *o,const char *text){
     if(!lv_obj_is_visible(o)) return NULL;
     if(lv_obj_check_type(o,&lv_label_class) && !strcmp(lv_label_get_text(o),text)) return o;
@@ -244,11 +249,11 @@ static void review_nav(void){
     /* Apply is the only persistence point; Back discards an unconfirmed choice. */
     for(int attempt=0;attempt<2;attempt++){
         setlist_open("Display");nav_wait(100);   /* 1.4.1: Display > Disco Options > Layout */
-        lv_obj_t *opts=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(opts);
+        lv_obj_t *opts=find_text(screen_get_root(SCR_SETLIST),"Navigation");assert(opts);
         lv_obj_send_event(lv_obj_get_parent(opts),LV_EVENT_CLICKED,NULL);nav_wait(100);
-        lv_obj_t *controls=find_text(screen_get_root(SCR_SETLIST),"Layout");assert(controls);
+        lv_obj_t *controls=find_text(screen_get_root(SCR_SETLIST),"Gestures");assert(controls);
         lv_obj_send_event(lv_obj_get_parent(controls),LV_EVENT_CLICKED,NULL);nav_wait(100);
-        lv_obj_t *label=find_visible_text(screen_get_root(SCR_SETLIST),"Double tap");assert(label);
+        lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Menu double tap");assert(label);
         lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
         lv_obj_t *root=screen_get_root(SCR_SETTING_DETAIL);
         label=find_text(root,LV_SYMBOL_RIGHT);assert(label);
@@ -313,10 +318,8 @@ static void review_hints(void){
     FILE *saved=fopen(CFG_PATH,"r");assert(saved);char line[128];int persisted=0;
     while(fgets(line,sizeof line,saved))if(!strcmp(line,"hint_starts=0\n") || !strcmp(line,"hint_music=0\n") || !strcmp(line,"disco_hints=0\n"))persisted++;
     fclose(saved);assert(persisted==3);
-    setlist_open("System");nav_wait(100);
-    lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Help");assert(label);
-    lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
-    label=find_text(screen_get_root(SCR_SETLIST),"First-use hints");assert(label);
+    setlist_open("Display");settings_open_group("Navigation");nav_wait(100);
+    lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Interaction hints");assert(label);
     lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(100);
     for(int value=1;value<=3;value++){
         label=find_text(screen_get_root(SCR_SETTING_DETAIL),LV_SYMBOL_RIGHT);assert(label);
@@ -451,9 +454,9 @@ static void review_qs(void){
     /* Existing Disco Menu uses the same editor and retains protected entries. */
     disco_menu_open();lv_obj_t *music=find_text(lv_layer_top(),"Music");assert(music);
     assert(!find_text(lv_obj_get_parent(music),LV_SYMBOL_CLOSE));disco_test_editor_close();
-    setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(l);
+    setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Navigation");assert(l);
     lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
-    l=find_text(screen_get_root(SCR_SETLIST),"Quick Settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+    l=find_text(screen_get_root(SCR_SETLIST),"Quick settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
     l=find_text(screen_get_root(SCR_SETLIST),"Style");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
     l=find_text(screen_get_root(SCR_SETTING_DETAIL),LV_SYMBOL_RIGHT);assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
     assert(cfg_get_int("disco_qs_style",-1)==0);screen_back();nav_wait(60);
@@ -1290,18 +1293,57 @@ int main(int argc, char **argv){
             puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
         }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(getenv("REVIEW_DISPLAY")){
+            extern int settings_back_consumed(void);
+            const char *top[]={"Brightness","Theme","Appearance","Music screen","Standby","Navigation","Layout & extras"};
+            setlist_open("Display");nav_wait(80);
+            for(size_t i=0;i<sizeof top/sizeof top[0];i++)assert(find_text(screen_get_root(SCR_SETLIST),top[i]));
+            const char *pages[]={"Appearance","Music screen","Music text","Music info","Music progress","Immersive","Standby","Navigation","Gestures","Quick settings","Layout & extras","Online & cache"};
+            const char *parent[]={"Display","Display","Music screen","Music screen","Music screen","Music screen","Display","Display","Navigation","Navigation","Display","Layout & extras"};
+            const char *keys[]={"theme_variant","theme_auto","null_palette","disco_controls","null_controls","np_font","simple_track_font","null_music_fonts","disco_title_al","null_text_align","disco_trackno","null_trackno","disco_side_pick","null_side","saver_style","np_style","disco_hints","null_hints","accent_color"};
+            int saved[sizeof keys/sizeof keys[0]];
+            for(size_t i=0;i<sizeof keys/sizeof keys[0];i++)saved[i]=simple_cfg_get_int(keys[i],-999);
+            int disabled=0;
+            for(size_t i=0;i<sizeof pages/sizeof pages[0];i++){
+                settings_open_group(pages[i]);nav_wait(30);lv_obj_t *root=screen_get_root(SCR_SETLIST);assert(find_heading(root,pages[i]));
+                lv_obj_t *stack[512];int n=0;stack[n++]=root;
+                while(n){lv_obj_t *o=stack[--n];
+                    if(lv_obj_check_type(o,&lv_label_class)&&!strcmp(lv_label_get_text(o),"Disabled")){
+                        lv_obj_t *row=lv_obj_get_parent(o);assert(lv_obj_get_style_opa(row,0)==150);
+                        lv_obj_send_event(row,LV_EVENT_CLICKED,NULL);assert(screen_current()==SCR_SETLIST);disabled++;
+                    }
+                    for(uint32_t j=0;j<lv_obj_get_child_count(o);j++){assert(n<512);stack[n++]=lv_obj_get_child(o,j);}
+                }
+                assert(settings_back_consumed());assert(find_heading(screen_get_root(SCR_SETLIST),parent[i]));
+            }
+            assert(disabled>0);settings_open_group("Appearance");
+            if(th_null()){settings_open_key("theme_variant");assert(screen_current()==SCR_SETLIST);settings_open_key("null_side");assert(screen_current()==SCR_SETLIST);}
+            if(th_simple()){settings_open_key("disco_controls");assert(screen_current()==SCR_SETLIST);}
+            for(size_t i=0;i<sizeof keys/sizeof keys[0];i++)assert(saved[i]==simple_cfg_get_int(keys[i],-999));
+            if(th_disco_family()||th_null()){
+                settings_open_group("Music info");const char *key=th_null()?"null_trackno":"disco_trackno",*other=th_null()?"disco_trackno":"null_trackno";
+                int before=simple_cfg_get_int(key,0),untouched=simple_cfg_get_int(other,0);
+                lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Track number");assert(label);
+                lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);assert(simple_cfg_get_int(key,-1)==!before && simple_cfg_get_int(other,0)==untouched);
+                lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);assert(simple_cfg_get_int(key,-1)==before);
+            }
+            setlist_open("Display");lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Theme");assert(label);
+            lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);assert(screen_current()==SCR_SETTING_DETAIL);
+            if(!th_disco_family()&&!th_null()){settings_open_key("np_style");assert(screen_current()==SCR_SETTING_DETAIL);assert(find_heading(screen_get_root(SCR_SETTING_DETAIL),"Now Playing style"));}
+            printf("PASS: Display pages, back destinations, %d disabled controls, direct guards, writable theme-specific keys and preserved preferences (theme %d)\n",disabled,theme_preset());return 0;
+        }
         if((th_simple() || th_null()) && getenv("REVIEW_SQUASH_ACCENT")){
             setlist_open("Display");settings_open_group("Theme Colours");nav_wait(100);
-            lv_obj_t *root=screen_get_root(SCR_SETLIST),*label=find_text(root,"Disabled");assert(label);
+            lv_obj_t *root=screen_get_root(SCR_SETLIST),*label=find_text(root,"Accent colour");assert(label);
             lv_obj_t *row=lv_obj_get_parent(label);assert(lv_obj_get_style_opa(row,0)==150);
             int before=simple_cfg_get_int("accent_color",-1);lv_obj_send_event(row,LV_EVENT_CLICKED,NULL);nav_wait(50);
             assert(screen_current()==SCR_SETLIST&&simple_cfg_get_int("accent_color",-1)==before);
-            assert(find_text(lv_layer_top(),th_null()?"Null uses fixed colour schemes. Choose a palette in Null Options instead of a custom accent.":"Squash uses its own theme palette. This accent setting doesn't apply."));
+            assert(find_text(lv_layer_top(),th_null()?"Null uses fixed colour schemes. Choose a colour scheme in Appearance instead of a custom accent.":"Squash uses its own theme palette. This accent setting doesn't apply."));
             puts("PASS: Squash Accent Colour is visibly disabled, explains why on tap, preserves saved colour");return 0;
         }
         if(getenv("REVIEW_DISCO_SETTINGS")){
             void settings_open_group(const char *);
-            setlist_open("Display");settings_open_group("Theme Colours");nav_wait(80);
+            setlist_open("Display");nav_wait(80);
             lv_obj_t *label=find_text(screen_get_root(SCR_SETLIST),"Theme");assert(label);
             lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);nav_wait(80);
             lv_obj_t *root=screen_get_root(SCR_SETTING_DETAIL);
@@ -1310,16 +1352,16 @@ int main(int argc, char **argv){
             lv_area_t a,b,c;lv_obj_get_coords(disco,&a);lv_obj_get_coords(ring,&b);lv_obj_get_coords(braun,&c);
             assert(a.y1<b.y1 && b.y1<c.y1);
             screen_show(SCR_SETLIST);settings_open_group("Disco Colours");nav_wait(80);
-            assert(!find_text(screen_get_root(SCR_SETLIST),"Progress Shape"));
-            settings_open_group("Disco Layout");nav_wait(80);
-            assert(find_text(screen_get_root(SCR_SETLIST),"Progress Shape"));
-            puts("PASS: Disco first in theme picker; Progress Shape in Layout, absent from Colours");return 0;
+            assert(!find_text(screen_get_root(SCR_SETLIST),"Progress shape"));
+            settings_open_group("Music progress");nav_wait(80);
+            assert(find_text(screen_get_root(SCR_SETLIST),"Progress shape"));
+            puts("PASS: Disco first in theme picker; Progress shape in Music progress, absent from Appearance");return 0;
         }
         if(getenv("QS_EDITOR"))disco_qs_menu_open();
         if(getenv("QS_SETTINGS")){
-            setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Disco Options");assert(l);
+            setlist_open("Display");nav_wait(60);lv_obj_t *l=find_text(screen_get_root(SCR_SETLIST),"Navigation");assert(l);
             lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
-            l=find_text(screen_get_root(SCR_SETLIST),"Quick Settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
+            l=find_text(screen_get_root(SCR_SETLIST),"Quick settings");assert(l);lv_obj_send_event(lv_obj_get_parent(l),LV_EVENT_CLICKED,NULL);nav_wait(60);
         }
         if(getenv("HINT_SHOT")){
             cfg_set_int("disco_hints",1);onboarding_start();
