@@ -878,7 +878,7 @@ lv_obj_t *disco_row(lv_obj_t *root, int y, int h, const char *glyph, const lv_fo
     lv_obj_align(v, LV_ALIGN_RIGHT_MID, -16, 0);
     return r;
 }
-/* Squash uses one fixed five-row layout for Shortcuts and Working mode. */
+/* Squash and Null share fixed five-row geometry for Shortcuts and Working mode. */
 lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_font_t *font,const char *name,lv_event_cb_t cb,void *ud){
     lv_obj_t *r=disco_row(root,60+slot*54,50,glyph,font,name,cb,ud);
     int y=60+slot*54,h=50,dy=abs(y+h/2-180),radius=h/2;
@@ -890,9 +890,14 @@ lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_fon
     lv_obj_align(lv_obj_get_child(r,0),LV_ALIGN_LEFT_MID,12,0);
     lv_obj_t *label=lv_obj_get_child(r,1);
     lv_obj_align(label,LV_ALIGN_LEFT_MID,46,0);
-    lv_obj_set_style_text_font(label,ui_font_cjk(20),0);
-    lv_obj_set_size(label,right-left-72,lv_font_get_line_height(ui_font_cjk(20)));
-    simple_keep_label(label);
+    const lv_font_t *face=th_null()?TF(UI_20):ui_font_cjk(20);
+    lv_obj_set_style_text_font(label,face,0);
+    lv_obj_set_size(label,right-left-72,lv_font_get_line_height(face));
+    if(th_null()){
+        lv_obj_set_style_radius(r,0,0);
+        lv_obj_set_style_text_color(lv_obj_get_child(r,0),TC(TEXT_SECONDARY),0);
+        kit_keep(label);
+    }else simple_keep_label(label);
     lv_obj_set_style_border_width(r,2,LV_STATE_PRESSED);
     lv_obj_set_style_border_color(r,TC(ACCENT_PRIMARY),LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(r,LV_OPA_COVER,LV_STATE_PRESSED);
@@ -900,9 +905,10 @@ lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_fon
 }
 lv_obj_t *disco_title(lv_obj_t *root, const char *t){
     lv_obj_t *l = lv_label_create(root); lv_label_set_text(l, t);
-    lv_obj_set_style_text_font(l, th_simple()?TF(UI_26):TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+    lv_obj_set_style_text_font(l, th_simple()?TF(UI_26):th_null()?TF(UI_28):TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 28);
     if(th_simple())simple_keep_label(l);
+    if(th_null()){char upper[192];theme_upper(upper,sizeof upper,t);lv_label_set_text(l,upper);lv_obj_add_flag(l,THEME_TITLE_STEPPED);kit_keep(l);}
     return l;
 }
 /* the vector icons for other screens (Apps' tiles): "@boom", "@stats", "@vinyl", "@apps" */

@@ -69,7 +69,8 @@
       "null_palette": {
         "values": [
           "red_lime",
-          "cyan_yellow"
+          "cyan_yellow",
+          "matrix"
         ],
         "default": "cyan_yellow"
       },

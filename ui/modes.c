@@ -363,7 +363,7 @@ void modes_create(lv_obj_t *root){
     /* back button (kept out of the clipped top-left corner) */
     /* no header: the wheel fills the panel and its hub is the way back */
 
-    if(th_simple()){squash_modes_create(root);return;}
+    if(th_simple() || th_null()){squash_modes_create(root);return;}
     if((th_disco_family() || th_null())){
         disco_title(root, "Working mode");
         static const char *NM[N_MODES] = { "Playback", "USB DAC", "Bluetooth DAC", "BT streaming", "AirPlay", "USB storage" };

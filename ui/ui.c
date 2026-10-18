@@ -1127,7 +1127,7 @@ lv_color_t ui_disco_fit_accent(lv_color_t c){
     }
     return c;
 }
-lv_color_t ui_current_accent(void){ if(th_simple())return TC(ACCENT_PRIMARY); return th_braun() ? TC(ACCENT_PRIMARY) : ui_disco_fit_accent(accent); }   /* Braun: orange everywhere */
+lv_color_t ui_current_accent(void){ if(th_simple() || th_null())return TC(ACCENT_PRIMARY); return th_braun() ? TC(ACCENT_PRIMARY) : ui_disco_fit_accent(accent); }   /* Braun: orange everywhere */
 
 /* ---- shared standard header (back chevron + centred title) ------------------------------------- */
 static void ui_header_home_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && screen_press_was_long()) screen_home(); }
@@ -3189,6 +3189,20 @@ static void np_shadow_sync(void){                                    /* keep the
     if(title_sh && strcmp(lv_label_get_text(title_sh), lv_label_get_text(title))) lv_label_set_text(title_sh, lv_label_get_text(title));
     if(artist_sh && strcmp(lv_label_get_text(artist_sh), lv_label_get_text(artist))) lv_label_set_text(artist_sh, lv_label_get_text(artist));
 }
+/* History is playback bookkeeping, independent of display refresh and backlight. */
+void ui_history_tick(const track_state_t *st)
+{
+    if(!st || !st->have_track){ g_stat_path[0] = '\0'; return; }
+    /* count a play once per new track (diskOS play history -> Most-Played / Recently-Played), but
+     * only while actually PLAYING (st->state==2). Otherwise a boot-seeded paused track, or skipping
+     * through tracks while paused, would inflate play counts + recency for songs never really played. */
+    if(st->state==2 && st->path[0] && strcmp(g_stat_path, st->path) != 0){
+        copy_cstr(g_stat_path, sizeof g_stat_path, st->path);          /* track identity always (so a music replay after a book still counts) */
+        if(!mdb_is_book_path(st->path)) mdb_record_play(st->path);     /* but audiobooks are excluded from play history */
+    }
+
+}
+
 void ui_update(const track_state_t *st)
 {
     if(st) g_np_is_playing = (st->state == 2);        /* main.c normalises state before calling us */
@@ -3206,7 +3220,7 @@ void ui_update(const track_state_t *st)
 
     if(st == NULL || !st->have_track) {
         last_path[0] = '\0';
-        g_stat_path[0] = '\0';   /* clear so a later replay of the same track counts as a new play */
+        ui_history_tick(st);
         update_accent_seed(st);   /* no-track -> neutral light grey (resets seed + applies once via the gate) */
 
         set_label_text_changed(title, "No Track");
@@ -3228,13 +3242,7 @@ void ui_update(const track_state_t *st)
     update_cover_for_path(st);   /* first: invalidates stale RAM art on a new album */
     update_accent_seed(st);      /* then: art-accent if THIS track's cover is ready, else text-hash */
 
-    /* count a play once per new track (diskOS play history -> Most-Played / Recently-Played), but
-     * only while actually PLAYING (st->state==2). Otherwise a boot-seeded paused track, or skipping
-     * through tracks while paused, would inflate play counts + recency for songs never really played. */
-    if(st->state==2 && st->path[0] && strcmp(g_stat_path, st->path) != 0){
-        copy_cstr(g_stat_path, sizeof g_stat_path, st->path);          /* track identity always (so a music replay after a book still counts) */
-        if(!mdb_is_book_path(st->path)) mdb_record_play(st->path);     /* but audiobooks are excluded from play history */
-    }
+    ui_history_tick(st);
 
     { const char *nt = st->title[0] ? st->title : "Untitled";
       int changed = strcmp(lv_label_get_text(title), nt) != 0;

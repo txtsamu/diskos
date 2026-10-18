@@ -2783,6 +2783,35 @@ void ui_back_hint(int y, int dx){
         lv_obj_set_style_transform_scale(g_bh, armed ? 272 : 256, 0);
     }
 }
+/* Shortcuts uses the Back feedback from the opposite edge, with its own glyph. */
+static lv_obj_t *g_sh, *g_sh_lbl;
+void ui_shortcuts_hint(int y, int dx){
+    int thresh = g_swipe_thresh;
+    if(dx <= 6){ if(g_sh) lv_obj_add_flag(g_sh, LV_OBJ_FLAG_HIDDEN); return; }
+    if(!g_sh){
+        g_sh = lv_obj_create(lv_layer_top()); lv_obj_remove_style_all(g_sh);
+        lv_obj_set_size(g_sh, 64, 64); lv_obj_set_style_radius(g_sh, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(g_sh, 200, 0);
+        lv_obj_clear_flag(g_sh, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        g_sh_lbl = lv_label_create(g_sh); lv_label_set_text(g_sh_lbl, LV_SYMBOL_BARS);
+        lv_obj_set_style_text_font(g_sh_lbl, TF(UI_20), 0);
+        lv_obj_align(g_sh_lbl, disco_mirror() ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID, disco_mirror() ? -12 : 12, 0);
+    }
+    int armed = dx >= thresh && !g_hint_late;
+    int reach = dx > thresh * 3 / 2 ? thresh * 3 / 2 : dx;              /* slides in with the finger, then stops */
+    if(y < 70) y = 70;
+    if(y > 290) y = 290;
+    int bx = -64 + 8 + reach * 40 / (thresh * 3 / 2);
+    lv_obj_set_pos(g_sh, disco_mx(360 - bx - 64, 64), y - 32);                     /* Disco Left: in from the right edge */
+    static int was = -1;                                     /* restyle only when it arms / disarms, not per touch sample */
+    if(lv_obj_has_flag(g_sh, LV_OBJ_FLAG_HIDDEN)){ was = -1; lv_obj_remove_flag(g_sh, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_sh); }
+    if(armed != was){
+        was = armed;
+        lv_obj_set_style_bg_color(g_sh, armed ? ui_current_accent() : TC(SCRIM), 0);
+        lv_obj_set_style_text_color(g_sh_lbl, armed ? theme_on_color(ui_current_accent()) : TC(TEXT_PRIMARY), 0);
+        lv_obj_set_style_transform_scale(g_sh, armed ? 272 : 256, 0);
+    }
+}
 /* fork: the same feedback for the swipe up from the bottom edge (Home): a bubble with a home glyph rises with the finger
  * and fills with the accent once the swipe counts (twice the normal travel, as the gesture needs). */
 static lv_obj_t *g_hh, *g_hh_lbl;
@@ -3183,6 +3212,7 @@ int main(int argc, char **argv){
         usage_tick(!g_screen_off, playing);
         g_playing = playing;   /* publish for ui_route_bt/ui_route_analog (raw st.state is unreliable) */
         st.state = playing ? 2 : 1;
+        ui_history_tick(&st);
         /* when the backlight is off (deep idle) nothing is visible - skip the whole
          * UI refresh; it catches up on wake (last/ last_playing stay stale). */
         /* clear a pending play on a REAL track change (different path) OR a restart of
@@ -3351,6 +3381,9 @@ int main(int argc, char **argv){
                 if(!woke && !fsart_touch && BACK_EDGE(sx) && screen_current()!=SCR_NOWPLAYING && screen_current()!=SCR_SAVER && !sleep_touch && SIDE_DX(p.x - sx) > 0
                    && abs(p.x - sx) > 2 * abs(p.y - sy)) ui_back_hint(p.y, SIDE_DX(p.x - sx));   /* fork: back-swipe feedback */
                 else ui_back_hint(0, 0);
+                if(!woke && !fsart_touch && !sleep_touch && !seek_touch && screen_current()==SCR_HOME && SIDE_DX(p.x-sx)<0
+                   && abs(p.x-sx)>2*abs(p.y-sy))ui_shortcuts_hint(p.y,-SIDE_DX(p.x-sx));
+                else ui_shortcuts_hint(0,0);
                 if(!woke && !fsart_touch && sy > 320 && screen_current()!=SCR_HOME && screen_current()!=SCR_QUICK && screen_current()!=SCR_SAVER && screen_current()!=SCR_NOWPLAYING && !sleep_touch
                    && sy - p.y > 0 && abs(p.y - sy) > 2 * abs(p.x - sx)) ui_home_hint(p.x, sy - p.y);   /* fork: home-swipe feedback */
                 else ui_home_hint(0, 0);
@@ -3358,7 +3391,7 @@ int main(int argc, char **argv){
                 else if(rim_move(p.x, p.y)){ /* rim drag owns the gesture (list or cover flow) */ }
                 else if(screen_current()==SCR_ALBUMWALL && rim_state==RIM_IDLE) albumwall_drag(p.x);  /* linear drag only when no rim gesture is armed */
             } else if(ts==LV_INDEV_STATE_RELEASED && prev_ts==LV_INDEV_STATE_PRESSED){
-                ui_back_hint(0, 0); ui_home_hint(0, 0);
+                ui_back_hint(0, 0); ui_home_hint(0, 0); ui_shortcuts_hint(0,0);
                 /* The evdev driver can fuse the final movement into the release frame, so the last PRESSED
                  * sample (lastx/lasty) may lag the true lift point. Fold the release coordinates in (bounds-
                  * guarded against a garbage frame) BEFORE classifying, so a fast flick can't read as a small

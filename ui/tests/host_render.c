@@ -1284,13 +1284,13 @@ int main(int argc, char **argv){
             puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
         }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
-        if(th_simple() && getenv("REVIEW_SQUASH_ACCENT")){
+        if((th_simple() || th_null()) && getenv("REVIEW_SQUASH_ACCENT")){
             setlist_open("Display");settings_open_group("Theme Colours");nav_wait(100);
             lv_obj_t *root=screen_get_root(SCR_SETLIST),*label=find_text(root,"Disabled");assert(label);
             lv_obj_t *row=lv_obj_get_parent(label);assert(lv_obj_get_style_opa(row,0)==150);
             int before=simple_cfg_get_int("accent_color",-1);lv_obj_send_event(row,LV_EVENT_CLICKED,NULL);nav_wait(50);
             assert(screen_current()==SCR_SETLIST&&simple_cfg_get_int("accent_color",-1)==before);
-            assert(find_text(lv_layer_top(),"Squash uses its own theme palette. This accent setting doesn't apply."));
+            assert(find_text(lv_layer_top(),th_null()?"Null uses fixed colour schemes. Choose a palette in Null Options instead of a custom accent.":"Squash uses its own theme palette. This accent setting doesn't apply."));
             puts("PASS: Squash Accent Colour is visibly disabled, explains why on tap, preserves saved colour");return 0;
         }
         if(getenv("REVIEW_DISCO_SETTINGS")){
@@ -1432,17 +1432,17 @@ int main(int argc, char **argv){
             lv_obj_t *root=screen_get_root(SCR_WORKMODE); lv_obj_update_layout(root);
             for(int i=0;i<5;i++){
                 lv_obj_t *label=find_text(root,names[i]); assert(label);
-                assert(lv_obj_get_style_text_font(label,0)==(th_simple()?ui_font_cjk(20):TF(UI_22)));
-                lv_obj_t *row=lv_obj_get_parent(label); assert(lv_obj_get_height(row)==(th_simple()?50:56));
+                assert(lv_obj_get_style_text_font(label,0)==(th_simple()?ui_font_cjk(20):th_null()?TF(UI_20):TF(UI_22)));
+                lv_obj_t *row=lv_obj_get_parent(label); assert(lv_obj_get_height(row)==((th_simple()||th_null())?50:56));
                 lv_point_t size; lv_text_get_size(&size,names[i],lv_obj_get_style_text_font(label,0),lv_obj_get_style_text_letter_space(label,0),0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
                 assert(size.x<=lv_obj_get_width(label));
                 assert(lv_obj_get_width(row)>130);
                 lv_area_t area;lv_obj_get_coords(row,&area);
-                assert(th_simple()?area.x1>=24:(disco_mirror()?area.x2<292:area.x1>=68));
+                assert((th_simple()||th_null())?area.x1>=24:(disco_mirror()?area.x2<292:area.x1>=68));
                 assert(lv_obj_get_width(row)<=280);
             }
             lv_obj_t *last=lv_obj_get_parent(find_text(root,"AirPlay"));
-            if(th_simple()){
+            if(th_simple()||th_null()){
                 assert(lv_obj_get_parent(last)==root && !lv_obj_has_flag(root,LV_OBJ_FLAG_SCROLLABLE));
                 for(int i=0;i<5;i++){lv_area_t a;lv_obj_get_coords(lv_obj_get_parent(find_text(root,names[i])),&a);assert(a.x1>=24 && a.x2<=299 && a.y1>=60 && a.y2<326);}
             }else assert(lv_obj_get_y(last)+lv_obj_get_height(last)==342);
@@ -1501,6 +1501,7 @@ int main(int argc, char **argv){
         if(getenv("VK_SET")){ void settings_open_volkeys(void); setlist_open("System"); scr=SCR_SETLIST; screen_show(scr); settings_open_volkeys(); for(int i=0;i<40;i++){lv_tick_inc(10);lv_timer_handler();} }
         if(getenv("MA_SET")){ void settings_open_ma(void); setlist_open("Network"); scr=SCR_SETLIST; screen_show(scr); settings_open_ma(); for(int i=0;i<40;i++){lv_tick_inc(10);lv_timer_handler();} }
         if(getenv("MODES_INFO")){ void modes_test_info(int); scr=SCR_MODEINFO; screen_show(scr); modes_test_info(atoi(getenv("MODES_INFO"))); for(int i=0;i<30;i++){lv_tick_inc(10);lv_timer_handler();} }
+        if(getenv("SHORTCUT_HINT")){ui_shortcuts_hint(180,atoi(getenv("SHORTCUT_HINT")));nav_wait(100);}
         if(getenv("BACK_HINT")){ ui_back_hint(180, atoi(getenv("BACK_HINT"))); for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();} }
         if(getenv("HOME_HINT")){ ui_home_hint(180, atoi(getenv("HOME_HINT"))); for(int i=0;i<10;i++){lv_tick_inc(10);lv_timer_handler();} }
         if(getenv("DISCO_MENU")){ disco_menu_open(); for(int i=0;i<20;i++){lv_tick_inc(10);lv_timer_handler();} }

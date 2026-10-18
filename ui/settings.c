@@ -124,9 +124,12 @@ void ui_set_maxvol(int v);
 void ui_set_balance(int v);
 
 static const char *squash_accent_reason = "Squash uses its own theme palette. This accent setting doesn't apply.";
+static const char *accent_disabled_reason(void){
+    return th_null() ? "Null uses fixed colour schemes. Choose a palette in Null Options instead of a custom accent." : squash_accent_reason;
+}
 static void apply_open_colorpick(int v){
     (void)v;
-    if(th_simple()){ui_toast(squash_accent_reason);return;}
+    if(th_simple() || th_null()){ui_toast(accent_disabled_reason());return;}
     colorpick_open();
 }   /* seed sliders from cfg + open */
 static void apply_debug_mode(int v){ (void)v; debug_open(); }           /* Settings -> System -> Debug Mode */
@@ -359,7 +362,7 @@ static void apply_null_qs(int v){(void)v;disco_qs_menu_open();}
 static const char *OPT_LIBRARY_SEEK[]={"A-Z picker","Letter wheel"};
 static const char *OPT_NULLFONTS[]={"Original","Jersey","Handjet","Matrix"};
 static const char *OPT_NULLQS[]={"Text","Icons"};
-static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime"};
+static const char *OPT_NULLPAL[]={"Cyan / Yellow","Red / Lime","Matrix"};
 static const char *OPT_NULLTEXT[]={"Center","Left"};
 static const char *OPT_NULLBG[]={"Black","Dark cover","Pixel cover"};
 static const char *OPT_NULLAUTO[]={"Off","5 seconds","10 seconds","30 seconds"};
@@ -778,7 +781,7 @@ static const setting_t TABLE[] = {
     {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
     {"Null Options","Menu items",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_menu,0,"Choose and reorder destinations and installed apps",NULL},
     {"Null Options","Quick settings",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_qs,0,"Choose up to eight quick items and arrange their order",NULL},
-    {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,1,OPT_NULLPAL,2,NULL,apply_null_reload,0,"Blue/yellow or red/lime on black",NULL},
+    {"Null Options","Palette",ST_CYCLER,"null_palette",0,0,2,OPT_NULLPAL,3,NULL,apply_null_reload,0,"Cyan/yellow, red/lime or Matrix white/green on black",NULL},
     {"Null Options","Background",ST_CYCLER,"null_music_background",0,0,2,OPT_NULLBG,3,NULL,apply_null_live,0,"Black, dark cover or cached20x20 pixel cover",NULL},
     {"Null Options","Title hold",ST_CYCLER,"null_title_hold",0,0,0,OPT_DHOLD,3,NULL,NULL,0,"Immersive, favourite/unfavourite, or no action when holding track text.",NULL},
     {"Null Options","Controls",ST_CYCLER,"null_controls",0,0,2,OPT_DCTRL,3,NULL,apply_null_live,0,"Buttons, autofade or gestures",NULL},
@@ -1049,8 +1052,8 @@ static void fmt_slider(const setting_t *s, int v, char *buf, int n){
 /* A setting the running firmware cannot apply (only Gain today: its player command is mapped per verified
  * firmware in fwcaps.c, and an unmapped firmware gets no command). The row stays visible so it is not a mystery,
  * but says so and is not editable - otherwise the menu would show a choice that silently does nothing. */
-static int squash_accent_disabled(const setting_t *s){
-    return th_simple() && s->apply==apply_open_colorpick;
+static int theme_accent_disabled(const setting_t *s){
+    return (th_simple() || th_null()) && s->apply==apply_open_colorpick;
 }
 static int setting_unavailable(const setting_t *s){
     return s->cfg_key && ((!strcmp(s->cfg_key, "audio_gain") && fw_gain_tag() == NULL)
@@ -1432,7 +1435,7 @@ static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int idx = (int)(uintptr_t)lv_event_get_user_data(e);
     const setting_t *s = &TABLE[idx];
-    if(squash_accent_disabled(s)){ui_toast(squash_accent_reason);return;}
+    if(theme_accent_disabled(s)){ui_toast(accent_disabled_reason());return;}
     if(s->type == ST_TOGGLE){
         if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }   /* only Allow diskOS Updates is a toggle that can be unavailable */
         int nv = !get_val(s); set_val(s, nv);
@@ -1550,7 +1553,7 @@ void settings_create(lv_obj_t *root){
 /* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
 static const char *row_value(const setting_t *s,char *buf,int n){
-    if(squash_accent_disabled(s)){snprintf(buf,n,"Disabled");return buf;}
+    if(theme_accent_disabled(s)){snprintf(buf,n,"Disabled");return buf;}
     if(th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side")){snprintf(buf,n,"Disabled");return buf;}
     if(s->type==ST_CYCLER && s->nopts==2 && !strcmp(s->opts[0],"Off") && !strcmp(s->opts[1],"On")) return val_text(s,buf,n);
     if(s->type==ST_SLIDER || s->type==ST_CYCLER || s->type==ST_CHOICE ||
@@ -1645,7 +1648,7 @@ void setlist_refresh(void){
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, th_simple()&&!strcmp(s->label,"Disco Options")?"Squash Options":!strcmp(s->label,"Disco Menu")?"Menu items":!strcmp(s->label,"Quick Settings")?"Quick settings":th_simple()&&!strcmp(s->label,"Title Position")?"Text alignment":s->label);
         lv_obj_set_pos(lbl,18,16);
-        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
+        lv_obj_set_width(lbl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?116:202);
         lv_label_set_long_mode(lbl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_font(lbl, TH_F_LIST, 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
@@ -1653,8 +1656,8 @@ void setlist_refresh(void){
         char b[40]; row_value(s, b, sizeof b);
         lv_obj_t *vl = lv_label_create(row);
         lv_label_set_text(vl, b);
-        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
-        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || squash_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
+        lv_obj_set_pos(vl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?144:228,18);
+        lv_obj_set_size(vl,s->type==ST_READONLY || setting_unavailable(s) || theme_accent_disabled(s) || (th_null() && s->cfg_key && !strcmp(s->cfg_key,"null_side"))?126:42,24);
         lv_label_set_long_mode(vl,LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_style_text_font(vl, TH_F_DETAIL, 0);
@@ -1672,7 +1675,7 @@ void setlist_refresh(void){
         }
         theme_list_row(row);
         /* Keep the explanatory tap available while clearly dimming the inactive action. */
-        if(squash_accent_disabled(s)){
+        if(theme_accent_disabled(s)){
             lv_obj_set_style_opa(row,150,0);
             lv_obj_set_style_text_color(lbl,TC(TEXT_MUTED),0);
             lv_obj_set_style_text_color(vl,TC(TEXT_MUTED),0);

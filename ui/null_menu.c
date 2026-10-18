@@ -21,6 +21,8 @@ struct null_menu {
     void (*shortcut)(int);
     uint32_t handle_tap;
     int hold_fired;
+    int painted, painted_pressed, painted_down;
+    float painted_pos;
 };
 static float maxpos(null_menu_t *m) { return ((m->count - 1) / 2) * 2 * CELL; }
 static float clamp(float p, float max) { return p < 0 ? 0 : p > max ? max : p; }
@@ -36,6 +38,9 @@ static lv_obj_t *plain(lv_obj_t *p, int x, int y, int w, int h)
 }
 static void paint(null_menu_t *m)
 {
+    int pressed=m->down && !m->drag && !m->handle ? m->pressed : -1;
+    if(m->painted && m->pos==m->painted_pos && pressed==m->painted_pressed && m->down==m->painted_down)return;
+    m->painted=1;m->painted_pos=m->pos;m->painted_pressed=pressed;m->painted_down=m->down;
     for (int i = 0; i < m->count; i++) {
         lv_obj_set_x(m->labels[i], (int)roundf(i * CELL - m->pos));
         lv_obj_set_style_text_color(
@@ -90,7 +95,8 @@ static void tick(lv_timer_t *t)
             m->pos = m->target;
             m->settling = 0;
         } else {
-            float e = 1 - powf(1 - t, 3);
+            float u = 1 - t;
+            float e = 1 - u * u * u;
             m->pos = m->from + (m->target - m->from) * e;
         }
     }
@@ -115,7 +121,9 @@ static void pointer(lv_event_t *e)
         m->origin = m->last = p;
         m->start_pos = m->last_pos = m->pos;
         m->began = m->last_sample = now;
-        m->handle = p.y >= 194;
+        lv_area_t rail_area;
+        lv_obj_get_coords(m->rail, &rail_area);
+        m->handle = p.y >= rail_area.y1 - 11;
         m->pressed = m->handle ? -1 : (int)((p.x - 42 + m->pos) / CELL);
         paint(m);
     } else if (c == LV_EVENT_PRESSING && m->down) {

@@ -558,7 +558,10 @@ static void disco_palettes_init(void){
     }
 }
 static void null_palettes_init(void){
- int alt=cfg_get_int("null_palette",0)==1;uint32_t off=alt?0xFF3045:0x009FFF,on=alt?0xC5F56A:0xFFE34D;
+ int scheme=cfg_get_int("null_palette",0);
+ int matrix=scheme==2;
+ uint32_t off=matrix?0x39FF14:scheme==1?0xFF3045:0x009FFF;
+ uint32_t on=matrix?0xFFFFFF:scheme==1?0xC5F56A:0xFFE34D;
  for(int v=0;v<2;v++){uint32_t*p=FORK_NULL[v];memcpy(p,DEFAULT_DARK,sizeof FORK_NULL[v]);
  for(int r=THEME_CLR_CANVAS;r<=THEME_CLR_RAISED_PRESSED;r++)p[r]=0;
  p[THEME_CLR_BORDER]=p[THEME_CLR_BORDER_STRONG]=0x18232B;p[THEME_CLR_OUTLINE_BRIGHT]=on;
@@ -575,6 +578,12 @@ static void null_palettes_init(void){
  p[THEME_CLR_ACTION_SURFACE]=0;p[THEME_CLR_ON_ACTION]=off;p[THEME_CLR_ACTION_SHADOW]=0;
  p[THEME_CLR_WIDGET_PRIMARY]=on;p[THEME_CLR_WIDGET_TRACK]=off;p[THEME_CLR_ON_ACCENT]=0;
  p[THEME_CLR_SIGNAL_ACTIVE]=on;p[THEME_CLR_STATUS_SUCCESS]=DEFAULT_DARK[THEME_CLR_STATUS_SUCCESS];p[THEME_CLR_STATUS_INFO]=off;p[THEME_CLR_FOLDER_ICON]=off;
+ if(matrix){
+  p[THEME_CLR_BORDER]=p[THEME_CLR_BORDER_STRONG]=0x12330D;
+  p[THEME_CLR_TEXT_FOOTNOTE]=p[THEME_CLR_TEXT_HINT]=off;
+  p[THEME_CLR_KEY_SELECTED]=p[THEME_CLR_KEY_PRESSED]=0x10280B;
+  p[THEME_CLR_STATUS_SUCCESS]=off;
+ }
  }
 }
 

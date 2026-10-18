@@ -892,7 +892,11 @@ static void radio_state(void)
         if(simple_cfg_get_int("null_qs_layout",0)==1)text_set(qcaptions[i],quicksettings_item_glyph(qids[i]));
         int on = quicksettings_item_active(qids[i]);
         if (!lv_obj_has_state(qfields[i], LV_STATE_PRESSED))
-            lv_obj_set_style_text_color(qcaptions[i], on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY), 0);
+        {
+            lv_color_t colour=on ? TC(TEXT_PRIMARY) : TC(TEXT_SECONDARY);
+            if(!lv_color_eq(lv_obj_get_style_text_color(qcaptions[i],0),colour))
+                lv_obj_set_style_text_color(qcaptions[i],colour,0);
+        }
     }
 }
 void null_qs_refresh(void){radio_state();}
@@ -1064,7 +1068,7 @@ void null_screen_entered(int which)
     if (!th_null() || !nav)
         return;
     lv_obj_t *root = screen_get_root(which);
-    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER && which != SCR_BT && which != SCR_WIFI && which != SCR_SONGINFO)
+    if (root && which != SCR_QUICK && which != SCR_HOME && which != SCR_EQ && which != SCR_EQ_EDITOR && which != SCR_APPLAND && which != SCR_STATS && which != SCR_SAVER && which != SCR_BT && which != SCR_WIFI && which != SCR_SONGINFO && which != SCR_APPS && which != SCR_WORKMODE)
         kit_restyle(root);
     if(which==SCR_SAVER)null_art_changed();
     onboarding_screen(which,nav_open);
@@ -1341,19 +1345,19 @@ void null_scroll_line(lv_obj_t **parts, int count, int position, int total)
         position = total;
     int x = left() ? 327 : 30, value = (int)((long long)position * 140 / total);
     for (int i = 0; i < 3; i++) {
-        lv_obj_set_style_radius(parts[i], 0, 0);
-        lv_obj_set_style_bg_opa(parts[i], LV_OPA_COVER, 0);
+        if(lv_obj_get_style_radius(parts[i],0)!=0)lv_obj_set_style_radius(parts[i], 0, 0);
+        if(lv_obj_get_style_bg_opa(parts[i],0)!=LV_OPA_COVER)lv_obj_set_style_bg_opa(parts[i], LV_OPA_COVER, 0);
         kit_keep(parts[i]);
     }
     lv_obj_set_pos(parts[0], x, 108);
     lv_obj_set_size(parts[0], 3, 144);
-    lv_obj_set_style_bg_color(parts[0], TC(TEXT_SECONDARY), 0);
+    if(!lv_color_eq(lv_obj_get_style_bg_color(parts[0],0),TC(TEXT_SECONDARY)))lv_obj_set_style_bg_color(parts[0], TC(TEXT_SECONDARY), 0);
     lv_obj_set_pos(parts[1], x, 108);
     lv_obj_set_size(parts[1], 3, value ? value : 1);
-    lv_obj_set_style_bg_color(parts[1], TC(TEXT_PRIMARY), 0);
+    if(!lv_color_eq(lv_obj_get_style_bg_color(parts[1],0),TC(TEXT_PRIMARY)))lv_obj_set_style_bg_color(parts[1], TC(TEXT_PRIMARY), 0);
     lv_obj_set_pos(parts[2], x - 2, 108 + value - 2);
     lv_obj_set_size(parts[2], 7, 7);
-    lv_obj_set_style_bg_color(parts[2], TC(TEXT_PRIMARY), 0);
+    if(!lv_color_eq(lv_obj_get_style_bg_color(parts[2],0),TC(TEXT_PRIMARY)))lv_obj_set_style_bg_color(parts[2], TC(TEXT_PRIMARY), 0);
 }
 void null_qs_battery(int percent, int charging)
 {

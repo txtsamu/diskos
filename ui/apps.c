@@ -206,7 +206,7 @@ static void disco_build(void){
     }
     for(int i = 0; i < cnt; i++){
         int f = g_items[first + i].font;
-        if(th_simple()){
+        if(th_simple() || th_null()){
             squash_menu_row(g_box,i,g_items[first+i].icon,f==1?TF(ICON_28):f==2?&font_theme_20:TF(UI_24),g_items[first+i].name,disco_pick_cb,(void *)(intptr_t)i);
             continue;
         }
