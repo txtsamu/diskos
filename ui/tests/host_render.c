@@ -1048,6 +1048,7 @@ int main(int argc, char **argv){
         if(!strcmp(page,"bt")){extern void bt_preview_null(void);bt_preview_null();}
         if(!strcmp(page,"wifi")){extern void wifi_preview_null(void);wifi_preview_null();}
         if(th_simple() && getenv("REVIEW_SQUASH_RADIO")){
+            nav_wait(350); /* Measure the settled screen, after the entry slide. */
             lv_obj_t *root=screen_get_root(scr),*ring=NULL,*toggle=NULL;
             for(uint32_t i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=lv_obj_get_child(root,i);if(lv_obj_check_type(o,&lv_arc_class))ring=o;if(lv_obj_check_type(o,&lv_switch_class))toggle=o;}
             lv_obj_t *glyph=find_text(root,!strcmp(page,"wifi")?LV_SYMBOL_WIFI:LV_SYMBOL_BLUETOOTH),*scan_icon=find_text(root,LV_SYMBOL_REFRESH);
