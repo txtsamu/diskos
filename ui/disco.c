@@ -905,8 +905,8 @@ lv_obj_t *squash_menu_row(lv_obj_t *root,int slot,const char *glyph,const lv_fon
 }
 lv_obj_t *disco_title(lv_obj_t *root, const char *t){
     lv_obj_t *l = lv_label_create(root); lv_label_set_text(l, t);
-    lv_obj_set_style_text_font(l, th_simple()?TF(UI_26):th_null()?TF(UI_28):TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
-    lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_set_style_text_font(l, th_simple()?TF(UI_26):th_null()?TF(HEADER):TF(UI_20), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+    lv_obj_align(l, LV_ALIGN_TOP_MID, 0, th_null()?36:28);
     if(th_simple())simple_keep_label(l);
     if(th_null()){char upper[192];theme_upper(upper,sizeof upper,t);lv_label_set_text(l,upper);lv_obj_add_flag(l,THEME_TITLE_STEPPED);kit_keep(l);}
     return l;
