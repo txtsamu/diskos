@@ -155,7 +155,7 @@ static pthread_key_t reader_key;static pthread_once_t reader_once=PTHREAD_ONCE_I
 static int reader_key_ok;
 static void reader_destroy(void*p){mdb_reader_t*r=p;if(r){if(r->d)sqlite3_close(r->d);free(r);}}
 static void reader_init(void){reader_key_ok=pthread_key_create(&reader_key,reader_destroy)==0;}
-static sqlite3*db_read(void){
+static sqlite3*db_read_wait(int wait_ms){
     pthread_mutex_lock(&g_db_mu);
     sqlite3*writer=g_db;int owner=writer_owner_set&&pthread_equal(writer_owner,pthread_self());
     pthread_mutex_unlock(&g_db_mu);
@@ -166,9 +166,15 @@ static sqlite3*db_read(void){
     struct stat st;if(stat(DB_PATH,&st))return NULL;
     if(r->d&&(r->dev!=st.st_dev||r->ino!=st.st_ino)){sqlite3_close(r->d);r->d=NULL;}
     if(!r->d){if(sqlite3_open_v2(DB_PATH,&r->d,SQLITE_OPEN_READONLY|SQLITE_OPEN_NOMUTEX,NULL)!=SQLITE_OK){if(r->d)sqlite3_close(r->d);r->d=NULL;return NULL;}
-        sqlite3_busy_timeout(r->d,0);r->dev=st.st_dev;r->ino=st.st_ino;}
+        r->dev=st.st_dev;r->ino=st.st_ino;}
+    sqlite3_busy_timeout(r->d,wait_ms);   /* set on every call: the connection is shared by all reads on this thread */
     return r->d;
 }
+/* Most reads never wait: a busy database just means "try again next frame". */
+static sqlite3*db_read(void){return db_read_wait(0);}
+/* Queue lookups happen exactly when a song changes, which is when the player writes the database. Giving up at once
+ * (2.5.1-2.5.5) made the queue skip its turn, so these wait briefly, as they did up to 2.5.0 (then up to 4 s). */
+#define QUEUE_READ_WAIT_MS 1500
 /* per-song accent (0xRRGGBB packed, 0 = not computed yet). Persisted in SONG.ACCENT. */
 int mdb_song_accent(const char *path){
     sqlite3 *d = db_read(); if(!d || !path) return 0;
@@ -3846,7 +3852,7 @@ int mdb_queue_path_ids(const char *path, int *ids, int cap){
 }
 int mdb_queue_song(int id, char *path, int cap, mdb_song_t *out){
     if(!path || cap<=0 || !out || !sd_io_begin()) return 0;
-    sqlite3 *d=db_read(); sqlite3_stmt *st=NULL; int ok=0;
+    sqlite3 *d=db_read_wait(QUEUE_READ_WAIT_MS); sqlite3_stmt *st=NULL; int ok=0;
     if(d && sqlite3_prepare_v2(d,"SELECT PATH,TITLE,ARTIST,DURATION,TRACK,DISC,IS_CUE,IS_ISO FROM SONG WHERE ID=?;",-1,&st,NULL)==SQLITE_OK){
         sqlite3_bind_int(st,1,id);
         if(sqlite3_step(st)==SQLITE_ROW){
@@ -3861,7 +3867,7 @@ int mdb_queue_song(int id, char *path, int cap, mdb_song_t *out){
 }
 int mdb_queue_live_ids(int *out, int cap){
     if(!out || cap<=0 || !sd_io_begin()) return -1;
-    sqlite3 *d=db_read(); sqlite3_stmt *rows=NULL,*map=NULL; int n=0,rc=SQLITE_ERROR,ok=0;
+    sqlite3 *d=db_read_wait(QUEUE_READ_WAIT_MS); sqlite3_stmt *rows=NULL,*map=NULL; int n=0,rc=SQLITE_ERROR,ok=0;
     if(d && sqlite3_prepare_v2(d,"SELECT PATH,TRACK,IS_CUE,IS_ISO FROM LIST_SONG_0 ORDER BY ID;",-1,&rows,NULL)==SQLITE_OK
         && sqlite3_prepare_v2(d,"SELECT ID FROM SONG WHERE PATH=?1 AND TRACK IS ?2 AND IS_CUE IS ?3 AND IS_ISO IS ?4;",-1,&map,NULL)==SQLITE_OK){
         ok=1;
@@ -3897,7 +3903,7 @@ static int queue_current_id_on(sqlite3 *d, const char *path, int pos, const char
 }
 int mdb_queue_current_id(const char *path, int pos, const char *title){
     if(!path || !sd_io_begin()) return 0;
-    int id=queue_current_id_on(db_read(),path,pos,title,NULL);
+    int id=queue_current_id_on(db_read_wait(QUEUE_READ_WAIT_MS),path,pos,title,NULL);
     sd_io_end(); return id;
 }
 /* For the UI loop: its own short-lived read-only connection with a 50 ms lock wait (never the shared one, whose
@@ -3930,7 +3936,7 @@ int mdb_queue_slot_set(int *ids, int n, int first){
 
 int mdb_queue_resolve(const char *path, int track, int cue, int iso){
     if(!path || !sd_io_begin()) return 0;
-    sqlite3 *d=db_read(); sqlite3_stmt *st=NULL; int id=0,hits=0;
+    sqlite3 *d=db_read_wait(QUEUE_READ_WAIT_MS); sqlite3_stmt *st=NULL; int id=0,hits=0;
     if(d && sqlite3_prepare_v2(d,"SELECT ID FROM SONG WHERE PATH=?1 AND IFNULL(TRACK,0)=?2 AND IFNULL(IS_CUE,0)=?3 AND IFNULL(IS_ISO,0)=?4;",-1,&st,NULL)==SQLITE_OK){
         sqlite3_bind_text(st,1,path,-1,SQLITE_TRANSIENT); sqlite3_bind_int(st,2,track); sqlite3_bind_int(st,3,cue); sqlite3_bind_int(st,4,iso);
         int rc; while((rc=sqlite3_step(st))==SQLITE_ROW){ id=sqlite3_column_int(st,0); hits++; }

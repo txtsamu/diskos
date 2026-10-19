@@ -30,6 +30,9 @@ int ui_play_restore(int type,const char *name,long pid,int pos){(void)name;(void
 static void view_reload(void){}
 '''
 test=r'''
+#include <pthread.h>
+#include <unistd.h>
+static void *release_later(void *p){usleep(300000);char *e=NULL;sqlite3_exec((sqlite3*)p,"COMMIT;",0,0,&e);sqlite3_free(e);return NULL;}
 static void sql(sqlite3 *db,const char *query){char *err=NULL;int rc=sqlite3_exec(db,query,0,0,&err);if(rc) fprintf(stderr,"%s: %s\n",query,err);sqlite3_free(err);assert(rc==SQLITE_OK);}
 int main(int argc,char **argv){
     assert(argc==2);sqlite3 *db=NULL;assert(sqlite3_open(argv[1],&db)==SQLITE_OK);
@@ -60,8 +63,20 @@ int main(int argc,char **argv){
     assert(queue_next()==1);rest_fail=1;hand_back(20);assert(g_active);rest_fail=0;hand_back(20);assert(!g_active);
     assert(queue_add_path("/next.flac")==1);int old=sends;sql(db,"UPDATE SONG SET PATH='/replacement.flac' WHERE ID=20;");
     assert(!play_copy(0) && sends==old && queue_count()==1);
-    assert(!leases);sqlite3_close(db);
     puts("PASS failed restoration and stale IDs do not consume queue state");
+    /* 2.5.1 regression: the player writes the database at every song change and locks out readers for a moment.
+     * Queue lookups must wait briefly instead of giving up (they gave up at once, so the queue was skipped). */
+    queue_clear();sql(db,"UPDATE SONG SET PATH='/next.flac' WHERE ID=20;");
+    g_active=0;g_last_id=0;g_prev2=0;g_skip_change=0;
+    state.have_track=1;state.pos_id=1;strcpy(state.path,"/album.flac");strcpy(state.title,"First");
+    assert(queue_add_path("/next.flac")==1);
+    sqlite3 *player=NULL;assert(sqlite3_open(argv[1],&player)==SQLITE_OK);
+    sql(player,"BEGIN EXCLUSIVE;");
+    pthread_t th;assert(pthread_create(&th,NULL,release_later,player)==0);
+    old=sends;int q=queue_next();pthread_join(th,NULL);sqlite3_close(player);
+    assert(q==1 && sends==old+1 && queue_count()==0 && g_active);
+    puts("PASS queue waits briefly for the player's database write instead of skipping the queued song");
+    assert(!leases);sqlite3_close(db);
     puts("HARNESS COMPLETE");
 }
 '''
