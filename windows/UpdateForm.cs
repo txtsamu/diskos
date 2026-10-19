@@ -14,7 +14,6 @@ namespace DiskosDisco
     {
         public bool WentBack;
 
-        const string Repo = "https://github.com/zmd22/diskos-disco/releases";
         readonly RadioButton latest, ownFile;
         readonly Label uiLabel, keysLabel, sdLabel, status;
         readonly Button uiButton, keysButton, sdRefresh, sdOther, make, back;
@@ -235,25 +234,9 @@ namespace DiskosDisco
             if (download)
             {
                 Say("Downloading the latest release…", Theme.Text);
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                string tag = LatestTag();
-                if (tag == null) { end = "Couldn't reach GitHub. Check the internet connection and try again."; return false; }
+                string tag, err;
+                if (!Latest.Fetch(work, Append, out file, out tag, out err)) { end = err; return false; }
                 label = tag.TrimStart('v');
-                Append("Latest release: " + tag);
-                file = Path.Combine(work, "mq_ui");
-                string sums = Path.Combine(work, "SHA256SUMS");
-                using (var w = new WebClient())
-                {
-                    w.DownloadFile(Repo + "/download/" + tag + "/mq_ui", file);
-                    w.DownloadFile(Repo + "/download/" + tag + "/SHA256SUMS", sums);
-                }
-                string want = File.ReadAllLines(sums).Select(l => l.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
-                                  .Where(p => p.Length == 2 && p[1] == "mq_ui").Select(p => p[0].ToLowerInvariant()).FirstOrDefault();
-                string got;
-                using (var sha = System.Security.Cryptography.SHA256.Create()) using (var f = File.OpenRead(file))
-                    got = BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant();
-                if (want == null || want != got) { end = "The download doesn't match the release's checksum. Try again."; return false; }
-                Append("Downloaded mq_ui, checksum OK (" + got.Substring(0, 12) + "…).");
             }
             if (Env.ToLinux(file) == null || Env.ToLinux(keys) == null)
             {
@@ -276,21 +259,5 @@ namespace DiskosDisco
             return true;
         }
 
-        // "v2.0.0" from github.com/.../releases/latest (it redirects to .../releases/tag/v2.0.0)
-        static string LatestTag()
-        {
-            try
-            {
-                var req = (HttpWebRequest)WebRequest.Create(Repo + "/latest");
-                req.AllowAutoRedirect = false; req.Method = "HEAD"; req.UserAgent = "diskOS-Disco-for-Windows";
-                using (var r = (HttpWebResponse)req.GetResponse())
-                {
-                    string loc = r.Headers["Location"] ?? "";
-                    int i = loc.LastIndexOf("/tag/", StringComparison.Ordinal);
-                    return i >= 0 ? Uri.UnescapeDataString(loc.Substring(i + 5)) : null;
-                }
-            }
-            catch { return null; }
-        }
     }
 }

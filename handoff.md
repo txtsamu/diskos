@@ -11,7 +11,7 @@ Read this first, then `todo.md` (the live list). Older release-by-release notes 
   hint HINT_PICK; renderer: PICK=0,2[,more] with lib-<View> or FB_AZ=1 + preview-np.
 - 2.5.5 (2026-10-19): experimental Thai/Vietnamese/Korean fonts (ui/tools/gen_intl_fonts.py, sources in
   ui/fonts/intl), artcache MIN_FREE_BYTES 500 MB, Battery caption hold = restart totals (cfg batt_manual).
-  Released WITHOUT a device test on the owner's decision; payload/mq_ui sha256 68c6b006...
+  Since confirmed working on the Disc; payload/mq_ui sha256 68c6b006...
 - Repo github.com/zmd22/diskos-disco, branch main. Latest release 2.5.4 (tag v2.5.4, 2026-10-18).
   Payload `payload/mq_ui` sha256 033c7a49... (`payload/mq_ui.build.json` records source commit and hashes).
 - Owner tests on a Snowsky Disc, FiiO firmware V2.57. SSH root@192.168.178.63 (no adb/scp); installs by signed

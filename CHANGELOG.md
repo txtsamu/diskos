@@ -26,7 +26,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
   albums and lyrics.
 - Covers are cached until less than 500 MB is free on the card (was 1 GB).
 - Battery: hold the "Since full charge" line to restart the totals.
-- Docs and website: how-to matches the Display menu, showcase video, install advice. Not tested on a Disc before release.
+- Docs and website: how-to matches the Display menu, showcase video, install advice.
 
 [2.5.5 release notes](docs/releases/v2.5.5.md)
 

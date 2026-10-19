@@ -17,12 +17,12 @@ namespace DiskosDisco
         [DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint flags);
         const uint ES_CONTINUOUS = 0x80000000, ES_SYSTEM_REQUIRED = 0x00000001;
 
-        readonly Label fwLabel, keysLabel, discLabel, status;
-        readonly RadioButton keysNew, keysOld;
-        readonly Button fwButton, keysButton, findButton, installButton, back, openKeys, next;
+        readonly Label fwLabel, uiLabel, keysLabel, discLabel, status;
+        readonly RadioButton keysNew, keysOld, uiLatest, uiOwn;
+        readonly Button fwButton, uiButton, keysButton, findButton, installButton, back, openKeys, next;
         readonly ProgressBar progress;
         readonly TextBox log;
-        string firmware, keysDir, busid;
+        string firmware, keysDir, busid, uiFile;
         bool discReady, busy;
         Process keepAlive, attach;
 
@@ -36,8 +36,8 @@ namespace DiskosDisco
             Theme.Style(this);
             MinimumSize = new Size(680, 600);
 
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 22, 28, 18), ColumnCount = 1, RowCount = 7 };
-            for (int i = 0; i < 5; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 22, 28, 18), ColumnCount = 1, RowCount = 8 };
+            for (int i = 0; i < 6; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             Controls.Add(new Header(3, "Install on your Disc"));
@@ -54,7 +54,20 @@ namespace DiskosDisco
                            "not another diskOS build.");
             root.Controls.Add(Section("1.  Firmware", fwLabel, fwButton), 0, 1);
 
-            // 2. Keys
+            // 2. Version: the latest release from GitHub, unless the user picks an mq_ui file of their own
+            uiLatest = new RadioButton { Text = "The latest release (downloaded from GitHub)", AutoSize = true, Checked = true };
+            uiOwn = new RadioButton { Text = "An mq_ui file on this PC", AutoSize = true };
+            uiButton = MainForm.MakeButton("Choose…", false);
+            uiButton.Click += (s, e) => ChooseUi();
+            uiLabel = Hint("");
+            uiLatest.CheckedChanged += (s, e) => UpdateUi();
+            var uiRow = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0) };
+            uiRow.Controls.Add(uiLatest); uiRow.Controls.Add(uiOwn);
+            var uiBox = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Margin = new Padding(0) };
+            uiBox.Controls.Add(uiRow, 0, 0); uiBox.Controls.Add(uiLabel, 0, 1);
+            root.Controls.Add(Section("2.  Version", uiBox, uiButton), 0, 2);
+
+            // 3. Keys
             keysNew = new RadioButton { Text = "Create new update keys (first install)", AutoSize = true, Checked = true };
             keysOld = new RadioButton { Text = "Use my existing keys folder", AutoSize = true };
             keysButton = MainForm.MakeButton("Choose…", false);
@@ -65,14 +78,14 @@ namespace DiskosDisco
             keyRow.Controls.Add(keysNew); keyRow.Controls.Add(keysOld);
             var keyBox = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Margin = new Padding(0) };
             keyBox.Controls.Add(keyRow, 0, 0); keyBox.Controls.Add(keysLabel, 0, 1);
-            root.Controls.Add(Section("2.  Update keys", keyBox, keysButton), 0, 2);
+            root.Controls.Add(Section("3.  Update keys", keyBox, keysButton), 0, 3);
 
-            // 3. Connect
+            // 4. Connect
             findButton = MainForm.MakeButton("Find my Disc", false);
             findButton.Click += (s, e) => FindDisc();
             discLabel = Hint("Turn the Disc off. Hold Volume Down and connect it to this PC with a USB data cable, then " +
                              "click Find my Disc. The screen stays black: that's normal.");
-            root.Controls.Add(Section("3.  Connect the Disc", discLabel, findButton), 0, 3);
+            root.Controls.Add(Section("4.  Connect the Disc", discLabel, findButton), 0, 4);
 
             // Install
             var go = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
@@ -81,10 +94,10 @@ namespace DiskosDisco
             progress = new ProgressBar { Style = ProgressBarStyle.Marquee, Width = 180, Visible = false, Margin = new Padding(12, 12, 0, 0) };
             status = new Label { AutoSize = true, ForeColor = MainForm.Ink, Margin = new Padding(12, 11, 0, 0), MaximumSize = new Size(420, 0) };
             go.Controls.Add(installButton); go.Controls.Add(progress); go.Controls.Add(status);
-            root.Controls.Add(go, 0, 4);
+            root.Controls.Add(go, 0, 5);
 
             log = Theme.Log();
-            root.Controls.Add(log, 0, 5);
+            root.Controls.Add(log, 0, 6);
 
             var bar = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 12, 0, 0) };
             back = MainForm.MakeButton("Back", false);
@@ -101,11 +114,12 @@ namespace DiskosDisco
                 Hide(); page.Show();
             };
             bar.Controls.Add(next); bar.Controls.Add(back); bar.Controls.Add(copy); bar.Controls.Add(openKeys);
-            root.Controls.Add(bar, 0, 6);
+            root.Controls.Add(bar, 0, 7);
 
             // Keys made by an earlier run are found again.
             if (File.Exists(Path.Combine(DefaultKeys, "diskos-root.pub.pem"))) { keysOld.Checked = true; keysDir = DefaultKeys; }
             UpdateKeys();
+            UpdateUi();
             UpdateButtons();
             if (Demo.On) Load += (s, e) =>
             {
@@ -159,9 +173,11 @@ namespace DiskosDisco
         void UpdateButtons()
         {
             bool keysOk = keysNew.Checked || (keysDir != null && File.Exists(Path.Combine(keysDir, "diskos-root.pub.pem")));
+            bool uiOk = uiLatest.Checked || (uiFile != null && File.Exists(uiFile));
             fwButton.Enabled = keysButton.Enabled = findButton.Enabled = keysNew.Enabled = keysOld.Enabled = !busy;
+            uiLatest.Enabled = uiOwn.Enabled = !busy; uiButton.Enabled = !busy && uiOwn.Checked;
             back.Enabled = next.Enabled = !busy;
-            installButton.Enabled = !busy && firmware != null && keysOk && discReady;
+            installButton.Enabled = !busy && firmware != null && uiOk && keysOk && discReady;
             openKeys.Visible = keysDir != null && Directory.Exists(keysDir);
             progress.Visible = busy;
         }
@@ -181,6 +197,29 @@ namespace DiskosDisco
                 fwLabel.ForeColor = MainForm.Good;
                 UpdateButtons();
             }
+        }
+
+        void ChooseUi()
+        {
+            using (var d = new OpenFileDialog { Title = "Choose an mq_ui file", Filter = "mq_ui|mq_ui;mq_ui*|All files|*.*" })
+            {
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                if (Env.ToLinux(d.FileName) == null)
+                {
+                    MessageBox.Show(this, "Please copy the file to this PC first (not a network drive) and choose it there.", Text);
+                    return;
+                }
+                uiFile = d.FileName; uiOwn.Checked = true;
+                UpdateUi();
+            }
+        }
+
+        void UpdateUi()
+        {
+            if (uiLatest.Checked) { uiLabel.Text = "Downloaded when you click Install and checked against the release's checksums."; uiLabel.ForeColor = MainForm.Muted; }
+            else if (uiFile == null) { uiLabel.Text = "Click Choose… and pick the mq_ui file."; uiLabel.ForeColor = MainForm.Muted; }
+            else { uiLabel.Text = "✔  " + uiFile; uiLabel.ForeColor = MainForm.Good; }
+            UpdateButtons();
         }
 
         void ChooseKeys()
@@ -311,18 +350,19 @@ namespace DiskosDisco
                           "This takes about 20 minutes. Keep the Disc connected and this PC on until it says Done. " +
                           "A backup of the Disc's original system is kept, so you can go back to stock later.\n\n" +
                           "Recommended: the Disc should be on FiiO's stock V2.57 firmware. Installing over upstream diskOS " +
-                          "or another diskOS build is not supported and can be buggy.";
+                          "or another diskOS build is not supported and can be buggy.\n\n" +
+                          "Windows is unsupported, but this works as intended: users have confirmed it several times.";
             if (MessageBox.Show(this, what, Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
 
             busy = true; UpdateButtons();
             log.Clear();
             SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);   // no sleep while flashing
-            bool makeKeys = keysNew.Checked;
+            bool makeKeys = keysNew.Checked, latestUi = uiLatest.Checked; string ownUi = uiFile;
             string fw = Env.ToLinux(firmware), kl = Env.ToLinux(keys);
             new Thread(() =>
             {
                 bool ok = false; string end;
-                try { ok = RunInstall(makeKeys, fw, kl, out end); }
+                try { ok = RunInstall(makeKeys, latestUi, ownUi, fw, kl, out end); }
                 catch (Exception e) { end = "Something went wrong: " + e.Message; }
                 BeginInvoke(new Action(() =>
                 {
@@ -340,9 +380,28 @@ namespace DiskosDisco
             }) { IsBackground = true }.Start();
         }
 
-        bool RunInstall(bool makeKeys, string fw, string keys, out string end)
+        bool RunInstall(bool makeKeys, bool latestUi, string ownUi, string fw, string keys, out string end)
         {
             string o;
+            // The interface: the latest release unless the user chose a file. Offline, the copy built into this app.
+            string ui = null;
+            if (latestUi)
+            {
+                Say("Downloading the latest release…", MainForm.Ink);
+                string file, tag, err;
+                if (Latest.Fetch(Path.Combine(Env.Home, "install-ui"), Append, out file, out tag, out err)) ui = Env.ToLinux(file);
+                else
+                {
+                    Append(err);
+                    bool useBuiltIn = false;
+                    Invoke(new Action(() => useBuiltIn = MessageBox.Show(this,
+                        err + "\n\nInstall the version built into this app instead?", Text,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes));
+                    if (!useBuiltIn) { end = err; return false; }
+                    Append("Using the version built into this app.");
+                }
+            }
+            else ui = Env.ToLinux(ownUi);
             if (makeKeys)
             {
                 Say("Making your update keys…", MainForm.Ink);
@@ -351,7 +410,7 @@ namespace DiskosDisco
                 if (k != 0) { end = "Making the keys failed (code " + k + ")."; return false; }
             }
             Say("Installing… about 20 minutes. Keep the Disc connected.", MainForm.Ink);
-            int rc = Env.Script("diskos install --variant public --yes --firmware " + Env.Q(fw) +
+            int rc = Env.Script("diskos install --variant public --yes " + (ui != null ? "--ui " + Env.Q(ui) + " " : "") + "--firmware " + Env.Q(fw) +
                                 " --ota-key " + Env.Q(keys + "/diskos-root.pub.pem"), line =>
             {
                 Append(line);

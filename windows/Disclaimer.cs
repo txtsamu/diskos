@@ -28,7 +28,7 @@ namespace DiskosDisco
 
             Para(body, "diskOS Disco! replaces the interface of your FiiO Snowsky Disc with an unofficial one. Please read this first.", Theme.Text);
             Point(body, "Unofficial.", "A hobby project, not made, supported or endorsed by FiiO, Snowsky or Ingenic. Installing it may affect your warranty.");
-            Point(body, "Unsupported on Windows.", "This Windows app is shared as-is, without support. It worked for its author; it may or may not work for you.");
+            Point(body, "Unsupported, but working as intended.", "Users have confirmed several times that installing and SD updates work from Windows. There is no help for Windows-specific problems, though.");
             Point(body, "Test software, as-is.", "It is a testing release, provided without any warranty. Something can always go wrong when a device is flashed, and you use it at your own risk.");
             Point(body, "Start from stock V2.57.", "Install on FiiO's stock V2.57 firmware. Installing over upstream diskOS or another diskOS build is not supported and can be buggy.");
             Point(body, "Switching between diskOS builds.", "Going back to stock does not clear settings that diskOS left on the Disc. If Disco looks or behaves wrong after switching, use Settings > System > Maintenance > Reset diskOS Settings (music, Wi-Fi, Bluetooth, EQ and audio settings stay).");

@@ -18,10 +18,6 @@ Links always point to releases/latest. No upstream diskOS version shown to users
 ## Major
 (none)
 
-## Released untested: 2.5.5 (2026-10-19)
-- Owner to try on the Disc: Thai/Vietnamese/Korean songs, battery hold, covers on a fairly full card.
-  Any crash or data loss -> quick 2.5.6.
-
 ## Major
 - Dyslexic-friendly font (owner, 2026-10-19): OpenDyslexic 3 (SIL OFL, opendyslexic.org) as a switch under
   Display > Layout & extras > Dyslexic-friendly (On/Off; restarts the interface like a theme change). Overrides all

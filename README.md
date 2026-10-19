@@ -235,7 +235,8 @@ Download **[diskOS-Disco-for-Windows.zip](https://github.com/zmd22/diskos-disco/
 extract it and run `diskOS-Disco.exe`. It walks you through everything, including your update keys and later SD
 updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
 
-> **Windows: unsupported**, shared as-is. Start from FiiO's stock V2.57 firmware, not another diskOS build.
+> **Windows: unsupported, but working as intended: confirmed several times by users, installs and SD updates included.** The app always installs the latest release (or an `mq_ui` you pick).
+> Start from FiiO's stock V2.57 firmware, not another diskOS build.
 
 ### From macOS
 
@@ -331,7 +332,7 @@ checkouts.
 - **Start from stock.** Install on FiiO's stock V2.57 firmware. Installing over upstream diskOS or another diskOS
   build is not supported and can be buggy.
 - **Switching between diskOS builds.** Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
-- **Windows: unsupported.** The Windows app is shared as-is.
+- **Windows:** Unsupported, but working as intended: confirmed several times by users, installs and SD updates included.
 - **Firmware.** Made for FiiO firmware V2.57 only.
 - **Cover cache.** Covers for Cover Flow and lists are cached on the SD card only while it has enough free space
   (500 MB). On a nearly full card, covers may stay blank.

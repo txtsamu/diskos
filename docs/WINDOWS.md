@@ -2,9 +2,13 @@
 
 [Back to the README](../README.md) · [Tour](DISCO_TOUR.md) · [SD updates](UPDATING.md)
 
-> **Unsupported.** Start from FiiO's stock V2.57 firmware, not another diskOS build: installing over upstream
-> diskOS or another diskOS build can be buggy. The Windows app is shared as-is:
-> it worked for the author, it may or may not work for you.
+> **Unsupported, but working as intended:** confirmed several times by users, installs and SD updates included. There is no help
+> for Windows-specific problems, though. Start from FiiO's stock V2.57 firmware, not another diskOS build:
+> installing over upstream diskOS or another diskOS build can be buggy.
+>
+> **Always the latest version.** Install and Update download the latest release from GitHub each time (checked
+> against its checksums), unless you choose an `mq_ui` file of your own. Without internet, Install offers the
+> version built into the app.
 
 > Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
 
@@ -94,19 +98,22 @@ replacing the environment never loses it.
 
 ## Step 3 · Install
 
-<p align="center"><img src="windows/install.png" width="480" alt="Step 3: firmware, keys, Disc connected"></p>
+<p align="center"><img src="windows/install.png" width="480" alt="Step 3: firmware, version, keys, Disc connected"></p>
 
 1. **Firmware:** click **Choose…** and pick FiiO's V2.57 ZIP.
-2. **Update keys:**
+2. **Version:** **The latest release** (the default) is downloaded from GitHub when you click Install and checked
+   against the release's checksums. Or pick **An mq_ui file on this PC**. Without internet, the app offers the version
+   built into it instead.
+3. **Update keys:**
    - **First install:** leave **Create new update keys** selected. The app makes them in **Documents\diskOS Keys**.
    - **Installed before** (from Linux or with this app): choose **Use my existing keys folder** and pick it. A Disc only
      accepts updates signed with the keys it was installed with, so don't make new ones.
-3. **Connect the Disc:** turn it off, **hold Volume Down** and plug in the USB cable. The screen stays black, which is
+4. **Connect the Disc:** turn it off, **hold Volume Down** and plug in the USB cable. The screen stays black, which is
    normal. Click **Find my Disc**. The first time, Windows asks for permission to share the Disc with diskOS.
-4. Click **Install** and confirm. The installer reads your firmware, builds the Disc's new system, saves a backup of the
+5. Click **Install** and confirm. The installer reads your firmware, builds the Disc's new system, saves a backup of the
    original, and flashes it. **It takes about 20 minutes. Don't unplug the Disc or put the PC to sleep** (the app keeps
    it awake).
-5. When it says **Done**, unplug the Disc and turn it on. diskOS Disco! installs itself on the first start.
+6. When it says **Done**, unplug the Disc and turn it on. diskOS Disco! installs itself on the first start.
 
 > [!IMPORTANT]
 > **Back up your keys.** Copy the **diskOS Keys** folder from Documents to a USB stick or a password manager. Without it
@@ -147,7 +154,7 @@ Nothing is installed system-wide by the app itself, and it doesn't start with Wi
 ## Privacy
 
 The app talks to the internet only when you ask it to: installing WSL or the USB bridge through Windows, and
-downloading the latest release from GitHub in step 4. Your firmware, keys and music stay on your PC and your Disc. See
+downloading the latest release from GitHub in steps 3 and 4. Your firmware, keys and music stay on your PC and your Disc. See
 [Privacy](PRIVACY.md).
 
 ## Troubleshooting

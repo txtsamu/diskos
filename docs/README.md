@@ -22,7 +22,7 @@ Switched to Disco from upstream diskOS or another build, and something looks or 
 - [Immersive controls](IMMERSIVE_CONTROLS.md) - turning the cover to seek or change volume.
 - [Updating from the SD card](UPDATING.md) - keys, signing, flashing once, troubleshooting.
 - [macOS](MACOS.md) - installing from a Mac.
-- [diskOS Disco! for Windows](WINDOWS.md) - unsupported, shared as-is. Start from FiiO's stock firmware.
+- [diskOS Disco! for Windows](WINDOWS.md) - unsupported, but working as intended (confirmed by users). Start from FiiO's stock firmware.
 - [UI choices](UI_CHOICES.md) - why things look and work the way they do.
 - [Privacy and network use](PRIVACY.md).
 - [Release notes](releases/) and the [changelog](../CHANGELOG.md).
