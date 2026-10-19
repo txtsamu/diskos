@@ -1769,6 +1769,24 @@ static void iso_finish(void){
 
 /* recursive walk; inserts every audio file found under dir. lstat (not stat) so symlinks
  * are never followed, + a depth cap, so a hostile/looping tree can't run away. */
+/* 1 if the library holds any song row under directory `dir` (or the lookup failed: stay safe). A skipped dot-dir
+ * only needs to block the vanished-song prune when it could hide rows the walk won't re-see; a thumbnail cache or
+ * desktop trash with no indexed songs under it cannot. Prefix range instead of LIKE: paths may contain % or _. */
+static int dir_has_rows(const char *dir){
+    char lo[MAXPATH], hi[MAXPATH];
+    int n = snprintf(lo, sizeof lo, "%s/", dir);
+    if(n <= 0 || n >= (int)sizeof lo) return 1;
+    memcpy(hi, lo, (size_t)n + 1); hi[n - 1] = '/' + 1;   /* every "dir/..." sorts in [lo, hi) */
+    sqlite3_stmt *q = NULL; int has = 1;
+    if(g_db && sqlite3_prepare_v2(g_db, "SELECT 1 FROM SONG WHERE PATH >= ?1 AND PATH < ?2 LIMIT 1;", -1, &q, NULL) == SQLITE_OK){
+        sqlite3_bind_text(q, 1, lo, -1, SQLITE_STATIC);
+        sqlite3_bind_text(q, 2, hi, -1, SQLITE_STATIC);
+        int rc = sqlite3_step(q);
+        has = rc == SQLITE_ROW ? 1 : rc == SQLITE_DONE ? 0 : 1;
+    }
+    sqlite3_finalize(q);
+    return has;
+}
 static void walk(const char *dir, int depth){
     if(depth > 24){ g_scan_err=1; return; }   /* absurdly deep -> treat as incomplete, don't commit */
     DIR *d=opendir(dir);
@@ -1799,7 +1817,7 @@ static void walk(const char *dir, int depth){
             struct stat ds;
             /* block the prune if this skipped dot-entry is a directory (may hold indexed songs) OR we
              * could not stat it (unknown type -> stay safe, never risk deleting its subtree's rows). */
-            if(wl<=0 || wl>=(int)sizeof path || lstat(path,&ds)!=0 || S_ISDIR(ds.st_mode)) g_prune_blocked = 1;
+            if(wl<=0 || wl>=(int)sizeof path || lstat(path,&ds)!=0 || (S_ISDIR(ds.st_mode) && dir_has_rows(path))) g_prune_blocked = 1;
             continue;
         }
         int w = snprintf(path,sizeof path,"%s/%s",dir,e->d_name);
