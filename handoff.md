@@ -7,6 +7,8 @@ Read this first, then `todo.md` (the live list). Older release-by-release notes 
   nothing playing; Bluetooth resume guard (main.c ui_resume_guard_*), per-device codec downgrade (cfg btcx_<mac>),
   scan off before connect, bt_last reconnect, worker-thread connection check. Queue tested on the Disc; Bluetooth
   partly, AAC/LDAC untested (owner has SBC/aptX headphones). Issue #13 (stops at ~6 s, Bluetooth).
+  Multi-select (multipick.c, mp_host_t): Library songs/albums/artists + folder browser; swipe across a row starts it;
+  hint HINT_PICK; renderer: PICK=0,2[,more] with lib-<View> or FB_AZ=1 + preview-np.
 - 2.5.5 (2026-10-19): experimental Thai/Vietnamese/Korean fonts (ui/tools/gen_intl_fonts.py, sources in
   ui/fonts/intl), artcache MIN_FREE_BYTES 500 MB, Battery caption hold = restart totals (cfg batt_manual).
   Released WITHOUT a device test on the owner's decision; payload/mq_ui sha256 68c6b006...

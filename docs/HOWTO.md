@@ -185,6 +185,10 @@ leave Immersive by swiping from the left edge (tapping the cover no longer close
 
 **Make the back swipe easier or harder.** Settings > Display > Navigation > Gestures > Back-swipe distance (how far you have to swipe).
 
+**Pick several songs, albums, artists or folders.** Swipe sideways across one (start a little in from the edge) to
+start picking; tap others to tick them. Then Play, Queue, or More: Shuffle, Add to playlist, Add to Favourites,
+Select all. Back ends picking.
+
 **Jump through a long list by letter.** Tap the letter on the list's scroll marker for the A-Z picker. Prefer turning
 a wheel? Settings > Playback > Library seeking > Letter wheel: hold the letter, move round the screen, tap the centre
 (or wait a second) to jump.

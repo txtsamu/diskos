@@ -8,6 +8,8 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [2.5.6] - 2026-10-19
 
+- New: pick several songs, albums, artists or folders (swipe across a row); Play, Queue, Shuffle, Add to playlist,
+  Add to Favourites. First-use tip and a How-to line.
 - Queue: queued songs play again when it's their turn (regression since 2.5.1); with nothing playing, Play/Next
   start the queue (shuffled in Shuffle mode).
 - Bluetooth: songs no longer stop seconds after a playlist starts (#13, resume guard); headphones that can't hold

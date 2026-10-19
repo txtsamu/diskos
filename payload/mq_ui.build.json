@@ -1,17 +1,17 @@
 {
   "version": "2.5.6",
-  "revision": "Queue fixes (busy database, starting with nothing playing); Bluetooth resume guard, codec fallback, connect/reconnect fixes; Squash list rows no longer lit at the edges while scrolling",
+  "revision": "Pick several songs/albums/artists/folders; queue fixes (busy database, starting with nothing playing); Bluetooth resume guard, codec fallback, connect/reconnect fixes; Squash list rows",
   "baseline": "v2.5.5",
-  "source_commit": "f2fd7868606f0a7c44252a1a23ebb914fc47452e",
-  "ui_source_sha256": "303d704e05f123910da435a85adc692930bca424be3dddd04595b75160dab075",
+  "source_commit": "0733e0eec26db44f19dc922a5c5496adb41fafdf",
+  "ui_source_sha256": "4b691fdfe53bfcf6ba518d3763051f346bd070245d5b06e075d72c2545fd34e1",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Queue fixes tested on the owner's Disc. Bluetooth changes built and unit-tested only: AAC/LDAC not tested on a Disc (owner has SBC/aptX headphones).",
+  "status": "Queue fixes tested on the owner's Disc. Multi-select checked with host renders only. Bluetooth built and unit-tested only: AAC/LDAC not tested on a Disc (owner has SBC/aptX headphones).",
   "binary": {
-    "bytes": 6122332,
-    "sha256": "9e0fd0cdc996c0b90c172d9a54e6935336f9926c5de375bad5e2eaeca585b4ac",
-    "md5": "171bb6d0d5ba148d4db500f0b6b49968"
+    "bytes": 6133940,
+    "sha256": "c31aac0d4ce5594422e283747d56122971dcaf51545ad66cf6c95adae994734d",
+    "md5": "90178668475a8051e6947d8916e5b79e"
   },
   "artwork_helper": {
     "bytes": 119424,

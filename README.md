@@ -39,7 +39,7 @@
 
 ## New in 2.5.6
 
-**The queue works again**, and can now start on its own when nothing is playing. **Bluetooth** is steadier: no more
+**Pick several songs at once**: swipe across songs, albums, artists or folders, then play, queue or add them to a playlist. **The queue works again**, and can now start on its own when nothing is playing. **Bluetooth** is steadier: no more
 songs stopping a few seconds into a playlist, codec fallback and automatic reconnect. Bluetooth AAC/LDAC is not
 tested yet; reports welcome. 2.5.5 added experimental Thai, Vietnamese and Korean. [See what’s new](docs/releases/v2.5.6.md).
 
