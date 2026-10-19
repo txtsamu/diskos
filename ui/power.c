@@ -202,7 +202,9 @@ static void idle_takeover(void){
     if(!g_take_gen_set || gen != g_take_gen){ g_take_gen = gen; g_take_gen_set = 1; power_takeover_reset(&g_take); g_take_ok = 0; }
     if(g_take_ok) return;
     int sps = cfg_get_int("stock_power_save", 0), was = sps;
-    int r = power_takeover_step(&g_take, take_read, ipc_send_cmd, &sps);
+    /* background sync retried by power_tick: send silently, or a boot that beats the player's /player queue toasts
+     * "Player didn't respond" for a command the user never gave */
+    int r = power_takeover_step(&g_take, take_read, ipc_send_probe, &sps);
     if(sps != was) cfg_set_int("stock_power_save", sps);
     if(r == 1) g_take_ok = 1;
 }
