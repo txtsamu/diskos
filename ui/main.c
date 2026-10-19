@@ -549,6 +549,7 @@ int ui_local_playback_allowed(void);
 int ui_route_bt(const char *mac){
     if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
     if(!ui_local_playback_allowed()) return -1;
+    if(ui_get_source_mode() != 0) return -1;            /* BT routing re-sends 0657 8: in USB DAC / BT-receive it would drop the player out of that work-mode */
     if(!mac) return -1;
     char norm[20]; route_uppercase(mac, norm, sizeof norm);
     if((int)strlen(norm) != 17) return -1;             /* must be AA:BB:CC:DD:EE:FF */
