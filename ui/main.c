@@ -1340,6 +1340,18 @@ static int startup_route_reconcile(void){
     g_startup_route_checked = 1;
     return 1;   /* route_analog logs the single recovery line */
 }
+/* Resume Playback (0684 Position/Song) restores the last song at boot, but the player also starts PLAYING it
+ * ("[MEMORY]: mount stable, begin memory play"). Keep the restored song and position, paused: once in the first
+ * 60 s of the UI, if it is playing and the user has not driven the transport yet (ipc_transport_seq still 0:
+ * no play/seek/pause sent this run), toggle it to pause. */
+static void boot_autoplay_pause_cb(lv_timer_t *t){
+    static uint32_t t0;
+    if(!t0) t0 = lv_tick_get() ? lv_tick_get() : 1;
+    if(ipc_transport_seq() != 0 || lv_tick_elaps(t0) > 60000){ lv_timer_del(t); return; }
+    if(modes_output_busy() || !ui_is_playing()) return;
+    if(ipc_send_cmd("0201000C0000") == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
+    lv_timer_del(t);
+}
 static void localplayer_workmode_cb(lv_timer_t *t){
     /* These commands drive the player and its USB/card ownership, so they need the same admission as any
      * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
@@ -3345,6 +3357,7 @@ int main(int argc, char **argv){
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
+    lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
      * always spawn - it just sleeps while disabled or while the player is warm. */
