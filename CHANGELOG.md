@@ -6,6 +6,17 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.5.6] - 2026-10-19
+
+- Queue: queued songs play again when it's their turn (regression since 2.5.1); with nothing playing, Play/Next
+  start the queue (shuffled in Shuffle mode).
+- Bluetooth: songs no longer stop seconds after a playlist starts (#13, resume guard); headphones that can't hold
+  LDAC/AAC fall back and are remembered; stop searching before connecting, no re-pairing, reconnect the last
+  headphones, no stutter while connecting. Bluetooth not fully tested on a Disc; AAC/LDAC not at all.
+- Docs and Windows app: switching between diskOS builds, start from stock V2.57, unsupported Windows notes.
+
+[2.5.6 release notes](docs/releases/v2.5.6.md)
+
 ## [2.5.5] - 2026-10-19
 
 - Experimental: Thai (tone marks placed above vowels), Vietnamese and Korean (2,350 syllables) in titles, artists,

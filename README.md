@@ -37,10 +37,11 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.5
+## New in 2.5.6
 
-**Experimental Thai, Vietnamese and Korean** in song titles, artists, albums and lyrics, covers on fuller SD cards
-and a hold-to-restart for the battery totals. *Not tested on a Disc yet.* [See what’s new](docs/releases/v2.5.5.md).
+**The queue works again**, and can now start on its own when nothing is playing. **Bluetooth** is steadier: no more
+songs stopping a few seconds into a playlist, codec fallback and automatic reconnect. Bluetooth AAC/LDAC is not
+tested yet; reports welcome. 2.5.5 added experimental Thai, Vietnamese and Korean. [See what’s new](docs/releases/v2.5.6.md).
 
 ## Big. Bold. Squash.
 

@@ -1,8 +1,12 @@
-# diskOS Disco handoff - 2.5.5 (current state, updated 2026-10-19)
+# diskOS Disco handoff - 2.5.6 (current state, updated 2026-10-19)
 
 Read this first, then `todo.md` (the live list). Older release-by-release notes follow below as history.
 
 ## Where things are
+- 2.5.6 (2026-10-19): queue lookups wait 1.5 s for the player's DB write (2.5.1 regression), fresh queue start with
+  nothing playing; Bluetooth resume guard (main.c ui_resume_guard_*), per-device codec downgrade (cfg btcx_<mac>),
+  scan off before connect, bt_last reconnect, worker-thread connection check. Queue tested on the Disc; Bluetooth
+  partly, AAC/LDAC untested (owner has SBC/aptX headphones). Issue #13 (stops at ~6 s, Bluetooth).
 - 2.5.5 (2026-10-19): experimental Thai/Vietnamese/Korean fonts (ui/tools/gen_intl_fonts.py, sources in
   ui/fonts/intl), artcache MIN_FREE_BYTES 500 MB, Battery caption hold = restart totals (cfg batt_manual).
   Released WITHOUT a device test on the owner's decision; payload/mq_ui sha256 68c6b006...

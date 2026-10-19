@@ -1,6 +1,6 @@
 # diskOS Disco! - to do
 
-Live list. Baseline: 2.5.5 (tag v2.5.5). Older notes: `todo-history.md`.
+Live list. Baseline: 2.5.6 (tag v2.5.6). Older notes: `todo-history.md`.
 How we work: owner suggests -> Claude offers fixes -> host renders for big visual changes -> owner's go ->
 batch -> one test build -> 2-3 days on the Disc -> one release, one bundle, owner pushes + tags.
 List words: "add to the list" pins an item; "major" / "minor" sorts it; "priority" puts it first.
@@ -8,6 +8,12 @@ Links always point to releases/latest. No upstream diskOS version shown to users
 
 ## Priority
 (none)
+
+## Major
+(none)
+
+## Waiting on users
+- 2.5.6 Bluetooth: AAC/LDAC never tested on a Disc; issue #13 reporter to confirm the fix.
 
 ## Major
 (none)
