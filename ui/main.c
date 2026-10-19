@@ -802,6 +802,7 @@ int ui_set_source_mode(int mode){
     if(mode == 0 && was_playing) ipc_send_cmd("0201000C0000");
     return 0;
 }
+void settings_restart_now(void);   /* settings.c */
 static void storage_resume_local(void){
     if(unlink(SD_EXPORT_MARKER) != 0 && errno != ENOENT){ storage_unknown("cannot clear handoff state"); return; }
     if(!sd_io_resume()){ storage_unknown("local mount changed during return"); return; }
@@ -809,6 +810,11 @@ static void storage_resume_local(void){
     g_sd_reissue = 0;
     albumwall_prewarm_seed();
     fprintf(stderr, "storage: local mount confirmed; SD readers and artwork cache resumed\n"); fflush(stderr);
+    /* mq_player V2.57 keeps its music thread alive (only paused) across the export, holding a file on the card
+     * that was unmounted under it; the next play's stop_music_theard (0x465230) then pthread_joins it forever on
+     * the main thread and the /player queue fills ("Player didn't respond"). A fresh player is the reliable cure. */
+    ui_toast("Restarting to reload the card...");
+    settings_restart_now();
 }
 static void storage_tick(lv_timer_t *t){
     (void)t;
@@ -3270,6 +3276,10 @@ int main(int argc, char **argv){
     if(boot_br == 0 && !startup_deferred && !fw_power_key_driveable())
         (void)ui_backlight_take_foreign(NULL, NULL);   /* discard only the zero our boot restore overwrote */
     wifi_init_intent();         /* seed wifi_on intent from stock WIFI_STATUS (first run only) */
+    /* Radios start OFF every boot: Quick Settings turns them on for this session only. Set before
+     * bt_boot_restore() and the Wi-Fi reconcile read the intents. */
+    cfg_set_int("wifi_on", 0);
+    cfg_set_int("bt_on", 0);
     fprintf(stderr,"step:screens_init\n");fflush(stderr); screens_init();
     home_set_settings_click_cb(go_settings);
     library_set_song_click_cb(on_song_play);   /* tap a song -> play it */
