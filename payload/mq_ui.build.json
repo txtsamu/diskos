@@ -1,17 +1,17 @@
 {
-  "version": "2.5.6",
-  "revision": "Pick several songs/albums/artists/folders; queue fixes; Bluetooth resume guard (route-bound), connect/reconnect fixes; code-review fixes; Squash list rows",
-  "baseline": "v2.5.5",
-  "source_commit": "6bbc6cf56b17bdbd794dde64fe9ae9cd54b8ee05",
-  "ui_source_sha256": "53c68aaeb6af28f634a14a3de0e5df930ddc1fe8b559178e0d6cf455c2f4d77f",
+  "version": "2.5.7",
+  "revision": "Code-review fixes (exact-ID multi-select, queue atomicity, truthful Favourites, Files Select all); Bluetooth resume guard bound to route/track/session without codec blacklist",
+  "baseline": "v2.5.6",
+  "source_commit": "227d4ae869230431d391d026719820f8bb2574a9",
+  "ui_source_sha256": "78460daac6fe6b9fc0979ec53ddb119e9d4b8f98446b4e2f72173ff215e6ff0f",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Queue fixes tested on the owner's Disc (before the review fixes). Multi-select and review fixes checked with host renders and unit tests only. Bluetooth built and unit-tested only: AAC/LDAC not tested on a Disc.",
+  "status": "Checked with unit tests and host renders. Not yet tested on a Disc; Bluetooth AAC/LDAC never tested on a Disc.",
   "binary": {
     "bytes": 6138052,
-    "sha256": "03185d06ed788b4931dd382a2fcd4a5a81c5ac8dcbadc86038b04ee1506823e9",
-    "md5": "26fd20299ff7c1ff5c17db0836009018"
+    "sha256": "b3003b1722d4298529d64968932f16ed46a32e846862ce5a5fe481509362057c",
+    "md5": "05d976e81f2232422b14c17f6299b690"
   },
   "artwork_helper": {
     "bytes": 119424,
