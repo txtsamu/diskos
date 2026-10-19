@@ -47,9 +47,6 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
  * sink, 0x47c040), so diskOS re-checks it right before the frames and refuses instead.
  * If a send fails after the route moved, the internal sequence is retried until it fully lands on a live player
  * connection (recovery-pending: every play/route/source command is refused meanwhile). */
-#ifndef OUT_PCM_GLOB
-#define OUT_PCM_GLOB "/proc/asound/card*/pcm*p/sub*/status"
-#endif
 #ifndef OUT_USB_CARD
 #define OUT_USB_CARD "/proc/asound/card1"   /* the USB DAC card; its usbid node exists for USB audio cards only (UNVERIFIED on this kernel) */
 #endif
@@ -96,20 +93,6 @@ int modes_local_init(int with_gadget){
     if(r == OUT_USB && ipc_send_cmd(OUT_SEQ[r].gadget) < 0) rc = -1;
     if(ipc_send_cmd(OUT_WORKMODE) < 0) rc = -1;
     return rc;
-}
-/* 1 only when every playback PCM node is readable and none is RUNNING or DRAINING; unreadable / no nodes = not proven */
-static int out_pcm_quiet(void){
-    glob_t g; int quiet = 1;
-    if(glob(OUT_PCM_GLOB, 0, NULL, &g) != 0) return 0;
-    for(size_t i = 0; i < g.gl_pathc && quiet; i++){
-        FILE *f = fopen(g.gl_pathv[i], "r"); char l[96] = "";
-        if(!f){ quiet = 0; break; }
-        if(!fgets(l, sizeof l, f)) l[0] = 0;
-        fclose(f);
-        if(!l[0] || strstr(l, "RUNNING") || strstr(l, "DRAINING")) quiet = 0;
-    }
-    globfree(&g);
-    return quiet;
 }
 static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
@@ -214,7 +197,10 @@ static void osw_tick(lv_timer_t *t){
     if(ipc_generation() != g_osw.gen){ osw_stop("Player restarted - try again", 0); return; }
     if(strcmp(st.path, g_osw.path) != 0){ osw_stop("Track changed - try again", 0); return; }
     if(lv_tick_elaps(g_osw.t0) >= OUT_WAIT_MS){ osw_stop("Player is busy - try again", 0); return; }   /* deadline first: a late tick never routes, even with the hold complete */
-    if(ui_is_playing() || !out_pcm_quiet()) g_osw.quiet0 = 0;
+    /* "Quiet" = the track position has stopped advancing. V2.57 keeps the I2S PCM RUNNING (writing silence) while
+     * paused, so a closed-PCM requirement refused every switch after the first play since boot. ui_route_bt()
+     * already sends 0666 straight after a pause on this firmware. */
+    if(ui_is_playing()) g_osw.quiet0 = 0;
     else if(!g_osw.quiet0) g_osw.quiet0 = lv_tick_get() ? lv_tick_get() : 1;
     if(!g_osw.quiet0 || lv_tick_elaps(g_osw.quiet0) < OUT_QUIET_MS){
         return;
@@ -230,7 +216,6 @@ static int out_switch(int target, int via_mode){
     const char *why = ui_output_blocked();
     if(why){ out_set_state(modes_output_route()); ui_toast(why); return -1; }
     int was_playing = ui_is_playing();
-    if(!was_playing && !out_pcm_quiet()){ out_set_state(modes_output_route()); ui_toast("Player is busy - try again"); return -1; }   /* PCM live but not "playing": a pause toggle would START it */
     track_state_t st; ipc_get_state(&st);
     memset(&g_osw, 0, sizeof g_osw);
     g_osw.target = target; g_osw.was_playing = was_playing;

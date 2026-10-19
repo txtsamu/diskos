@@ -3277,9 +3277,14 @@ int main(int argc, char **argv){
         (void)ui_backlight_take_foreign(NULL, NULL);   /* discard only the zero our boot restore overwrote */
     wifi_init_intent();         /* seed wifi_on intent from stock WIFI_STATUS (first run only) */
     /* Radios start OFF every boot: Quick Settings turns them on for this session only. Set before
-     * bt_boot_restore() and the Wi-Fi reconcile read the intents. */
-    cfg_set_int("wifi_on", 0);
-    cfg_set_int("bt_on", 0);
+     * bt_boot_restore() and the Wi-Fi reconcile read the intents. Once per boot (marker on tmpfs), so a UI
+     * restart - e.g. a hot-reload over SSH - keeps the radios the user turned on. */
+    if(access("/tmp/.diskos_radios_reset", F_OK) != 0){
+        cfg_set_int("wifi_on", 0);
+        cfg_set_int("bt_on", 0);
+        int fd = open("/tmp/.diskos_radios_reset", O_WRONLY | O_CREAT, 0600);
+        if(fd >= 0) close(fd);
+    }
     fprintf(stderr,"step:screens_init\n");fflush(stderr); screens_init();
     home_set_settings_click_cb(go_settings);
     library_set_song_click_cb(on_song_play);   /* tap a song -> play it */
