@@ -1,6 +1,6 @@
 # diskOS Disco! - to do
 
-Live list. Baseline: 2.5.6 (tag v2.5.6). Older notes: `todo-history.md`.
+Live list. Baseline: 2.5.7 (tag v2.5.7). Older notes: `todo-history.md`.
 How we work: owner suggests -> Claude offers fixes -> host renders for big visual changes -> owner's go ->
 batch -> one test build -> 2-3 days on the Disc -> one release, one bundle, owner pushes + tags.
 List words: "add to the list" pins an item; "major" / "minor" sorts it; "priority" puts it first.

@@ -37,11 +37,11 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.6
+## New in 2.5.7
 
-**Pick several songs at once**: swipe across songs, albums, artists or folders, then play, queue or add them to a playlist. **The queue works again**, and can now start on its own when nothing is playing. **Bluetooth** is steadier: no more
-songs stopping a few seconds into a playlist, codec fallback and automatic reconnect. Bluetooth AAC/LDAC is not
-tested yet; reports welcome. 2.5.5 added experimental Thai, Vietnamese and Korean. [See what’s new](docs/releases/v2.5.6.md).
+**Fixes from a code review**: picking several items now always uses the exact songs, Add to Favourites reports
+truthfully, and the queue keeps its songs if a start fails. **Bluetooth** recovery is safer, and the Windows installer
+always installs the latest release. 2.5.6 added picking several songs at once. [See what’s new](docs/releases/v2.5.7.md).
 
 ## Big. Bold. Squash.
 
