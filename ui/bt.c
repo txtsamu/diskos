@@ -1043,7 +1043,8 @@ static uint32_t    g_bootoff_start;
 static void bootoff_poll_cb(lv_timer_t *t){
     (void)t;
     static uint32_t last_off;   /* bt_disable() is a background teardown: give it time before trying again */
-    int done = cfg_get_int("bt_on", 0) == 1 || lv_tick_elaps(g_bootoff_start) > 30000;
+    /* also stand down when Bluetooth Receiving is the remembered Working Mode: its boot restore needs the radio */
+    int done = cfg_get_int("bt_on", 0) == 1 || cfg_get_int("src_mode", 0) == 2 || lv_tick_elaps(g_bootoff_start) > 30000;
     if(!done && bt_radio_on() && (!last_off || lv_tick_elaps(last_off) >= 6000)){
         fprintf(stderr, "bt: radio came up with intent off at boot - powering it down\n"); fflush(stderr);
         last_off = lv_tick_get() ? lv_tick_get() : 1;

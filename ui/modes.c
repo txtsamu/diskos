@@ -159,17 +159,28 @@ static void usbgone_tick(lv_timer_t *t){
         ui_toast("USB DAC disconnected - internal DAC");
     }
 }
-/* USB Audio survives a restart: "usb_audio_on" is set once a DAC is confirmed connected and cleared only when an
- * output switch away from USB completes (a user choice or the unplug fallback). A boot restore that finds no DAC
- * falls back via the usbw timeout, which keeps the preference for the next boot. */
+/* The last picked Working Mode survives a restart. "src_mode" (main.c ui_set_source_mode: 0 Local, 1 USB DAC,
+ * 2 BT Receiving; USB Storage is never saved) and "usb_audio_on" (set once a USB DAC is confirmed connected,
+ * cleared when a switch away from USB completes - a user choice or the unplug fallback) are replayed ~15 s after
+ * boot, past the player's settle. A USB Audio restore that finds no DAC falls back via the usbw timeout and keeps
+ * the preference for the next boot. */
 #define OUT_USB_PREF "usb_audio_on"
 static lv_timer_t *g_bootusb_tm; static uint32_t g_bootusb_t0;
 static void bootusb_end(void){ if(g_bootusb_tm){ lv_timer_del(g_bootusb_tm); g_bootusb_tm = NULL; } }
 static void bootusb_tick(lv_timer_t *t){
     (void)t;
-    if(cfg_get_int(OUT_USB_PREF, 0) != 1 || lv_tick_elaps(g_bootusb_t0) > 120000){ bootusb_end(); return; }
+    int src = cfg_get_int("src_mode", 0), usb = cfg_get_int(OUT_USB_PREF, 0) == 1;
+    if((src != 1 && src != 2 && !usb) || lv_tick_elaps(g_bootusb_t0) > 120000){ bootusb_end(); return; }
     if(lv_tick_elaps(g_bootusb_t0) < 15000) return;   /* past the player's ~9 s settle and the boot local-init */
-    if(ui_get_source_mode() != 0 || modes_output_route() == OUT_USB){ bootusb_end(); return; }
+    if(ui_get_source_mode() != 0){ bootusb_end(); return; }   /* already left Local (the user, or a restore) */
+    if(src == 1 || src == 2){
+        if(modes_output_busy()) return;
+        bootusb_end();
+        if(ui_set_source_mode(src) == 0) ui_toast(src == 1 ? "Restoring USB DAC mode..." : "Restoring Bluetooth Receiving...");
+        modes_ui_refresh();
+        return;
+    }
+    if(modes_output_route() == OUT_USB){ bootusb_end(); return; }
     if(modes_output_busy() || ui_output_blocked()) return;
     bootusb_end();
     if(out_switch(OUT_USB, 1) == 0) ui_toast("Restoring USB Audio...");
