@@ -389,14 +389,15 @@ static void theme_fonts_install(void){
             if(choice==0)face=original[i];else if(choice==1)face=inter[i];
         }
         if(th_null() && cfg_get_int("null_music_fonts",0)==3){
-            extern const lv_font_t null_dot_31,null_dot_36,null_vt323_18,null_vt323_21,null_vt323_24,null_vt323_27;
+            extern const lv_font_t null_dot_31,null_dot_36,null_vt323_18,null_vt323_21,null_vt323_24,null_vt323_27,null_vt323_30,null_vt323_33;
             if(r==THEME_FONT_HEADER || r==THEME_FONT_CLOCK)face=&null_dot_31;
             else if(r==THEME_FONT_HEADER_SM)face=&null_dot_31;
             else if(px>=28)face=&null_dot_36;
             else if(px>=22)face=&null_dot_31;
-            else if(px>=18)face=&null_vt323_27;
-            else if(px>=16)face=&null_vt323_24;
-            else if(px>=14)face=&null_vt323_21;
+            else if(px>=20)face=&null_vt323_33;
+            else if(px>=18)face=&null_vt323_30;
+            else if(px>=16)face=&null_vt323_27;
+            else if(px>=14)face=&null_vt323_24;
             else face=&null_vt323_18;
         }
         g_tf[r] = *face;

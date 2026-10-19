@@ -35,7 +35,7 @@ def write(name,data,ds,line,base,bpp):
     out.extend([f'static const uint8_t {name}_bits[]={{'+','.join(map(str,data))+'};',f'static const lv_font_fmt_txt_glyph_dsc_t {name}_glyphs[]={{'+','.join(ds)+'};',f'static const lv_font_fmt_txt_cmap_t {name}_map[]={{{{.range_start=32,.range_length=95,.glyph_id_start=1,.type=LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY}}}};',f'static const lv_font_fmt_txt_dsc_t {name}_dsc={{.glyph_bitmap={name}_bits,.glyph_dsc={name}_glyphs,.cmaps={name}_map,.cmap_num=1,.bpp={bpp}}};',f'const lv_font_t {name}={{.get_glyph_dsc=lv_font_get_glyph_dsc_fmt_txt,.get_glyph_bitmap=lv_font_get_bitmap_fmt_txt,.line_height={line},.base_line={base},.dsc=&{name}_dsc}};'])
 # Read the original 5x7 alphabet without executing generate.py's output side effect.
 ns={'__file__':str(u/'fonts/null/generate.py')};s=(u/'fonts/null/generate.py').read_text().split('from PIL import')[0];exec(s,ns)
-for size in (16,24):
+for size in (16,18,24):
     w=round(size*5/7);adv=w+round(size/7);data=[];ds=['{0}']
     for code in range(32,127):
         pat=ns['patterns'].get(chr(code).upper())
@@ -48,6 +48,7 @@ for size in (16,24):
     write(f'null_pixel_{size}',data,ds,size+2,0,1)
 emit('font_dot_28.c','null_dot_31',31/28)
 emit('font_dot_28.c','null_dot_36',36/28)
+emit('font_dot_28.c','null_dot_40',40/28)
 emit('font_mono_24.c','null_mono_27',27/24)
 emit('font_weather16.c','null_weather_32',2)
 for i,line in enumerate(out):

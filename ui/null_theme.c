@@ -29,6 +29,8 @@ void disco_catalog_open(int);
 void quicksettings_null_action(int id, int hold);
 extern const lv_font_t null_pixel_14;
 static lv_font_t pixel14;
+extern const lv_font_t null_pixel_18, null_pixel_28, null_dot_40, null_jersey_46, null_pixelify_24, null_handjet_42, null_vt323_30;
+extern const lv_font_t null_fine_20;
 extern const lv_font_t null_pixel_16, null_pixel_24, null_dot_31, null_mono_27;
 extern const lv_font_t null_fine_16, null_fine_18, diskos_mono_16, diskos_mono_18;
 extern const lv_font_t null_jersey_42, null_pixelify_22, null_pixelify_20;
@@ -321,8 +323,8 @@ static void layout_music(void)
     /* Split at the artist / album boundary, keeping both halves clear of the 90px
      * menu band. */
     int lift = nav_value * 46 / 1000, drop = nav_value * 51 / 1000;
-    lv_obj_set_y(title, 116 - lift);
-    lv_obj_set_y(artist, 154 - lift);
+    lv_obj_set_y(title, 108 - lift);
+    lv_obj_set_y(artist, 150 - lift);
     lv_obj_set_y(album, 180 + drop);
     lv_obj_set_y(seek, 204 + drop);
     lv_obj_set_y(playhead, 216 + drop);
@@ -460,10 +462,10 @@ static void font_setup(void)
     pixel14 = null_pixel_14;
     pixel14.fallback = ui_font_cjk(14);
     const lv_font_t *sets[4][5]={
-        {&null_pixel_24,&null_pixel_16,&null_fine_18,&null_fine_16,&null_pixel_24},
-        {&null_jersey_42,&null_pixelify_22,&null_pixelify_20,&null_pixelify_20,&null_jersey_42},
-        {&null_handjet_38,&null_vt323_27,&null_vt323_24,&null_vt323_24,&null_handjet_38},
-        {&null_dot_36,&null_vt323_27,&null_vt323_24,&null_vt323_21,&null_dot_36}
+        {&null_pixel_28,&null_pixel_18,&null_fine_20,&null_fine_18,&null_pixel_28},
+        {&null_jersey_46,&null_pixelify_24,&null_pixelify_22,&null_pixelify_22,&null_jersey_46},
+        {&null_handjet_42,&null_vt323_30,&null_vt323_27,&null_vt323_27,&null_handjet_42},
+        {&null_dot_40,&null_vt323_30,&null_vt323_27,&null_vt323_24,&null_dot_40}
     };
     for(int i=0;i<4;i++)for(int j=0;j<5;j++){
         music_fonts[i][j]=*sets[i][j];music_fonts[i][j].fallback=ui_font_cjk(j==0 || j==4?20:16);
@@ -1279,6 +1281,8 @@ static void null_style(lv_obj_t *o, kit_role_t role)
             lv_obj_set_style_text_color(o,TC(TEXT_PRIMARY),0);
         if (!glyph && s && s[0] && role != KIT_TITLE) {
             const lv_font_t *cur = lv_obj_get_style_text_font(o, 0);
+            static const theme_font_role_t roles[]={THEME_FONT_UI_12,THEME_FONT_UI_14,THEME_FONT_UI_16,THEME_FONT_UI_18,THEME_FONT_UI_20,THEME_FONT_USER_14,THEME_FONT_USER_16,THEME_FONT_USER_18,THEME_FONT_USER_20};
+            for(size_t i=0;i<sizeof roles/sizeof roles[0];i++)if(cur==theme_font(roles[i]))return;
             int h = lv_font_get_line_height(cur);
             const lv_font_t *f = h >= 28   ? TF(UI_28)
                                  : h >= 24 ? TF(UI_20)

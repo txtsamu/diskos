@@ -55,7 +55,7 @@ void roulette_create(lv_obj_t *root){
     lv_obj_remove_flag(hole, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     text(root, "Album Roulette", 181, 272, TF(UI_22), TC(TEXT_PRIMARY));
     text(root, "Let chance choose.", 215, 260, TF(UI_16), TC(ACCENT_PRIMARY));
-    text(root, "Spin your collection and\nrediscover a favourite.", 243, 258, TF(UI_16), TC(TEXT_SECONDARY));
+    text(root, "Rediscover an album.", 243, 258, TF(UI_16), TC(TEXT_SECONDARY));
     lv_obj_t *button = lv_button_create(root); lv_obj_remove_style_all(button);
     lv_obj_set_size(button, 174, 42); lv_obj_align(button, LV_ALIGN_TOP_MID, 0, 296);
     lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);

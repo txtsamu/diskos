@@ -28,7 +28,7 @@ enum { VIEW_MENU, VIEW_SONGS, VIEW_ALBUMS, VIEW_ARTISTS, VIEW_PLAYLISTS, VIEW_FA
 #define CAT_FOLDERS 1000   /* menu sentinel: opens the folder browser (a screen, not a library view) */
 #define CAT_BOOKS   1001   /* menu sentinel: opens the Books (audiobook) screen */
 
-#define ROW_H 52                     /* 1.4.1: packed tighter, with larger text (see lib_font) */
+#define ROW_H (th_null()?60:52)                     /* 1.4.1: packed tighter, with larger text (see lib_font) */
 #define LIST_Y 70
 #define LIST_H 252
 
@@ -263,7 +263,7 @@ static lv_obj_t *base_row(void){
 }
 /* Library text by Settings > Display > Font Size: titles 18 / 20 / 22 px, second lines 16 / 18 / 20 (one step up from
  * 1.4.0 at every size). Montserrat -> Inter -> international -> CJK, like all user text. */
-static const lv_font_t *lib_font(int small_px){ return ui_font_cjk(small_px + 2 * theme_font_size()); }
+static const lv_font_t *lib_font(int small_px){ return th_null()?theme_font(small_px>=18?THEME_FONT_USER_20:THEME_FONT_USER_18):ui_font_cjk(small_px + 2 * theme_font_size()); }
 static void row_two(lv_obj_t *r, const char *top, const char *sub, const char *right){
     const lv_font_t *ft = lib_font(18), *fs = lib_font(16);
     int h1 = lv_font_get_line_height(ft), h2 = lv_font_get_line_height(fs), two = sub && sub[0];

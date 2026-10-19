@@ -1503,7 +1503,7 @@ static lv_obj_t *make_list(lv_obj_t *root){
 static lv_obj_t *setting_card(lv_obj_t *list){
     lv_obj_t *row = lv_button_create(list);
     lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, 288, TH_ROW_H);
+    lv_obj_set_size(row, 288, th_null()?64:TH_ROW_H);
     lv_obj_set_style_radius(row, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);   /* Disco: rounded line containers */
     lv_obj_set_style_bg_color(row, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_70, 0);
