@@ -13,6 +13,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 - Bluetooth: songs no longer stop seconds after a playlist starts (#13, resume guard); headphones that can't hold
   LDAC/AAC fall back and are remembered; stop searching before connecting, no re-pairing, reconnect the last
   headphones, no stutter while connecting. Bluetooth not fully tested on a Disc; AAC/LDAC not at all.
+- Squash: list rows at the curved edges no longer show as selected while scrolling.
 - Docs and Windows app: switching between diskOS builds, start from stock V2.57, unsupported Windows notes.
 
 [2.5.6 release notes](docs/releases/v2.5.6.md)

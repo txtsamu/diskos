@@ -1,17 +1,17 @@
 {
   "version": "2.5.6",
-  "revision": "Queue fixes (busy database, starting with nothing playing); Bluetooth resume guard, codec fallback, connect/reconnect fixes",
+  "revision": "Queue fixes (busy database, starting with nothing playing); Bluetooth resume guard, codec fallback, connect/reconnect fixes; Squash list rows no longer lit at the edges while scrolling",
   "baseline": "v2.5.5",
-  "source_commit": "43b9aa9cbd514316a596e4b43c63b36dedd800ed",
-  "ui_source_sha256": "809cb7d1f8155eb751447f20154eb1660148f23e3a71b6f892659051e6af113d",
+  "source_commit": "f2fd7868606f0a7c44252a1a23ebb914fc47452e",
+  "ui_source_sha256": "303d704e05f123910da435a85adc692930bca424be3dddd04595b75160dab075",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
   "status": "Queue fixes tested on the owner's Disc. Bluetooth changes built and unit-tested only: AAC/LDAC not tested on a Disc (owner has SBC/aptX headphones).",
   "binary": {
-    "bytes": 6122316,
-    "sha256": "34f9c599f335ca18299a8a0db57fbce4fef25e91060345a8db458b2f64c7eb67",
-    "md5": "e7349a2764722fd82aea32d6393f1292"
+    "bytes": 6122332,
+    "sha256": "9e0fd0cdc996c0b90c172d9a54e6935336f9926c5de375bad5e2eaeca585b4ac",
+    "md5": "171bb6d0d5ba148d4db500f0b6b49968"
   },
   "artwork_helper": {
     "bytes": 119424,
