@@ -36,7 +36,7 @@ LV_FONT_DECLARE(font_icons_20)          /* FontAwesome 20px - EQ + Search glyphs
 
 /* ---- tile palette ---------------------------------------------------------------------------- */
 enum { QT_WIFI, QT_BT, QT_EQ, QT_SEARCH, QT_RESCAN, QT_MODE, QT_SCREENOFF,
-       QT_SHUFFLE, QT_FAV, QT_LYRICS, QT_TIMER, QT_GAPLESS, QT_GAIN, QT_DRE, QT_RG, QT_OUTDOOR, QT_THEME, QT_COUNT };
+       QT_SHUFFLE, QT_FAV, QT_LYRICS, QT_TIMER, QT_GAPLESS, QT_GAIN, QT_DRE, QT_RG, QT_OUTDOOR, QT_THEME, QT_DEBUG, QT_COUNT };
 
 typedef struct {
     const char       *cfg;      /* per-tile enable key */
@@ -66,6 +66,7 @@ static const qtile_t QTILES[QT_COUNT] = {
     [QT_RG]        = { "qs_t_rg",        "ReplayGain", LV_SYMBOL_VOLUME_MID,THEME_FONT_UI_20, 0, 0 },
     [QT_OUTDOOR]   = { "qs_t_outdoor",   "Outdoor",    WI_SUN,              THEME_FONT_ICON_20,         0, 1 },
     [QT_THEME]     = { "qs_t_theme",     "Theme",      WI_TINT,             THEME_FONT_ICON_20,         0, 1 },
+    [QT_DEBUG]     = { "qs_t_debug",     "Debug",      LV_SYMBOL_SETTINGS,  THEME_FONT_UI_20, 0, 0 },   /* opens Debug Mode; lit while its SSH runs */
 };
 
 static lv_obj_t *g_qs_root;
@@ -98,6 +99,7 @@ static int qtile_is_on(int id){
         case QT_GAIN:    return fw_gain_tag() && cfg_get_int("audio_gain", 0) == 1;   /* unmapped firmware: never lit */
         case QT_DRE:     return cfg_get_int("audio_dre", 1) == 1;
         case QT_OUTDOOR: return theme_outdoor();
+        case QT_DEBUG:   return debug_ssh_on();
         case QT_FAV:   { track_state_t st; ipc_get_state(&st); return st.path[0] && st.is_favorite; }
         default:         return 0;   /* action tiles (Search/Rescan/Source/Screen off/Lyrics/Timer/RG) never lit */
     }
@@ -161,6 +163,7 @@ static void tile_short_cb(lv_event_t *e){
         case QT_RESCAN:    ui_rescan_library(); break;
         case QT_MODE:      modes_open(); break;
         case QT_SCREENOFF: ui_request_sleep(); screen_show(SCR_SAVER); break;
+        case QT_DEBUG:     debug_open(); break;   /* the SSH password is shown there, so open it rather than toggle blind */
         case QT_SHUFFLE: {
             if(ui_book_active()){ ui_toast("Not available in books"); break; }   /* books stay in Single */
             int on = cfg_get_int("work_mode", 0) == 1 ? 0 : 1;                    /* Shuffle <-> Sequential */
