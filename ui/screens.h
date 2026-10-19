@@ -160,6 +160,8 @@ void ui_set_favorite(int on);   /* love/unlove the current song (0104) */
 /* add-to-playlist picker (npmenus.c) */
 void plpick_create(lv_obj_t *root);
 void plpick_set_song(const char *path, int pos_id, const char *title);   /* song to add when a playlist is tapped; pos_id (a2 pos_id, 0 = unknown) picks a CUE/ISO sub-track */
+int  library_picking(void);              /* several library items are being picked (multi-select) */
+void library_pick_demo(const char *csv);   /* renderer/tests: tick these item indices */
 void plpick_set_ids(const int *ids, int n);   /* instead: add exactly these SONG.IDs (a list as shown); then screen_show(SCR_PLPICK) */
 void plpick_set_group(const char *col, const char *val);   /* instead: add every song of an ALBUM/ARTIST/GENRE (col) equal to val; then screen_show(SCR_PLPICK) */
 /* playlist detail (playlistview.c) */
