@@ -444,6 +444,11 @@ static void restart_fail(const char *why){
     boot_modal_close();
     ui_toast(why);
 }
+/* Restart to Flash Mode is built only with -DDISKOS_SWB_FLASHMODE. Entering USB boot via SWB works (a108:eaef in 5 s),
+ * but the NAND writer (flash/my_write6.c base gate) then refuses with E320: Linux leaves the SPI-NAND unprotected,
+ * a SoC reset keeps it so, RESET (0xFF) does not restore BP bits on GD5F2GM7, and FiiO's kernel has no MTD lock ops.
+ * Next step (untested): let the writer accept an unlocked NAND only when the boot ROM was entered via SWB. */
+#ifdef DISKOS_SWB_FLASHMODE   /* SWB register write; see flash-mode note below */
 /* "Restart to Flash Mode": Ingenic X2000 boot-ROM software boot (SWB). Writing "SWB" + boot-mode byte 0x02 (USB)
  * to CPM_SLPC (0x100000cc) before a reboot makes the boot ROM come up in USB boot (a108:eaef) - the same state as
  * holding Vol-Down at power-on - so the installer can flash without the button. Ingenic's own X2000 vendor tree
@@ -464,6 +469,7 @@ static int swb_arm(void){
     munmap(map, 4096);
     return ok ? 0 : -1;
 }
+#endif
 static void restart_tick(lv_timer_t *t){
     (void)t;
     rst_reap_sweep();
@@ -483,7 +489,9 @@ static void restart_tick(lv_timer_t *t){
         g_rst_sync = 0;
         if(!WIFEXITED(st) || WEXITSTATUS(st) != 0){ restart_fail("Couldn't restart - card flush failed"); return; }
         stop_child(&g_rst_clock);   /* the RTC save had the whole wait; a still-running one is stuck */
+#ifdef DISKOS_SWB_FLASHMODE
         if(g_rst_flash && swb_arm() != 0){ g_rst_flash = 0; restart_fail("Couldn't set flash mode - not restarted"); return; }
+#endif
         reboot(RB_AUTOBOOT);        /* direct syscall: no shell, no PATH, no binary on disk */
         bounded_detached("reboot", 5000);   /* only reached if the syscall was refused */
         restart_fail("Couldn't restart - try again");
@@ -530,7 +538,9 @@ static void boot_modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_
     lv_obj_set_style_text_color(l, theme_color(col), 0);
     lv_obj_center(l);
 }
+#ifdef DISKOS_SWB_FLASHMODE
 static void apply_restart_flash(int v);   /* settings row below; defined after the table */
+#endif
 static const char *g_restart_note;   /* one-shot subtitle for the next restart modal (settings_restart_prompt) */
 static void apply_restart(int v){ (void)v;
     g_rst_flash = 0;   /* plain Restart (and settings_restart_prompt); apply_restart_flash re-arms after */
@@ -818,8 +828,10 @@ static const setting_t TABLE[] = {
       "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
     { "System",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
       "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
+#ifdef DISKOS_SWB_FLASHMODE
     { "System",   "Restart to Flash Mode", ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart_flash, 0,
       "Restart straight into flash (USB boot) mode for the installer, without holding Vol-Down. Nothing is erased.", NULL },
+#endif
     { "System",   "Device Info", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_about_open, 0,
       "Model, stock firmware, diskOS build, MAC addresses, storage and battery.", NULL },
     { "System",   "Update from SD Card", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_update_sd_open, 0,
@@ -873,11 +885,13 @@ static void read_about(char *buf, int n){
     snprintf(buf, n, "%s (%s)", DISKOS_VERSION, id);
 }
 void settings_diskos_id(char *buf, int n){ read_about(buf, n); }   /* system.c About */
+#ifdef DISKOS_SWB_FLASHMODE   /* Restart to Flash Mode row handler */
 static void apply_restart_flash(int v){
     g_restart_note = "Restarts into flash mode for the diskOS installer. The screen stays black; hold the power key to leave.";
     apply_restart(v);
     g_rst_flash = 1;
 }
+#endif
 void settings_restart_prompt(const char *note){ g_restart_note = note; apply_restart(0); }
 static void read_batt_temp(char *buf, int n){
     FILE *f = fopen("/sys/class/power_supply/cw221X-bat/temp", "r");
