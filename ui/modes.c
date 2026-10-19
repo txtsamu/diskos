@@ -159,6 +159,25 @@ static void usbgone_tick(lv_timer_t *t){
         ui_toast("USB DAC disconnected - internal DAC");
     }
 }
+/* USB Audio survives a restart: "usb_audio_on" is set once a DAC is confirmed connected and cleared only when an
+ * output switch away from USB completes (a user choice or the unplug fallback). A boot restore that finds no DAC
+ * falls back via the usbw timeout, which keeps the preference for the next boot. */
+#define OUT_USB_PREF "usb_audio_on"
+static lv_timer_t *g_bootusb_tm; static uint32_t g_bootusb_t0;
+static void bootusb_end(void){ if(g_bootusb_tm){ lv_timer_del(g_bootusb_tm); g_bootusb_tm = NULL; } }
+static void bootusb_tick(lv_timer_t *t){
+    (void)t;
+    if(cfg_get_int(OUT_USB_PREF, 0) != 1 || lv_tick_elaps(g_bootusb_t0) > 120000){ bootusb_end(); return; }
+    if(lv_tick_elaps(g_bootusb_t0) < 15000) return;   /* past the player's ~9 s settle and the boot local-init */
+    if(ui_get_source_mode() != 0 || modes_output_route() == OUT_USB){ bootusb_end(); return; }
+    if(modes_output_busy() || ui_output_blocked()) return;
+    bootusb_end();
+    if(out_switch(OUT_USB, 1) == 0) ui_toast("Restoring USB Audio...");
+}
+void modes_output_boot_restore(void){
+    g_bootusb_t0 = lv_tick_get();
+    if(!g_bootusb_tm) g_bootusb_tm = lv_timer_create(bootusb_tick, 1000, NULL);
+}
 static void usbgone_start(void){
     g_usbgone_miss = 0;
     if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL);
@@ -171,6 +190,7 @@ static void usbw_tick(lv_timer_t *t){
         if(!g_usbw.seen) g_usbw.seen = lv_tick_get() ? lv_tick_get() : 1;
         if(lv_tick_elaps(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
         usbw_end(); ui_toast("USB DAC connected"); out_resume(1); usbgone_start(); modes_ui_refresh();
+        cfg_set_int(OUT_USB_PREF, 1);
         return;
     }
     if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
@@ -195,7 +215,7 @@ static int out_run(void){
     int rc = out_seq_send(target, g_osw.full);
     if(rc == -1){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
     if(rc == 0 && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
-    if(rc == 0){ out_set_state(target); out_resume(1); modes_ui_refresh(); return 0; }
+    if(rc == 0){ out_set_state(target); out_resume(1); cfg_set_int(OUT_USB_PREF, 0); modes_ui_refresh(); return 0; }
     /* the route moved but the tail failed: back to the internal DAC; never end without 0657 8 landing */
     if(out_seq_send(OUT_INTERNAL, 1) == 0){
         out_set_state(OUT_INTERNAL);
