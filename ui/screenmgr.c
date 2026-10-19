@@ -294,6 +294,14 @@ void screen_back(void)
     s_current = prev;
     s_popping = 1; transition(from, prev, -1); s_popping = 0;
 }
+/* A back swipe here would do nothing: Home at the bottom of the history with nothing open on top of it (the Squash
+ * launcher and Disco's track overlay close on Back). The back-swipe arrow stays hidden then, in every theme. */
+int screen_back_leads_nowhere(void){
+    if(s_current != SCR_HOME || s_sp > 0) return 0;
+    if(th_simple() && simple_nav_is_open()) return 0;
+    if(disco_track_overlay_visible()) return 0;
+    return 1;
+}
 int screen_popping(void){ return s_popping; }   /* 1 inside screen_back's transition (Disco: Search keeps its results) */
 
 lv_obj_t *screen_get_root(int which)

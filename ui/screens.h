@@ -87,6 +87,7 @@ void screen_set_anim(int on);
 int  screen_get_anim(void);
 void screen_skip_anim_once(void);          /* the next screen change without the slide (the caller animates it) */
 int  screen_current(void);
+int  screen_back_leads_nowhere(void);   /* Home with nothing to go back to: no back-swipe arrow */
 void ui_toast(const char *msg);
 void splash_start(void);
 void splash_cover(void);         /* a plain cover in the splash colour until splash_start (main.c, before the first frame) */

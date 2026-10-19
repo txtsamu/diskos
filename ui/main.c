@@ -3465,6 +3465,7 @@ int main(int argc, char **argv){
                 lastx=p.x; lasty=p.y; g_press_lx=p.x; g_press_ly=p.y;
                 g_hint_late = lv_tick_elaps(sms) >= 700;   /* the bubble only fills while the swipe would still count */
                 if(!woke && !fsart_touch && BACK_EDGE(sx) && screen_current()!=SCR_NOWPLAYING && screen_current()!=SCR_SAVER && !sleep_touch && SIDE_DX(p.x - sx) > 0
+                   && !screen_back_leads_nowhere()                       /* no arrow where Back can't go anywhere */
                    && abs(p.x - sx) > 2 * abs(p.y - sy)) ui_back_hint(p.y, SIDE_DX(p.x - sx));   /* fork: back-swipe feedback */
                 else ui_back_hint(0, 0);
                 if(!woke && !fsart_touch && !sleep_touch && !seek_touch && screen_current()==SCR_HOME && SIDE_DX(p.x-sx)<0

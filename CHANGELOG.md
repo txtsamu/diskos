@@ -10,6 +10,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 - Bluetooth (#13): with LDAC/AAC, music waits for the codec switch before playing instead of stopping ~6 s in; no
   device search during Bluetooth playback (it caused short dropouts). Not yet tested on a Disc with LDAC/AAC.
+- No back-swipe arrow on Home, where Back leads nowhere (all themes).
 
 [2.5.8 release notes](docs/releases/v2.5.8.md)
 
