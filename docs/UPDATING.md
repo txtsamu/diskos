@@ -117,6 +117,7 @@ repeatedly before the trial is accepted.
 | Symptom | What to check |
 |---|---|
 | No update key installed | Reflash once with `--ota-key`; signing alone can't add trust. |
+| Looks or behaves wrong after switching from upstream diskOS | Settings > System > Maintenance > Reset diskOS Settings (music, Wi-Fi, Bluetooth, EQ and audio settings stay). Going back to stock doesn't clear diskOS's leftover files. |
 | Update folder not found | `diskos-update` at the card's top level, all six files present. |
 | Update refused / damaged | Verify on the computer, compare the root key hash (below), recopy the whole folder, check the epoch. |
 | Same or older epoch | Sign again a minute later with a correct clock and replace the whole folder. |

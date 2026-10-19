@@ -16,19 +16,22 @@ namespace DiskosDisco
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(600, 610);
+            ClientSize = new Size(600, 700);
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
 
             var body = new FlowLayoutPanel
             {
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true,
-                Location = new Point(36, 122), Size = new Size(536, 400), BackColor = Color.Transparent,
+                Location = new Point(36, 122), Size = new Size(536, 490), BackColor = Color.Transparent,
             };
             Controls.Add(body);
 
             Para(body, "diskOS Disco! replaces the interface of your FiiO Snowsky Disc with an unofficial one. Please read this first.", Theme.Text);
             Point(body, "Unofficial.", "A hobby project, not made, supported or endorsed by FiiO, Snowsky or Ingenic. Installing it may affect your warranty.");
+            Point(body, "Unsupported on Windows.", "This Windows app is shared as-is, without support. It worked for its author; it may or may not work for you.");
             Point(body, "Test software, as-is.", "It is a testing release, provided without any warranty. Something can always go wrong when a device is flashed, and you use it at your own risk.");
+            Point(body, "Start from stock V2.57.", "Install on FiiO's stock V2.57 firmware. Installing over upstream diskOS or another diskOS build is not supported and can be buggy.");
+            Point(body, "Switching between diskOS builds.", "Going back to stock does not clear settings that diskOS left on the Disc. If Disco looks or behaves wrong after switching, use Settings > System > Maintenance > Reset diskOS Settings (music, Wi-Fi, Bluetooth, EQ and audio settings stay).");
             Point(body, "Your firmware, your keys.", "You supply FiiO's official firmware file yourself. Your update keys stay on this PC: back them up, because the Disc only accepts updates signed with them.");
             Point(body, "There is a way back.", "A backup of your Disc's original system is saved before the install, and the stock interface stays one setting away. Keep the Disc charged and connected while flashing.");
             Point(body, "Changes to this PC.", "It uses Microsoft's WSL and the usbipd-win USB bridge, and sets up its own small Linux environment, which you can remove again from inside the app.");

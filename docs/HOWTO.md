@@ -234,6 +234,10 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 
 **Sleep timer.** Settings > System > Power > Sleep Timer; When Sleep Ends chooses pause or shut down.
 
+**Things look or behave wrong after switching from upstream diskOS.** Settings > System > Maintenance > Reset
+diskOS Settings gives the interface a fresh start; music, Wi-Fi, Bluetooth, EQ and audio settings stay. (Going back to
+stock in between doesn't clear what diskOS leaves on the Disc.)
+
 **When nothing is playing.** Music shows a CD and **Go to Library**; tap it to choose some music.
 
 ## Optional apps

@@ -13,6 +13,7 @@
 ## Using diskOS Disco!
 
 **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first.
+Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
 
 
 - [A tour of Disco!](DISCO_TOUR.md) - every screen, gesture and setting, with screenshots.

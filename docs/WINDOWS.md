@@ -6,6 +6,8 @@
 > diskOS or another diskOS build can be buggy. The Windows app is shared as-is:
 > it worked for the author, it may or may not work for you.
 
+> Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
+
 **Install diskOS Disco! on your Snowsky Disc from a Windows PC, by clicking through four pages.** No terminal, no
 Linux knowledge, no typing commands. The app checks your PC, sets everything up, flashes the Disc, and later puts new
 versions on your SD card, signed with your own keys.

@@ -50,7 +50,8 @@ namespace DiskosDisco
             fwButton = MainForm.MakeButton("Choose…", false);
             fwButton.Click += (s, e) => ChooseFirmware();
             fwLabel = Hint("FiiO's official update ZIP for firmware V2.57 (SNOWSKY_DISC_update_…_v257.zip). Your Disc's own " +
-                           "system is built from it; diskOS never shares or uploads it.");
+                           "system is built from it; diskOS never shares or uploads it. Start with the Disc on stock V2.57, " +
+                           "not another diskOS build.");
             root.Controls.Add(Section("1.  Firmware", fwLabel, fwButton), 0, 1);
 
             // 2. Keys
@@ -308,7 +309,9 @@ namespace DiskosDisco
                           "Firmware: " + Path.GetFileName(firmware) + "\n" +
                           "Update keys: " + (keysNew.Checked ? "new, in " + keys : keys) + "\n\n" +
                           "This takes about 20 minutes. Keep the Disc connected and this PC on until it says Done. " +
-                          "A backup of the Disc's original system is kept, so you can go back to stock later.";
+                          "A backup of the Disc's original system is kept, so you can go back to stock later.\n\n" +
+                          "Recommended: the Disc should be on FiiO's stock V2.57 firmware. Installing over upstream diskOS " +
+                          "or another diskOS build is not supported and can be buggy.";
             if (MessageBox.Show(this, what, Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
 
             busy = true; UpdateButtons();

@@ -225,6 +225,7 @@ about 30 quiet minutes.
 
 > [!IMPORTANT]
 > **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first ([how](#going-back)).
+> Coming from upstream diskOS? Going back to stock does not clear its settings; see [Known limits](#known-limits).
 > Already running diskOS Disco!? Then you don't need to reinstall: [update from the SD card](#updates-from-the-sd-card).
 
 ### From Windows
@@ -328,6 +329,7 @@ checkouts.
   The newest features of a release usually need some days of everyday use; please report what you find.
 - **Start from stock.** Install on FiiO's stock V2.57 firmware. Installing over upstream diskOS or another diskOS
   build is not supported and can be buggy.
+- **Switching between diskOS builds.** Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
 - **Windows: unsupported.** The Windows app is shared as-is.
 - **Firmware.** Made for FiiO firmware V2.57 only.
 - **Cover cache.** Covers for Cover Flow and lists are cached on the SD card only while it has enough free space
