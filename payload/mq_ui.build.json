@@ -1,17 +1,17 @@
 {
-  "version": "2.5.7",
-  "revision": "Code-review fixes (exact-ID multi-select, queue atomicity, truthful Favourites, Files Select all); Bluetooth resume guard bound to route/track/session without codec blacklist",
-  "baseline": "v2.5.6",
-  "source_commit": "227d4ae869230431d391d026719820f8bb2574a9",
-  "ui_source_sha256": "78460daac6fe6b9fc0979ec53ddb119e9d4b8f98446b4e2f72173ff215e6ff0f",
+  "version": "2.5.8",
+  "revision": "Bluetooth #13: music waits for the AAC/LDAC switch before playing (8 s SBC fallback); no device search during Bluetooth playback",
+  "baseline": "v2.5.7",
+  "source_commit": "555d46bdbaec30395c59969134b346e3190af0b3",
+  "ui_source_sha256": "85672cf1a0ed9dd302a807e61f716a945c555794b093822b7b381a0fba110fbf",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Checked with unit tests and host renders. Not yet tested on a Disc; Bluetooth AAC/LDAC never tested on a Disc.",
+  "status": "Checked with unit tests. Not yet tested on a Disc with LDAC/AAC headphones.",
   "binary": {
-    "bytes": 6138052,
-    "sha256": "b3003b1722d4298529d64968932f16ed46a32e846862ce5a5fe481509362057c",
-    "md5": "05d976e81f2232422b14c17f6299b690"
+    "bytes": 6138060,
+    "sha256": "cac414662e5b2e75bf36a4ece1eb7841ba3d309fbc147a54c5cfb925090af1e5",
+    "md5": "6d2c3478a541811323ef19f1b45a6b83"
   },
   "artwork_helper": {
     "bytes": 119424,
