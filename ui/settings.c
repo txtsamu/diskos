@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/mman.h>   /* Restart to Flash Mode: write the boot-ROM SWB register via /dev/mem */
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -419,7 +420,8 @@ static void apply_boot_default(int v){
 static lv_obj_t *g_boot_modal;
 static void boot_modal_close(void){ if(g_boot_modal){ lv_obj_delete_async(g_boot_modal); g_boot_modal = NULL; } }
 static lv_timer_t *g_rst_timer;
-static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && !g_rst_timer) boot_modal_close(); }   /* no cancel once a restart is under way */
+static int g_rst_flash;   /* this restart should land in flash mode (Restart to Flash Mode); only its modal sets it */
+static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && !g_rst_timer){ g_rst_flash = 0; boot_modal_close(); } }   /* no cancel once a restart is under way */
 /* Restart: only reboots once every admitted SD writer has finished AND a full `sync` has SUCCEEDED; otherwise it
  * refuses, reopens card access and says so. (v1.1.3 withheld it: it gave the flush 2 s, then rebooted regardless.)
  * Runs as a timer state machine, so the UI never blocks while it waits. */
@@ -435,11 +437,32 @@ static pid_t spawn_detached(const char *cmd){
 }
 static void stop_child(pid_t *p){ kill_and_reap(*p); *p = 0; }
 static void restart_fail(const char *why){
+    g_rst_flash = 0;               /* a failed attempt never leaves a later plain restart armed for flash mode */
     stop_child(&g_rst_sync); stop_child(&g_rst_clock);
     if(g_rst_timer){ lv_timer_delete(g_rst_timer); g_rst_timer = NULL; }
     ui_sd_quiesce_end();           /* reopen card access (readers + writers) if the card is still local */
     boot_modal_close();
     ui_toast(why);
+}
+/* "Restart to Flash Mode": Ingenic X2000 boot-ROM software boot (SWB). Writing "SWB" + boot-mode byte 0x02 (USB)
+ * to CPM_SLPC (0x100000cc) before a reboot makes the boot ROM come up in USB boot (a108:eaef) - the same state as
+ * holding Vol-Down at power-on - so the installer can flash without the button. Ingenic's own X2000 vendor tree
+ * does exactly this (smartpen softburn: "devmem 0x100000cc 32 0x42575302; reboot"). If the ROM ignored it, the
+ * device just restarts normally; Vol-Down stays the fallback. */
+#define SWB_REG_PAGE 0x10000000u
+#define SWB_REG_OFF  0xCCu
+#define SWB_USB_BOOT 0x42575302u   /* little-endian bytes: 02 'S' 'W' 'B' */
+static int swb_arm(void){
+    int mem = open("/dev/mem", O_RDWR | O_SYNC);
+    if(mem < 0) return -1;
+    void *map = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, mem, SWB_REG_PAGE);
+    close(mem);
+    if(map == MAP_FAILED) return -1;
+    volatile uint32_t *reg = (volatile uint32_t *)((char *)map + SWB_REG_OFF);
+    *reg = SWB_USB_BOOT;
+    int ok = *reg == SWB_USB_BOOT;
+    munmap(map, 4096);
+    return ok ? 0 : -1;
 }
 static void restart_tick(lv_timer_t *t){
     (void)t;
@@ -460,6 +483,7 @@ static void restart_tick(lv_timer_t *t){
         g_rst_sync = 0;
         if(!WIFEXITED(st) || WEXITSTATUS(st) != 0){ restart_fail("Couldn't restart - card flush failed"); return; }
         stop_child(&g_rst_clock);   /* the RTC save had the whole wait; a still-running one is stuck */
+        if(g_rst_flash && swb_arm() != 0){ g_rst_flash = 0; restart_fail("Couldn't set flash mode - not restarted"); return; }
         reboot(RB_AUTOBOOT);        /* direct syscall: no shell, no PATH, no binary on disk */
         bounded_detached("reboot", 5000);   /* only reached if the syscall was refused */
         restart_fail("Couldn't restart - try again");
@@ -506,8 +530,10 @@ static void boot_modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_
     lv_obj_set_style_text_color(l, theme_color(col), 0);
     lv_obj_center(l);
 }
+static void apply_restart_flash(int v);   /* settings row below; defined after the table */
 static const char *g_restart_note;   /* one-shot subtitle for the next restart modal (settings_restart_prompt) */
 static void apply_restart(int v){ (void)v;
+    g_rst_flash = 0;   /* plain Restart (and settings_restart_prompt); apply_restart_flash re-arms after */
     boot_modal_close();
     g_boot_modal = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(g_boot_modal);
@@ -792,6 +818,8 @@ static const setting_t TABLE[] = {
       "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
     { "System",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
       "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
+    { "System",   "Restart to Flash Mode", ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart_flash, 0,
+      "Restart straight into flash (USB boot) mode for the installer, without holding Vol-Down. Nothing is erased.", NULL },
     { "System",   "Device Info", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_about_open, 0,
       "Model, stock firmware, diskOS build, MAC addresses, storage and battery.", NULL },
     { "System",   "Update from SD Card", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_update_sd_open, 0,
@@ -845,6 +873,11 @@ static void read_about(char *buf, int n){
     snprintf(buf, n, "%s (%s)", DISKOS_VERSION, id);
 }
 void settings_diskos_id(char *buf, int n){ read_about(buf, n); }   /* system.c About */
+static void apply_restart_flash(int v){
+    g_restart_note = "Restarts into flash mode for the diskOS installer. The screen stays black; hold the power key to leave.";
+    apply_restart(v);
+    g_rst_flash = 1;
+}
 void settings_restart_prompt(const char *note){ g_restart_note = note; apply_restart(0); }
 static void read_batt_temp(char *buf, int n){
     FILE *f = fopen("/sys/class/power_supply/cw221X-bat/temp", "r");
