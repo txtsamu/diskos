@@ -16,6 +16,15 @@ Links always point to releases/latest. No upstream diskOS version shown to users
 - Owner to try on the Disc: Thai/Vietnamese/Korean songs, battery hold, covers on a fairly full card.
   Any crash or data loss -> quick 2.5.6.
 
+## Major
+- Dyslexic-friendly font (owner, 2026-10-19): OpenDyslexic 3 (SIL OFL, opendyslexic.org) as a switch under
+  Display > Layout & extras > Dyslexic-friendly (On/Off; restarts the interface like a theme change). Overrides all
+  text fonts in every theme at every size. Keep as they are: icons, clocks and big numbers (incl. Null's pixel clock
+  and Braun's dial), and non-Latin scripts (Thai, CJK, Korean... still from their own fonts). Route B: LVGL's
+  built-in runtime TTF renderer (LV_USE_TINY_TTF, currently 0) with one font file (~0.1-0.15 MB) instead of ~2 MB
+  of pre-made sizes. Needs a render pass of all themes (wider/taller font overflows clocks-adjacent text, pills,
+  buttons, QS, Squash/Null) and a real Disc test (CPU on first draw); not to be released untested.
+
 ## Minor
 - Screenshots: refresh any in the docs/site that predate 2.5 (host renders, round format).
 - Windows app downloads the latest mq_ui instead of the bundled one (low priority; Windows is unsupported).
