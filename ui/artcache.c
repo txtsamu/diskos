@@ -19,7 +19,7 @@
 #define ART_SD_ROOT "/tmp/sdcard"
 #endif
 #define CACHE_ROOT ART_SD_ROOT "/.diskos/artcache"
-#define MIN_FREE_BYTES (1024ULL*1024*1024)   /* stop caching if < 1GB free */
+#define MIN_FREE_BYTES (500ULL*1024*1024)    /* stop caching if < 500 MB free (was 1 GB: nearly full cards got no covers) */
 /* Bump when the art RECIPE changes (cover/thumb/backdrop generation in art.c) so old
  * cached files auto-invalidate: it's mixed into the fingerprint -> all keys change ->
  * miss -> re-decode. v2 = axis-wash backdrop (was gblur). v3 = 2x2 smooth colour gradient.

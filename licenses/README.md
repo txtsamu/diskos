@@ -29,6 +29,8 @@ bundles. See `../NOTICE.md` for the component->license mapping and the static-li
 | TJpgDec, ChaN (via LVGL, in `mq_ui`) | BSD-style | [`LICENSE-TJpgDec.txt`](LICENSE-TJpgDec.txt) (verbatim from the LVGL source header) |
 | Montserrat font (via LVGL built-in fonts, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Montserrat.txt`](OFL-1.1-Montserrat.txt) |
 | Source Han Sans SC (CJK fallback font in `mq_ui`) | OFL-1.1 | [`OFL-1.1-SourceHanSans.txt`](OFL-1.1-SourceHanSans.txt) |
+| Noto Sans (Latin/Greek/Cyrillic and Vietnamese fallback fonts in `mq_ui`) and Noto Sans Thai (Thai fallback, tone marks repositioned) | OFL-1.1 | [`OFL-1.1-NotoSans.txt`](OFL-1.1-NotoSans.txt) |
+| Noto Sans CJK KR (Korean fallback, 2,350 syllables, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-SourceHanSans.txt`](OFL-1.1-SourceHanSans.txt) |
 | IBM Plex Mono (converted as `diskos_mono`, "something" theme, in `mq_ui`) | OFL-1.1 (Reserved Font Name "Plex") | [`OFL-1.1-IBMPlexMono.txt`](OFL-1.1-IBMPlexMono.txt) |
 | Doto (converted as `diskos_dot`, "something" theme, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Doto.txt`](OFL-1.1-Doto.txt) |
 | Inter (converted as `diskos_hifi_ui`, hi-fi theme text, in `mq_ui`) | OFL-1.1 | [`OFL-1.1-Inter.txt`](OFL-1.1-Inter.txt) |

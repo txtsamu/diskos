@@ -2832,11 +2832,18 @@ extern const lv_font_t font_inter_medium_14, font_inter_medium_16, font_inter_bo
 static void ui_fonts_init(void)
 {
     if(s_font20.get_glyph_dsc) return;   /* once */
-    s_cjk = lv_font_source_han_16_cjk; s_cjk.fallback = &font_cjk_extra_16;
-    s_intl20 = font_intl_20; s_intl20.fallback = &s_cjk;
-    s_intl18 = font_intl_18; s_intl18.fallback = &s_cjk;
-    s_intl16 = font_intl_16; s_intl16.fallback = &s_cjk;
-    s_intl14 = font_intl_14; s_intl14.fallback = &s_cjk;
+    /* user-text chain below the theme fonts: international (Latin/Greek/Cyrillic) -> Vietnamese -> Thai -> CJK -> Korean */
+    static lv_font_t cjkx, vi20, vi18, vi16, vi14, th20, th18, th16, th14;
+    cjkx = font_cjk_extra_16; cjkx.fallback = &font_kr_16;
+    s_cjk = lv_font_source_han_16_cjk; s_cjk.fallback = &cjkx;
+    th20 = font_thai_20; th20.fallback = &s_cjk;  th18 = font_thai_18; th18.fallback = &s_cjk;
+    th16 = font_thai_16; th16.fallback = &s_cjk;  th14 = font_thai_14; th14.fallback = &s_cjk;
+    vi20 = font_viet_20; vi20.fallback = &th20;   vi18 = font_viet_18; vi18.fallback = &th18;
+    vi16 = font_viet_16; vi16.fallback = &th16;   vi14 = font_viet_14; vi14.fallback = &th14;
+    s_intl20 = font_intl_20; s_intl20.fallback = &vi20;
+    s_intl18 = font_intl_18; s_intl18.fallback = &vi18;
+    s_intl16 = font_intl_16; s_intl16.fallback = &vi16;
+    s_intl14 = font_intl_14; s_intl14.fallback = &vi14;
     /* Inter sits between Montserrat and the international fonts: it has the typographic punctuation that
      * track titles and lyrics often carry (\u2019 \u2018 \u201C \u201D \u2026 \u2013 \u2014 \u00B7), which the other two lack. */
     static lv_font_t p22, p18, p16, p14;

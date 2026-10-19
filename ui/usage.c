@@ -117,6 +117,7 @@ void usage_tick(int screen_on, int playing){
         if(!g_chg && g_batt >= target - 1 && (g_cy.full_seen ||
            (g_n > 0 && ((at(g_n - 1)->fl & FL_CHG) || g_batt >= at(g_n - 1)->pct + 5)))){
             g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0; usage_save();
+            if(cfg_get_int("batt_manual", 0)) cfg_set_int("batt_manual", 0);   /* a real full charge again */
             g_acc &= (uint8_t)~FL_CHG;                       /* this minute starts the new cycle */
             if(g_n > 0) at(g_n - 1)->fl &= (uint8_t)~FL_CHG; /* and the reset fires once, not again next pass */
             if(g_n > 0 && at(g_n - 1)->pct < g_batt) at(g_n - 1)->pct = (uint8_t)g_batt;
@@ -249,9 +250,12 @@ static void draw(void){
     if(nowt < 1600000000){ lv_label_set_text(g_play_v, "-"); lv_label_set_text(g_scr_v, "-"); return; }   /* clock not set: no "last 24 h" */
     if(g_cy.full_at && g_cy.full_at <= (uint32_t)nowt){         /* since the last full charge */
         uint32_t ago = (uint32_t)nowt - g_cy.full_at;
-        if(ago < 3600) snprintf(b, sizeof b, th_null()?"Full charge: just now":"Since full charge, just now");
-        else if(ago < 48 * 3600) snprintf(b, sizeof b, th_null()?"Full charge: %u h ago":"Since full charge, %u h ago", ago / 3600);
-        else snprintf(b, sizeof b, th_null()?"Full charge: %u days ago":"Since full charge, %u days ago", ago / 86400);
+        int man = cfg_get_int("batt_manual", 0);         /* restarted by hand (hold the caption), not a full charge */
+        const char *w = th_null() ? (man ? "Reset" : "Full charge") : (man ? "Since reset" : "Since full charge");
+        const char *sep = th_null() ? ":" : ",";
+        if(ago < 3600) snprintf(b, sizeof b, "%s%s just now", w, sep);
+        else if(ago < 48 * 3600) snprintf(b, sizeof b, "%s%s %u h ago", w, sep, ago / 3600);
+        else snprintf(b, sizeof b, "%s%s %u days ago", w, sep, ago / 86400);
         lv_label_set_text(g_cap, b);
         fmt_dur(b, sizeof b, (int)g_cy.play_min); lv_label_set_text(g_play_v, b);
         fmt_dur(b, sizeof b, (int)g_cy.scr_min);  lv_label_set_text(g_scr_v, b);
@@ -263,6 +267,16 @@ static void draw(void){
     for(int i = 0; i < g_n; i++){ const usmp_t *s = at(i); if(s->t < from || s->t > to) continue; if(s->fl & FL_SCR) scr++; if(s->fl & FL_PLAY) play++; }
     fmt_dur(b, sizeof b, play); lv_label_set_text(g_play_v, b);
     fmt_dur(b, sizeof b, scr);  lv_label_set_text(g_scr_v, b);
+}
+/* Hold the caption under the hairline: restart the totals from now (for when the full charge wasn't noticed) */
+static void cap_hold_cb(lv_event_t *e){
+    (void)e;
+    time_t now = time(NULL);
+    if(now < 1600000000){ ui_toast("Set the clock first"); return; }
+    g_cy.full_seen = 0; g_cy.full_at = (uint32_t)now; g_cy.play_min = g_cy.scr_min = 0;
+    usage_save(); cfg_set_int("batt_manual", 1);
+    ui_toast("Battery totals restarted");
+    draw();
 }
 static void us_tick_cb(lv_timer_t *t){ (void)t; if(screen_current() == SCR_USAGE) draw(); }
 void usage_create(lv_obj_t *root){
@@ -298,6 +312,8 @@ void usage_create(lv_obj_t *root){
     if(th_null())lv_label_set_long_mode(g_cap,LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(g_cap,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_cap,TF(UI_14),0);
     lv_obj_set_style_text_color(g_cap,TC(TEXT_MUTED),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,222);
+    lv_obj_add_flag(g_cap,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_ext_click_area(g_cap,14);   /* hold: restart the totals */
+    lv_obj_add_event_cb(g_cap,cap_hold_cb,LV_EVENT_LONG_PRESSED,NULL);
     figure(root,dx-56,"playing",&g_play_v);figure(root,dx+56,"screen on",&g_scr_v);
     for(int k=0;k<=4;k++){                                   /* ticks at 0 / 25 / 50 / 75 / 100% just inside the ring */
         float deg=left?g_start+280.0f-70.0f*k:g_start+70.0f*k,a=deg*3.14159265f/180.0f;

@@ -137,6 +137,8 @@ rebuild and relink `usbboot` against a modified libusb using the included source
   | **TJpgDec** (tiny JPEG decoder, via LVGL) | BSD-style (ChaN) | `licenses/LICENSE-TJpgDec.txt` |
   | **Montserrat** font (via LVGL built-in fonts) | SIL OFL 1.1 | `licenses/OFL-1.1-Montserrat.txt` |
   | **Source Han Sans SC** (CJK fallback font, subset) | SIL OFL 1.1 | `licenses/OFL-1.1-SourceHanSans.txt` |
+  | **Noto Sans**, **Noto Sans Thai** (international, Vietnamese and Thai fallback fonts, subsets) | SIL OFL 1.1 | `licenses/OFL-1.1-NotoSans.txt` |
+  | **Noto Sans CJK KR** (Korean fallback font, subset) | SIL OFL 1.1 | `licenses/OFL-1.1-SourceHanSans.txt` |
   | **IBM Plex Mono** (converted as `diskos_mono`; Reserved Font Name "Plex") | SIL OFL 1.1 | `licenses/OFL-1.1-IBMPlexMono.txt` |
   | **Doto** (converted as `diskos_dot`) | SIL OFL 1.1 | `licenses/OFL-1.1-Doto.txt` |
   | **Inter** (converted as `diskos_hifi_ui`) | SIL OFL 1.1 | `licenses/OFL-1.1-Inter.txt` |
