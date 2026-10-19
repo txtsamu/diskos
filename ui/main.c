@@ -339,6 +339,7 @@ static void route_uppercase(const char *in, char *out, int cap){
 }
 const char *ui_route_mac(void){ return g_route_mac; }   /* device the player is routed to ('' = local) */
 int ui_local_playback_allowed(void);
+void ui_resume_guard_arm(int reason, const char *mac);
 int ui_route_bt(const char *mac){
     if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
     if(!ui_local_playback_allowed()) return -1;
@@ -374,6 +375,7 @@ int ui_route_bt(const char *mac){
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
+    ui_resume_guard_arm(1, norm);                          /* the pause/play above is a guess: check that music really goes on */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
     fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, was_playing, st.position_ms); fflush(stderr);
     return 0;
@@ -752,6 +754,45 @@ static void reapply_sends(void){
  * confirm via the next a2 track update (the verified oracle); g_play_pending holds
  * the start tick (0 = nothing pending). Cleared on track update or a 6s timeout. */
 static uint32_t g_play_pending = 0;
+/* ---- Resume guard (issue #13: songs stopping ~6 s into a playlist on Bluetooth) --------------------------------
+ * A Bluetooth re-route (the player restarts its audio when a new list is built, and the auto-route sends it back to
+ * the headphones) and an AAC/LDAC switch both renegotiate the link mid-song, and the route's pause/play is a single
+ * toggle chosen by a guess at the play state. Either can leave a song stopped. So for 10 s after one of them: if
+ * music was playing and position stops moving for 3.5 s with no tap from the user, send play once. If that was a
+ * codec switch and music still doesn't move, that pair of headphones goes back to SBC (and is remembered). */
+static uint32_t g_rg_until, g_rg_still; static int g_rg_reason, g_rg_stage; static char g_rg_mac[20];
+void bt_codec_note_failed(const char *mac);      /* bt.c: this device can't hold the chosen codec */
+void ui_resume_guard_cancel(void){ g_rg_until = 0; }
+void ui_resume_guard_arm(int reason, const char *mac){
+    if(!g_playing && !g_play_pending) return;            /* nothing was playing: nothing to protect */
+    g_rg_reason = reason; g_rg_stage = 0; g_rg_still = 0;
+    snprintf(g_rg_mac, sizeof g_rg_mac, "%s", mac ? mac : "");
+    g_rg_until = (lv_tick_get() + 10000) | 1;
+}
+static void resume_guard_tick(int playing){
+    if(!g_rg_until) return;
+    uint32_t now = lv_tick_get();
+    if((int32_t)(now - g_rg_until) > 0){ g_rg_until = 0; return; }
+    if(playing){ g_rg_still = 0; return; }
+    if(!g_rg_still){ g_rg_still = now | 1; return; }
+    if(lv_tick_elaps(g_rg_still) < 3500) return;
+    g_rg_still = 0;
+    if(g_rg_stage == 0){                                 /* stopped by our own step: play once */
+        ipc_send_cmd("0201000C0000"); g_rg_stage = 1; g_rg_until = (now + 7000) | 1;
+        fprintf(stderr, "resume guard: playback stopped after %s, resumed\n", g_rg_reason == 2 ? "codec switch" : "route"); fflush(stderr);
+        return;
+    }
+    if(g_rg_stage == 1 && g_rg_reason == 2 && g_rg_mac[0]){   /* the codec doesn't hold: back to SBC for this device */
+        char f[48];
+        bt_codec_note_failed(g_rg_mac);
+        if(ui_bt_codec_frame(g_rg_mac, f, sizeof f) == 0) ipc_send_cmd(f);
+        ipc_send_cmd("0201000C0000"); g_rg_stage = 2; g_rg_until = (now + 7000) | 1;
+        ui_toast("Bluetooth codec unstable - using SBC");
+        fprintf(stderr, "resume guard: codec switch failed for %s, back to SBC\n", g_rg_mac); fflush(stderr);
+        return;
+    }
+    g_rg_until = 0;
+}
 static char g_play_initpath[256] = "";   /* track path at play-initiation (for the pending-clear) */
 static char g_play_inittitle[160] = "";  /* title at play-init: tracks of one CUE/ISO share a path, so a title change also confirms */
 static int g_play_initposid = 0;         /* a2 pos_id (LIST_SONG_0.ID) at play-init: a change is a row change even inside one shared file */
@@ -3211,6 +3252,7 @@ int main(int argc, char **argv){
         int playing = playstate_playing(&g_ps, st.have_track, st.position_ms, lv_tick_get(), 1600, 0);
         if(playing) g_play_sent_gen = ipc_generation();   /* playback observed this generation (any start, incl. hardware keys): its one-shot is moot */
         queue_tick(&st, playing);
+        resume_guard_tick(playing);
         stats_tick(&st, playing);   /* Listening Stats: log songs that really play */
         tagfix_auto_tick(&st, playing);
         usage_tick(!g_screen_off, playing);
