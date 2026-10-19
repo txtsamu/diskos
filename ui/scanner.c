@@ -1787,6 +1787,12 @@ static void walk(const char *dir, int depth){
              * NOR vanished/renamed books are ever pruned. Restrict to depth 0 (the real cache dir at the SD
              * root): a user's ".diskos" deeper in the tree may hold indexed songs and must still block. */
             if(depth == 0 && strcmp(e->d_name, ".diskos") == 0) continue;
+            /* Desktop trash / indexer dirs a computer creates at the card root while it is a USB drive (Linux
+             * ".Trash-<uid>", macOS ".Trashes" / ".Spotlight-V100" / ".fseventsd"). The scanner never indexes
+             * dot-dirs, so no row of ours lives there; treating them as unknown blocked the prune on every scan
+             * once a file had been deleted from the card on a PC, and vanished songs were never removed. */
+            if(depth == 0 && (strncmp(e->d_name, ".Trash-", 7) == 0 || strcmp(e->d_name, ".Trashes") == 0 ||
+                              strcmp(e->d_name, ".Spotlight-V100") == 0 || strcmp(e->d_name, ".fseventsd") == 0)) continue;
             /* other dotfile/dotdir: don't index it, but a skipped dot-DIRECTORY may hold songs already
              * in the DB that this walk won't re-see, so block the vanished-row prune to avoid deleting them. */
             int wl = snprintf(path,sizeof path,"%s/%s",dir,e->d_name);
