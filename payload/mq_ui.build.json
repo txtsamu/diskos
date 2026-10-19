@@ -1,17 +1,17 @@
 {
-  "version": "2.5.3",
-  "revision": "Null Matrix, efficient menu/QS/scrollbar updates, unified fixed menus, all-theme Shortcuts feedback, screen-off History recording",
-  "baseline": "4ca0a0f25f3bf8ec6a4347ffc248bb55056feaf0",
-  "source_commit": "a657d78cf06318eeedee32b77ef99e9430a7d1f2",
-  "ui_source_sha256": "bec990f36a59c411e72780a3271ace1ccaba8b17042db7e9ba317425704fa13d",
+  "version": "2.5.4",
+  "revision": "All dev1\u2013dev3 changes plus final Squash weather and Squash/Null battery layouts",
+  "baseline": "9ba4dedfbba9d4a0ed4421cba10c3c4800f48818",
+  "source_commit": "df9145471421736b7d4854841716e39fab6d2cb1",
+  "ui_source_sha256": "5cfd3b6698ec74ee2e0fb33e41c6e2acab7e484d875d838afee632330b2747a1",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Native full Null pointer checks passed for all three palettes; fixed menus, accent explanations, gestures, volume, History hook and SQLite contention passed; physical Disc testing pending; not published",
+  "status": "Focused real-LVGL Display/idle/navigation suite and final MIPS build passed; development Null seek checks and LVGL renders passed. Extended physical-device testing of newest controls remains pending. Prepared for publishing.",
   "binary": {
-    "bytes": 5737900,
-    "sha256": "b5b062bd71808be70909a3eb3b306e9a1c85578305cd3a0052936c519fd2bbec",
-    "md5": "9fddb1a330e70983064f4d9a7dfe988b"
+    "bytes": 5793304,
+    "sha256": "033c7a498f0c2de4a6fedba7b2e217a90bbc17f273e4e79d0f463138c3411e1d",
+    "md5": "ab6a0682d935bd937d855526c8434cf6"
   },
   "artwork_helper": {
     "bytes": 119424,
