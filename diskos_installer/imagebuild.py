@@ -1274,6 +1274,8 @@ def edit_image(fs, ui_binary, variant, ota_cfg, rep=None):
         # debug access from the UI without needing the dev build.
         for name in ("dropbearmulti", "diskos-debug.sh"):
             _edit_install(fs, bundle.data(name), b"usr/project/" + name.encode("ascii"), 0o755)
+        # Key-only dev SSH (port 2222) at boot; inert until /usr/data/sshd/root_home/.ssh/authorized_keys exists.
+        _edit_install(fs, bundle.data("S98diskos_sshkey"), b"etc/init.d/S98diskos_sshkey", 0o755)
         if variant == "dev":
             # Dev only: an ALWAYS-ON USB serial recovery shell (builds the gadget + attaches the one
             # diskos-debug shell at boot), so a dev build is reachable over USB even before the UI runs.
