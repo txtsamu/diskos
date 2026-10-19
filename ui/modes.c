@@ -55,6 +55,12 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
 #endif
 #define OUT_QUIET_MS 500
 #define OUT_WAIT_MS  3000
+/* USB AUDIO cannot be pre-checked: the DAC is unpowered until the player handles 0642 5 (mq_player_257 mode thread
+ * 0x4e5af4: sleep 1 s, role -> host, set_out_device 3 = USB_HOST_NULL with no card yet, SGM41513 OTG_ON). The card
+ * then enumerates and on_usb_audio_add (0x4f39c4) re-runs set_out_device 3 against /proc/asound/card1. So switch
+ * first, then wait for the card; resume only once it is up, and fall back to the internal DAC if it never comes. */
+#define OUT_USB_WAIT_MS   8000
+#define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
 #define OUT_WORKMODE "0657000C0008"
 #define OUT_PAUSE    "0201000C0000"
 typedef struct { const char *route, *gadget; unsigned settle_us; } out_seq_t;
@@ -68,6 +74,7 @@ static int g_out_route = OUT_INTERNAL;
 static unsigned g_out_gen = 0;
 static struct { int target, was_playing, full; unsigned gen; char path[256]; long pos; uint32_t t0, quiet0; lv_timer_t *tm; } g_osw;
 static int g_rec = 0; static unsigned g_rec_gen = 0; static lv_timer_t *g_rec_tm = NULL;
+static struct { lv_timer_t *tm; uint32_t t0, seen; } g_usbw;   /* waiting for the USB DAC to enumerate after 0642 5 */
 
 static void out_set_state(int r){
     g_out_route = r; g_out_gen = ipc_generation();
@@ -78,7 +85,7 @@ int modes_output_route(void){
     return g_out_route;
 }
 void modes_output_reset(void){ out_set_state(OUT_INTERNAL); }
-int modes_output_busy(void){ return g_osw.tm != NULL || g_rec; }
+int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 /* Route-aware local init. with_gadget (the boot timer): internal/SPDIF send 0642 0 first; USB always pairs 0666 3 with 0642 5. */
 int modes_local_init(int with_gadget){
     int r = modes_output_route();
@@ -107,6 +114,12 @@ static int out_pcm_quiet(void){
 static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
     return access(p, F_OK) == 0;
+}
+/* any USB audio card at all (usbid exists only for USB cards, not the Disc's own UAC gadget): tells "no DAC" from "wrong card index" */
+static int out_usb_any_card(void){
+    glob_t g; int n = 0;
+    if(glob("/proc/asound/card*/usbid", 0, NULL, &g) == 0){ n = (int)g.gl_pathc; globfree(&g); }
+    return n > 0;
 }
 /* 0 = whole sequence sent; -1 = the 0666 was refused (nothing changed); -2 = the route moved but the tail failed */
 static int out_seq_send(int t, int full){
@@ -143,10 +156,38 @@ static void out_resume(int moved){
     if(moved && g_osw.pos > 0 && ui_seek_to(g_osw.pos) < 0){ ui_toast("Couldn't resume - press play"); return; }
     if(ipc_send_cmd(OUT_PAUSE) < 0) ui_toast("Couldn't resume - press play");   /* toggle: plays again */
 }
+static void usbw_end(void){ if(g_usbw.tm){ lv_timer_del(g_usbw.tm); g_usbw.tm = NULL; } }
+static void usbw_tick(lv_timer_t *t){
+    (void)t;
+    if(ipc_generation() != g_osw.gen){ usbw_end(); out_set_state(OUT_INTERNAL); ui_toast("Player restarted - try again"); modes_ui_refresh(); return; }
+    if(out_usb_card_ok()){
+        if(!g_usbw.seen) g_usbw.seen = lv_tick_get() ? lv_tick_get() : 1;
+        if(lv_tick_elaps(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
+        usbw_end(); ui_toast("USB DAC connected"); out_resume(1); modes_ui_refresh();
+        return;
+    }
+    if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
+    usbw_end();   /* never leave the player on the silent USB_HOST_NULL sink */
+    if(out_seq_send(OUT_INTERNAL, 1) == 0){
+        out_set_state(OUT_INTERNAL);
+        ui_toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
+        out_resume(1);
+    } else {
+        out_rec_enter();
+        ui_toast("Output state uncertain - recovering");
+    }
+    modes_ui_refresh();
+}
+static void usbw_start(void){
+    g_usbw.t0 = lv_tick_get(); g_usbw.seen = 0;
+    g_usbw.tm = lv_timer_create(usbw_tick, 250, NULL);
+    ui_toast("Powering USB DAC...");
+}
 static int out_run(void){
     int target = g_osw.target;
     int rc = out_seq_send(target, g_osw.full);
     if(rc == -1){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
+    if(rc == 0 && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
     if(rc == 0){ out_set_state(target); out_resume(1); modes_ui_refresh(); return 0; }
     /* the route moved but the tail failed: back to the internal DAC; never end without 0657 8 landing */
     if(out_seq_send(OUT_INTERNAL, 1) == 0){
@@ -180,7 +221,6 @@ static void osw_tick(lv_timer_t *t){
     }
     const char *why = ui_output_blocked();
     if(why){ osw_stop(why, g_osw.was_playing); return; }
-    if(g_osw.target == OUT_USB && !out_usb_card_ok()){ osw_stop("USB DAC not found", g_osw.was_playing); return; }   /* re-checked right before 0666 3 */
     lv_timer_del(g_osw.tm); g_osw.tm = NULL;
     out_run();
 }
@@ -189,7 +229,6 @@ static int out_switch(int target, int via_mode){
     if(modes_output_busy()){ ui_toast("Switching..."); return -1; }
     const char *why = ui_output_blocked();
     if(why){ out_set_state(modes_output_route()); ui_toast(why); return -1; }
-    if(target == OUT_USB && !out_usb_card_ok()){ out_set_state(modes_output_route()); ui_toast("Connect a USB DAC first"); return -1; }
     int was_playing = ui_is_playing();
     if(!was_playing && !out_pcm_quiet()){ out_set_state(modes_output_route()); ui_toast("Player is busy - try again"); return -1; }   /* PCM live but not "playing": a pause toggle would START it */
     track_state_t st; ipc_get_state(&st);
