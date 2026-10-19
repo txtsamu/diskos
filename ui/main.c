@@ -759,13 +759,23 @@ static int usb_host_configured(void){
     globfree(&g);
     return on;
 }
+/* Working Mode transitions (rows: from, cols: to; U = Local with the USB Audio output route, 0642 5 = port HOST +
+ * OTG 5V). Player 0642 N (FUN_004e5af4): 0 closes UAC/storage, remounts the card, role device, OTG off; 2 closes
+ * storage, role device, opens UAC; 5 closes UAC/storage, role host, OTG on; 1 (storage) is not fully decompiled:
+ * it is not known to restore device role from host or to close the UAC gadget.
+ *   0 -> 1/2/3, U : direct (port already device; 3 via the SD drain; U via modes_output_mode_switch)
+ *   1 -> 0/2     : direct (0642 0/0818 path); refused while a computer has the gadget configured (capture deadlock)
+ *   1 -> 3       : via Local (0642 0 closes UAC first), same refusal with a computer attached
+ *   2 -> 0/1/3   : direct (port already device after 0642 0; 0657 leaves BT sink; BT radio as the player leaves it)
+ *   3 -> 0/1/2   : storage return path (source_send(mode), local mount, then a device restart)
+ *   1/2/3 -> U   : refused by ui_output_blocked ("Return to local playback first"); 3 -> Local restarts the device,
+ *                  so no continuation could survive it, and 1 -> Local needs the cable unplugged first anyway
+ *   U -> 0       : direct (0666 6, 0642 0, 0657 8 restore device role; usb_audio_on cleared below)
+ *   U -> 1/2/3   : via Local (modes.c out_switch to the internal DAC, then this call again): a direct 0642 1 from
+ *                  host role never reached the computer and held SD access until a restart */
 int ui_set_source_mode(int mode){
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(mode < 0 || mode > 3) return -1;
-    /* USB Audio holds the port in host role (0642 5). The player flips it back to device only on its 0642 0 path
-     * (Local), so going straight to USB DAC / BT Receiving / USB Storage left the port in host: a USB Storage export
-     * was never seen by the computer and SD access stayed held until a restart. Local first. */
-    if(mode != 0 && modes_output_route() == OUT_USB){ ui_toast("Switch to Local Playback first"); return -1; }
     /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
      * (0x4614bc) sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an
      * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
@@ -777,6 +787,12 @@ int ui_set_source_mode(int mode){
     /* Every source change drives the player (and USB/card ownership with it), so none may happen before this
      * boot's launch verdict has qualified the player - a PENDING or negative verdict refuses it too. */
     if(atomic_load(&g_launch_verdict) != 1){ ui_toast("SD access is not ready yet"); return -1; }
+    /* USB Audio holds the port in host role (0642 5). The player flips it back to device only on its 0642 0 path
+     * (Local), so going straight to USB DAC / BT Receiving / USB Storage left the port in host: a USB Storage export
+     * was never seen by the computer and SD access stayed held until a restart. Leave it through the internal-DAC
+     * switch first; modes.c re-enters here with the same mode once that landed (0 = the leave started). USB DAC ->
+     * Storage likewise passes through Local so 0642 0 closes the UAC gadget before 0642 1 opens storage. */
+    if(mode != 0 && (modes_output_route() == OUT_USB || (g_source_mode == 1 && mode == 3))) return modes_via_local_then(mode);
     if(mode == 3){
         if(g_sd_phase == SD_HOST) return 0;
         if(scanner_active()){ ui_toast("Let the library scan finish first"); return -1; }

@@ -15,6 +15,7 @@ void modes_output_reset(void);          /* another path (source change, BT route
 int  modes_output_busy(void);           /* 1 while a switch waits for silence or recovers: play/next/source/BT must refuse */
 int  modes_local_init(int with_gadget); /* route-aware local init: 0642/0666/0657 for the current route; -1 if a send failed */
 void modes_output_boot_restore(void);   /* at startup: re-select USB Audio ~15 s in if it was the active output */
+int  modes_via_local_then(int mode);    /* go to Local (leave USB Audio / USB DAC) first, then ui_set_source_mode(mode); 0 = started */
 
 /* main.c: NULL when an output switch may run now, else a short reason for the toast */
 const char *ui_output_blocked(void);

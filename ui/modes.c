@@ -328,11 +328,12 @@ static void mark_pending(int m){
 
 static lv_timer_t *g_settle = NULL;
 static int g_pending_mode = -1;   /* the mode a switch is settling to (so reopening the screen keeps showing "switching") */
+static struct { lv_timer_t *tm; int mode; uint32_t t0; } g_leave;   /* passing through Local before a source switch (see leave_tick) */
 /* M17: after the switch window, settle to the CONFIRMED mode read from the real USB gadget state,
  * not a blind assumption. If the gadget shows the switch didn't take, reflect reality + say so. */
 static void settle_cb(lv_timer_t *t){
     (void)t;
-    if(g_osw.tm) return;   /* an output switch is still waiting for the pause */
+    if(g_osw.tm || g_leave.tm) return;   /* an output switch is still waiting for the pause, or the source switch behind it */
     if(ui_source_switch_pending()) return;
     if(lv_tick_elaps(g_last_switch) < 3200) return;
     lv_timer_del(g_settle); g_settle = NULL;
@@ -353,13 +354,59 @@ static void settle_cb(lv_timer_t *t){
     mark_selected_mode(shown_mode(show));
 }
 
+/* honest wording: the frames are queued; the async switch completes a moment later. */
+static const char *const SWITCH_MSG[N_MODES] = {
+    "Switching to local playback", "Switching to USB DAC",
+    "Switching to Bluetooth receiving", "Switching to USB storage",
+#ifdef DISKOS_TEST_OUTPUTS
+    "",
+#endif
+};
+/* Via Local (main.c ui_set_source_mode, see its transition table): USB Audio -> USB DAC / BT / Storage and
+ * USB DAC -> Storage first go to plain Local - USB Audio through the internal-DAC output switch (pause -> quiet ->
+ * 0666 6, 0642 0, 0657 8), USB DAC through ui_set_source_mode(0) - and only once that landed and the player had
+ * the picker's 3 s to apply it, re-enter ui_set_source_mode with the picked mode so all its guards (and the SD
+ * drain) run. Playback stays paused like the unplug fallback: never resume into the jack on the way through. */
+static void leave_end(const char *why){
+    if(g_leave.tm){ lv_timer_del(g_leave.tm); g_leave.tm = NULL; }
+    if(g_settle){ lv_timer_del(g_settle); g_settle = NULL; }   /* nothing is settling: show the real selection now */
+    g_pending_mode = -1;
+    if(why) ui_toast(why);
+    modes_ui_refresh();
+}
+static void leave_tick(lv_timer_t *t){
+    (void)t;
+    if(lv_tick_elaps(g_leave.t0) >= 10000){ leave_end("Couldn't return to Local - mode not changed"); return; }
+    if(modes_output_busy() || lv_tick_elaps(g_leave.t0) < 3000) return;   /* still pausing / routing / recovering, or settling */
+    if(modes_output_route() != OUT_INTERNAL || ui_get_source_mode() != 0){ leave_end("Still not on Local - mode not changed"); return; }   /* refused or stopped */
+    int m = g_leave.mode;
+    lv_timer_del(g_leave.tm); g_leave.tm = NULL;
+    cfg_set_int(OUT_USB_PREF, 0);   /* a deliberate leave, also when out_run only got here through its fallback */
+    g_last_switch = lv_tick_get();  /* the settle window runs from the real source switch */
+    if(ui_set_source_mode(m) != 0){ leave_end(NULL); return; }   /* it toasted why; the picker shows Local */
+    ui_toast(SWITCH_MSG[m]);
+}
+int modes_via_local_then(int mode){
+    if(g_leave.tm){ ui_toast("Switching..."); return -1; }
+    const char *msg = "Leaving USB DAC...";
+    if(modes_output_route() == OUT_USB){
+        if(out_switch(OUT_INTERNAL, 1) != 0) return -1;   /* out_switch toasted why */
+        g_osw.was_playing = 0;   /* out_switch already paused it; never resume into the jack */
+        msg = "Leaving USB Audio...";
+    } else if(ui_set_source_mode(0) != 0) return -1;     /* it toasted why (a connected computer, SD state) */
+    g_leave.mode = mode; g_leave.t0 = lv_tick_get();
+    g_leave.tm = lv_timer_create(leave_tick, 100, NULL);
+    ui_toast(msg);
+    return 0;
+}
+
 static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int m = (int)(uintptr_t)lv_event_get_user_data(e);
     /* Serialise: ignore taps while the previous switch is still applying (the player's gadget
      * state-machine is asynchronous). NB we do NOT early-return on "same mode" - re-issuing must
      * always be allowed so Local works as a recover even if our cached mode is stale. */
-    if(g_last_switch && lv_tick_elaps(g_last_switch) < 3000){ ui_toast("Switching..."); return; }
+    if(g_leave.tm || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
     g_last_switch = lv_tick_get();
     if(m == ROW_USB_AUDIO){   /* USB Audio: an output route of the Local source, not a source mode */
         if(modes_output_mode_switch(OUT_USB) == 0){
@@ -375,15 +422,7 @@ static void row_cb(lv_event_t *e){
         mark_pending(m);      /* async switch in flight: show "switching", not a confirmed selection */
         if(g_settle) lv_timer_del(g_settle);
         g_settle = lv_timer_create(settle_cb, 500, NULL);   /* settle to the checkmark after the switch window */
-        /* honest wording: the frames are queued; the async switch completes a moment later. */
-        static const char *msg[N_MODES] = {
-            "Switching to local playback", "Switching to USB DAC",
-            "Switching to Bluetooth receiving", "Switching to USB storage",
-#ifdef DISKOS_TEST_OUTPUTS
-            "",
-#endif
-        };
-        ui_toast(msg[m]);
+        if(!g_leave.tm) ui_toast(SWITCH_MSG[m]);   /* passing through Local first: its toast stays, leave_tick says this later */
     }
 }
 
