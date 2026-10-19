@@ -49,7 +49,7 @@ Clearer Display settings, bigger Null text, circular Immersive controls and a fr
 
 **Null stays pixel-perfect.** Its full section and customization options remain, alongside Disco, Ring and Braun. Each theme keeps its own look and preferences.
 
-[2.5.0 release notes](docs/releases/v2.5.0.md) · [Latest release handoff](docs/RELEASE_2.5.0.md) · [How-to](docs/HOWTO.md) · [Try the customizer](https://zmd22.github.io/diskos-disco/#yourway)
+[Squash guide](docs/themes/squash.md) · [How-to](docs/HOWTO.md) · [Try the customizer](https://zmd22.github.io/diskos-disco/#yourway)
 
 ## The idea
 

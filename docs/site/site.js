@@ -66,3 +66,14 @@ if (typeof ResizeObserver === 'function') {
 }
 if (document.fonts) document.fonts.ready.then(requestLayout);
 requestLayout();
+
+(() => {
+  const v = document.querySelector('.showcase-video'); if (!v) return;
+  const btns = [...document.querySelectorAll('.chapters button')];
+  const times = btns.map(b => +b.dataset.t);
+  btns.forEach(b => b.addEventListener('click', () => { v.currentTime = +b.dataset.t; v.play().catch(() => {}); }));
+  v.addEventListener('timeupdate', () => {
+    let k = -1; times.forEach((t, i) => { if (v.currentTime >= t - 0.2 && (k < 0 || t >= times[k])) k = i; });
+    btns.forEach((b, i) => b.classList.toggle('active', i === k && !v.paused || i === k && v.currentTime > 0));
+  });
+})();
