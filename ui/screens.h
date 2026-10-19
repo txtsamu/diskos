@@ -399,6 +399,8 @@ void saver_vinyl_spin(int want);          /* drive saver vinyl spin (from main l
 const char *ui_current_thumb_src(void);
 void ui_set_np_style(int vinyl);   /* 0 = cover (rounded square), 1 = vinyl (disc) */
 void ui_vinyl_spin(int want);      /* drive the vinyl spin from the main loop */
+void ui_seek_preview(long position,long duration,int on);
+int ui_seek_preview_active(void);
 void ui_show_volume(int vol);      /* show the on-screen volume bar (auto-hides) */
 /* home */
 void home_create(lv_obj_t *root);

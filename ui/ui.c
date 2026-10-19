@@ -206,6 +206,33 @@ static void set_label_text_changed(lv_obj_t *obj, const char *txt)
     }
 }
 
+/* Shared hold-to-seek readout, also used over Immersive. No idle timer. */
+static lv_obj_t *seek_preview,*seek_preview_time,*seek_preview_total;
+void ui_seek_preview(long position,long duration,int on){
+    if(!on || duration<=0){if(seek_preview)lv_obj_add_flag(seek_preview,LV_OBJ_FLAG_HIDDEN);return;}
+    if(!seek_preview){
+        seek_preview=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(seek_preview);
+        lv_obj_set_size(seek_preview,232,92);lv_obj_center(seek_preview);
+        lv_obj_set_style_radius(seek_preview,th_null()?0:22,0);
+        lv_obj_set_style_bg_color(seek_preview,TC(SURFACE),0);lv_obj_set_style_bg_opa(seek_preview,235,0);
+        lv_obj_set_style_border_width(seek_preview,1,0);lv_obj_set_style_border_color(seek_preview,TC(TEXT_PRIMARY),0);
+        lv_obj_set_style_border_opa(seek_preview,60,0);lv_obj_remove_flag(seek_preview,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+        seek_preview_time=lv_label_create(seek_preview);lv_obj_set_style_text_color(seek_preview_time,TC(TEXT_PRIMARY),0);
+        seek_preview_total=lv_label_create(seek_preview);lv_obj_set_style_text_font(seek_preview_total,TF(UI_14),0);
+        lv_obj_set_style_text_color(seek_preview_total,TC(TEXT_SECONDARY),0);
+        kit_keep(seek_preview);kit_keep(seek_preview_time);kit_keep(seek_preview_total);
+    }
+    if(position<0)position=0;if(position>duration)position=duration;
+    char time[24],total[32],whole[24];mmss(position,time,sizeof time);mmss(duration,whole,sizeof whole);snprintf(total,sizeof total,"of %s",whole);
+    const lv_font_t *font=TF(UI_34);lv_point_t size;lv_text_get_size(&size,time,font,0,0,LV_COORD_MAX,0);
+    if(size.x>208)font=TF(UI_24);
+    lv_obj_set_style_text_font(seek_preview_time,font,0);
+    set_label_text_changed(seek_preview_time,time);set_label_text_changed(seek_preview_total,total);
+    lv_obj_align(seek_preview_time,LV_ALIGN_TOP_MID,0,8);lv_obj_align(seek_preview_total,LV_ALIGN_BOTTOM_MID,0,-8);
+    lv_obj_remove_flag(seek_preview,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(seek_preview);
+}
+int ui_seek_preview_active(void){return seek_preview&&!lv_obj_has_flag(seek_preview,LV_OBJ_FLAG_HIDDEN);}
+
 /* ---- Now Playing seek recognizer ---------------------------------------
  * The ring is DISPLAY-ONLY (not clickable); main.c feeds raw touch into these.
  * A seek is recognized only when the press lands on the ring band within the

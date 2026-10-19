@@ -74,7 +74,9 @@ static lv_image_dsc_t pixel_dsc;
 static uint8_t *pixel_buf;
 static int nav_open, nav_value, have, playing, qs_open, seek_drag, ctl_shown = 1, wake_guard,
                                                                    last_ctl_mode = -1, last_ctl_visible = -1;
-static long seek_duration;
+static long seek_duration,seek_target;
+static int seek_zoom;
+static track_state_t seek_track;
 static lv_point_t seek_start, gz_start, edge_start;
 static uint32_t gz_t0, gz_last, last_touch;
 static int edge_drag;
@@ -237,38 +239,34 @@ static void gesture_show_icon(int kind)
     lv_anim_set_values(&a,255,0);lv_anim_set_delay(&a,220);lv_anim_set_duration(&a,140);
     lv_anim_set_completed_cb(&a,feedback_done);lv_anim_start(&a);
 }
-static void seek_event(lv_event_t *e)
-{
-    lv_indev_t *in = lv_indev_active();
-    if (!in)
-        return;
-    lv_point_t p;
-    lv_indev_get_point(in, &p);
-    lv_event_code_t c = lv_event_get_code(e);
-    if (c == LV_EVENT_PRESSED) {
-        track_state_t st;
-        ipc_get_state(&st);
-        seek_duration = st.have_track ? st.duration_ms : 0;
-        seek_drag = seek_duration > 0;
-        seek_start = p;
-        last_touch = lv_tick_get();
+static void seek_finish(void){
+    seek_drag=seek_zoom=0;ui_seek_preview(0,0,0);
+    if(playhead)lv_obj_set_size(playhead,7,7);
+}
+static void seek_event(lv_event_t *e){
+    lv_indev_t *in=lv_indev_active();if(!in)return;
+    lv_point_t p;lv_indev_get_point(in,&p);lv_event_code_t c=lv_event_get_code(e);
+    if(c==LV_EVENT_PRESSED){
+        seek_finish();ipc_get_state(&seek_track);seek_duration=seek_track.have_track?seek_track.duration_ms:0;
+        seek_drag=seek_duration>0;seek_start=p;last_touch=lv_tick_get();
     }
-    if ((c == LV_EVENT_PRESSING || c == LV_EVENT_RELEASED) && seek_drag) {
-        int x = p.x - 62;
-        if (x < 0)
-            x = 0;
-        if (x > 236)
-            x = 236;
-        lv_obj_set_width(fill, x ? x : 1);
-        lv_obj_set_x(playhead, 62 + x - 3);
-        if (c == LV_EVENT_RELEASED) {
-            if (abs(p.y - seek_start.y) < 70)
-                ui_seek_to((long)((long long)seek_duration * x / 236));
-            seek_drag = 0;
+    if(c==LV_EVENT_PRESS_LOST){seek_finish();return;}
+    if(!seek_drag)return;
+    if(c==LV_EVENT_LONG_PRESSED){seek_zoom=1;lv_obj_set_size(playhead,11,11);}
+    if(c==LV_EVENT_PRESSED || c==LV_EVENT_PRESSING || c==LV_EVENT_LONG_PRESSED || c==LV_EVENT_RELEASED){
+        lv_area_t a;lv_obj_get_coords(seek,&a);int width=lv_obj_get_width(seek),x=p.x-a.x1;
+        if(x<0)x=0;if(x>width)x=width;
+        seek_target=width>0?(long)((long long)seek_duration*x/width):0;
+        lv_obj_set_width(fill,x?x:1);lv_obj_set_x(playhead,lv_obj_get_x(seek)+x-(seek_zoom?5:3));
+        if(seek_zoom)ui_seek_preview(seek_target,seek_duration,1);
+        if(c==LV_EVENT_RELEASED){
+            track_state_t now;ipc_get_state(&now);
+            int same=now.have_track&&!strcmp(now.path,seek_track.path)&&!strcmp(now.title,seek_track.title)&&
+                !(now.pos_id>0&&seek_track.pos_id>0&&now.pos_id!=seek_track.pos_id);
+            if(abs(p.y-seek_start.y)<70 && same){if(ui_seek_to(seek_target)<0)ui_toast("Couldn't seek - try again");}
+            seek_finish();
         }
     }
-    if (c == LV_EVENT_PRESS_LOST)
-        seek_drag = 0;
 }
 static void gesture_event(lv_event_t *e)
 {
@@ -1071,7 +1069,7 @@ void null_screen_leaving(void)
     if(gesture_feedback){lv_anim_delete(gesture_feedback,NULL);lv_obj_add_flag(gesture_feedback,LV_OBJ_FLAG_HIDDEN);}
     if (nav)
         nav_set(0);
-    seek_drag = 0;
+    seek_finish();
 }
 void null_screen_entered(int which)
 {

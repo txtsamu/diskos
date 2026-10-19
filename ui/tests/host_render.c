@@ -54,6 +54,12 @@ int __real_ui_display_is_off(void);
 int __wrap_ui_display_is_off(void){return test_panel_off || __real_ui_display_is_off();}
 void __real_ipc_get_state(track_state_t *out);
 void __wrap_ipc_get_state(track_state_t *out){test_state_reads++;__real_ipc_get_state(out);}
+static int scrub_seek_calls,scrub_volume_calls,scrub_send_fail;
+static long scrub_last_seek;
+static int scrub_last_volume;
+int __real_ui_seek_to(long ms);int __real_ui_set_volume(int v);
+int __wrap_ui_seek_to(long ms){if(getenv("REVIEW_SCRUB")){scrub_seek_calls++;scrub_last_seek=ms;return scrub_send_fail?-1:0;}return __real_ui_seek_to(ms);}
+int __wrap_ui_set_volume(int v){if(getenv("REVIEW_SCRUB")){scrub_volume_calls++;scrub_last_volume=v;return scrub_send_fail?-1:0;}return __real_ui_set_volume(v);}
 int __real_ui_is_playing(void);
 int __wrap_ui_is_playing(void){const char*p=getenv("NP_PLAYING");return p?atoi(p):__real_ui_is_playing();}
 
@@ -1299,6 +1305,22 @@ int main(int argc, char **argv){
             puts("PASS: real shared QS editor reorder, remove Wi-Fi/Settings, add, reopen, empty selection, panel refresh and theme isolation");return 0;
         }
         if(getenv("REVIEW_QS")){review_qs();return 0;}
+        if(th_null() && getenv("REVIEW_SCRUB") && !getenv("IMM_SCRUB_TEST")){
+            lv_indev_t *in=lv_indev_create();lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(in,nav_read);lv_indev_set_long_press_time(in,400);lv_timer_set_period(lv_indev_get_read_timer(in),10);
+            screen_home();null_nav_set_open(0);nav_wait(250);
+            lv_obj_t *bar=ui_action_find("np.seek");assert(bar);lv_area_t a;lv_obj_get_coords(bar,&a);
+            lv_point_t start={a.x1+40,(a.y1+a.y2)/2},end={a.x1+180,(a.y1+a.y2)/2};
+            nav_pointer=(lv_indev_data_t){.point=start,.state=LV_INDEV_STATE_PRESSED};nav_wait(500);assert(ui_seek_preview_active());
+            nav_pointer.point=end;nav_wait(40);assert(scrub_seek_calls==0);
+            nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(scrub_seek_calls==1&&!ui_seek_preview_active());
+            assert(labs(scrub_last_seek-(long)((long long)st.duration_ms*180/lv_obj_get_width(bar)))<2000);
+            nav_pointer=(lv_indev_data_t){.point=start,.state=LV_INDEV_STATE_PRESSED};nav_wait(500);assert(ui_seek_preview_active());
+            track_state_t next=st;snprintf(next.path,sizeof next.path,"/preview/changed.flac");ipc_set_external(next.title,next.artist,next.album,next.path,next.duration_ms,next.position_ms,0,0);
+            nav_pointer.point=end;nav_wait(20);nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(scrub_seek_calls==1);ipc_clear_external();
+            nav_pointer=(lv_indev_data_t){.point=start,.state=LV_INDEV_STATE_PRESSED};nav_wait(500);assert(ui_seek_preview_active());
+            screen_show(SCR_LIBRARY);nav_wait(30);assert(!ui_seek_preview_active());nav_pointer.state=LV_INDEV_STATE_RELEASED;nav_wait(50);assert(scrub_seek_calls==1);
+            lv_indev_delete(in);puts("PASS: Null long-hold time preview, drag/release seek, no seek during drag, track-change and screen-leave cancellation");return 0;
+        }
         if(getenv("REVIEW_DISPLAY_IDLE")){
             assert(th_null());extern int null_test_heartbeat_paused(void);
             screen_home();nav_wait(200);assert(!null_test_heartbeat_paused());
