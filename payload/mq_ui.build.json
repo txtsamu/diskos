@@ -1,17 +1,17 @@
 {
   "version": "2.5.8",
-  "revision": "Bluetooth #13: music waits for the AAC/LDAC switch before playing (8 s SBC fallback); no device search during Bluetooth playback",
+  "revision": "Bluetooth #13: music waits for the AAC/LDAC switch before playing (8 s SBC fallback); no device search during Bluetooth playback; no back-swipe arrow where Back leads nowhere",
   "baseline": "v2.5.7",
-  "source_commit": "555d46bdbaec30395c59969134b346e3190af0b3",
-  "ui_source_sha256": "85672cf1a0ed9dd302a807e61f716a945c555794b093822b7b381a0fba110fbf",
+  "source_commit": "5133eff1b6f7fdad4af00f21ce12009c459f63bb",
+  "ui_source_sha256": "344de3a25ab053b182499fcd034c8638f128bb44f37dc94e1a8dbd48dad86bd2",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
   "status": "Checked with unit tests. Not yet tested on a Disc with LDAC/AAC headphones.",
   "binary": {
-    "bytes": 6138060,
-    "sha256": "cac414662e5b2e75bf36a4ece1eb7841ba3d309fbc147a54c5cfb925090af1e5",
-    "md5": "6d2c3478a541811323ef19f1b45a6b83"
+    "bytes": 6138064,
+    "sha256": "9be6a3f45edacc7d3c33a56669d33046a99a52780b0150ae68da417d3aa172c7",
+    "md5": "524146c48103bbd52f57385b9548ee6a"
   },
   "artwork_helper": {
     "bytes": 119424,
