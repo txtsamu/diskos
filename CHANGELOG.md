@@ -6,6 +6,16 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.5.5] - 2026-10-19
+
+- Experimental: Thai (tone marks placed above vowels), Vietnamese and Korean (2,350 syllables) in titles, artists,
+  albums and lyrics.
+- Covers are cached until less than 500 MB is free on the card (was 1 GB).
+- Battery: hold the "Since full charge" line to restart the totals.
+- Docs and website: how-to matches the Display menu, showcase video, install advice. Not tested on a Disc before release.
+
+[2.5.5 release notes](docs/releases/v2.5.5.md)
+
 ## [2.5.4] - 2026-10-18
 
 - Shared Display settings organization, explanations for unsupported controls, static wrapping setting labels and reduced invisible/repeated visual work.

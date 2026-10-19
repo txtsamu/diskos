@@ -1,17 +1,17 @@
 {
-  "version": "2.5.4",
-  "revision": "All dev1\u2013dev3 changes plus final Squash weather and Squash/Null battery layouts",
-  "baseline": "9ba4dedfbba9d4a0ed4421cba10c3c4800f48818",
-  "source_commit": "df9145471421736b7d4854841716e39fab6d2cb1",
-  "ui_source_sha256": "5cfd3b6698ec74ee2e0fb33e41c6e2acab7e484d875d838afee632330b2747a1",
+  "version": "2.5.5",
+  "revision": "Experimental Thai, Vietnamese and Korean text; cover cache to 500 MB free; battery totals hold-to-restart",
+  "baseline": "f76b1f4",
+  "source_commit": "2c24972800eaf420d79f55777e651f2778cfa5f2",
+  "ui_source_sha256": "f410261676c916e2c705b59f46ec2251f6ed7470bad33da6794c4b6abb5636e2",
   "ui_source_hash_recipe": "sorted tracked ui paths: path + NUL + file bytes + NUL",
   "compiler": "Repository prebuilt toolchain-gcc11.2: GCC 11.2.0, musl 1.2.6",
   "abi": "static little-endian MIPS32r2, o32, FP64, NaN2008",
-  "status": "Focused real-LVGL Display/idle/navigation suite and final MIPS build passed; development Null seek checks and LVGL renders passed. Extended physical-device testing of newest controls remains pending. Prepared for publishing.",
+  "status": "MIPS build and LVGL host renders passed (Thai/Vietnamese/Korean on Music and lists, battery hold). NOT tested on a Disc yet; released untested on the owner's decision.",
   "binary": {
-    "bytes": 5793304,
-    "sha256": "033c7a498f0c2de4a6fedba7b2e217a90bbc17f273e4e79d0f463138c3411e1d",
-    "md5": "ab6a0682d935bd937d855526c8434cf6"
+    "bytes": 6118720,
+    "sha256": "68c6b0068cfdeca9400fd6888d28cb7dbf2e56b6d7ddfbf54352bd9ea662e43f",
+    "md5": "2f1c3ac0095ff1bf28e0d8ab9762c33b"
   },
   "artwork_helper": {
     "bytes": 119424,

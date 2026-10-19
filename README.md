@@ -37,9 +37,10 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.4
+## New in 2.5.5
 
-Clearer Display settings, bigger Null text, circular Immersive controls and a fresh Squash weather screen. Every 2.5.3 feature stays included. [See what’s new](docs/releases/v2.5.4.md).
+**Experimental Thai, Vietnamese and Korean** in song titles, artists, albums and lyrics, covers on fuller SD cards
+and a hold-to-restart for the battery totals. *Not tested on a Disc yet.* [See what’s new](docs/releases/v2.5.5.md).
 
 ## Big. Bold. Squash.
 
@@ -330,9 +331,12 @@ checkouts.
 - **Windows: unsupported.** The Windows app is shared as-is.
 - **Firmware.** Made for FiiO firmware V2.57 only.
 - **Cover cache.** Covers for Cover Flow and lists are cached on the SD card only while it has enough free space
-  (currently 1 GB). On a nearly full card, covers may stay blank.
+  (500 MB). On a nearly full card, covers may stay blank.
 - **If you suddenly see FiiO's own interface,** Disco! stopped and the Disc fell back to the stock one; restart to
   return. Over SSH (Debug Mode), `/usr/data/diskos_boot.log` and `/usr/data/diskos_install.log` show why.
+- **Languages.** Titles, artists and lyrics can be in Latin-script languages (including Vietnamese), Greek,
+  Cyrillic, Thai, Korean, Japanese and common Chinese characters. Chinese, Japanese and Korean show in one smaller
+  size. Right-to-left scripts (Hebrew, Arabic) and Indian scripts are not supported yet.
 - **No online updates.** New versions come by signed SD-card update or a fresh install.
 
 ## Going back

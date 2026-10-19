@@ -1,6 +1,6 @@
 # diskOS Disco! - to do
 
-Live list. Baseline: 2.5.4 (main 881ca5a, tag v2.5.4). Older notes: `todo-history.md`.
+Live list. Baseline: 2.5.5 (tag v2.5.5). Older notes: `todo-history.md`.
 How we work: owner suggests -> Claude offers fixes -> host renders for big visual changes -> owner's go ->
 batch -> one test build -> 2-3 days on the Disc -> one release, one bundle, owner pushes + tags.
 List words: "add to the list" pins an item; "major" / "minor" sorts it; "priority" puts it first.
@@ -12,12 +12,14 @@ Links always point to releases/latest. No upstream diskOS version shown to users
 ## Major
 (none)
 
+## Released untested: 2.5.5 (2026-10-19)
+- Owner to try on the Disc: Thai/Vietnamese/Korean songs, battery hold, covers on a fairly full card.
+  Any crash or data loss -> quick 2.5.6.
+
 ## Minor
-- Cover Flow shows no covers on nearly full SD cards: the cover cache stops below 1 GB free. Lower it to about 200 MB.
-  When done, update the README "Known limits" line (it says 1 GB).
-- Battery: hold the "Since full charge" line to restart the totals by hand.
-- Screenshots: refresh any in the docs/site that predate 2.5 (host renders, round format). Needs a look per image.
+- Screenshots: refresh any in the docs/site that predate 2.5 (host renders, round format).
 - Windows app downloads the latest mq_ui instead of the bundled one (low priority; Windows is unsupported).
+- Later idea: Korean/CJK in a second, larger size for Music titles (about +0.4 MB per script).
 
 ## Done, not yet released (docs only, no rebuild needed)
 - Windows warning on the website download card, README and WINDOWS.md.

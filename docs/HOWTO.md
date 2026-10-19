@@ -189,6 +189,9 @@ leave Immersive by swiping from the left edge (tapping the cover no longer close
 a wheel? Settings > Playback > Library seeking > Letter wheel: hold the letter, move round the screen, tap the centre
 (or wait a second) to jump.
 
+**Restart the battery totals.** On the Battery page, hold the line under the hairline ("Since full charge..."):
+playing and screen-on time start again from now. It shows "Since reset" until the next full charge.
+
 ## Library upkeep
 
 **Add new music.** Copy it to the card, then tap Rescan in Quick Settings (or Settings > System > Library >
