@@ -11,6 +11,7 @@
 #include "folderbrowser.h"
 #include "musicdb.h"
 #include "scanner.h"
+#include "multipick.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -214,6 +215,46 @@ static void fb_jump(char L){
 
 /* Rows in the Library's style: 54 px, curved with the circle, the name at 18 px and a detail line at 16 px -
  * folders with an accent folder icon and a chevron, songs with a note and their format. */
+/* ---- Picking several folders / songs (multipick.c): a folder counts as every song under it ------------------- */
+static mp_host_t g_fmp;
+static int fb_pick_count(void){ return g_nent; }
+static int fb_pick_full(int i, char *out, int cap){
+    int n = snprintf(out, (size_t)cap, "%s/%s", g_dir, g_ent[i].name); return n > 0 && n < cap;
+}
+typedef struct { int *ids; int n, room, fail; } fb_ids_t;
+static void fb_ids_push(fb_ids_t *a, int id){
+    if(id <= 0 || a->fail) return;
+    if(a->n == a->room){ int r = a->room ? a->room * 2 : 256; int *m = realloc(a->ids, sizeof *m * (size_t)r); if(!m){ a->fail = 1; return; } a->ids = m; a->room = r; }
+    a->ids[a->n++] = id;
+}
+static void fb_ids_cb(void *ud, const char *path, const char *t, const char *ar, const char *al, long d){
+    (void)t; (void)ar; (void)al; (void)d; fb_ids_push(ud, mdb_song_id_by_path(path));
+}
+static int fb_pick_collect(const uint8_t *sel, int cap, int **out){
+    fb_ids_t a = {0};
+    for(int i = 0; i < g_nent && i < cap; i++){
+        char full[FB_MAXPATH];
+        if(!sel[i] || !fb_pick_full(i, full, sizeof full)) continue;
+        if(g_ent[i].is_dir) mdb_folder_rows(full, fb_ids_cb, &a);       /* everything under it, in file order */
+        else fb_ids_push(&a, mdb_song_id_by_path(full));
+    }
+    if(a.fail){ free(a.ids); return 0; }
+    *out = a.ids; return a.n;
+}
+static int fb_pick_queue(const uint8_t *sel, int cap){
+    int added = 0;
+    for(int i = 0; i < g_nent && i < cap; i++){
+        char full[FB_MAXPATH];
+        if(!sel[i] || !fb_pick_full(i, full, sizeof full)) continue;
+        int r = g_ent[i].is_dir ? queue_add_folder(full) : queue_add_path(full);
+        if(r > 0) added += r;
+    }
+    return added;
+}
+static void fb_pick_az(int show){ azjump_show(&g_faz, show && g_nent > 12); }
+int folderbrowser_pick_back(void){ if(!mp_active(&g_fmp)) return 0; mp_exit(&g_fmp); return 1; }
+void folderbrowser_pick_demo(const char *csv){ mp_demo(&g_fmp, csv); }
+
 static void fb_add_row(int i){
         fb_entry_t *en = &g_ent[i];
         lv_obj_t *r = lv_button_create(g_list);
@@ -225,6 +266,7 @@ static void fb_add_row(int i){
         lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
         lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_ext_click_area(r, 2);
+        if(en->is_dir || fb_is_audio(en->name)) mp_row(&g_fmp, r, i);   /* swipe to pick (before the row's own tap/hold) */
         lv_obj_add_event_cb(r, fb_row_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)i);   /* short: a hold opens the menu */
         lv_obj_add_event_cb(r, fb_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)i);
 
@@ -269,6 +311,7 @@ static void fb_fill_cb(lv_timer_t *t){
 
 static void fb_rebuild(void){
     fb_fill_stop();
+    mp_exit(&g_fmp);                                     /* another folder: picking ends */
     if(g_title){
         int at_root = (strcmp(g_dir, FB_ROOT) == 0);
         theme_title_text(g_title, at_root ? "Files" : fb_basename(g_dir));
@@ -394,7 +437,7 @@ static void fb_long_cb(lv_event_t *e){          /* the long-press menu: queue ac
     else fileops_open(g_dir, g_ent[i].name, 0, fb_refresh);    /* other files: file operations only */
 }
 static void fb_header_back_cb(lv_event_t *e){
-    if(lv_event_get_code(e) == LV_EVENT_CLICKED) fb_ascend();
+    if(lv_event_get_code(e) == LV_EVENT_CLICKED && !folderbrowser_pick_back()) fb_ascend();
 }
 
 void folderbrowser_test_jump(char L){ fb_jump(L); }   /* host renders */
@@ -419,6 +462,9 @@ void folderbrowser_create(lv_obj_t *root){
     lv_obj_add_event_cb(g_list, fb_scroll_cb, LV_EVENT_SCROLL, NULL);   /* the window first, then the curve */
     curvelist_attach(&g_fcl, g_list, root, FB_ROW_W);
     azjump_create(&g_faz, root, fb_jump, "folders");
+    g_fmp = (mp_host_t){ .root = root, .list = g_list, .title = g_title, .count = fb_pick_count,
+                         .collect = fb_pick_collect, .queue = fb_pick_queue, .az = fb_pick_az };
+    mp_attach(&g_fmp);                                    /* Play / Queue / More while picking */
 
     snprintf(g_dir, sizeof g_dir, "%s", FB_ROOT);   /* first content built on open() */
 }

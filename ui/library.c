@@ -7,6 +7,7 @@
 #include "braun.h"
 #include "curvelist.h"
 #include "theme_kit.h"
+#include "multipick.h"
 #include "folderbrowser.h"
 #include "books.h"
 #include "musicdb.h"
@@ -113,8 +114,8 @@ static void position_tick(void){
     lv_obj_remove_flag(g_position,LV_OBJ_FLAG_HIDDEN);g_position_tick=lv_tick_get();g_position_fading=0;
 }
 static void focus_clear(void);
-static int g_sel_on;                 /* picking several items (multi-select, below) */
-static void sel_exit(void);
+static void sel_exit(void);           /* stop picking several items (multi-select, below) */
+static mp_host_t g_mp;                /* the picking state (multipick.c) */
 static void az_show(int on);
 static void focus_scroll_begin(lv_event_t*);
 /* album order: disc, then track number (untagged tracks after tagged ones), then title */
@@ -495,7 +496,7 @@ static void back_to_artists(void){
  * category menu). Returns 1 if it handled an internal step, 0 if already at the
  * top menu (so the caller should leave the Library screen). */
 int library_back(void){                    /* the back SWIPE (and any caller that means "go back") */
-    if(g_sel_on){ sel_exit(); return 1; }       /* picking: Back just stops picking */
+    if(mp_active(&g_mp)){ sel_exit(); return 1; }   /* picking: Back just stops picking */
     int jump = g_np_jump;
     focus_clear();
     if(jump){                                   /* came from Now Playing's title: straight back there */
@@ -522,7 +523,7 @@ int library_back(void){                    /* the back SWIPE (and any caller tha
 }
 /* the header's back arrow: one level UP the hierarchy, never out of a drill the user was placed in */
 static int library_up(void){
-    if(g_sel_on){ sel_exit(); return 1; }
+    if(mp_active(&g_mp)){ sel_exit(); return 1; }
     focus_clear();
     if(g_view==VIEW_GROUP){
         if(g_from_artist){ g_from_artist=0; g_deeplink=0; g_view=VIEW_ARTIST_ALBUMS; g_drill_kind=0; library_reload(); return 1; }
@@ -634,119 +635,22 @@ static void focus_mark(lv_obj_t *r){   /* lifted row + accent title: "you are he
     }
     g_focus_row = r;
 }
-/* ---- Picking several items (multi-select) -----------------------------------------------------------------------
- * Swipe sideways across a row (starting at least 72 px in from either edge, so it is never the back swipe or the
- * navigation circle): picking starts with that row ticked. While picking, a tap ticks or unticks a row (a swipe
- * does too), the title reads "3 selected", the A-Z pill gives way to Play / Queue / More, and holding a row opens
- * More. Back, or finishing an action, leaves picking. Ticks are kept per item index (rows are recycled while
- * scrolling); any reload of the list ends picking. Songs, albums, artists, genres, an album's or artist's songs,
- * Most Played and Recently Played. */
-#define SEL_EDGE 72
-static int g_sel_cnt, g_sel_cap; static uint8_t *g_sel;
-static lv_obj_t *g_selbar, *g_selmore; static char g_sel_title[64];
-static const int g_sel_tag;                                   /* marks a row's tick badge */
-static int sel_view_ok(void){
+/* ---- Picking several items (multi-select, multipick.c): tracks, albums and artists ------------------------------ */
+static int lib_pick_ok(void){
     switch(g_view){
-        case VIEW_SONGS: case VIEW_ALBUMS: case VIEW_ARTISTS: case VIEW_GENRES: case VIEW_MOSTPLAYED: case VIEW_RECENT: return 1;
-        case VIEW_GROUP: return !(g_drill_kind != 1 && g_scope_lvl == 1);   /* not the albums-of-a-scope list */
+        case VIEW_SONGS: case VIEW_ALBUMS: case VIEW_ARTISTS: return 1;
+        case VIEW_GROUP: return !(g_drill_kind != 1 && g_scope_lvl == 1);   /* an album's / artist's songs, not a scope's albums */
         default: return 0;
     }
 }
-static int sel_is_song_view(void){ return g_view == VIEW_SONGS || g_view == VIEW_GROUP || g_view == VIEW_MOSTPLAYED || g_view == VIEW_RECENT; }
-static int sel_song_id(int i){ return (g_view == VIEW_MOSTPLAYED || g_view == VIEW_RECENT) ? g_favs[i].id : g_buf[i]->id; }
-static lv_obj_t *sel_badge(lv_obj_t *r){
-    for(uint32_t k = 0; k < lv_obj_get_child_count(r); k++){ lv_obj_t *c = lv_obj_get_child(r, (int32_t)k); if(lv_obj_get_user_data(c) == &g_sel_tag) return c; }
-    return NULL;
-}
-static void sel_style_row(lv_obj_t *r, int i){                 /* the tick (or empty ring) and the lifted row */
-    int on = g_sel_on && i >= 0 && i < g_sel_cap && g_sel[i];
-    lv_obj_t *b = sel_badge(r);
-    for(uint32_t k = 0; k < lv_obj_get_child_count(r); k++){   /* the value on the right gives way to the tick */
-        lv_obj_t *c = lv_obj_get_child(r, (int32_t)k);
-        if(lv_obj_check_type(c, &lv_label_class) && lv_obj_get_style_text_align(c, 0) == LV_TEXT_ALIGN_RIGHT){
-            if(g_sel_on) lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN); else lv_obj_remove_flag(c, LV_OBJ_FLAG_HIDDEN); }
-    }
-    if(!g_sel_on){ if(b) lv_obj_delete(b); lv_obj_set_style_outline_width(r, 0, 0); return; }
-    if(!b){
-        b = lv_obj_create(r); lv_obj_remove_style_all(b); lv_obj_set_user_data(b, (void *)&g_sel_tag);
-        lv_obj_set_size(b, 24, 24); lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_IGNORE_LAYOUT | LV_OBJ_FLAG_EVENT_BUBBLE); lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_t *t = lv_label_create(b); lv_label_set_text(t, LV_SYMBOL_OK); lv_obj_set_style_text_font(t, TF(UI_14), 0); lv_obj_center(t);
-    }
-    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -12, 0);
-    lv_obj_set_style_border_width(b, on ? 0 : 2, 0); lv_obj_set_style_border_color(b, TC(TEXT_MUTED), 0);
-    lv_obj_set_style_bg_color(b, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_bg_opa(b, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_t *t = lv_obj_get_child(b, 0);
-    lv_obj_set_style_text_color(t, theme_on_color(TC(ACCENT_PRIMARY)), 0);
-    if(on) lv_obj_remove_flag(t, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(t, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_style_outline_color(r, TC(ACCENT_PRIMARY), 0); lv_obj_set_style_outline_pad(r, -1, 0);
-    lv_obj_set_style_outline_width(r, on ? 2 : 0, 0);
-}
-static void sel_row_cb(lv_event_t *e);
-static int sel_row_index(lv_obj_t *r){                         /* the item a row shows (-1: not a pickable row) */
-    for(uint32_t k = 0; k < lv_obj_get_event_count(r); k++){
-        lv_event_dsc_t *d = lv_obj_get_event_dsc(r, k);
-        if(d && lv_event_dsc_get_cb(d) == sel_row_cb) return (int)(intptr_t)lv_event_dsc_get_user_data(d);
-    }
-    return -1;
-}
-static void sel_restyle_all(void){
-    for(uint32_t k = 0; k < lv_obj_get_child_count(g_list); k++){
-        lv_obj_t *r = lv_obj_get_child(g_list, (int32_t)k); int i = sel_row_index(r);
-        if(i >= 0) sel_style_row(r, g_sel_on ? i : -1);
-    }
-}
-static void sel_title(void){
-    if(!g_title) return;
-    if(!g_sel_on){ if(g_sel_title[0]) lv_label_set_text(g_title, g_sel_title); return; }
-    char b[48]; snprintf(b, sizeof b, th_null() ? "%d picked" : g_sel_cnt == 1 ? "1 selected" : "%d selected", g_sel_cnt);   /* Null's pixel title is narrow */
-    lv_label_set_text(g_title, b);
-}
-static void selbar_show(int on);
-static void sel_toggle(lv_obj_t *r, int i){
-    if(i < 0 || i >= g_count) return;
-    if(!g_sel_on){
-        if(!sel_view_ok()) return;
-        if(g_sel_cap < g_count){ uint8_t *n = realloc(g_sel, (size_t)g_count); if(!n) return; g_sel = n; g_sel_cap = g_count; }
-        memset(g_sel, 0, (size_t)g_sel_cap); g_sel_cnt = 0; g_sel_on = 1;
-        snprintf(g_sel_title, sizeof g_sel_title, "%s", lv_label_get_text(g_title));
-        sel_restyle_all();                                             /* every visible row gets its ring */
-        selbar_show(1);
-    }
-    g_sel[i] = !g_sel[i]; g_sel_cnt += g_sel[i] ? 1 : -1;
-    if(r) sel_style_row(r, i);
-    sel_title();
-    if(g_sel_cnt == 0) sel_exit();                                     /* nothing ticked any more: back to normal */
-}
-static uint32_t g_sw_t; static lv_point_t g_sw_p; static int g_sw_done;
-static void sel_row_cb(lv_event_t *e){
-    lv_event_code_t c = lv_event_get_code(e);
-    lv_obj_t *r = lv_event_get_current_target(e);
-    int i = (int)(intptr_t)lv_event_get_user_data(e);
-    lv_indev_t *in = lv_indev_active();
-    if(c == LV_EVENT_PRESSED){ if(in) lv_indev_get_point(in, &g_sw_p); g_sw_done = 0; g_sw_t = lv_tick_get(); return; }
-    if(c == LV_EVENT_PRESSING){
-        if(g_sw_done || !in || !sel_view_ok()) return;
-        if(g_sw_p.x < SEL_EDGE || g_sw_p.x > 360 - SEL_EDGE) return;  /* edge strips: back swipe / navigation circle */
-        lv_point_t p; lv_indev_get_point(in, &p);
-        int dx = p.x - g_sw_p.x, dy = p.y - g_sw_p.y;
-        if(abs(dx) >= 36 && abs(dy) < 22 && lv_tick_elaps(g_sw_t) < 900){
-            g_sw_done = 1; lv_indev_wait_release(in);                  /* no tap, no hold, no scroll from this touch */
-            sel_toggle(r, i);
-        }
-        return;
-    }
-    if(!g_sel_on) return;
-    if(c == LV_EVENT_SHORT_CLICKED || c == LV_EVENT_CLICKED){ if(c == LV_EVENT_SHORT_CLICKED) sel_toggle(r, i); lv_event_stop_processing(e); }
-    else if(c == LV_EVENT_LONG_PRESSED){ lv_event_stop_processing(e); lv_obj_send_event(g_selmore, LV_EVENT_CLICKED, NULL); }
-}
-/* ---- what the ticked items are, as songs -------------------------------------------------------------------- */
-static int sel_ids(int **out){                                  /* every ticked item's songs, in list order; caller frees */
-    int cap = 256, n = 0; int *ids = malloc(sizeof *ids * (size_t)cap); if(!ids) return 0;
-    #define PUSH(v) do{ if(n == cap){ int *m = realloc(ids, sizeof *ids * (size_t)(cap *= 2)); if(!m){ free(ids); return 0; } ids = m; } ids[n++] = (v); }while(0)
-    for(int i = 0; i < g_count && i < g_sel_cap; i++){
-        if(!g_sel[i]) continue;
-        if(sel_is_song_view()){ PUSH(sel_song_id(i)); continue; }
+static int lib_pick_count(void){ return g_count; }
+static int lib_is_song_view(void){ return g_view == VIEW_SONGS || g_view == VIEW_GROUP; }
+static int lib_pick_collect(const uint8_t *sel, int cap, int **out){   /* every ticked item's songs, in list order */
+    int room = 256, n = 0; int *ids = malloc(sizeof *ids * (size_t)room); if(!ids) return 0;
+    #define PUSH(v) do{ if(n == room){ int *m = realloc(ids, sizeof *ids * (size_t)(room *= 2)); if(!m){ free(ids); return 0; } ids = m; } ids[n++] = (v); }while(0)
+    for(int i = 0; i < g_count && i < cap; i++){
+        if(!sel[i]) continue;
+        if(lib_is_song_view()){ PUSH(g_buf[i]->id); continue; }
         if(g_view == VIEW_ARTISTS){
             mdb_plan_t pl = {0};
             if(mdb_artist_plan(g_gnames[i], &pl)){ for(int k = 0; k < pl.count; k++) PUSH(pl.ids[k]); mdb_plan_free(&pl); }
@@ -755,146 +659,30 @@ static int sel_ids(int **out){                                  /* every ticked 
         if(g_view == VIEW_ALBUMS){
             const mdb_song_t **sl = malloc(sizeof *sl * 512); int m = sl ? mdb_album_songs(g_gnames[i], sl, 512) : 0;
             for(int k = 0; k < m; k++) if(!g_gartists[i][0] || !strcasecmp(sl[k]->artist_group, g_gartists[i]) || !strcasecmp(sl[k]->artist, g_gartists[i])) PUSH(sl[k]->id);
-            free(sl); continue;
-        }
-        if(g_view == VIEW_GENRES){
-            for(int k = 0; k < mdb_song_count(); k++){ const mdb_song_t *so = mdb_song(k); if(so && !strcasecmp(so->genre, g_gnames[i])) PUSH(so->id); }
+            free(sl);
         }
     }
     #undef PUSH
     *out = ids; return n;
 }
-static void sel_play(int shuffle){
-    int *ids = NULL, n = sel_ids(&ids);
-    if(n <= 0){ free(ids); ui_toast("Nothing to play"); return; }
-    if(shuffle) for(int k = n - 1; k > 0; k--){ int j = rand() % (k + 1), t = ids[k]; ids[k] = ids[j]; ids[j] = t; }
-    mdb_plan_t pl = { .list_type = 5, .ids = ids, .count = n };
-    queue_note_external_play();                                   /* the queue (if any) waits until after these */
-    int ok = ui_play_plan(&pl, ids[0]);
-    mdb_plan_free(&pl);
-    if(ok){ sel_exit(); screen_show(SCR_NOWPLAYING); }
-}
-static void sel_queue(void){
+static int lib_pick_queue(const uint8_t *sel, int cap){
     int added = 0;
-    for(int i = 0; i < g_count && i < g_sel_cap; i++){
-        if(!g_sel[i]) continue;
-        if(sel_is_song_view()){ char p[300]; if(mdb_song_path(sel_song_id(i), p, sizeof p) == 1 && queue_add_path(p) > 0) added++; }
-        else { int r = queue_add_group(g_view == VIEW_ALBUMS ? "ALBUM" : g_view == VIEW_ARTISTS ? "ARTIST" : "GENRE", g_gnames[i]); if(r > 0) added += r; }
+    for(int i = 0; i < g_count && i < cap; i++){
+        if(!sel[i]) continue;
+        if(lib_is_song_view()){ char p[300]; if(mdb_song_path(g_buf[i]->id, p, sizeof p) == 1 && queue_add_path(p) > 0) added++; }
+        else { int r = queue_add_group(g_view == VIEW_ALBUMS ? "ALBUM" : "ARTIST", g_gnames[i]); if(r > 0) added += r; }
     }
-    char b[48]; snprintf(b, sizeof b, added == 1 ? "1 song queued" : "%d songs queued", added); ui_toast(added ? b : "Couldn't queue those");
-    if(added) sel_exit();
+    return added;
 }
-static void sel_playlist(void){
-    int *ids = NULL, n = sel_ids(&ids);
-    if(n > 0){ plpick_set_ids(ids, n); free(ids); sel_exit(); screen_show(SCR_PLPICK); } else free(ids);
-}
-static void sel_favourite(void){
-    int *ids = NULL, n = sel_ids(&ids), done = 0;
-    for(int k = 0; k < n; k++){ char p[300]; if(mdb_song_path(ids[k], p, sizeof p) == 1 && mdb_set_favorite_path(p, 1) >= 0) done++; }
-    free(ids);
-    char b[48]; snprintf(b, sizeof b, done == 1 ? "1 favourite added" : "%d favourites added", done); ui_toast(done ? b : "Couldn't add favourites");
-    if(done) sel_exit();
-}
-/* ---- the action bar (Play / Queue / More) and the More list ------------------------------------------------- */
-static lv_obj_t *g_morepop;
-static void more_close(void){ if(g_morepop){ lv_obj_delete_async(g_morepop); g_morepop = NULL; } }
-static void more_item_cb(lv_event_t *e){
-    if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    int a = (int)(intptr_t)lv_event_get_user_data(e);
-    more_close();
-    if(a == 1) sel_play(1); else if(a == 2) sel_playlist(); else if(a == 3) sel_favourite();
-    else if(a == 4){ for(int i = 0; i < g_count && i < g_sel_cap; i++) g_sel[i] = 1; g_sel_cnt = g_count < g_sel_cap ? g_count : g_sel_cap; sel_restyle_all(); sel_title(); }
-}
-static void more_bg_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED && lv_event_get_target(e) == g_morepop) more_close(); }
-static void more_open_cb(lv_event_t *e){
-    if(lv_event_get_code(e) != LV_EVENT_CLICKED || !g_sel_on) return;
-    more_close();
-    g_morepop = lv_obj_create(lv_layer_top()); lv_obj_remove_style_all(g_morepop);
-    lv_obj_set_size(g_morepop, 360, 360); lv_obj_set_style_bg_color(g_morepop, TC(CANVAS), 0); lv_obj_set_style_bg_opa(g_morepop, LV_OPA_70, 0);
-    lv_obj_add_flag(g_morepop, LV_OBJ_FLAG_CLICKABLE); lv_obj_remove_flag(g_morepop, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(g_morepop, more_bg_cb, LV_EVENT_CLICKED, NULL);
-    static const char *const L[] = { "Shuffle", "Add to playlist", "Add to Favourites", "Select all" };
-    int n = 4;
-    lv_obj_t *card = lv_obj_create(g_morepop); lv_obj_remove_style_all(card);
-    lv_obj_set_size(card, 236, 32 + n * 50); lv_obj_center(card);
-    lv_obj_set_style_radius(card, 20, 0); lv_obj_set_style_bg_color(card, TC(SURFACE), 0); lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-    for(int k = 0; k < n; k++){
-        lv_obj_t *b = lv_obj_create(card); lv_obj_remove_style_all(b);
-        lv_obj_set_size(b, 212, 44); lv_obj_set_pos(b, 12, 16 + k * 50);
-        lv_obj_set_style_radius(b, 22, 0); lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0); lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(b, TC(ACCENT_PRIMARY), LV_STATE_PRESSED);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(b, more_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(k + 1));
-        lv_obj_t *l = lv_label_create(b); lv_label_set_text(l, tr(L[k]));
-        lv_obj_set_style_text_font(l, TF(UI_18), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0); lv_obj_center(l);
-    }
-}
-static void selbar_play_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) sel_play(0); }
-static void selbar_queue_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) sel_queue(); }
-static lv_obj_t *selbar_btn(int x, int w, const char *txt, lv_event_cb_t cb){
-    lv_obj_t *b = lv_obj_create(g_selbar); lv_obj_remove_style_all(b);
-    lv_obj_set_size(b, w, 40); lv_obj_set_pos(b, 70 + x, 22);
-    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0); lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(b, TC(ACCENT_PRIMARY), LV_STATE_PRESSED);
-    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l = lv_label_create(b); lv_label_set_text(l, txt);
-    lv_obj_set_style_text_font(l, TF(UI_16), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0); lv_obj_center(l);
-    return b;
-}
-static void selbar_create(lv_obj_t *root){
-    g_selbar = lv_obj_create(root); lv_obj_remove_style_all(g_selbar);   /* a strip that fades in over the list's foot */
-    lv_obj_set_size(g_selbar, 360, 100); lv_obj_set_pos(g_selbar, 0, 260);
-    lv_obj_set_style_bg_color(g_selbar, TC(CANVAS), 0); lv_obj_set_style_bg_grad_color(g_selbar, TC(CANVAS), 0);
-    lv_obj_set_style_bg_grad_dir(g_selbar, LV_GRAD_DIR_VER, 0); lv_obj_set_style_bg_opa(g_selbar, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_main_opa(g_selbar, LV_OPA_TRANSP, 0); lv_obj_set_style_bg_grad_opa(g_selbar, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_main_stop(g_selbar, 0, 0); lv_obj_set_style_bg_grad_stop(g_selbar, 90, 0);
-    lv_obj_add_flag(g_selbar, LV_OBJ_FLAG_CLICKABLE);                  /* taps on the strip don't reach the rows under it */
-    kit_keep(g_selbar);                                                /* the themes restyle its buttons, never the strip */
-    lv_obj_remove_flag(g_selbar, LV_OBJ_FLAG_SCROLLABLE); lv_obj_add_flag(g_selbar, LV_OBJ_FLAG_HIDDEN);
-    selbar_btn(0, 80, LV_SYMBOL_PLAY " Play", selbar_play_cb);
-    selbar_btn(86, 88, LV_SYMBOL_PLUS " Queue", selbar_queue_cb);
-    g_selmore = selbar_btn(180, 40, LV_SYMBOL_LIST, more_open_cb);
-}
-static void selbar_show(int on){
-    if(!g_selbar) return;
-    static int32_t pad0 = -1;
-    if(pad0 < 0) pad0 = lv_obj_get_style_pad_bottom(g_list, 0);
-    if(on){ az_show(0); lv_obj_remove_flag(g_selbar, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_selbar);
-            lv_obj_t *scr = lv_obj_get_parent(g_selbar); lv_color_t bg = TC(CANVAS);   /* the screen's own colour */
-            for(lv_obj_t *o = scr; o; o = lv_obj_get_parent(o)) if(lv_obj_get_style_bg_opa(o, 0) > LV_OPA_50){ bg = lv_obj_get_style_bg_color(o, 0); break; }
-            if(th_null()) bg = TC(FIXED_MEDIA_BLACK);                     /* Null: always on black */
-            lv_obj_set_style_bg_color(g_selbar, bg, 0); lv_obj_set_style_bg_grad_color(g_selbar, bg, 0);
-            lv_obj_set_style_bg_opa(g_selbar, LV_OPA_COVER, 0);           /* a theme pass may have cleared it */
-            lv_obj_set_style_pad_bottom(g_list, pad0 + 70, 0); }            /* the last rows can scroll clear of the bar */
-    else { lv_obj_add_flag(g_selbar, LV_OBJ_FLAG_HIDDEN); lv_obj_set_style_pad_bottom(g_list, pad0, 0); }
-}
-static void sel_exit(void){
-    if(!g_sel_on) return;
-    g_sel_on = 0; g_sel_cnt = 0; more_close();
-    sel_restyle_all();
-    selbar_show(0); sel_title();
-    az_show(g_count >= 20);                                        /* the A-Z pill comes back where it was offered */
-}
-int library_picking(void){ return g_sel_on; }
-/* Renderer/tests: tick the items listed in csv ("0,2,3") as if swiped and tapped. */
-void library_pick_demo(const char *csv){
-    for(const char *p = csv; p && *p; ){
-        int i = atoi(p); if(i >= 0 && i < g_count){ if(!g_sel_on || !g_sel[i]) sel_toggle(NULL, i); }
-        p = strchr(p, ','); if(p) p++;
-    }
-    sel_restyle_all();
-    if(csv && strstr(csv, "more") && g_selmore) lv_obj_send_event(g_selmore, LV_EVENT_CLICKED, NULL);
-}
+static void lib_pick_az(int show){ az_show(show ? g_count >= 20 : 0); }
+static void sel_exit(void){ mp_exit(&g_mp); }
+int library_picking(void){ return mp_active(&g_mp); }
+void library_pick_demo(const char *csv){ mp_demo(&g_mp, csv); }
 static void add_row(int i){
     int focus_me = (i == g_focus_idx);
     char dur[12];
     lv_obj_t *r = base_row();
-    if(sel_view_ok()){                                              /* swipe to pick (runs before the row's own tap/hold) */
-        lv_obj_add_event_cb(r, sel_row_cb, LV_EVENT_ALL, (void *)(intptr_t)i);
-    }
+    if(lib_pick_ok()) mp_row(&g_mp, r, i);                          /* swipe to pick (runs before the row's own tap/hold) */
     if(g_view==VIEW_GROUP && g_drill_kind!=1 && g_scope_lvl==1){       /* artist/genre -> albums: "All Songs" first */
         char cnt[12];
         if(i==0){
@@ -964,7 +752,6 @@ static void add_row(int i){
             break;
     }
     if(focus_me) focus_mark(r);
-    if(g_sel_on) sel_style_row(r, i);                              /* a recycled row keeps its tick */
 }
 static void fill_stop(void){ if(g_fill_timer){ lv_timer_del(g_fill_timer); g_fill_timer=NULL; } }
 
@@ -1460,7 +1247,7 @@ static void library_reload_inner(void){
  * and after the virtual spacers exist; explicit track focus takes priority. */
 static void library_reload(void){
     if(!g_list)return;
-    if(g_sel_on) sel_exit();                       /* a new or refreshed list: picking ends */
+    if(mp_active(&g_mp)) sel_exit();               /* a new or refreshed list: picking ends */
     if(g_position_key[0]){
         int slot=-1;for(int i=0;i<12;i++)if(!strcmp(g_positions[i].key,g_position_key)){slot=i;break;}
         if(slot<0)slot=(int)(g_position_next++%12);
@@ -1631,7 +1418,9 @@ void library_create(lv_obj_t *root){
 
     /* the "A - Z" pill and its letter grid (azjump.c, shared with Folders) */
     azjump_create(&g_az, root, jump_to_letter, "library");
-    selbar_create(root);                          /* Play / Queue / More while picking (hidden otherwise) */
+    g_mp = (mp_host_t){ .root = root, .list = g_list, .title = g_title, .count = lib_pick_count, .can_pick = lib_pick_ok,
+                        .collect = lib_pick_collect, .queue = lib_pick_queue, .az = lib_pick_az };
+    mp_attach(&g_mp);                             /* Play / Queue / More while picking (hidden otherwise) */
 
     /* alphabet hint overlay (rim-scroll position indicator) - centred, hidden */
     g_lhint = lv_obj_create(root);

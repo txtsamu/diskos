@@ -3517,7 +3517,8 @@ int main(int argc, char **argv){
                         onboarding_discovered(HINT_BACK);
                         fprintf(stderr,"BACK swipe sx=%d dx=%d dy=%d dt=%u\n",sx,dx,dy,dt); fflush(stderr);
                         /* inside Library, step through its sub-views first */
-                        if(!(cur==SCR_LIBRARY && library_back())) screen_back();
+                        { int folderbrowser_pick_back(void);
+                        if(!(cur==SCR_LIBRARY && library_back()) && !(cur==SCR_FOLDER && folderbrowser_pick_back())) screen_back(); }
                     }
                     }
                 }
