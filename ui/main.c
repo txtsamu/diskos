@@ -340,6 +340,30 @@ static void route_uppercase(const char *in, char *out, int cap){
 const char *ui_route_mac(void){ return g_route_mac; }   /* device the player is routed to ('' = local) */
 int ui_local_playback_allowed(void);
 void ui_resume_guard_arm(int reason, const char *mac);
+static void resume_guard_start(int reason, const char *mac, int force);
+int bt_codec_upgrade_pending(void);                      /* bt.c: an AAC/LDAC switch is still to come for this route */
+/* Music held back while the codec switches (set by ui_route_bt, released by route_hold_tick or the user). */
+static uint32_t g_hold_since, g_hold_settle; static char g_hold_mac[20];
+static void route_hold_start(const char *mac){
+    g_hold_since = lv_tick_get() | 1; g_hold_settle = 0; snprintf(g_hold_mac, sizeof g_hold_mac, "%s", mac);
+    fprintf(stderr, "route hold: waiting for the codec switch before playing\n"); fflush(stderr);
+}
+void ui_route_hold_cancel(void){ g_hold_since = 0; g_hold_settle = 0; }   /* the user pressed Play/Pause: their call */
+static void route_hold_tick(void){
+    if(!g_hold_since) return;
+    if(strcmp(g_hold_mac, g_route_mac)){ ui_route_hold_cancel(); return; } /* routed elsewhere meanwhile */
+    int pending = bt_codec_upgrade_pending();
+    if(pending){
+        if(lv_tick_elaps(g_hold_since) < 8000) return;
+        ui_bt_codec_upgrade_cancel();                                     /* no switch in 8 s: stay on SBC this time */
+        fprintf(stderr, "route hold: no codec switch in 8 s, playing on SBC\n"); fflush(stderr);
+    } else {
+        if(!g_hold_settle){ g_hold_settle = lv_tick_get() | 1; return; }  /* switched: let the link settle */
+        if(lv_tick_elaps(g_hold_settle) < 1500) return;
+    }
+    ui_route_hold_cancel();
+    if(ipc_send_cmd("0201000C0000") == 0){ resume_guard_start(1, g_hold_mac, 1); fprintf(stderr, "route hold: playing\n"); fflush(stderr); }
+}
 int ui_route_bt(const char *mac){
     if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
     if(!ui_local_playback_allowed()) return -1;
@@ -373,10 +397,14 @@ int ui_route_bt(const char *mac){
     if(st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", st.volume); ipc_send_cmd(v); }
     /* Safe minimal resume; deterministic load/play remains a future improvement. */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
-    if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
-    ui_resume_guard_arm(1, norm);                          /* the pause/play above is a guess: check that music really goes on */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
+    if(was_playing){
+        /* AAC/LDAC: switching codec renegotiates the link, which stopped songs a few seconds in (#13). So the music
+         * waits, paused, until the switch is done (route_hold_tick), and plays on the final codec. SBC: play now. */
+        if(bt_codec_upgrade_pending()) route_hold_start(norm);
+        else { ipc_send_cmd("0201000C0000"); resume_guard_start(1, norm, 1); }   /* play; the pause/play was a guess */
+    }
     fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, was_playing, st.position_ms); fflush(stderr);
     return 0;
 }
@@ -770,9 +798,9 @@ static unsigned g_rg_generation, g_rg_path_seq;
 static int g_rg_pos_id, g_rg_reason, g_rg_resumed;
 static char g_rg_mac[20], g_rg_path[256];
 void ui_resume_guard_cancel(void){ g_rg_until = 0; }
-void ui_resume_guard_arm(int reason, const char *mac){
+static void resume_guard_start(int reason, const char *mac, int force){
     ui_resume_guard_cancel();
-    if(!g_playing && !g_play_pending) return;            /* nothing was playing: nothing to protect */
+    if(!force && !g_playing && !g_play_pending) return;  /* nothing was playing: nothing to protect */
     track_state_t st; ipc_get_state(&st);
     if(!mac || !mac[0] || strcmp(mac, ui_route_mac()) || !st.have_track) return;
     snprintf(g_rg_mac, sizeof g_rg_mac, "%s", mac);
@@ -781,6 +809,7 @@ void ui_resume_guard_arm(int reason, const char *mac){
     g_rg_generation = ipc_generation(); g_rg_reason = reason; g_rg_resumed = 0; g_rg_still = 0;
     g_rg_until = (lv_tick_get() + 10000) | 1;
 }
+void ui_resume_guard_arm(int reason, const char *mac){ resume_guard_start(reason, mac, 0); }
 static void resume_guard_tick(int playing){
     if(!g_rg_until) return;
     uint32_t now = lv_tick_get();
@@ -3262,6 +3291,7 @@ int main(int argc, char **argv){
         int playing = playstate_playing(&g_ps, st.have_track, st.position_ms, lv_tick_get(), 1600, 0);
         if(playing) g_play_sent_gen = ipc_generation();   /* playback observed this generation (any start, incl. hardware keys): its one-shot is moot */
         queue_tick(&st, playing);
+        route_hold_tick();
         resume_guard_tick(playing);
         stats_tick(&st, playing);   /* Listening Stats: log songs that really play */
         tagfix_auto_tick(&st, playing);

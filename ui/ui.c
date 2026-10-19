@@ -476,7 +476,7 @@ int ui_transport_command(const char *cmd)
         if(q>0){ ui_perf_note("queued-track-accepted"); ui_cancel_book_resume(); ui_disarm_book_eoc(); return 0; }
     }
     ui_note_transport_sent();
-    { void ui_resume_guard_cancel(void); ui_resume_guard_cancel(); }   /* the user is in charge now */
+    { void ui_resume_guard_cancel(void); void ui_route_hold_cancel(void); ui_resume_guard_cancel(); ui_route_hold_cancel(); }   /* the user is in charge now */
     if(ipc_send_cmd(cmd) < 0){ ui_toast("Player busy - try again"); return -1; }
     if(is_next || is_prev) ui_perf_note("transport-accepted");
     if(is_toggle){

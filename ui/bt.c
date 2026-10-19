@@ -394,7 +394,7 @@ static int bt_probe_run(const char *cmd, char *out, int cap, int timeout_ms){
 static struct { char mac[18]; int state; /* 0 idle, 1 running, 2 done */ int pcm, known; unsigned avail;
                 int choice, misses, armed, applied; unsigned gen; } g_cq;
 static pthread_mutex_t g_cq_mu = PTHREAD_MUTEX_INITIALIZER;
-#define BT_PCM_TRIES 15        /* probe ticks (2 s apart, ~30 s) to wait for the PCM before giving up (stays on SBC) */
+#define BT_PCM_TRIES 20        /* probe ticks (0.7 s apart, ~14 s) to wait for the PCM before giving up (stays on SBC) */
 struct bt_probe_arg { unsigned gen; char mac[18]; };
 static void *bt_codec_probe_thread(void *arg){
     struct bt_probe_arg *pa = arg;
@@ -457,6 +457,9 @@ static lv_timer_t *g_cq_timer;
 static void bt_codec_upgrade_cb(lv_timer_t *t){
     if(bt_codec_upgrade_step()){ lv_timer_del(t); g_cq_timer = NULL; }
 }
+int bt_codec_upgrade_pending(void){
+    pthread_mutex_lock(&g_cq_mu); int p = g_cq.armed; pthread_mutex_unlock(&g_cq_mu); return p;
+}
 /* Any route change invalidates a pending upgrade and every probe still running for it. */
 void ui_bt_codec_upgrade_cancel(void){
     pthread_mutex_lock(&g_cq_mu);
@@ -478,7 +481,7 @@ void ui_bt_codec_upgrade_arm(const char *mac, int fresh){
     snprintf(g_cq.mac, sizeof g_cq.mac, "%s", mac);
     if(choice > 0){ g_cq.choice = choice; g_cq.armed = 1; }
     pthread_mutex_unlock(&g_cq_mu);
-    if(choice > 0 && !g_cq_timer) g_cq_timer = lv_timer_create(bt_codec_upgrade_cb, 2000, NULL);
+    if(choice > 0 && !g_cq_timer) g_cq_timer = lv_timer_create(bt_codec_upgrade_cb, 700, NULL);   /* music may be waiting */
 }
 /* Full stock bring-up: download the chip firmware patch over /dev/ttyS0 (creates a
  * working hci0 - the step our old bluez-only path lacked), then bluetoothd + agent. */
@@ -1227,7 +1230,14 @@ static void start_scan(void){
  * until the adapter is Powered, then run a real scan. */
 static lv_timer_t *g_radio_timer;
 static uint32_t    g_radio_start;
-static void delayed_scan_cb(lv_timer_t *t){ (void)t; if(bt_on() && screen_current() == SCR_BT) start_scan(); }
+/* A device search shares the one small radio with Bluetooth audio and caused split-second dropouts during LDAC
+ * playback (#13). While sound goes to headphones, the page lists the known devices instead; the user can still
+ * search on request (the search button). */
+static void search_or_list(void){
+    if(ui_route_mac()[0]) scan_kick();                    /* known devices, no discovery window */
+    else start_scan();
+}
+static void delayed_scan_cb(lv_timer_t *t){ (void)t; if(bt_on() && screen_current() == SCR_BT) search_or_list(); }
 static void radio_on_poll_cb(lv_timer_t *t){
     (void)t;
     if(bt_on()){
@@ -1436,7 +1446,7 @@ static void scanwait_poll_cb(lv_timer_t *t){
     }
     if(bt_on()){
         lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL;
-        bt_ensure_services(); bt_autoroute_start(); start_scan();
+        bt_ensure_services(); bt_autoroute_start(); search_or_list();
         return;
     }
     if(lv_tick_elaps(g_scanwait_start) > 28000){    /* gave up waiting - do NOT tear the radio down */
@@ -1464,7 +1474,7 @@ void bt_open(void){
     if(g_scanwait_timer){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }
     if(bt_on()){                                   /* fully up -> scan immediately */
         hdr_set(BT_ON, "Bluetooth is on", "");
-        bt_ensure_services(); bt_autoroute_start(); start_scan();
+        bt_ensure_services(); bt_autoroute_start(); search_or_list();
     } else if(want){                                /* on/coming up (e.g. just toggled from Quick Settings)
                                                      * -> poll until Powered, then scan. NON-destructive:
                                                      * unlike radio_on_poll_cb, this never powers BT off on a

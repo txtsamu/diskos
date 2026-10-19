@@ -110,3 +110,46 @@ with tempfile.TemporaryDirectory(prefix='disco-bt-fav-') as tmp:
         binary=root/name
         subprocess.run(command+['-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True,timeout=10)
+
+# ---- 2.5.8: route hold (music waits for the AAC/LDAC switch, then plays once on the final codec) ----
+hold = main[main.index('static uint32_t g_hold_since'):main.index('int ui_route_bt(const char *mac){')]
+h = r"""
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include "ipc.h"
+static uint32_t now=100;static unsigned gen=1;
+static int g_playing=0,g_play_pending,sends,notices,pending,cancels;
+static char route[20]="AA:BB:CC:DD:EE:FF", g_route_mac[20]="AA:BB:CC:DD:EE:FF";
+static track_state_t current={.have_track=1,.path="/music/a.flac",.pos_id=1,.path_seq=1,.position_ms=0,.duration_ms=100000};
+static uint32_t lv_tick_get(void){return now;}
+static uint32_t lv_tick_elaps(uint32_t t){return now-t;}
+unsigned ipc_generation(void){return gen;}
+static const char *ui_route_mac(void){return route;}
+void ipc_get_state(track_state_t *s){*s=current;}
+int ipc_send_cmd(const char *s){(void)s;sends++;return 0;}
+static void ui_toast(const char *s){(void)s;notices++;}
+int bt_codec_upgrade_pending(void){return pending;}
+void ui_bt_codec_upgrade_cancel(void){pending=0;cancels++;}
+""" + guard + hold + r"""
+static void run(uint32_t until){while(now<until){now+=100;route_hold_tick();}}
+int main(void){
+ pending=1;route_hold_start(route);run(7900);assert(sends==0);           /* still switching: music waits */
+ run(8300);assert(sends==1 && cancels==1);                              /* no switch in 8 s: SBC, play once */
+ sends=0;cancels=0;now=20000;pending=1;route_hold_start(route);run(22000);pending=0;
+ run(23400);assert(sends==0);run(23700);assert(sends==1 && !cancels);   /* switched: settle 1.5 s, then play */
+ sends=0;now=30000;pending=1;route_hold_start(route);run(31000);ui_route_hold_cancel();pending=0;run(40000);assert(!sends);   /* user pressed Play/Pause */
+ now=50000;pending=1;route_hold_start(route);strcpy(g_route_mac,"11:22:33:44:55:66");run(60000);assert(!sends);              /* routed elsewhere */
+ puts("PASS BT route hold: waits for the codec switch, settles 1.5 s, plays once; SBC after 8 s; user and route changes win");
+ return 0;
+}
+"""
+import subprocess as sp2, tempfile as tf2, pathlib as pl2
+with tf2.TemporaryDirectory() as d2:
+    src2=pl2.Path(d2)/'hold.c'; src2.write_text(h)
+    r=sp2.run(['cc','-std=gnu11','-Wall','-Werror=implicit-function-declaration','-I',str(ui),str(src2),'-o',str(pl2.Path(d2)/'hold')],capture_output=True,text=True)
+    assert r.returncode==0, r.stderr[-3000:]
+    r=sp2.run([str(pl2.Path(d2)/'hold')],capture_output=True,text=True)
+    print(r.stdout.strip()); assert r.returncode==0, r.stderr[-2000:]
+

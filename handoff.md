@@ -1,8 +1,10 @@
-# diskOS Disco handoff - 2.5.7 (current state, updated 2026-10-19)
+# diskOS Disco handoff - 2.5.8 (current state, updated 2026-10-19)
 
 Read this first, then `todo.md` (the live list). Older release-by-release notes follow below as history.
 
 ## Where things are
+- 2.5.8 (2026-10-19): #13 LDAC follow-up: route_hold_tick (music waits for the AAC/LDAC switch, 8 s SBC
+  fallback), no discovery while routed to Bluetooth (scan_kick). 2.5.7 was released at 3f7680e.
 - 2.5.7 (2026-10-19): code-review fixes (exact-ID multi-select, queue atomicity, truthful Favourites, Files
   Select all), Bluetooth guard bound to route/track/session without codec blacklist, Windows installer fetches the
   latest release (Latest.cs). 2.5.6 (multi-select) was released at 485fe0f; never move a pushed tag.
