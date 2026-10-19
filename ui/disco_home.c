@@ -1,3 +1,4 @@
+#include "scrub_math.h"
 #include "simple_theme.h"
 #include "onboarding.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
@@ -426,14 +427,7 @@ static void pa_set(int f){                                           /* f: 0..10
     if(e > PA_A0) lv_obj_remove_flag(g_pa_cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_pa_cap, LV_OBJ_FLAG_HIDDEN);
     pa_dot(g_pa_knob, e, 11);
 }
-static int pa_frac_at(int x, int y){                                  /* the point's place along the arc, 0..1000 */
-    float a = atan2f((float)(y - 180), (float)(x - 180)) * 57.29578f;
-    int rel = (int)lroundf(a) - PA_A0;
-    while(rel < 0) rel += 360;
-    while(rel >= 360) rel -= 360;
-    if(rel > PA_SPAN) return rel < PA_SPAN + (360 - PA_SPAN) / 2 ? 1000 : 0;   /* in the gap: the nearer end */
-    return rel * 1000 / PA_SPAN;
-}
+static int pa_frac_at(int x,int y){return scrub_arc_fraction(x,y,PA_A0,PA_SPAN);}
 static void pa_cb(lv_event_t *e){
     lv_event_code_t c = lv_event_get_code(e);
     if(!g_have){ if(c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST){ g_scrub = 0; g_pa_scrub = 0; } return; }

@@ -1,3 +1,4 @@
+#include "scrub_math.h"
 #include "simple_theme.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "imm_record.h"
@@ -118,6 +119,25 @@ static lv_obj_t *np_dots[2];                /* page dots (hidden in Poster: they
 static lv_obj_t *np_mid_btn;                /* poster: tap the title -> the album, this song highlighted */
 static lv_timer_t *imm_timer;
 static int32_t imm_angle;
+static int imm_in_tag;
+static lv_obj_t *imm_back;
+static int imm_tracking,imm_dragging,imm_anchor_valid,imm_edge,imm_action,imm_last_angle,imm_dirty;
+static int imm_volume_target,imm_volume_sent,imm_volume_failed;
+static int64_t imm_units;
+static long imm_seek_target;
+static uint32_t imm_volume_at,imm_echo_until;
+static track_state_t imm_drag_track;
+static lv_point_t imm_press;
+static void imm_in_set(int v);
+static void imm_control_reset(void);
+static void imm_volume_input_restore(void);
+static void imm_control_sample(lv_point_t p);
+static int imm_same_track(const track_state_t *st){
+    return st->have_track&&!strcmp(st->path,imm_drag_track.path)&&!strcmp(st->title,imm_drag_track.title)&&
+        !(st->pos_id>0&&imm_drag_track.pos_id>0&&st->pos_id!=imm_drag_track.pos_id);
+}
+static int imm_control_enabled(void){return simple_cfg_get_int("imm_scrub",0)!=0;}
+int ui_imm_volume_mode(void){return fsart_on && screen_current()==SCR_NOWPLAYING && imm_control_enabled() && simple_cfg_get_int("imm_scrub_action",0)==1;}
 static int imm_vol_last = -1;
 static lv_color_t np_acc; static int np_acc_set; static char np_acc_path[520];
 static lyr_line_t g_lyr[240]; static int g_lyr_n = -1; static char g_lyr_path[520];
@@ -853,6 +873,7 @@ static int g_np_is_playing = 1;   /* the NORMALISED play state from ui_update (r
 static int imm_frames;
 static void imm_tick(lv_timer_t *t){
     (void)t;
+    if(!fsart_on || screen_current()!=SCR_NOWPLAYING)return;
     /* Time-based: the angle follows the clock (one turn per 20 s), so the record turns at the right
      * speed whatever frame rate the renderer manages - the 41 ms timer asks for 24 fps, and a busy
      * frame just makes the next step a little bigger instead of slowing the record down. */
@@ -862,7 +883,13 @@ static void imm_tick(lv_timer_t *t){
       if(ui_main_is_idle()){ imm_last_spin = lv_tick_get(); if(!was_idle){ was_idle = 1; if(imm_timer) lv_timer_set_period(imm_timer, 500); } return; }
       if(was_idle){ was_idle = 0; if(imm_timer) lv_timer_set_period(imm_timer, imm_playing ? imm_frame_period : 250); } }
     uint32_t el = lv_tick_elaps(imm_last_spin);
-    if(!imm_playing || imm_still()) imm_last_spin = lv_tick_get();   /* paused, or None: it stands still (and costs nothing) */
+    if(imm_dragging){
+        if(imm_dirty && el>=imm_frame_period){
+            imm_last_spin=lv_tick_get();imm_dirty=0;
+            if(imm_fast)imm_render_frame();else if(imm_spin)lv_image_set_rotation(imm_spin,imm_angle);
+        }
+    }
+    else if(!imm_playing || imm_still()) imm_last_spin = lv_tick_get();   /* paused, or None: it stands still (and costs nothing) */
     else if(imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN) && el >= 38){
         imm_last_spin = lv_tick_get();
         imm_spin_ms = (imm_spin_ms + el % 20000) % 20000;
@@ -878,8 +905,18 @@ static void imm_tick(lv_timer_t *t){
     if(lv_tick_elaps(imm_last_lyr) < 250) return;                        /* lyrics + progress ~4x/s */
     imm_last_lyr = lv_tick_get();
     track_state_t st; ipc_get_state(&st);
+    if(imm_tracking && imm_action==0 && !imm_same_track(&st))imm_control_reset();
+    if(imm_dragging && imm_action==0){
+        if(imm_prog)lv_arc_set_value(imm_prog,(int)((int64_t)imm_seek_target*1000/imm_drag_track.duration_ms));
+        imm_ring_update((int)((int64_t)imm_seek_target*1000/imm_drag_track.duration_ms));
+        return; /* Keep the displayed lyric lines frozen until the seek is released. */
+    }
+    if(imm_echo_until){
+        if(!imm_same_track(&st) || (int32_t)(lv_tick_get()-imm_echo_until)>=0 || labs(st.position_ms-imm_seek_target)<1500)imm_echo_until=0;
+        else st.position_ms=imm_seek_target; /* Ignore the old position echo briefly after an accepted seek. */
+    }
     int pl = g_np_is_playing;                             /* never the raw ipc state: it reports 0 while playing */
-    if(pl != imm_playing){ imm_playing = pl; if(imm_timer) lv_timer_set_period(imm_timer, pl && !imm_still() ? imm_frame_period : 250); }
+    if(pl != imm_playing){ imm_playing = pl; if(imm_timer) lv_timer_set_period(imm_timer, imm_dragging || (pl && !imm_still()) ? imm_frame_period : 250); }
     imm_lyrics_reload();
     if(imm_prog && st.duration_ms > 0) lv_arc_set_value(imm_prog, (int32_t)((long long)st.position_ms * 1000 / st.duration_ms));
     if(st.duration_ms > 0) imm_ring_update((int)((long long)st.position_ms * 1000 / st.duration_ms));   /* fork perf: baked ring */
@@ -974,9 +1011,9 @@ static void imm_in_exec(void *x, int32_t v){ (void)x; imm_in_set(v); }
 static void imm_in_done(lv_anim_t *a){ (void)a; imm_in_set(1000); imm_boost = 0; }
 static void imm_in_start(void){
     if(!imm_spin) return;
-    static int tag; lv_anim_delete(&tag, NULL);
+    lv_anim_delete(&imm_in_tag, NULL);
     imm_in_set(0);
-    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &tag); lv_anim_set_exec_cb(&a, imm_in_exec);
+    lv_anim_t a; lv_anim_init(&a); lv_anim_set_var(&a, &imm_in_tag); lv_anim_set_exec_cb(&a, imm_in_exec);
     lv_anim_set_values(&a, 0, 1000); lv_anim_set_duration(&a, th_simple()?400:750); lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_completed_cb(&a, imm_in_done); lv_anim_start(&a);
 }
@@ -1009,7 +1046,7 @@ static void imm_out_done(lv_anim_t *a){
 static void fsart_hidden_cb(lv_anim_t *a){ (void)a; if(!fsart_on){if(fsart)lv_obj_add_flag(fsart,LV_OBJ_FLAG_HIDDEN);imm_cold_release();} }
 void ui_np_fsart_close(void){
     if(!fsart || !fsart_on) return;
-    fsart_on = 0;
+    imm_control_reset();fsart_on = 0;imm_volume_input_restore();
     if(imm_timer){ lv_timer_delete(imm_timer); imm_timer = NULL; }
     if((th_disco_family() || th_null()) && screen_current() == SCR_NOWPLAYING && screen_get_anim() && imm_spin && !lv_obj_has_flag(imm_spin, LV_OBJ_FLAG_HIDDEN)){
         lv_anim_delete(&imm_out_tag, NULL);                  /* the record lifts off, then Music slides back in */
@@ -1028,11 +1065,90 @@ void ui_np_fsart_close(void){
     } else anim_fade(fsart, LV_OPA_COVER, LV_OPA_TRANSP, 200, fsart_hidden_cb);
 }
 int ui_np_fsart_active(void){ return fsart_on; }
+static void imm_control_reset(void){
+    imm_tracking=imm_dragging=imm_anchor_valid=imm_edge=imm_dirty=0;
+    ui_seek_preview(0,0,0);imm_last_spin=lv_tick_get();
+    if(imm_timer)lv_timer_set_period(imm_timer,imm_playing&&!imm_still()?imm_frame_period:250);
+}
+void ui_imm_control_cancel(void){imm_control_reset();imm_echo_until=0;imm_volume_input_restore();}
+void ui_imm_control_apply(void){
+    ui_imm_control_cancel();
+    if(imm_back){if(imm_control_enabled())lv_obj_remove_flag(imm_back,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(imm_back,LV_OBJ_FLAG_HIDDEN);}
+}
+static void imm_volume_flush(void){
+    if(imm_volume_target==imm_volume_sent)return;
+    imm_volume_at=lv_tick_get();
+    if(ui_set_volume(imm_volume_target)==0){imm_volume_sent=imm_volume_target;imm_volume_failed=0;}
+    else imm_volume_failed=1;
+}
+static void imm_control_sample(lv_point_t p){
+    int x=p.x-180,y=p.y-180;
+    if(x*x+y*y<36*36){imm_anchor_valid=0;return;}
+    int angle=scrub_angle_at(p.x,p.y);
+    if(!imm_anchor_valid){imm_last_angle=angle;imm_anchor_valid=1;return;}
+    int delta=scrub_angle_delta(angle,imm_last_angle);
+    if(!imm_dragging){
+        if(abs(delta)<30 && abs(p.x-imm_press.x)<8 && abs(p.y-imm_press.y)<8)return;
+        if(!delta)return;
+        imm_dragging=1;lv_anim_delete(&imm_in_tag,NULL);
+        int drawn=(imm_angle+imm_boost+3600)%3600;imm_angle=drawn;imm_boost=0;imm_in_set(1000);
+        if(imm_timer)lv_timer_set_period(imm_timer,imm_frame_period);
+    }
+    imm_last_angle=angle;
+    if(!delta)return;
+    imm_angle=(imm_angle+delta+3600)%3600;imm_spin_ms=(uint32_t)imm_angle*20000/3600;
+    imm_dirty=1;
+    long range=imm_action?VOL_MAX:imm_drag_track.duration_ms;
+    int maxvol=simple_cfg_get_int("max_vol",VOL_MAX);if(maxvol<10||maxvol>VOL_MAX)maxvol=VOL_MAX;
+    int64_t max=(int64_t)(imm_action?maxvol:range)*3600;
+    imm_units+=(int64_t)delta*range;if(imm_units<0)imm_units=0;if(imm_units>max)imm_units=max;
+    if(imm_action){
+        imm_volume_target=(int)(imm_units/3600);
+        if(lv_tick_elaps(imm_volume_at)>=120)imm_volume_flush();
+        ui_show_volume(imm_volume_target);
+    }else{
+        imm_seek_target=(long)(imm_units/3600);ui_seek_preview(imm_seek_target,imm_drag_track.duration_ms,1);
+    }
+}
+static void imm_back_cb(lv_event_t *e){if(lv_event_get_code(e)==LV_EVENT_CLICKED)ui_np_fsart_close();}
 static void fsart_click_cb(lv_event_t *e){
-    /* LVGL is the sole closer. The opening tap's CLICKED targets the cover (the press
-     * target), not this overlay, so raising fsart mid-click can't retarget it here -
-     * no timing guard needed. main.c only swallows the raw gesture; it never mutates fsart. */
-    if(lv_event_get_code(e)==LV_EVENT_CLICKED) ui_np_fsart_close();
+    lv_event_code_t c=lv_event_get_code(e);
+    if(!imm_control_enabled()){if(c==LV_EVENT_CLICKED)ui_np_fsart_close();return;}
+    if(c==LV_EVENT_CLICKED)return; /* Explicit back button / edge gesture replaces exit-on-tap. */
+    lv_indev_t *in=lv_indev_active();if(!in)return;lv_point_t p;lv_indev_get_point(in,&p);
+    if(c==LV_EVENT_PRESSED){
+        imm_control_reset();imm_echo_until=0;imm_press=p;imm_edge=disco_mirror()?p.x>=336:p.x<=24;
+        if(imm_edge)return;
+        ipc_get_state(&imm_drag_track);imm_action=simple_cfg_get_int("imm_scrub_action",0)==1;
+        if(!imm_drag_track.have_track || (!imm_action && imm_drag_track.duration_ms<=0))return;
+        int x=p.x-180,y=p.y-180;if(x*x+y*y<36*36)return;
+        imm_tracking=imm_anchor_valid=1;imm_last_angle=scrub_angle_at(p.x,p.y);
+        imm_seek_target=imm_drag_track.position_ms;
+        imm_volume_target=imm_volume_sent=imm_drag_track.volume;imm_volume_failed=0;
+        imm_volume_at=lv_tick_get()-120;
+        imm_units=(int64_t)(imm_action?imm_volume_target:imm_seek_target)*3600;
+        return;
+    }
+    if(c==LV_EVENT_PRESS_LOST){imm_control_reset();return;}
+    if(c==LV_EVENT_RELEASED && imm_edge){
+        int dx=(p.x-imm_press.x)*(disco_mirror()?-1:1),dy=abs(p.y-imm_press.y);
+        imm_control_reset();if(dx>=ui_get_swipe_thresh() && dx>dy*2)ui_np_fsart_close();return;
+    }
+    if(!imm_tracking)return;
+    if(c==LV_EVENT_PRESSING || c==LV_EVENT_RELEASED)imm_control_sample(p);
+    if(c==LV_EVENT_RELEASED){
+        int seeking=imm_dragging&&!imm_action,accepted=0;
+        if(imm_dragging){
+            /* Paint the exact release angle, then resume normal rotation from that phase. */
+            if(imm_fast)imm_render_frame();else if(imm_spin)lv_image_set_rotation(imm_spin,imm_angle);
+            if(imm_action){imm_volume_flush();ui_show_volume(imm_volume_sent);if(imm_volume_failed)ui_toast("Couldn't set volume");}
+            else {track_state_t now;ipc_get_state(&now);if(imm_same_track(&now)){
+                if(ui_seek_to(imm_seek_target)==0){ui_book_user_seeked(imm_seek_target);accepted=1;}else ui_toast("Couldn't seek - try again");
+            }}
+        }
+        imm_control_reset();
+        if(seeking){imm_echo_until=accepted?lv_tick_get()+2000:0;imm_last_lyr=lv_tick_get()-250;imm_tick(NULL);}
+    }
 }
 
 static void imm_btn_cb(lv_event_t *e){ (void)e; ui_np_fsart_open(); }
@@ -3116,9 +3232,9 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_pos(fsart, 0, 0);
     lv_obj_set_style_bg_color(fsart, TC(FIXED_MEDIA_BLACK), 0);
     lv_obj_set_style_bg_opa(fsart, LV_OPA_COVER, 0);
-    lv_obj_add_flag(fsart, LV_OBJ_FLAG_CLICKABLE);          /* tap anywhere -> close */
+    lv_obj_add_flag(fsart, LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(fsart, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(fsart, fsart_click_cb, LV_EVENT_CLICKED, NULL);
+    ui_on(fsart, fsart_click_cb, LV_EVENT_ALL, NULL, "imm.control", UI_CORE);
     lv_obj_add_flag(fsart, LV_OBJ_FLAG_HIDDEN);
 
     fsart_img = lv_image_create(fsart);                    /* the 364px stock cover, centred (bezel crops) */
@@ -3190,6 +3306,15 @@ void ui_create(lv_obj_t *root)
     lv_obj_align(imm_hint, LV_ALIGN_TOP_MID, 0, 266);
     lv_obj_clear_flag(imm_hint, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(imm_hint, LV_OBJ_FLAG_HIDDEN);
+    imm_back=lv_button_create(fsart);lv_obj_remove_style_all(imm_back);
+    lv_obj_set_pos(imm_back,disco_mirror()?310:8,150);lv_obj_set_size(imm_back,42,60);
+    lv_obj_add_flag(imm_back,LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_set_style_radius(imm_back,th_null()?0:18,0);lv_obj_set_style_bg_color(imm_back,TC(SURFACE),0);lv_obj_set_style_bg_opa(imm_back,170,0);
+    lv_obj_t *back=lv_label_create(imm_back);lv_label_set_text(back,disco_mirror()?LV_SYMBOL_RIGHT:LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(back,TF(UI_20),0);lv_obj_set_style_text_color(back,TC(TEXT_PRIMARY),0);lv_obj_center(back);
+    ui_on(imm_back,imm_back_cb,LV_EVENT_CLICKED,NULL,"imm.back",UI_CORE);kit_keep(imm_back);kit_keep(back);
+    ui_imm_control_apply();
+
 
     fsart_title = lv_label_create(fsart);
     lv_obj_set_width(fsart_title, 200);   /* two rows under the top arch, like Home */
@@ -3451,11 +3576,22 @@ static void dvol_paint(int v){
     lv_obj_set_style_bg_color(g_vol_arc, acc ? ui_current_accent() : theme_color_from_rgb(IRI[kc]), LV_PART_KNOB);
 }
 static void vol_tap_close_cb(lv_event_t *e){ (void)e; if(g_vol_panel) lv_obj_add_flag(g_vol_panel, LV_OBJ_FLAG_HIDDEN); if(g_vol_timer) lv_timer_pause(g_vol_timer); }
+static lv_obj_t *imm_passive_controls[16];static int imm_passive_count;
+static void imm_volume_input_restore(void){
+    for(int i=0;i<imm_passive_count;i++)if(lv_obj_is_valid(imm_passive_controls[i]))lv_obj_add_flag(imm_passive_controls[i],LV_OBJ_FLAG_CLICKABLE);
+    imm_passive_count=0;
+}
+static void imm_volume_input_pass(lv_obj_t *o){
+    if(!o)return;
+    if(lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE)&&imm_passive_count<16){imm_passive_controls[imm_passive_count++]=o;lv_obj_remove_flag(o,LV_OBJ_FLAG_CLICKABLE);}
+    for(uint32_t i=0;i<lv_obj_get_child_count(o);i++)imm_volume_input_pass(lv_obj_get_child(o,i));
+}
+static void imm_volume_input_apply(lv_obj_t *root){if(ui_imm_volume_mode())imm_volume_input_pass(root);else imm_volume_input_restore();}
 void ui_show_volume(int vol)
 {
     onboarding_context(HINT_VOLUME);
-    if(th_simple()){simple_volume_show(vol);return;}
-    if(th_null()){null_volume_show(vol);return;}
+    if(th_simple()){simple_volume_show(vol);imm_volume_input_apply(simple_volume_root());return;}
+    if(th_null()){null_volume_show(vol);imm_volume_input_apply(null_volume_root());return;}
     if(!g_vol_panel){
         /* the rim arc: a level on the right rim filling bottom -> top in the current accent, rounded ends,
          * a white handle, and the value at clock size in a badge beside it. The screen stays visible,
@@ -3639,6 +3775,7 @@ void ui_show_volume(int vol)
     lv_obj_move_foreground(g_vol_panel);
     lv_timer_reset(g_vol_timer);
     lv_timer_resume(g_vol_timer);
+    imm_volume_input_apply(g_vol_panel);
 }
 
 /* ---- fork: the Disco theme's Music screen and title overlay use these (disco.c) ------------------------ */

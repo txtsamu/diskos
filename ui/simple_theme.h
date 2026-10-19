@@ -38,4 +38,5 @@ void simple_qs_refresh(int);
 void simple_qs_visible(int);
 void simple_volume_show(int);
 int simple_volume_visible(void);
+lv_obj_t *simple_volume_root(void);
 #endif

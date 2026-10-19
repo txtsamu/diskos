@@ -467,3 +467,5 @@ void simple_radio_skin(lv_obj_t *ring,lv_obj_t *glyph,lv_obj_t *name,lv_obj_t *s
     lv_obj_set_style_pad_row(list,6,0);
     kit_keep(ring);kit_keep(glyph);kit_keep(scan);kit_keep(ic);kit_keep(toggle);
 }
+
+lv_obj_t *simple_volume_root(void){return sv_root;}

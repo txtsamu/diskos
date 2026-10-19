@@ -422,6 +422,8 @@ static void apply_disco_controls(int v){ (void)v; dhome_controls_apply(); }
 void dhome_title_apply(void);
 static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }
 static void apply_disco_hold(int v){ (void)v; }
+static const char *OPT_IMM_CONTROL[]={"Duration","Volume"};
+static void apply_imm_control(int v){(void)v;ui_imm_control_apply();}
 static const char *OPT_DIMM[] = { "Vinyl", "CD", "None" };
 void ui_imm_style_apply(void);
 static void apply_imm(int v){ (void)v; ui_imm_style_apply(); }                       /* Immersive look and lyrics: applied at once */
@@ -843,6 +845,8 @@ static const setting_t TABLE[] = {
       "Vinyl: spinning grooves. CD: spinning disc with a fixed rainbow sheen. None: still artwork.", NULL },
     { "Text & Layout",  "Immersive Lyrics", ST_TOGGLE, "imm_lyrics", 0,1,1, NULL, 0, NULL, apply_imm, 1,
       "Show synced lyrics over a darkened part of Immersive. Off shows artwork only.", NULL },
+    {"Immersive","Circular control",ST_TOGGLE,"imm_scrub",0,1,1,NULL,0,NULL,apply_imm_control,0,"Drag the artwork clockwise or counterclockwise. Tap no longer exits; use Back.",NULL},
+    {"Immersive","Control action",ST_CYCLER,"imm_scrub_action",0,0,1,OPT_IMM_CONTROL,2,NULL,apply_imm_control,0,"Duration seeks on release and holds lyrics during the drag. Volume adjusts live.",NULL},
     { "Text & Layout",  "Disc Colour", ST_CYCLER, "disc_colour", 0,0,0, OPT_DISCCOLOUR, 3, NULL, NULL, 0,
       "The colour of the Disc drawn on the startup screen. Set it to match yours.", NULL },
     { "Standby",  "Screensaver", ST_CYCLER, "saver_idx",  0,0,0, OPT_POWER, 5, NULL, NULL, 2,

@@ -29,4 +29,5 @@ void null_qs_create(lv_obj_t *root);
 void null_qs_build(void);
 void null_qs_refresh(void);
 void null_qs_slide(int open);
+lv_obj_t *null_volume_root(void);
 #endif

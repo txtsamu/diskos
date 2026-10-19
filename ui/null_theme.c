@@ -1566,3 +1566,5 @@ int null_test_qs_item(int slot){return slot>=0 && slot<qcount?qids[slot]:-1;}
 
 /* Host regression probe; unreferenced device section is removed by the linker. */
 int null_test_heartbeat_paused(void){return !clock_timer || lv_timer_get_paused(clock_timer);}
+
+lv_obj_t *null_volume_root(void){return volume_panel;}

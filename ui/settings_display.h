@@ -1,6 +1,8 @@
 /* Presentation only: TABLE retains saved keys, defaults and handlers. */
 typedef struct {const char *key;void (*apply)(int);const char *page,*label;int order;} display_entry_t;
 static const display_entry_t DISPLAY_ENTRIES[]={
+    {"imm_scrub",NULL,"Immersive","Circular control",30},
+    {"imm_scrub_action",NULL,"Immersive","Control action",40},
     {"brightness",NULL,"Display","Brightness",1},
     {"theme_preset",NULL,"Display","Theme",2},
     {"theme_variant",NULL,"Appearance","Light / dark",10},
@@ -107,6 +109,7 @@ static int display_variant_hidden(const setting_t *s){
 static const char *display_label(const setting_t *s){const display_entry_t *d=display_entry(s);return d?d->label:s->label;}
 static const char *display_disabled_reason(const setting_t *s){
     const char *k=s->cfg_key?s->cfg_key:"";
+    if(!strcmp(k,"imm_scrub_action")&&!simple_cfg_get_int("imm_scrub",0))return "Enable Circular control first.";
     if(s->apply==apply_open_colorpick && (th_simple()||th_null()))return accent_disabled_reason();
     if(!strcmp(k,"theme_variant") && th_null())return "Null uses a fixed dark appearance. Choose a colour scheme instead.";
     if(!strcmp(k,"theme_auto") && !theme_auto_supported())return "Automatic light/dark switching is available in Disco, Ring and Braun.";
