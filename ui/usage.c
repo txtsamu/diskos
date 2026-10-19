@@ -201,10 +201,10 @@ static void figure(lv_obj_t *root, int cx, const char *cap, lv_obj_t **val){
     lv_obj_align(c,LV_ALIGN_TOP_MID,cx,274);
 }
 /* the glowing tip at the charge level: angle along the ring for pct */
-static lv_obj_t *g_tip, *g_sub2; static int g_left;
+static lv_obj_t *g_tip, *g_sub2; static int g_left, g_start = 40;
 static void place_tip(int pct, lv_color_t c){
     if(!g_tip) return;
-    float deg = g_left ? 500.0f - 2.8f * pct : 40.0f + 2.8f * pct, a = deg * 3.14159265f / 180.0f;
+    float deg = g_left ? g_start + 280.0f - 2.8f * pct : g_start + 2.8f * pct, a = deg * 3.14159265f / 180.0f;
     int x = 180 + (int)lroundf(cosf(a) * 169), y = 180 + (int)lroundf(sinf(a) * 169);
     lv_obj_set_pos(g_tip, x - 7, y - 7);
     lv_obj_set_style_bg_color(g_tip, c, 0); lv_obj_set_style_shadow_color(g_tip, c, 0);
@@ -269,11 +269,12 @@ void usage_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root,TC(CANVAS),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     if(th_braun())br_face(root);
-    int left=disco_mirror(),dx=left?30:-30;
-    if(th_null())dx+=14;
+    int centered=th_simple()||th_null();
+    int left=centered?0:disco_mirror(),dx=centered?0:(left?30:-30);
+    g_start=centered?130:(left?220:40);
     g_ring=lv_arc_create(root);lv_obj_remove_style(g_ring,NULL,LV_PART_KNOB);
     lv_obj_clear_flag(g_ring,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(g_ring,344,344);lv_obj_center(g_ring);
-    lv_arc_set_rotation(g_ring,left?220:40);lv_arc_set_bg_angles(g_ring,0,280);
+    lv_arc_set_rotation(g_ring,g_start);lv_arc_set_bg_angles(g_ring,0,280);
     lv_arc_set_mode(g_ring,left?LV_ARC_MODE_REVERSE:LV_ARC_MODE_NORMAL);lv_arc_set_range(g_ring,0,100);
     lv_obj_set_style_arc_width(g_ring,6,LV_PART_MAIN);lv_obj_set_style_arc_width(g_ring,6,LV_PART_INDICATOR);g_left=left;
     lv_obj_set_style_arc_rounded(g_ring,true,LV_PART_MAIN);lv_obj_set_style_arc_rounded(g_ring,true,LV_PART_INDICATOR);
@@ -284,7 +285,7 @@ void usage_create(lv_obj_t *root){
     g_pct=lv_label_create(root);lv_obj_set_style_text_font(g_pct,TF(UI_46),0);
     lv_obj_set_style_text_color(g_pct,TC(TEXT_PRIMARY),0);lv_obj_align(g_pct,LV_ALIGN_TOP_MID,dx,92);
     g_chg_ic=lv_label_create(root);lv_label_set_text(g_chg_ic,LV_SYMBOL_CHARGE);
-    lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,(left?-78:78)+(th_null()?14:0),109);
+    lv_obj_set_style_text_font(g_chg_ic,TF(UI_20),0);lv_obj_align(g_chg_ic,LV_ALIGN_TOP_MID,(left?-78:78),109);
     g_sub=lv_label_create(root);lv_label_set_long_mode(g_sub,LV_LABEL_LONG_SCROLL_CIRCULAR);lv_obj_set_width(g_sub,230);
     lv_obj_set_style_text_align(g_sub,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_font(g_sub,TF(UI_22),0);
     lv_obj_set_style_text_color(g_sub,TC(TEXT_PRIMARY),0);lv_obj_align(g_sub,LV_ALIGN_TOP_MID,dx,158);
@@ -299,7 +300,7 @@ void usage_create(lv_obj_t *root){
     lv_obj_set_style_text_color(g_cap,TC(TEXT_MUTED),0);lv_obj_align(g_cap,LV_ALIGN_TOP_MID,dx,222);
     figure(root,dx-56,"playing",&g_play_v);figure(root,dx+56,"screen on",&g_scr_v);
     for(int k=0;k<=4;k++){                                   /* ticks at 0 / 25 / 50 / 75 / 100% just inside the ring */
-        float deg=left?500.0f-70.0f*k:40.0f+70.0f*k,a=deg*3.14159265f/180.0f;
+        float deg=left?g_start+280.0f-70.0f*k:g_start+70.0f*k,a=deg*3.14159265f/180.0f;
         lv_obj_t *t=lv_obj_create(root);lv_obj_remove_style_all(t);lv_obj_set_size(t,4,4);
         lv_obj_set_style_radius(t,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(t,TC(TEXT_SECONDARY),0);
         lv_obj_set_style_bg_opa(t,k==0||k==4?LV_OPA_70:LV_OPA_40,0);

@@ -321,6 +321,7 @@ void weather_poll(lv_timer_t *t)
 /* ---- Weather app: set the location used for home + screensaver weather ---- */
 /* the dial: 8 forecast slots round the rim, the current weather in the middle */
 #define WD_SLOTS 8
+static lv_obj_t *g_wd_pill[4];
 static lv_obj_t *g_wd_icon[WD_SLOTS], *g_wd_temp[WD_SLOTS], *g_wd_hour[WD_SLOTS];
 static lv_obj_t *g_wd_cicon, *g_wd_ctemp, *g_wd_cond, *g_wd_loc, *g_wd_hl, *g_wd_hint;
 void weather_app_open(void) { forecast_fetch_async(); weather_app_refresh(); screen_show(SCR_WEATHER); }
@@ -384,6 +385,10 @@ static void weather_app_refresh(void)
     if(have_fc && fc.ok){ for(int i = 0; i < fc.n; i++) if(fc.s[i].day * 1440 + fc.s[i].hour * 60 > now_abs){ first = i; break; } }
     for(int k = 0; k < WD_SLOTS; k++){
         int i = first >= 0 ? first + k : -1;
+        if(th_simple() && k<4 && g_wd_pill[k]){
+            if(i<0 || i>=fc.n)lv_obj_add_flag(g_wd_pill[k],LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_remove_flag(g_wd_pill[k],LV_OBJ_FLAG_HIDDEN);
+        }
         if(i < 0 || i >= fc.n){ set_if(g_wd_icon[k], ""); set_if(g_wd_temp[k], ""); set_if(g_wd_hour[k], ""); continue; }
         int night = fc.s[i].hour >= 20 || fc.s[i].hour < 6;
         const char *ic = wd_icon(fc.s[i].code, night);
@@ -448,6 +453,7 @@ static lv_obj_t *wlabel(lv_obj_t *root, const lv_font_t *f, lv_color_t col){
 }
 void weather_app_create(lv_obj_t *root)
 {
+    memset(g_wd_pill,0,sizeof g_wd_pill);
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
@@ -490,7 +496,7 @@ void weather_app_create(lv_obj_t *root)
     g_wd_hint = wlabel(root, TF(UI_10), TC(TEXT_HINT));
     lv_obj_align(g_wd_hint, LV_ALIGN_CENTER, 0, 80);
     weather_app_refresh();
-    if(th_disco_family()){        /* Disco: laid out like Quick Settings: now in the navigation hub's field, the next 12 h as rows */
+    if(th_disco_family() && !th_simple()){        /* Disco: laid out like Quick Settings: now in the navigation hub's field, the next 12 h as rows */
         lv_obj_add_flag(ring, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *f = lv_obj_create(root); lv_obj_remove_style_all(f);          /* the hub's shape, its right end cut by the rim */
         lv_obj_set_pos(f, disco_mx(196, 230), 90); lv_obj_set_size(f, 230, 180);   /* Disco Left: on the left */
@@ -521,6 +527,61 @@ void weather_app_create(lv_obj_t *root)
         }
         lv_obj_align(g_wd_hint, LV_ALIGN_TOP_LEFT, disco_mirror() ? 180 : 70, 306);
     }
+    if(th_simple()){
+        /* Squash: two balanced forecast pairs above its bottom circular flyout.
+         * Static objects, no extra fetches, timers or artwork allocations. */
+        lv_obj_add_flag(ring,LV_OBJ_FLAG_HIDDEN);
+        lv_obj_t *title=wlabel(root,TF(UI_24),TC(TEXT_PRIMARY));
+        lv_label_set_text(title,"Weather");lv_obj_align(title,LV_ALIGN_TOP_MID,0,27);
+        simple_keep_label(title);
+        lv_obj_t *cap=lv_obj_create(root);lv_obj_remove_style_all(cap);
+        lv_obj_set_size(cap,500,500);lv_obj_set_pos(cap,-70,208);
+        lv_obj_set_style_radius(cap,LV_RADIUS_CIRCLE,0);
+        lv_obj_set_style_bg_color(cap,TC(SURFACE),0);lv_obj_set_style_bg_opa(cap,LV_OPA_COVER,0);
+        lv_obj_set_style_border_width(cap,2,0);lv_obj_set_style_border_color(cap,TC(ACCENT_PRIMARY),0);
+        lv_obj_set_style_border_opa(cap,125,0);
+        lv_obj_remove_flag(cap,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);kit_keep(cap);
+        lv_obj_move_to_index(cap,0);
+        for(int k=0;k<WD_SLOTS;k++){
+            if(k>=4){
+                lv_obj_add_flag(g_wd_icon[k],LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(g_wd_temp[k],LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(g_wd_hour[k],LV_OBJ_FLAG_HIDDEN);continue;
+            }
+            int upper=k<2,w=upper?104:142,x=(k&1)?186:(upper?70:32),y=upper?69:141;
+            lv_obj_t *pill=g_wd_pill[k]=lv_obj_create(root);lv_obj_remove_style_all(pill);
+            lv_obj_set_pos(pill,x,y);lv_obj_set_size(pill,w,64);
+            lv_obj_set_style_radius(pill,LV_RADIUS_CIRCLE,0);
+            lv_obj_set_style_bg_color(pill,TC(SURFACE),0);lv_obj_set_style_bg_opa(pill,LV_OPA_COVER,0);
+            lv_obj_set_style_border_width(pill,1,0);lv_obj_set_style_border_color(pill,TC(ACCENT_PRIMARY),0);
+            lv_obj_set_style_border_opa(pill,75,0);
+            lv_obj_remove_flag(pill,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);kit_keep(pill);
+            lv_obj_set_parent(g_wd_hour[k],pill);lv_obj_set_parent(g_wd_icon[k],pill);lv_obj_set_parent(g_wd_temp[k],pill);
+            lv_obj_set_style_text_font(g_wd_hour[k],TF(UI_14),0);
+            lv_obj_set_style_text_color(g_wd_hour[k],TC(TEXT_SECONDARY),0);
+            lv_obj_align(g_wd_hour[k],LV_ALIGN_TOP_MID,0,6);
+            lv_obj_set_style_text_font(g_wd_temp[k],TF(UI_24),0);
+            lv_obj_align(g_wd_icon[k],LV_ALIGN_BOTTOM_MID,-23,-12);
+            lv_obj_align(g_wd_temp[k],LV_ALIGN_BOTTOM_MID,12,-5);
+            simple_keep_label(g_wd_hour[k]);simple_keep_label(g_wd_icon[k]);simple_keep_label(g_wd_temp[k]);
+        }
+        lv_obj_set_style_text_font(g_wd_ctemp,TF(UI_36),0);
+        lv_obj_align(g_wd_ctemp,LV_ALIGN_TOP_MID,16,239);
+        lv_obj_set_style_text_font(g_wd_cicon,&font_weather16,0);
+        lv_obj_align(g_wd_cicon,LV_ALIGN_TOP_MID,-60,250);
+        lv_obj_set_style_transform_scale(g_wd_cicon,384,0);
+        lv_obj_set_style_text_font(g_wd_loc,TF(UI_18),0);
+        lv_obj_set_width(g_wd_loc,160);lv_obj_align(g_wd_loc,LV_ALIGN_TOP_MID,0,215);
+        lv_obj_set_width(g_wd_cond,232);lv_obj_set_style_text_font(g_wd_cond,TF(UI_16),0);
+        lv_obj_align(g_wd_cond,LV_ALIGN_TOP_MID,0,289);
+        lv_obj_set_style_text_font(g_wd_hl,TF(UI_14),0);
+        lv_obj_set_style_text_color(g_wd_hl,TC(TEXT_SECONDARY),0);
+        lv_obj_align(g_wd_hl,LV_ALIGN_TOP_MID,0,313);
+        lv_obj_set_width(g_wd_hint,210);lv_obj_set_style_text_align(g_wd_hint,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_align(g_wd_hint,LV_ALIGN_TOP_MID,0,134);
+        simple_keep_label(g_wd_ctemp);simple_keep_label(g_wd_cicon);simple_keep_label(g_wd_loc);
+        simple_keep_label(g_wd_cond);simple_keep_label(g_wd_hl);simple_keep_label(g_wd_hint);
+    }
     if(th_braun()){                                               /* Braun: the grille, a panel under the dial, dark type */
         br_face(root); lv_obj_t *pd = br_disc(root, 180, 180, 104, BR_PANEL); lv_obj_move_to_index(pd, 1);
         lv_obj_set_style_text_color(g_wd_ctemp, TC(TEXT_PRIMARY), 0);
@@ -529,4 +590,5 @@ void weather_app_create(lv_obj_t *root)
         lv_obj_set_style_text_color(g_wd_hl, TC(TEXT_DISABLED), 0);
         for(int k = 0; k < WD_SLOTS; k++){ lv_obj_set_style_text_color(g_wd_temp[k], TC(TEXT_PRIMARY), 0); lv_obj_set_style_text_color(g_wd_hour[k], TC(TEXT_DISABLED), 0); }
     }
+    weather_app_refresh();
 }
