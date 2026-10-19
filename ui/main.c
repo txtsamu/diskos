@@ -746,9 +746,28 @@ static void storage_unknown(const char *why){
     fprintf(stderr, "storage: %s; SD access remains held\n", why); fflush(stderr);
     ui_toast("Storage state uncertain - reboot device");
 }
+/* 1 while a computer has the Disc's USB gadget configured (UDC state "configured"). */
+static int usb_host_configured(void){
+    glob_t g; int on = 0;
+    if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 0;
+    for(size_t i = 0; i < g.gl_pathc && !on; i++){
+        FILE *f = fopen(g.gl_pathv[i], "r"); char s[32] = "";
+        if(!f) continue;
+        if(fgets(s, sizeof s, f)) on = strncmp(s, "configured", 10) == 0;
+        fclose(f);
+    }
+    globfree(&g);
+    return on;
+}
 int ui_set_source_mode(int mode){
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(mode < 0 || mode > 3) return -1;
+    /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
+     * (0x4614bc) sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an
+     * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
+     * fails into state 5 and the join never returns - on the player's only command thread. Unplugged first, the
+     * thread already sits in state 5 polling every 100 ms, so the close completes. */
+    if(g_source_mode == 1 && mode != 1 && usb_host_configured()){ ui_toast("Unplug the USB cable first"); return -1; }
     if(ui_source_switch_pending()){ ui_toast("Storage is switching"); return -1; }
     if(g_sd_phase == SD_UNKNOWN || g_sd_hold || !sd_io_healthy()){ ui_toast("SD access is held this boot"); return -1; }
     /* Every source change drives the player (and USB/card ownership with it), so none may happen before this
