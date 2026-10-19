@@ -762,6 +762,10 @@ static int usb_host_configured(void){
 int ui_set_source_mode(int mode){
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(mode < 0 || mode > 3) return -1;
+    /* USB Audio holds the port in host role (0642 5). The player flips it back to device only on its 0642 0 path
+     * (Local), so going straight to USB DAC / BT Receiving / USB Storage left the port in host: a USB Storage export
+     * was never seen by the computer and SD access stayed held until a restart. Local first. */
+    if(mode != 0 && modes_output_route() == OUT_USB){ ui_toast("Switch to Local Playback first"); return -1; }
     /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
      * (0x4614bc) sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an
      * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
