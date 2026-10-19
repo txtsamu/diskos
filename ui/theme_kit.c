@@ -131,7 +131,9 @@ static kit_role_t classify(lv_obj_t *o, kit_role_t parent_role, int is_root, int
     if(is_root && on_top) return (w >= 340 && h >= 340) ? KIT_SCRIM : KIT_POPUP;
     if(lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE) && lv_obj_get_event_count(o) > 0){
         lv_obj_t *l = first_label(o);
-        if(w >= 200 && h >= 34 && h <= 90 && l) return KIT_ROW;
+        /* A curved list's row (USER_1) is a row however narrow the curve made it: rows added while scrolling arrive
+         * at the top or bottom edge, already narrowed, and were taken for buttons (Squash showed them lit). */
+        if(l && h >= 34 && h <= 90 && (w >= 200 || lv_obj_has_flag(o, LV_OBJ_FLAG_USER_1))) return KIT_ROW;
         if(l && is_glyph(lv_label_get_text(l))) return KIT_ICON_BUTTON;
         if(l) return KIT_BUTTON;
     }
