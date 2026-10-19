@@ -3,7 +3,8 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
-static int smoothing=1;
+static int smoothing=1,lyric_offset;
+void imm_record_set_lyric_offset(int offset){lyric_offset=offset;}
 static imm_overlay_t ovl[IMM_MAX_OVERLAYS]; static int novl;
 void imm_record_set_overlays(const imm_overlay_t *o,int n){
     if(n<0)n=0;
@@ -42,7 +43,7 @@ static void bake_extras(uint32_t *out){
     for(int k=0;k<novl;k++){
         const imm_overlay_t *o=&ovl[k]; if(!o->px)continue;
         for(int y=0;y<o->h;y++){
-            int oy=o->y+y; if(oy<0||oy>=360)continue;
+            int oy=o->y+y+(o->slide?lyric_offset:0); if(oy<0||oy>=360)continue;
             const uint32_t *s=o->px+(size_t)y*o->stride; uint32_t *d=out+oy*360;
             for(int x=0;x<o->w;x++){
                 uint32_t p=s[x]; unsigned a=p>>24; if(!a)continue;

@@ -469,6 +469,7 @@ int  disco_clear_left(int y1, int y2);
 int  disco_clear_right(int y1, int y2);     /* lists: the x a row must end at to clear the closed sliver (0 = none) */
 void disco_nav_set_open(int open);
 void ui_back_hint(int y, int dx);
+void ui_back_hint_left(int y,int dx);
 void ui_shortcuts_hint(int y, int dx);
 void ui_home_hint(int x, int dy);   /* swipe-up-to-Home feedback (main.c) */
 const lv_font_t *ui_font_user(int size);   /* ui.c: list user text, sized by Font Size */           /* main.c: back-swipe feedback (dx <= 6 hides it) */         /* the navigation circle: 1 popped in, 0 back to the tab */      /* lists: the x a row must start at to clear the picker (0 = no limit) */         /* the title overlay: Now Playing + immersive */

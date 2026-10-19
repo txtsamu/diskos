@@ -962,6 +962,6 @@ void stats_open(void){
 }
 void stats_landing(void){
     applanding_show("Listening Stats", "Your music, in numbers.",
-                    "Top artists, albums and songs,\nby week, month or year.", "Show me", APP_BUILTIN_STATS);
+                    "See what moves you.", "Show me", APP_BUILTIN_STATS);
 }
 #endif /* STATS_RECORDER_ONLY */

@@ -11,3 +11,15 @@ Volume uses the existing themed volume overlay and sends changes at most once pe
 Null's progress bar shows a time readout on hold, follows a horizontal drag and seeks once on release. Track changes and leaving the screen cancel the pending seek. All four Null Music font sets and list reading sizes increase one step using baked font assets. Roulette's landing description is shortened to fit above its button.
 
 Native font renders and Null hold/drag/release, changed-track and screen-leave tests passed during implementation. The completed Immersive addition has not had an extended native or device test pass; the owner requested immediate binary/source delivery. Test this development build before promotion. Shipping payload and public release remain unchanged.
+
+
+## Development candidate 3
+
+- Immersive seek feedback fits its time text with 10 px horizontal padding, retaining the existing fonts and total-duration line. Other screens retain their previous feedback dimensions.
+- A left-edge swipe replaces the permanent back button, with the standard themed gesture feedback.
+- Circular duration and volume control sensitivity is 75% of dev2. Artwork rotation still tracks the finger directly.
+- Lyric changes slide upward over 240 ms. Cached text snapshots are reused throughout each slide, with frame-paced drawing. Duration seeking holds lyrics; volume changes do not.
+- Cover replaces None at the same stored setting value, with the same rotating and touch-controlled behaviour as Vinyl/CD, without their decorative layers.
+- Boomshine: “One spark. Catch them all.” Stats: “See what moves you.”
+
+Native build and actual LVGL feedback render checked. Physical-device gesture, lyric and battery testing remains necessary.

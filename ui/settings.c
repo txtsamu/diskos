@@ -424,7 +424,7 @@ static void apply_disco_title(int v){ (void)v; dhome_title_apply(); }
 static void apply_disco_hold(int v){ (void)v; }
 static const char *OPT_IMM_CONTROL[]={"Duration","Volume"};
 static void apply_imm_control(int v){(void)v;ui_imm_control_apply();}
-static const char *OPT_DIMM[] = { "Vinyl", "CD", "None" };
+static const char *OPT_DIMM[] = { "Vinyl", "CD", "Cover" };
 void ui_imm_style_apply(void);
 static void apply_imm(int v){ (void)v; ui_imm_style_apply(); }                       /* Immersive look and lyrics: applied at once */
 void eqcustom_style_apply(void);
@@ -842,7 +842,7 @@ static const setting_t TABLE[] = {
     { "Text & Layout",  "Now Playing", ST_CYCLER, "np_style",   0,0,0, OPT_NPSTYLE, 4, NULL, apply_np_style, 0,
       "Album art style on the Now Playing screen.", D_NPSTYLE },
     { "Text & Layout",  "Immersive", ST_CYCLER, "imm_style", 0,0,0, OPT_DIMM, 3, NULL, apply_imm, 0,
-      "Vinyl: spinning grooves. CD: spinning disc with a fixed rainbow sheen. None: still artwork.", NULL },
+      "Vinyl: spinning grooves. CD: spinning disc with a fixed rainbow sheen. Cover: spinning artwork, without a disc overlay.", NULL },
     { "Text & Layout",  "Immersive Lyrics", ST_TOGGLE, "imm_lyrics", 0,1,1, NULL, 0, NULL, apply_imm, 1,
       "Show synced lyrics over a darkened part of Immersive. Off shows artwork only.", NULL },
     {"Immersive","Circular control",ST_TOGGLE,"imm_scrub",0,1,1,NULL,0,NULL,apply_imm_control,0,"Drag the artwork clockwise or counterclockwise. Tap no longer exits; use Back.",NULL},

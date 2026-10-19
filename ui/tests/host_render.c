@@ -1697,6 +1697,7 @@ int main(int argc, char **argv){
             int extra=atoi(page+5);
             for(int i=0;i<extra/10;i++){lv_tick_inc(10);lv_timer_handler();}
         }
+        if(getenv("SEEK_PREVIEW"))ui_seek_preview(59999000,59999000,1);
         goto render;
     }
     if(!strcmp(argv[3],"actions")){
@@ -1752,6 +1753,7 @@ int main(int argc, char **argv){
         cfg_set_int_deferred("online_art",0);
         cfg_set_int_deferred("accent_mode",1);
         ui_set_np_style(2);
+        if(getenv("IMM_STYLE"))cfg_set_int_deferred("imm_style",atoi(getenv("IMM_STYLE")));
         track_state_t st={0};
         snprintf(st.path,sizeof st.path,"%s",argv[5]);
         char *dot=strrchr(st.path,'.'); assert(dot); strcpy(dot,".png");
@@ -1771,6 +1773,7 @@ int main(int argc, char **argv){
         for(int i=0;i<80;i++){
             lv_tick_inc(10); lv_timer_handler(); lyrics_poll(NULL); usleep(1000);
         }
+        if(getenv("SEEK_PREVIEW")){ui_seek_preview(59999000,59999000,1);goto render;}
         assert(find_sharp_image(root));
         lyr_line_t lines[8]; unsigned rev;
         assert(lyrics_immersive_load(lines,8,&rev)==2);
@@ -1885,6 +1888,7 @@ render:
         }
         lv_refr_now(d);
     }
+    if(getenv("SEEK_PREVIEW")){ui_seek_preview(59999000,59999000,1);}
     if(getenv("IMM_IN")){ void ui_test_imm_in(int); ui_test_imm_in(atoi(getenv("IMM_IN"))); }
     if(getenv("IMM_OUT")){ void ui_test_imm_out(int); ui_test_imm_out(atoi(getenv("IMM_OUT"))); }
     if(getenv("IMM_PARTS")){ void dhome_test_imm_parts(int); dhome_test_imm_parts(atoi(getenv("IMM_PARTS"))); }

@@ -2757,7 +2757,7 @@ void ui_art_set_pending(int pending){
  * following it; once the swipe has gone far enough to count it fills with the accent. Hidden on release. */
 static lv_obj_t *g_bh, *g_bh_lbl;
 static int g_hint_late;                                      /* the swipe has taken too long to count (700 ms) */
-void ui_back_hint(int y, int dx){
+static void back_hint_at(int y, int dx, int mirrored){
     int thresh = g_swipe_thresh;
     if(dx <= 6){ if(g_bh) lv_obj_add_flag(g_bh, LV_OBJ_FLAG_HIDDEN); return; }
     if(!g_bh){
@@ -2767,14 +2767,15 @@ void ui_back_hint(int y, int dx){
         lv_obj_clear_flag(g_bh, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
         g_bh_lbl = lv_label_create(g_bh); lv_label_set_text(g_bh_lbl, LV_SYMBOL_LEFT);
         lv_obj_set_style_text_font(g_bh_lbl, TF(UI_20), 0);
-        lv_obj_align(g_bh_lbl, disco_mirror() ? LV_ALIGN_LEFT_MID : LV_ALIGN_RIGHT_MID, disco_mirror() ? 12 : -12, 0);
+        lv_obj_align(g_bh_lbl, mirrored ? LV_ALIGN_LEFT_MID : LV_ALIGN_RIGHT_MID, mirrored ? 12 : -12, 0);
     }
+    lv_obj_align(g_bh_lbl, mirrored ? LV_ALIGN_LEFT_MID : LV_ALIGN_RIGHT_MID, mirrored ? 12 : -12, 0);
     int armed = dx >= thresh && !g_hint_late;
     int reach = dx > thresh * 3 / 2 ? thresh * 3 / 2 : dx;              /* slides in with the finger, then stops */
     if(y < 70) y = 70;
     if(y > 290) y = 290;
     int bx = -64 + 8 + reach * 40 / (thresh * 3 / 2);
-    lv_obj_set_pos(g_bh, disco_mx(bx, 64), y - 32);                     /* Disco Left: in from the right edge */
+    lv_obj_set_pos(g_bh, (mirrored ? 360-bx-64 : bx), y - 32);                     /* Disco Left: in from the right edge */
     static int was = -1;                                     /* restyle only when it arms / disarms, not per touch sample */
     if(lv_obj_has_flag(g_bh, LV_OBJ_FLAG_HIDDEN)){ was = -1; lv_obj_remove_flag(g_bh, LV_OBJ_FLAG_HIDDEN); lv_obj_move_foreground(g_bh); }
     if(armed != was){
@@ -2784,6 +2785,8 @@ void ui_back_hint(int y, int dx){
         lv_obj_set_style_transform_scale(g_bh, armed ? 272 : 256, 0);
     }
 }
+void ui_back_hint(int y,int dx){back_hint_at(y,dx,disco_mirror());}
+void ui_back_hint_left(int y,int dx){back_hint_at(y,dx,0);}
 /* Shortcuts uses the Back feedback from the opposite edge, with its own glyph. */
 static lv_obj_t *g_sh, *g_sh_lbl;
 void ui_shortcuts_hint(int y, int dx){

@@ -170,5 +170,5 @@ void applanding_show(const char *name, const char *tagline, const char *about, c
 }
 void boomshine_landing(void){
     applanding_show("Boomshine", "One tap. A chain reaction.",
-                    "Set off a single blast and\ncatch as many dots as you can.", "Play", APP_BUILTIN_BOOMSHINE);
+                    "One spark. Catch them all.", "Play", APP_BUILTIN_BOOMSHINE);
 }
