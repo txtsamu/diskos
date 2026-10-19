@@ -139,6 +139,30 @@ static void out_resume(int moved){
     if(moved && g_osw.pos > 0 && ui_seek_to(g_osw.pos) < 0){ ui_toast("Couldn't resume - press play"); return; }
     if(ipc_send_cmd(OUT_PAUSE) < 0) ui_toast("Couldn't resume - press play");   /* toggle: plays again */
 }
+static int out_switch(int target, int via_mode);
+/* USB DAC unplugged while routed to it: the player falls back to a silent USB_HOST_NULL sink and nothing in the
+ * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
+ * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
+ * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. */
+static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
+static void usbgone_tick(lv_timer_t *t){
+    (void)t;
+    if(modes_output_route() != OUT_USB){ lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL; return; }
+    if(modes_output_busy()) return;
+    if(out_usb_card_ok()){ g_usbgone_miss = 0; return; }
+    if(++g_usbgone_miss < 2) return;
+    g_usbgone_miss = 0;
+    fprintf(stderr, "usb audio: DAC gone - back to the internal DAC (paused)\n"); fflush(stderr);
+    if(out_switch(OUT_INTERNAL, 1) == 0){
+        g_osw.was_playing = 0;   /* out_switch already paused it; never resume into the jack */
+        lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL;
+        ui_toast("USB DAC disconnected - internal DAC");
+    }
+}
+static void usbgone_start(void){
+    g_usbgone_miss = 0;
+    if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL);
+}
 static void usbw_end(void){ if(g_usbw.tm){ lv_timer_del(g_usbw.tm); g_usbw.tm = NULL; } }
 static void usbw_tick(lv_timer_t *t){
     (void)t;
@@ -146,7 +170,7 @@ static void usbw_tick(lv_timer_t *t){
     if(out_usb_card_ok()){
         if(!g_usbw.seen) g_usbw.seen = lv_tick_get() ? lv_tick_get() : 1;
         if(lv_tick_elaps(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
-        usbw_end(); ui_toast("USB DAC connected"); out_resume(1); modes_ui_refresh();
+        usbw_end(); ui_toast("USB DAC connected"); out_resume(1); usbgone_start(); modes_ui_refresh();
         return;
     }
     if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
