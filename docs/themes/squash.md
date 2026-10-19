@@ -1,6 +1,6 @@
 # Squash — 2.5.0
 
-Development build 2.5.4-dev1 uses the [common Display settings layout](../DISPLAY_SETTINGS.md). Historical change notes below retain their original paths.
+2.5.4 uses the [common Display settings layout](../DISPLAY_SETTINGS.md). Historical change notes below retain their original paths.
 
 
 A separate, opt-in theme, featured in diskOS Disco! 2.5.0. Existing presets keep their IDs,
@@ -278,3 +278,5 @@ Both appearances use a faint one-pixel D! shadow on the menu and volume hubs. Lo
 The hidden Default, something, hi-fi, terminal, bauhaus, blueprint and zine presets are retired. Their dedicated component implementations, palettes and 39 unshared font sources are removed. Ring remains ID 8 and Braun ID 9; Disco 10, Null 11, Squash 12 and the still-visible Stone 6 retain their original IDs. Old retired IDs migrate to Disco. Shared default palette/fallback infrastructure and Braun's reused Inter Semibold 24 px face are retained.
 
 Validation compares 36 Ring/Braun Home, Now Playing, QS, Library, Settings, EQ, Search, Queue and screensaver renders in light/dark before and after cleanup. All pixel bytes match with identical queue fixtures. Stone's palette bytes also match, and 26 valid/retired configuration checks pass.
+
+In 2.5.4 Weather follows the selected light/dark appearance, with four forecast pills above a bottom current-weather flyout. Battery text is centered and its arc opens downwards.

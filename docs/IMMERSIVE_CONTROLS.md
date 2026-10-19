@@ -1,25 +1,17 @@
-# 2.5.4-dev2 controls
+# Immersive controls — 2.5.4
 
-Based on the last 2.5.4-dev1 source bundle (b960fb6).
+Open **Display → Music screen → Immersive**. **Circular control** defaults Off; turn it On and choose **Control action: Duration / Volume**.
 
-Display → Music screen → Immersive now has Circular control (default Off) and Control action: Duration / Volume. On replaces tap-to-exit with a Back button and edge back gesture. Rotate the artwork clockwise to increase the selected value, counterclockwise to decrease it. Artwork follows the finger, including while paused, and resumes its normal rotation from the released angle. Centre crossings re-anchor without a value jump.
+Rotate the artwork clockwise to increase the selected value or counterclockwise to decrease it. The picture follows your finger, including while paused, and normal rotation resumes from the released angle. Crossing the centre re-anchors without a value jump. Sensitivity is 75% of the earlier dev2 candidate.
 
-Duration shows a centred time/total readout, holds the current lyric lines during the drag and seeks on release. Lyrics then refresh at the requested position while briefly rejecting stale position echoes. A changed track or lost press cancels the seek.
+**Duration:** a compact box shows the selected time and total. Lyrics hold while dragging; release commits one seek and resumes lyrics at the new position. Changed tracks and lost touches cancel the pending seek. Old player position echoes are briefly ignored after an accepted seek.
 
-Volume uses the existing themed volume overlay and sends changes at most once per 120 ms, plus the final release value if needed. The configured maximum volume is respected. Lyrics continue. The volume display is click-through while this circular control is selected so it does not interrupt the artwork gesture; normal volume input is restored when leaving Immersive.
+**Volume:** the existing themed volume overlay shows changes. Writes are throttled to one per 120 ms plus a final release value when needed, and the configured maximum is respected. Lyrics continue. The overlay is click-through during this mode so it cannot interrupt artwork dragging; normal volume controls return when leaving Immersive.
 
-Null's progress bar shows a time readout on hold, follows a horizontal drag and seeks once on release. Track changes and leaving the screen cancel the pending seek. All four Null Music font sets and list reading sizes increase one step using baked font assets. Roulette's landing description is shortened to fit above its button.
+With Circular control On, use the **left-edge Back swipe**, with themed feedback, to leave. There is no permanent arrow and tapping the cover does not exit. With it Off, the original tap-to-exit behavior remains.
 
-Native font renders and Null hold/drag/release, changed-track and screen-leave tests passed during implementation. The completed Immersive addition has not had an extended native or device test pass; the owner requested immediate binary/source delivery. Test this development build before promotion. Shipping payload and public release remain unchanged.
+**Styles:** Vinyl, CD and Cover all rotate. Cover is undecorated artwork with optional lyrics and replaces the former None setting without changing its saved value. New lyric lines slide upward over 240 ms. Text snapshots are reused during animation; no text images are allocated every frame.
 
+Null also supports hold-and-drag progress seeking on its normal Music screen, with a time preview and one seek on release.
 
-## Development candidate 3
-
-- Immersive seek feedback fits its time text with 10 px horizontal padding, retaining the existing fonts and total-duration line. Other screens retain their previous feedback dimensions.
-- A left-edge swipe replaces the permanent back button, with the standard themed gesture feedback.
-- Circular duration and volume control sensitivity is 75% of dev2. Artwork rotation still tracks the finger directly.
-- Lyric changes slide upward over 240 ms. Cached text snapshots are reused throughout each slide, with frame-paced drawing. Duration seeking holds lyrics; volume changes do not.
-- Cover replaces None at the same stored setting value, with the same rotating and touch-controlled behaviour as Vinyl/CD, without their decorative layers.
-- Boomshine: “One spark. Catch them all.” Stats: “See what moves you.”
-
-Native build and actual LVGL feedback render checked. Physical-device gesture, lyric and battery testing remains necessary.
+Native builds, LVGL renders and focused checks do not replace extended physical-device gesture and battery testing. No measured battery-life improvement is claimed.

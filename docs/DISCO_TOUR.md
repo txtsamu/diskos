@@ -15,7 +15,7 @@ playing album fills the screen, blurred and tinted behind every menu, with a fai
 **Getting it on your Disc:** from Windows with the [diskOS Disco! for Windows](WINDOWS.md) app, or from Linux with the
 [installer](../README.md#install).
 
-**Development build 2.5.4-dev1:** Display has a common layout across themes. See the [current Display map](DISPLAY_SETTINGS.md). The screenshots elsewhere in this tour may show the earlier menu paths.
+**2.5.4:** Display has a common layout across themes. See the [current Display map](DISPLAY_SETTINGS.md). The screenshots elsewhere in this tour may show the earlier menu paths.
 
 ## On this page
 
@@ -756,3 +756,5 @@ Navidrome account meant for this. Disc Shelf needs Wi-Fi and a server the Disc c
 <td align="center" valign="top" width="33%"><img src="disco/disc-shelf.png" width="220" alt="Disc Shelf"><br><sub>Disc Shelf's start page</sub></td>
 </tr>
 </table>
+
+For circular duration/volume gestures and the rotating Cover style, see [Immersive controls](IMMERSIVE_CONTROLS.md).

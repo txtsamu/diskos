@@ -6,6 +6,18 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
+## [2.5.4]
+
+- Shared Display settings organization, explanations for unsupported controls, static wrapping setting labels and reduced invisible/repeated visual work.
+- Larger Null list/Music fonts and hold-to-scrub time preview with guarded seek-on-release.
+- Optional Immersive circular duration/volume control, finger-driven artwork rotation, compact time feedback and left-edge Back gesture.
+- Cover replaces None and rotates without disc decoration; lyric changes slide using cached snapshots.
+- Squash light/dark weather with four paired forecast pills and a bottom current-weather flyout; centered Squash/Null Battery content and downward arc opening.
+- Shorter Roulette, Boomshine and Stats landing copy. All dev1–dev3 patches included; existing 2.5.3 features retained.
+- Focused native/build checks passed. New controls still need extended device testing; no measured battery-life gain claimed.
+
+[2.5.4 release notes](docs/releases/v2.5.4.md)
+
 ## [2.5.3]
 
 - Null Matrix palette, fixed palette accents and less repeated UI styling.

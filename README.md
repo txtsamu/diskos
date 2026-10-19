@@ -37,9 +37,9 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.3
+## New in 2.5.4
 
-Matrix colours and less repeated work in Null, matching Shortcuts/Working mode layouts, swipe feedback for Shortcuts, and History recording while the screen is off. [See what’s new](docs/releases/v2.5.3.md).
+Clearer Display settings, bigger Null text, circular Immersive controls and a fresh Squash weather screen. Every 2.5.3 feature stays included. [See what’s new](docs/releases/v2.5.4.md).
 
 ## Big. Bold. Squash.
 

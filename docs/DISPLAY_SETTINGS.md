@@ -1,6 +1,6 @@
-# Display settings — 2.5.4-dev1 test build
+# Display settings — 2.5.4
 
-This development build starts from the working 2.5.3 release. Display uses the same order and names in every theme. Each theme keeps its own look and existing preferences. Dimmed settings say **Disabled**; tap one to learn why it does not apply. Switching themes does not reset saved values.
+2.5.4 builds on 2.5.3. Display uses the same order and names in every theme. Each theme keeps its own look and existing preferences. Dimmed settings say **Disabled**; tap one to learn why it does not apply. Switching themes does not reset saved values.
 
 | Under Display | What you can change |
 |---|---|
@@ -25,3 +25,5 @@ Null pauses its frequent visual timer when Music, QS and an open menu do not nee
 Battery/status polling deliberately continues with the screen off. The source documents a hardware freeze when that keep-alive was removed. It must not be paused as a battery optimization.
 
 These changes reduce identified work; battery-life gains have not been measured on the Disc.
+
+Immersive controls: [Circular seeking, volume and Cover style](IMMERSIVE_CONTROLS.md).

@@ -6,8 +6,8 @@ checks your PC, flashes the Disc and makes SD updates ([guide](docs/WINDOWS.md))
 **On macOS:** follow the [Mac guide](docs/MACOS.md), including links to upstream’s ready-built Apple Silicon flash tools.
 
 **On Linux:** flash with the installer from the repository or source download, using your update key
-([README](README.md#install)). **Already on 1.4.1 or later? 2.5.3 is an SD update.** Older than that? Reflash once first
-(the 1.4.1 boot-script fixes can't arrive by SD card). See [release notes](docs/releases/v2.5.3.md).
+([README](README.md#install)). **Already on 1.4.1 or later? 2.5.4 is an SD update.** Older than that? Reflash once first
+(the 1.4.1 boot-script fixes can't arrive by SD card). See [release notes](docs/releases/v2.5.4.md).
 
 After that, `mq_ui` is the interface: sign it with your own keys and install it from the SD card
 ([docs/UPDATING.md](docs/UPDATING.md)).
