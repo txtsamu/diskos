@@ -102,7 +102,7 @@ void mp_exit(mp_host_t *h){
 int mp_active(const mp_host_t *h){ return h && h->on; }
 static void toggle(mp_host_t *h, lv_obj_t *r, int i){
     int n = h->count ? h->count() : 0;
-    if(i < 0 || i >= n) return;
+    if(i < 0 || i >= n || (h->pickable && !h->pickable(i))) return;
     if(!h->on){
         if(h->can_pick && !h->can_pick()) return;
         if(h->cap < n){ uint8_t *m = realloc(h->sel, (size_t)n); if(!m) return; h->sel = m; h->cap = n; }
@@ -146,9 +146,17 @@ void mp_row(mp_host_t *h, lv_obj_t *row, int index){
     if(h->on) style_row(h, row, index);                                      /* a recycled row keeps its tick */
 }
 /* ---- the actions ------------------------------------------------------------------------------------------- */
+/* The ticked items as exact songs; toasts and returns <= 0 when there are none or the list couldn't be built. */
+static int songs_of(mp_host_t *h, int **ids){
+    *ids = NULL;
+    int n = h->collect ? h->collect(h->sel, h->cap, ids) : 0;
+    if(n < 0){ free(*ids); *ids = NULL; ui_toast("Couldn't read those songs - try again"); return -1; }
+    if(n == 0){ free(*ids); *ids = NULL; ui_toast("No songs in that selection"); }
+    return n;
+}
 static void act_play(mp_host_t *h, int shuffle){
-    int *ids = NULL, n = h->collect ? h->collect(h->sel, h->cap, &ids) : 0;
-    if(n <= 0){ free(ids); ui_toast("Nothing to play"); return; }
+    int *ids = NULL, n = songs_of(h, &ids);
+    if(n <= 0) return;
     if(shuffle) for(int k = n - 1; k > 0; k--){ int j = rand() % (k + 1), t = ids[k]; ids[k] = ids[j]; ids[j] = t; }
     mdb_plan_t pl = { .list_type = 5, .ids = ids, .count = n };
     queue_note_external_play();                                             /* the queue (if any) waits until after these */
@@ -157,23 +165,36 @@ static void act_play(mp_host_t *h, int shuffle){
     if(ok){ mp_exit(h); screen_show(SCR_NOWPLAYING); }
 }
 static void act_queue(mp_host_t *h){
-    int added = h->queue ? h->queue(h->sel, h->cap) : 0;
-    char b[48]; snprintf(b, sizeof b, added == 1 ? "1 song queued" : "%d songs queued", added);
-    ui_toast(added > 0 ? b : "Couldn't queue those");
-    if(added > 0) mp_exit(h);
+    int *ids = NULL, n = songs_of(h, &ids);
+    if(n <= 0) return;
+    int added = queue_add_ids(ids, n);                                      /* exact songs, saved once */
+    free(ids);
+    char b[48];
+    if(added < 0){ snprintf(b, sizeof b, "Queue full - %d songs don't fit", n); ui_toast(b); return; }
+    if(added == 0){ ui_toast("Couldn't queue those"); return; }
+    if(added < n) snprintf(b, sizeof b, "%d queued, %d not found", added, n - added);
+    else snprintf(b, sizeof b, added == 1 ? "1 song queued" : "%d songs queued", added);
+    ui_toast(b);
+    mp_exit(h);
 }
 static void act_playlist(mp_host_t *h){
-    int *ids = NULL, n = h->collect ? h->collect(h->sel, h->cap, &ids) : 0;
-    if(n > 0){ plpick_set_ids(ids, n); free(ids); mp_exit(h); screen_show(SCR_PLPICK); }
-    else { free(ids); ui_toast("Nothing to add"); }
+    int *ids = NULL, n = songs_of(h, &ids);
+    if(n <= 0) return;
+    plpick_set_ids(ids, n); free(ids); mp_exit(h); screen_show(SCR_PLPICK);
 }
 static void act_favourite(mp_host_t *h){
-    int *ids = NULL, n = h->collect ? h->collect(h->sel, h->cap, &ids) : 0, done = 0;
-    for(int k = 0; k < n; k++){ char p[300]; if(mdb_song_path(ids[k], p, sizeof p) == 1 && mdb_set_favorite_path(p, 1) >= 0) done++; }
+    int *ids = NULL, n = songs_of(h, &ids), done = 0;
+    if(n <= 0) return;
+    for(int k = 0; k < n; k++){
+        char p[300];
+        if(mdb_song_path(ids[k], p, sizeof p) == 1 && mdb_set_favorite_path(p, 1) > 0) done++;   /* 1 = saved, 0 = failed */
+    }
     free(ids);
-    char b[48]; snprintf(b, sizeof b, done == 1 ? "1 favourite added" : "%d favourites added", done);
+    char b[48];
+    if(done && done < n) snprintf(b, sizeof b, "%d saved, %d failed", done, n - done);
+    else snprintf(b, sizeof b, done == 1 ? "1 favourite added" : "%d favourites added", done);
     ui_toast(done ? b : "Couldn't add favourites");
-    if(done) mp_exit(h);
+    if(done == n) mp_exit(h);                                               /* on failure the selection stays for a retry */
 }
 static mp_host_t *g_pop_host;
 static void more_item_cb(lv_event_t *e){
@@ -182,9 +203,9 @@ static void more_item_cb(lv_event_t *e){
     int a = (int)(intptr_t)lv_event_get_user_data(e);
     more_close(h);
     if(a == 1) act_play(h, 1); else if(a == 2) act_playlist(h); else if(a == 3) act_favourite(h);
-    else if(a == 4){ int n = h->count ? h->count() : 0; if(n > h->cap) n = h->cap;
-                     for(int i = 0; i < n; i++) h->sel[i] = 1;
-                     h->cnt = n; restyle_all(h); set_title(h); }
+    else if(a == 4){ int n = h->count ? h->count() : 0, c = 0; if(n > h->cap) n = h->cap;
+                     for(int i = 0; i < n; i++){ h->sel[i] = !h->pickable || h->pickable(i); c += h->sel[i]; }   /* only what can be ticked */
+                     h->cnt = c; restyle_all(h); set_title(h); }
 }
 static void more_bg_cb(lv_event_t *e){
     mp_host_t *h = g_pop_host;

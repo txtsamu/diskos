@@ -28,6 +28,10 @@ Links always point to releases/latest. No upstream diskOS version shown to users
   buttons, QS, Squash/Null) and a real Disc test (CPU on first draw); not to be released untested.
 
 ## Minor
+- From the 2.5.6 code review (not done yet): queue lookups wait up to 1.5 s on the UI thread under database contention
+  (move longer waits off the UI thread); Bluetooth reconnect (3 x 8 s) can overlap the delayed scan and has no
+  cancellation when Bluetooth is turned off or another device is chosen; bulk Favourites runs in one go on the UI
+  thread (batch in a transaction / in the background for large selections).
 - Screenshots: refresh any in the docs/site that predate 2.5 (host renders, round format).
 - Windows app downloads the latest mq_ui instead of the bundled one (low priority; Windows is unsupported).
 - Later idea: Korean/CJK in a second, larger size for Music titles (about +0.4 MB per script).

@@ -15,8 +15,10 @@ typedef struct mp_host {
     lv_obj_t *root, *list, *title;          /* the screen, its scrolling list, the header title label */
     int  (*count)(void);                     /* items in the list now */
     int  (*can_pick)(void);                  /* this list allows picking */
-    int  (*collect)(const uint8_t *sel, int n, int **ids);   /* the ticked items as songs (SONG.IDs, malloc'd) */
-    int  (*queue)(const uint8_t *sel, int n);                /* add the ticked items to the queue: songs added */
+    int  (*pickable)(int index);             /* this item can be ticked (NULL: every item) */
+    int  (*collect)(const uint8_t *sel, int n, int **ids);   /* the ticked items as exact songs (SONG.IDs, malloc'd):
+                                                                the one list Play, Queue, Playlist and Favourites all use;
+                                                                -1 when it couldn't be built completely */
     void (*az)(int show);                    /* the list's A-Z pill: hidden while picking, back after */
     /* state (owned by multipick.c) */
     int on, cnt, cap; uint8_t *sel;

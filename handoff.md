@@ -4,7 +4,7 @@ Read this first, then `todo.md` (the live list). Older release-by-release notes 
 
 ## Where things are
 - 2.5.6 (2026-10-19): queue lookups wait 1.5 s for the player's DB write (2.5.1 regression), fresh queue start with
-  nothing playing; Bluetooth resume guard (main.c ui_resume_guard_*), per-device codec downgrade (cfg btcx_<mac>),
+  nothing playing; Bluetooth resume guard (main.c ui_resume_guard_*), no codec downgrade memory (removed after review),
   scan off before connect, bt_last reconnect, worker-thread connection check. Queue tested on the Disc; Bluetooth
   partly, AAC/LDAC untested (owner has SBC/aptX headphones). Issue #13 (stops at ~6 s, Bluetooth).
   Multi-select (multipick.c, mp_host_t): Library songs/albums/artists + folder browser; swipe across a row starts it;

@@ -755,43 +755,53 @@ static void reapply_sends(void){
  * the start tick (0 = nothing pending). Cleared on track update or a 6s timeout. */
 static uint32_t g_play_pending = 0;
 /* ---- Resume guard (issue #13: songs stopping ~6 s into a playlist on Bluetooth) --------------------------------
- * A Bluetooth re-route (the player restarts its audio when a new list is built, and the auto-route sends it back to
- * the headphones) and an AAC/LDAC switch both renegotiate the link mid-song, and the route's pause/play is a single
- * toggle chosen by a guess at the play state. Either can leave a song stopped. So for 10 s after one of them: if
- * music was playing and position stops moving for 3.5 s with no tap from the user, send play once. If that was a
- * codec switch and music still doesn't move, that pair of headphones goes back to SBC (and is remembered). */
-static uint32_t g_rg_until, g_rg_still; static int g_rg_reason, g_rg_stage; static char g_rg_mac[20];
-void bt_codec_note_failed(const char *mac);      /* bt.c: this device can't hold the chosen codec */
+ * A Bluetooth re-route (the player restarts its audio when a new list is built and the auto-route sends it back to
+ * the headphones) pauses and resumes with one toggle chosen by a guess at the play state, which can leave the song
+ * stopped. Position-based play state can't tell that apart from a pause on the headphones or a song's end, so the
+ * guard is narrow:
+ *  - it watches only while the same headphones, player session and track are current, and stops at a song's end or
+ *    when the user presses Play/Pause on screen (ui_resume_guard_cancel), or after 10 s;
+ *  - after a re-route (reason 1), if position stops moving for 3.5 s it presses play once; if music still doesn't move,
+ *    it shows a hint instead of acting again;
+ *  - after an AAC/LDAC switch (reason 2) it only shows the hint: it never presses play, never changes the codec and
+ *    never remembers a "failed" codec from a stop alone. */
+static uint32_t g_rg_until, g_rg_still;
+static unsigned g_rg_generation, g_rg_path_seq;
+static int g_rg_pos_id, g_rg_reason, g_rg_resumed;
+static char g_rg_mac[20], g_rg_path[256];
 void ui_resume_guard_cancel(void){ g_rg_until = 0; }
 void ui_resume_guard_arm(int reason, const char *mac){
+    ui_resume_guard_cancel();
     if(!g_playing && !g_play_pending) return;            /* nothing was playing: nothing to protect */
-    g_rg_reason = reason; g_rg_stage = 0; g_rg_still = 0;
-    snprintf(g_rg_mac, sizeof g_rg_mac, "%s", mac ? mac : "");
+    track_state_t st; ipc_get_state(&st);
+    if(!mac || !mac[0] || strcmp(mac, ui_route_mac()) || !st.have_track) return;
+    snprintf(g_rg_mac, sizeof g_rg_mac, "%s", mac);
+    snprintf(g_rg_path, sizeof g_rg_path, "%s", st.path);
+    g_rg_path_seq = st.path_seq; g_rg_pos_id = st.pos_id;
+    g_rg_generation = ipc_generation(); g_rg_reason = reason; g_rg_resumed = 0; g_rg_still = 0;
     g_rg_until = (lv_tick_get() + 10000) | 1;
 }
 static void resume_guard_tick(int playing){
     if(!g_rg_until) return;
     uint32_t now = lv_tick_get();
-    if((int32_t)(now - g_rg_until) > 0){ g_rg_until = 0; return; }
+    track_state_t st; ipc_get_state(&st);
+    if((int32_t)(now - g_rg_until) > 0 || g_rg_generation != ipc_generation()
+       || strcmp(g_rg_mac, ui_route_mac()) || !st.have_track
+       || strcmp(g_rg_path, st.path) || g_rg_pos_id != st.pos_id || g_rg_path_seq != st.path_seq
+       || (st.duration_ms > 0 && st.position_ms >= st.duration_ms - 1500)){
+        ui_resume_guard_cancel(); return;                 /* something else changed, or the song is ending: not ours */
+    }
     if(playing){ g_rg_still = 0; return; }
     if(!g_rg_still){ g_rg_still = now | 1; return; }
     if(lv_tick_elaps(g_rg_still) < 3500) return;
     g_rg_still = 0;
-    if(g_rg_stage == 0){                                 /* stopped by our own step: play once */
-        ipc_send_cmd("0201000C0000"); g_rg_stage = 1; g_rg_until = (now + 7000) | 1;
-        fprintf(stderr, "resume guard: playback stopped after %s, resumed\n", g_rg_reason == 2 ? "codec switch" : "route"); fflush(stderr);
+    if(g_rg_reason == 1 && !g_rg_resumed && ipc_send_cmd("0201000C0000") == 0){   /* our own route stopped it: play once */
+        g_rg_resumed = 1; g_rg_until = (now + 7000) | 1;
+        fprintf(stderr, "resume guard: playback stopped after a route, resumed once\n"); fflush(stderr);
         return;
     }
-    if(g_rg_stage == 1 && g_rg_reason == 2 && g_rg_mac[0]){   /* the codec doesn't hold: back to SBC for this device */
-        char f[48];
-        bt_codec_note_failed(g_rg_mac);
-        if(ui_bt_codec_frame(g_rg_mac, f, sizeof f) == 0) ipc_send_cmd(f);
-        ipc_send_cmd("0201000C0000"); g_rg_stage = 2; g_rg_until = (now + 7000) | 1;
-        ui_toast("Bluetooth codec unstable - using SBC");
-        fprintf(stderr, "resume guard: codec switch failed for %s, back to SBC\n", g_rg_mac); fflush(stderr);
-        return;
-    }
-    g_rg_until = 0;
+    ui_resume_guard_cancel();
+    ui_toast("Playback paused - press Play to resume");
 }
 static char g_play_initpath[256] = "";   /* track path at play-initiation (for the pending-clear) */
 static char g_play_inittitle[160] = "";  /* title at play-init: tracks of one CUE/ISO share a path, so a title change also confirms */

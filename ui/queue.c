@@ -110,15 +110,35 @@ int queue_add_path(const char *path){
     load(); if(!path || !path[0]) return 0;
     int n=add_path_tracks(path); if(n>0) changed(); return n;
 }
-static void folder_cb(void *ud, const char *path, const char *title, const char *artist, const char *album, long dur){
-    (void)title; (void)artist; (void)album; (void)dur;
-    int n=add_path_tracks(path); if(n>0) *(int*)ud+=n;
+/* Exact songs (SONG.IDs), each with its own track/CUE/ISO identity: never a whole image for one track. All or nothing
+ * when the queue can't take them all; saved and shown once. Returns the number added, -1 if they don't fit, 0 if none. */
+static int add_ids(const int *ids, int n){
+    if(n <= 0) return 0;
+    if(n > QMAX - g_qn) return -1;
+    int added = 0;
+    for(int i = 0; i < n; i++){
+        mdb_song_t song; char path[256];
+        if(!mdb_queue_song(ids[i], path, sizeof path, &song)) continue;   /* gone from the library: skip that one */
+        const char *sl = strrchr(path, '/');
+        if(add_one(ids[i], path, song.title[0] ? song.title : (sl ? sl + 1 : path), song.artist, song.dur_ms)){
+            qitem_t *q = &g_q[g_qn - 1]; q->track = song.track; q->cue = song.is_cue; q->iso = song.is_iso; q->have_key = 1; added++;
+        }
+    }
+    return added;
+}
+int queue_add_ids(const int *ids, int n){
+    load();
+    int r = add_ids(ids, n);
+    if(r > 0) changed();
+    return r;
 }
 int queue_add_folder(const char *dir){
-    load(); int n = 0;
-    mdb_folder_rows(dir, folder_cb, &n);           /* in file order */
-    if(n > 0) changed();
-    return n;
+    load();
+    int *ids = NULL, n = mdb_folder_ids(dir, &ids);    /* in file order; each CUE/ISO sub-track once */
+    int r = n > 0 ? add_ids(ids, n) : 0;
+    free(ids);
+    if(r > 0) changed();
+    return r;
 }
 static void group_cb(void *ud, const char *path){ int n = add_path_tracks(path); if(n > 0) *(int *)ud += n; }
 int queue_add_group(const char *col, const char *val){        /* fork: Library long-press on an album / artist / genre */
@@ -216,13 +236,15 @@ static int start_fresh(int first){
     if(first < 0 || first >= g_qn) return 0;
     if(!g_copy) g_copy = malloc(sizeof(*g_copy) * (QMAX + RMAX));
     if(!g_copy) return -1;
-    if(first > 0){ memmove(&g_q[0], &g_q[first], (size_t)(g_qn - first) * sizeof g_q[0]); g_qn -= first; save(); }
-    if(g_qn > 1 && simple_cfg_get_int("work_mode", 0) == 1){       /* Shuffle play mode: a random order */
+    /* The new order is tried first and kept only if playback starts: a failed start leaves the queue as it was. */
+    static qitem_t before[QMAX]; int nbefore = g_qn;
+    memcpy(before, g_q, sizeof g_q[0] * (size_t)g_qn);
+    if(first > 0){ memmove(&g_q[0], &g_q[first], (size_t)(g_qn - first) * sizeof g_q[0]); g_qn -= first; }
+    if(g_qn > 1 && simple_cfg_get_int("work_mode", 0) == 1)        /* Shuffle play mode: a random order */
         for(int i = g_qn - 1; i > 0; i--){ int j = rand() % (i + 1); qitem_t t = g_q[i]; g_q[i] = g_q[j]; g_q[j] = t; }
-        save();
-    }
     g_nctx = 0; g_nrest = 0; g_ctx_type = -1; g_ctx_name[0] = 0; g_ctx_pid = 0; g_ctx_label[0] = 0;
-    if(!play_copy(0)) return -1;
+    if(!play_copy(0)){ memcpy(g_q, before, sizeof g_q[0] * (size_t)nbefore); g_qn = nbefore; return -1; }
+    save();
     g_prev2 = 0; g_last_id = g_q[0].id; g_skip_change = 0;
     pop_through(0);
     return 1;

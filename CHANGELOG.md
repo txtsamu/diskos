@@ -12,9 +12,10 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
   Add to Favourites. First-use tip and a How-to line.
 - Queue: queued songs play again when it's their turn (regression since 2.5.1); with nothing playing, Play/Next
   start the queue (shuffled in Shuffle mode).
-- Bluetooth: songs no longer stop seconds after a playlist starts (#13, resume guard); headphones that can't hold
-  LDAC/AAC fall back and are remembered; stop searching before connecting, no re-pairing, reconnect the last
-  headphones, no stutter while connecting. Bluetooth not fully tested on a Disc; AAC/LDAC not at all.
+- Bluetooth: songs no longer stop seconds after a playlist starts (#13): one play after a re-route, otherwise a
+  hint; stop searching before connecting, no re-pairing, reconnect the last headphones, no stutter while connecting.
+- Code-review fixes: exact songs for every multi-select action (CUE/ISO tracks, same-named albums, folders, no
+  512-song cap), truthful bulk Favourites, a failed queue start keeps the queue, Files Select all. Bluetooth not fully tested on a Disc; AAC/LDAC not at all.
 - Squash: list rows at the curved edges no longer show as selected while scrolling.
 - Docs and Windows app: switching between diskOS builds, start from stock V2.57, unsupported Windows notes.
 

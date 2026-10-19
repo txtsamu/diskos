@@ -221,35 +221,27 @@ static int fb_pick_count(void){ return g_nent; }
 static int fb_pick_full(int i, char *out, int cap){
     int n = snprintf(out, (size_t)cap, "%s/%s", g_dir, g_ent[i].name); return n > 0 && n < cap;
 }
-typedef struct { int *ids; int n, room, fail; } fb_ids_t;
-static void fb_ids_push(fb_ids_t *a, int id){
-    if(id <= 0 || a->fail) return;
-    if(a->n == a->room){ int r = a->room ? a->room * 2 : 256; int *m = realloc(a->ids, sizeof *m * (size_t)r); if(!m){ a->fail = 1; return; } a->ids = m; a->room = r; }
-    a->ids[a->n++] = id;
-}
-static void fb_ids_cb(void *ud, const char *path, const char *t, const char *ar, const char *al, long d){
-    (void)t; (void)ar; (void)al; (void)d; fb_ids_push(ud, mdb_song_id_by_path(path));
-}
+static int fb_pickable(int i){ return i >= 0 && i < g_nent && (g_ent[i].is_dir || fb_is_audio(g_ent[i].name)); }
+/* The ticked entries as exact songs, in file order: a folder is every song under it, a file is that file's song(s)
+ * (each CUE/ISO sub-track once). -1 when the list couldn't be built completely. */
 static int fb_pick_collect(const uint8_t *sel, int cap, int **out){
-    fb_ids_t a = {0};
-    for(int i = 0; i < g_nent && i < cap; i++){
+    int *ids = NULL, n = 0, room = 0, fail = 0;
+    for(int i = 0; i < g_nent && i < cap && !fail; i++){
         char full[FB_MAXPATH];
-        if(!sel[i] || !fb_pick_full(i, full, sizeof full)) continue;
-        if(g_ent[i].is_dir) mdb_folder_rows(full, fb_ids_cb, &a);       /* everything under it, in file order */
-        else fb_ids_push(&a, mdb_song_id_by_path(full));
+        if(!sel[i] || !fb_pickable(i) || !fb_pick_full(i, full, sizeof full)) continue;
+        int one[64], *part = one, m;
+        if(g_ent[i].is_dir){ m = mdb_folder_ids(full, &part); if(m < 0){ fail = 1; break; } }
+        else { m = mdb_queue_path_ids(full, one, 64); if(m < 0){ fail = 1; break; } }
+        if(n + m > room){
+            int r = room ? room : 256; while(r < n + m) r *= 2;
+            int *g = realloc(ids, sizeof *g * (size_t)r);
+            if(!g) fail = 1; else { ids = g; room = r; }
+        }
+        if(!fail){ memcpy(ids + n, part, sizeof *part * (size_t)m); n += m; }
+        if(part != one) free(part);
     }
-    if(a.fail){ free(a.ids); return 0; }
-    *out = a.ids; return a.n;
-}
-static int fb_pick_queue(const uint8_t *sel, int cap){
-    int added = 0;
-    for(int i = 0; i < g_nent && i < cap; i++){
-        char full[FB_MAXPATH];
-        if(!sel[i] || !fb_pick_full(i, full, sizeof full)) continue;
-        int r = g_ent[i].is_dir ? queue_add_folder(full) : queue_add_path(full);
-        if(r > 0) added += r;
-    }
-    return added;
+    if(fail){ free(ids); *out = NULL; return -1; }
+    *out = ids; return n;
 }
 static void fb_pick_az(int show){ azjump_show(&g_faz, show && g_nent > 12); }
 int folderbrowser_pick_back(void){ if(!mp_active(&g_fmp)) return 0; mp_exit(&g_fmp); return 1; }
@@ -266,7 +258,7 @@ static void fb_add_row(int i){
         lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
         lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_ext_click_area(r, 2);
-        if(en->is_dir || fb_is_audio(en->name)) mp_row(&g_fmp, r, i);   /* swipe to pick (before the row's own tap/hold) */
+        if(fb_pickable(i)) mp_row(&g_fmp, r, i);   /* swipe to pick (before the row's own tap/hold) */
         lv_obj_add_event_cb(r, fb_row_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)i);   /* short: a hold opens the menu */
         lv_obj_add_event_cb(r, fb_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)i);
 
@@ -462,8 +454,8 @@ void folderbrowser_create(lv_obj_t *root){
     lv_obj_add_event_cb(g_list, fb_scroll_cb, LV_EVENT_SCROLL, NULL);   /* the window first, then the curve */
     curvelist_attach(&g_fcl, g_list, root, FB_ROW_W);
     azjump_create(&g_faz, root, fb_jump, "folders");
-    g_fmp = (mp_host_t){ .root = root, .list = g_list, .title = g_title, .count = fb_pick_count,
-                         .collect = fb_pick_collect, .queue = fb_pick_queue, .az = fb_pick_az };
+    g_fmp = (mp_host_t){ .root = root, .list = g_list, .title = g_title, .count = fb_pick_count, .pickable = fb_pickable,
+                         .collect = fb_pick_collect, .az = fb_pick_az };
     mp_attach(&g_fmp);                                    /* Play / Queue / More while picking */
 
     snprintf(g_dir, sizeof g_dir, "%s", FB_ROOT);   /* first content built on open() */

@@ -93,6 +93,19 @@ int main(int argc,char **argv){
     assert(queue_add_path("/album.flac")==2);old=sends;queue_jump(1);
     assert(sends==old+1 && queue_count()==0 && g_active);
     puts("PASS Queue screen Play/tap with nothing playing starts the chosen song");
+    /* Review #2: a failed fresh start must not drop or reorder queued songs */
+    queue_clear();g_active=0;g_last_id=0;memset(&state,0,sizeof state);playing_now=0;
+    assert(queue_add_path("/next.flac")==1 && queue_add_path("/album.flac")==2 && queue_count()==3);
+    slot_fail=1;queue_jump(1);slot_fail=0;
+    assert(queue_count()==3 && g_q[0].id==20 && g_q[1].id==10 && g_q[2].id==11 && !g_active);
+    old=sends;assert(queue_next()==1 && queue_count()==2);    /* and it still starts normally afterwards */
+    puts("PASS a failed start leaves the queue exactly as it was");
+    /* Review #3: queuing one CUE track adds that track only, with its identity; several fit or none */
+    queue_clear();g_active=0;
+    {int one[]={11};assert(queue_add_ids(one,1)==1 && queue_count()==1 && g_q[0].id==11 && g_q[0].track==2 && g_q[0].cue==1);}
+    {int two[]={10,20};assert(queue_add_ids(two,2)==2 && queue_count()==3 && g_q[1].id==10 && g_q[2].id==20);}
+    {static int many[QMAX+1];for(int k=0;k<QMAX+1;k++)many[k]=20;assert(queue_add_ids(many,QMAX+1)==-1 && queue_count()==3);}
+    puts("PASS multi-select queues exact songs (one CUE track stays one track); too many is refused, not cut off");
     assert(!leases);sqlite3_close(db);
     puts("HARNESS COMPLETE");
 }

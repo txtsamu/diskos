@@ -229,6 +229,7 @@ int  mdb_sysconfig_auto_time(void);          /* SYSCONFIG.AUTO_TIME: 0/1, -1 unr
 int  mdb_sysconfig_set_auto_time(int on);    /* 0 = written + read back, -1 = not */
 int  mdb_get_peq_ex(int style_preset, double *master_out, int *tenths_out, int *freq_out, int *editable_out, double *q_out);
 int  mdb_playlist_add_folder(long pid, const char *dir);
+int  mdb_folder_ids(const char *dir, int **out);   /* songs under dir as exact IDs, file/track order; -1 on failure; caller frees */
 int  mdb_folder_rows(const char *dir, void (*cb)(void *ud, const char *path, const char *title, const char *artist, const char *album, long dur), void *ud);
 int  mdb_song_by_path(const char *path, mdb_song_t *out);
 int  mdb_song_rates(const char *path, int *bitrate, int *srate);

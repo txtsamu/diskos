@@ -3633,6 +3633,40 @@ int mdb_folder_rows(const char *dir, void (*cb)(void *ud, const char *path, cons
     sd_io_end();
     return result;
 }
+/* Every SONG row under dir, as exact IDs in file order (CUE/ISO sub-tracks each once, in track order). The caller frees
+ * *out. Returns the count, 0 for none, -1 on a database or memory failure (never a silently partial list). */
+#define MDB_FOLDER_IDS_MAX 20000
+static int mdb_folder_ids_leased(const char *dir, int **out){
+    *out = NULL;
+    if(!dir || !dir[0]) return 0;
+    sqlite3 *d = db_read(); if(!d) return -1;
+    char pat[700]; size_t k = 0;
+    for(const char *p = dir; *p && k < sizeof pat - 4; p++){ if(*p == '%' || *p == '_' || *p == '\\') pat[k++] = '\\'; pat[k++] = *p; }
+    pat[k++] = '/'; pat[k++] = '%'; pat[k] = 0;
+    sqlite3_stmt *st;
+    if(sqlite3_prepare_v2(d, "SELECT ID FROM SONG WHERE PATH LIKE ? ESCAPE '\\' ORDER BY PATH, IFNULL(TRACK,0), ID;", -1, &st, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_text(st, 1, pat, -1, SQLITE_TRANSIENT);
+    int n = 0, room = 0, *ids = NULL, rc;
+    while((rc = sqlite3_step(st)) == SQLITE_ROW){
+        if(n == room){
+            int r = room ? room * 2 : 256;
+            if(r > MDB_FOLDER_IDS_MAX) r = MDB_FOLDER_IDS_MAX;
+            int *m = r > room ? realloc(ids, sizeof *m * (size_t)r) : NULL;
+            if(!m){ sqlite3_finalize(st); free(ids); return -1; }    /* out of memory or over the ceiling: say so */
+            ids = m; room = r;
+        }
+        ids[n++] = sqlite3_column_int(st, 0);
+    }
+    sqlite3_finalize(st);
+    if(rc != SQLITE_DONE){ free(ids); return -1; }
+    *out = ids; return n;
+}
+int mdb_folder_ids(const char *dir, int **out){
+    if(!sd_io_begin()){ *out = NULL; return -1; }
+    int result = mdb_folder_ids_leased(dir, out);
+    sd_io_end();
+    return result;
+}
 static int mdb_song_by_path_leased(const char *path, mdb_song_t *out){
     if(!path || !path[0] || !out) return 0;
     sqlite3 *d = db_read(); if(!d) return 0;

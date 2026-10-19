@@ -645,34 +645,55 @@ static int lib_pick_ok(void){
 }
 static int lib_pick_count(void){ return g_count; }
 static int lib_is_song_view(void){ return g_view == VIEW_SONGS || g_view == VIEW_GROUP; }
-static int lib_pick_collect(const uint8_t *sel, int cap, int **out){   /* every ticked item's songs, in list order */
-    int room = 256, n = 0; int *ids = malloc(sizeof *ids * (size_t)room); if(!ids) return 0;
-    #define PUSH(v) do{ if(n == room){ int *m = realloc(ids, sizeof *ids * (size_t)(room *= 2)); if(!m){ free(ids); return 0; } ids = m; } ids[n++] = (v); }while(0)
-    for(int i = 0; i < g_count && i < cap; i++){
-        if(!sel[i]) continue;
-        if(lib_is_song_view()){ PUSH(g_buf[i]->id); continue; }
-        if(g_view == VIEW_ARTISTS){
-            mdb_plan_t pl = {0};
-            if(mdb_artist_plan(g_gnames[i], &pl)){ for(int k = 0; k < pl.count; k++) PUSH(pl.ids[k]); mdb_plan_free(&pl); }
-            continue;
-        }
-        if(g_view == VIEW_ALBUMS){
-            const mdb_song_t **sl = malloc(sizeof *sl * 512); int m = sl ? mdb_album_songs(g_gnames[i], sl, 512) : 0;
-            for(int k = 0; k < m; k++) if(!g_gartists[i][0] || !strcasecmp(sl[k]->artist_group, g_gartists[i]) || !strcasecmp(sl[k]->artist, g_gartists[i])) PUSH(sl[k]->id);
-            free(sl);
-        }
+/* A growing list of song IDs with one failure flag: no early returns that could leave temporary buffers behind. */
+typedef struct { int *ids; int n, room, fail; } idlist_t;
+#define PICK_IDS_MAX 20000
+static void ids_add(idlist_t *a, int id){
+    if(a->fail || id <= 0) return;
+    if(a->n == a->room){
+        int r = a->room ? a->room * 2 : 256; if(r > PICK_IDS_MAX) r = PICK_IDS_MAX;
+        int *m = r > a->room ? realloc(a->ids, sizeof *m * (size_t)r) : NULL;
+        if(!m){ a->fail = 1; return; }                    /* out of memory or over the ceiling: reported, not truncated */
+        a->ids = m; a->room = r;
     }
-    #undef PUSH
-    *out = ids; return n;
+    a->ids[a->n++] = id;
 }
-static int lib_pick_queue(const uint8_t *sel, int cap){
-    int added = 0;
-    for(int i = 0; i < g_count && i < cap; i++){
-        if(!sel[i]) continue;
-        if(lib_is_song_view()){ char p[300]; if(mdb_song_path(g_buf[i]->id, p, sizeof p) == 1 && queue_add_path(p) > 0) added++; }
-        else { int r = queue_add_group(g_view == VIEW_ALBUMS ? "ALBUM" : "ARTIST", g_gnames[i]); if(r > 0) added += r; }
+static int album_order(const void *x, const void *y){       /* disc, track, then title: the album's own order */
+    const mdb_song_t *a = *(const mdb_song_t *const *)x, *b = *(const mdb_song_t *const *)y;
+    if(a->disc != b->disc) return a->disc < b->disc ? -1 : 1;
+    if(a->track != b->track) return a->track < b->track ? -1 : 1;
+    return strcasecmp(a->title, b->title);
+}
+/* Every song of album i as shown in the list: the same album name AND the artist shown with it, however many. */
+static void album_ids(idlist_t *a, int i){
+    int total = mdb_song_count(), m = 0;
+    const mdb_song_t **sl = malloc(sizeof *sl * (size_t)(total > 0 ? total : 1));
+    if(!sl){ a->fail = 1; return; }
+    for(int k = 0; k < total; k++){
+        const mdb_song_t *so = mdb_song(k);
+        if(!so || strcmp(so->album, g_gnames[i])) continue;
+        if(g_gartists[i][0] && strcasecmp(so->artist_group, g_gartists[i]) && strcasecmp(so->artist, g_gartists[i])) continue;
+        sl[m++] = so;
     }
-    return added;
+    qsort(sl, (size_t)m, sizeof *sl, album_order);
+    for(int k = 0; k < m; k++) ids_add(a, sl[k]->id);
+    free(sl);
+}
+/* The ticked items as exact songs, in list order: the one list Play, Queue, Playlist and Favourites all use. */
+static int lib_pick_collect(const uint8_t *sel, int cap, int **out){
+    idlist_t a = {0};
+    for(int i = 0; i < g_count && i < cap && !a.fail; i++){
+        if(!sel[i]) continue;
+        if(lib_is_song_view()) ids_add(&a, g_buf[i]->id);
+        else if(g_view == VIEW_ARTISTS){
+            mdb_plan_t pl = {0};
+            if(mdb_artist_plan(g_gnames[i], &pl)){ for(int k = 0; k < pl.count; k++) ids_add(&a, pl.ids[k]); mdb_plan_free(&pl); }
+            else a.fail = 1;
+        }
+        else if(g_view == VIEW_ALBUMS) album_ids(&a, i);
+    }
+    if(a.fail){ free(a.ids); *out = NULL; return -1; }
+    *out = a.ids; return a.n;
 }
 static void lib_pick_az(int show){ az_show(show ? g_count >= 20 : 0); }
 static void sel_exit(void){ mp_exit(&g_mp); }
@@ -1419,7 +1440,7 @@ void library_create(lv_obj_t *root){
     /* the "A - Z" pill and its letter grid (azjump.c, shared with Folders) */
     azjump_create(&g_az, root, jump_to_letter, "library");
     g_mp = (mp_host_t){ .root = root, .list = g_list, .title = g_title, .count = lib_pick_count, .can_pick = lib_pick_ok,
-                        .collect = lib_pick_collect, .queue = lib_pick_queue, .az = lib_pick_az };
+                        .collect = lib_pick_collect, .az = lib_pick_az };
     mp_attach(&g_mp);                             /* Play / Queue / More while picking (hidden otherwise) */
 
     /* alphabet hint overlay (rim-scroll position indicator) - centred, hidden */

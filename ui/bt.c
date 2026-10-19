@@ -425,20 +425,6 @@ static int bt_codec_frame_value(const char *mac, int v, char *out, int cap){
  * 06b3 sent while it is missing. So the route goes out with SBC as always (audio starts at once) and this then waits,
  * off the UI thread, for the PCM: when it shows and lists the chosen codec, the choice is sent as a second 06b3.
  * One step per call (UI timer tick); returns 1 when finished (sent, unavailable, gave up, or the route changed). */
-/* Headphones that lost playback after an AAC/LDAC switch are remembered ("btcx_<mac>": 1 = LDAC failed -> try AAC,
- * 2 = AAC failed too -> stay on SBC), so the next connection doesn't repeat the failing switch. */
-static void btcx_key(const char *mac, char *k, int cap){
-    int n = snprintf(k, (size_t)cap, "btcx_");
-    for(int i = 0; mac[i] && n < cap - 1; i++) if(mac[i] != ':') k[n++] = mac[i];
-    k[n] = 0;
-}
-static int g_cq_sent_v;                       /* the codec value last switched to (for bt_codec_note_failed) */
-void bt_codec_note_failed(const char *mac){
-    if(!bt_mac_valid(mac)) return;
-    char k[32]; btcx_key(mac, k, sizeof k);
-    int lvl = g_cq_sent_v >= 2 ? 1 : 2;       /* LDAC failed -> AAC next time; AAC failed -> SBC */
-    if(cfg_get_int(k, 0) < lvl) cfg_set_int(k, lvl);
-}
 void ui_resume_guard_arm(int reason, const char *mac);
 int bt_codec_upgrade_step(void){
     char mac[18], f[48]; int send = -1, done = 0; struct bt_probe_arg *spawn = NULL;
@@ -459,7 +445,6 @@ int bt_codec_upgrade_step(void){
     if(done) g_cq.armed = 0;
     pthread_mutex_unlock(&g_cq_mu);
     if(send > 0 && bt_codec_frame_value(mac, send, f, sizeof f) == 0){
-        g_cq_sent_v = send;
         ipc_send_cmd(f);
         ui_resume_guard_arm(2, mac);           /* the switch renegotiates the link mid-song: make sure music goes on */
     }
@@ -486,9 +471,6 @@ void ui_bt_codec_upgrade_arm(const char *mac, int fresh){
     int choice = cfg_get_int("bt_codec", 0);
     if(choice < 0 || choice >= BT_CODEC_N) choice = 0;
     if(fw_os_ver() != 257) choice = 0;   /* the 06b3 codec mapping is only decoded for V2.57: elsewhere stay on SBC */
-    { char k[32]; btcx_key(mac, k, sizeof k); int lvl = cfg_get_int(k, 0);   /* this device failed before */
-      if(lvl >= 1 && choice >= 2) choice = 1;                                 /* no LDAC: AAC instead */
-      if(lvl >= 2) choice = 0; }                                              /* no AAC either: SBC */
     pthread_mutex_lock(&g_cq_mu);
     int same = !strcmp(g_cq.mac, mac) && (g_cq.armed || g_cq.applied);
     if(!fresh && (same || choice == 0)){ pthread_mutex_unlock(&g_cq_mu); return; }
