@@ -462,6 +462,14 @@ int ui_transport_command(const char *cmd)
             return 0;
         }
     }
+    if(is_toggle && queue_count() > 0){            /* Play with nothing loaded: the queue starts */
+        track_state_t qs; ipc_get_state(&qs);
+        if(!qs.have_track){
+            int q=queue_next();
+            if(q<0){ ui_toast("Couldn't start queued song - try again"); return -1; }
+            if(q>0){ ui_pp_glyph(btn_pp, ui_pp_icon_playing(1)); return 0; }
+        }
+    }
     if(is_next){
         int q=queue_next();
         if(q<0){ ui_toast("Couldn't start queued song - try again"); return -1; }

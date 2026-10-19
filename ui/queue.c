@@ -209,15 +209,34 @@ static void hand_back(int song){                   /* the queue is done: back to
 }
 static void pop_through(int k){ memmove(&g_q[0], &g_q[k+1], (size_t)(g_qn - k - 1) * sizeof g_q[0]); g_qn -= k + 1; save(); ui_queue_changed();
                                 if(screen_current() == SCR_QUEUE) view_reload(); }
+/* Nothing to come back to (nothing loaded, or nothing playing whose song we can identify): the queue is the whole
+ * list. Song `first` starts now and the rest follow in order; in the Shuffle play mode the queue is shuffled first.
+ * When the queue is done, playback simply stops (there is no album or playlist to return to). */
+static int start_fresh(int first){
+    if(first < 0 || first >= g_qn) return 0;
+    if(!g_copy) g_copy = malloc(sizeof(*g_copy) * (QMAX + RMAX));
+    if(!g_copy) return -1;
+    if(first > 0){ memmove(&g_q[0], &g_q[first], (size_t)(g_qn - first) * sizeof g_q[0]); g_qn -= first; save(); }
+    if(g_qn > 1 && simple_cfg_get_int("work_mode", 0) == 1){       /* Shuffle play mode: a random order */
+        for(int i = g_qn - 1; i > 0; i--){ int j = rand() % (i + 1); qitem_t t = g_q[i]; g_q[i] = g_q[j]; g_q[j] = t; }
+        save();
+    }
+    g_nctx = 0; g_nrest = 0; g_ctx_type = -1; g_ctx_name[0] = 0; g_ctx_pid = 0; g_ctx_label[0] = 0;
+    if(!play_copy(0)) return -1;
+    g_prev2 = 0; g_last_id = g_q[0].id; g_skip_change = 0;
+    pop_through(0);
+    return 1;
+}
 /* the Next button with songs queued: straight to the first one (the player never picks its own next) */
 int queue_next(void){
     load();
     if(g_qn == 0) return 0;
     if(!ui_local_playback_allowed() || modes_output_busy()) return -1;
     track_state_t st; ipc_get_state(&st);
-    if(st.have_track && mdb_is_book_path(st.path)) return 0;
+    if(!st.have_track) return start_fresh(0);                                /* nothing loaded: the queue is the list */
+    if(mdb_is_book_path(st.path)) return 0;
     int current=mdb_queue_current_id(st.path,st.pos_id,st.title);
-    if(!current) return -1;
+    if(!current) return ui_is_playing() ? -1 : start_fresh(0);              /* stopped on an unknown song: start fresh */
     if(!g_active && !capture_context(current, 0)) return -1;                 /* you skipped this song: your list resumes after it */
     if(!play_copy(0)) return -1;
     g_prev2=current; g_last_id=g_q[0].id;
@@ -228,9 +247,13 @@ void queue_jump(int i){                                       /* play queued son
     if(!ui_local_playback_allowed() || modes_output_busy()) return;
     load(); if(i < 0 || i >= g_qn) return;
     track_state_t st; ipc_get_state(&st);
-    int current=mdb_queue_current_id(st.path,st.pos_id,st.title);
-    if(!current) return;
-    if(!g_active && !capture_context(current, 0)) return;                 /* the current song is left: your list resumes after it */
+    int current = st.have_track ? mdb_queue_current_id(st.path,st.pos_id,st.title) : 0;
+    if(!current){                                                         /* nothing (identifiable) playing */
+        if(st.have_track && ui_is_playing()){ ui_toast("Couldn't start queued song - try again"); return; }
+        if(start_fresh(i) < 0) ui_toast("Couldn't start queued song - try again");
+        return;
+    }
+    if(!g_active && !capture_context(current, 0)){ ui_toast("Couldn't start queued song - try again"); return; }
     if(play_copy(i)){ g_prev2=current; g_last_id=g_q[i].id; pop_through(i); }
 }
 void queue_tick(const track_state_t *st, int playing){

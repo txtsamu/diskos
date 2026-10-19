@@ -25,6 +25,8 @@ void ui_queue_changed(void){}
 void ui_toast(const char *s){(void)s;}
 int screen_current(void){return SCR_NOWPLAYING;}
 int ui_play_context(int *type,char *name,int cap,long *pid){ *type=3;snprintf(name,(size_t)cap,"Album");*pid=0;return 3;}
+static int playing_now;
+int ui_is_playing(void){return playing_now;}
 int ui_play_slot(int pos){sends++;last_pos=pos;return !slot_fail;}
 int ui_play_restore(int type,const char *name,long pid,int pos){(void)name;(void)pid;assert(type==3);restores++;last_pos=pos;return !rest_fail;}
 static void view_reload(void){}
@@ -76,6 +78,21 @@ int main(int argc,char **argv){
     old=sends;int q=queue_next();pthread_join(th,NULL);sqlite3_close(player);
     assert(q==1 && sends==old+1 && queue_count()==0 && g_active);
     puts("PASS queue waits briefly for the player's database write instead of skipping the queued song");
+    /* Nothing playing: Play/Next start the queue itself (it failed with "Couldn't start queued song") */
+    queue_clear();g_active=0;g_last_id=0;g_prev2=0;restores=0;
+    memset(&state,0,sizeof state);playing_now=0;
+    assert(queue_add_path("/next.flac")==1 && queue_add_path("/album.flac")==2 && queue_count()==3);
+    old=sends;assert(queue_next()==1 && sends==old+1 && g_active && queue_count()==2 && g_q[0].id==10 && g_nrest==0);
+    state.have_track=1;strcpy(state.path,"/next.flac");strcpy(state.title,"Next");state.pos_id=last_pos;state.duration_ms=14000;
+    queue_tick(&state,1);assert(queue_count()==2);                 /* the started song itself: nothing moves */
+    state.position_ms=13500;queue_tick(&state,1);
+    strcpy(state.path,"/album.flac");strcpy(state.title,"First");state.pos_id=idx_of(g_copy,g_ncopy,10)+1;state.position_ms=0;state.duration_ms=10000;
+    queue_tick(&state,1);assert(queue_count()==1 && g_q[0].id==11);  /* natural end: the next queued song, as planned */
+    puts("PASS with nothing playing, the queue starts with its first song and plays through in order");
+    queue_clear();g_active=0;g_last_id=0;memset(&state,0,sizeof state);
+    assert(queue_add_path("/album.flac")==2);old=sends;queue_jump(1);
+    assert(sends==old+1 && queue_count()==0 && g_active);
+    puts("PASS Queue screen Play/tap with nothing playing starts the chosen song");
     assert(!leases);sqlite3_close(db);
     puts("HARNESS COMPLETE");
 }
