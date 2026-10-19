@@ -1,15 +1,17 @@
 # Install diskOS Disco! from macOS
 
+> **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first.
+
 Use a Mac, a USB data cable and your own unmodified **FiiO V2.57 firmware ZIP**. Back up your music and keep the installer's saved stock image on separate storage. Allow about 30 uninterrupted minutes.
 
 This follows [b0hemia's diskOS 1.2.0 installation notes](https://github.com/b0hemia/diskos/tree/v1.2.0#install), adapted for Disco. Run commands as your normal user, **without sudo**.
 
 ## 1. Get Disco and Python
 
-Download and unpack the [Disco 2.5.2 source archive](https://github.com/zmd22/diskos-disco/archive/refs/tags/v2.5.2.tar.gz). Open Terminal and enter its folder:
+Download and unpack the source code (tar.gz) from the [latest release](https://github.com/zmd22/diskos-disco/releases/latest). Open Terminal and enter its folder (the name includes the version number):
 
 ```sh
-cd ~/Downloads/diskos-disco-2.5.2
+cd ~/Downloads/diskos-disco-*
 python3 --version
 uname -m
 ```

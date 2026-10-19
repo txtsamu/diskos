@@ -1,5 +1,7 @@
 # Install diskOS Disco!
 
+> **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first.
+
 **On Windows:** download `diskOS-Disco-for-Windows.zip` from the release, extract it and run `diskOS-Disco.exe`. It
 checks your PC, flashes the Disc and makes SD updates ([guide](docs/WINDOWS.md)).
 

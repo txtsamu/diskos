@@ -12,6 +12,9 @@
 
 ## Using diskOS Disco!
 
+**Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first.
+
+
 - [A tour of Disco!](DISCO_TOUR.md) - every screen, gesture and setting, with screenshots.
 - [How-to](HOWTO.md) - short answers for everyday tasks, including the Display menu at a glance.
 - [Display settings](DISPLAY_SETTINGS.md) - what's under each Display page and why some are dimmed.

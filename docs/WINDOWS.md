@@ -2,7 +2,8 @@
 
 [Back to the README](../README.md) · [Tour](DISCO_TOUR.md) · [SD updates](UPDATING.md)
 
-> **Unsupported.** Start from FiiO's stock firmware, not another diskOS build. The Windows app is shared as-is:
+> **Unsupported.** Start from FiiO's stock V2.57 firmware, not another diskOS build: installing over upstream
+> diskOS or another diskOS build can be buggy. The Windows app is shared as-is:
 > it worked for the author, it may or may not work for you.
 
 **Install diskOS Disco! on your Snowsky Disc from a Windows PC, by clicking through four pages.** No terminal, no

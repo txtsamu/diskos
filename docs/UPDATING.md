@@ -29,7 +29,7 @@ The release `mq_ui` and `mq_ui.build.json` must match. The raw UI is not a signe
 **Already flashed with an update key?** Keep using that same keys folder and skip to step 2. A new key is not
 trusted by an existing install.
 
-First install, from the repository root on your Linux computer:
+First install, from the repository root on your Linux computer. **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first.
 
 ```sh
 sh ui/tools/owner-keys/diskos-keys.sh

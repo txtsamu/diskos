@@ -222,13 +222,17 @@ Upstream's **Stone** theme is kept as well.
 You need a Snowsky Disc on **FiiO firmware V2.57**, FiiO's official V2.57 firmware ZIP, a good USB data cable and
 about 30 quiet minutes.
 
+> [!IMPORTANT]
+> **Recommended: start from FiiO's stock V2.57 firmware.** Installing over upstream diskOS or another diskOS build is not supported and can be buggy; restore stock first ([how](#going-back)).
+> Already running diskOS Disco!? Then you don't need to reinstall: [update from the SD card](#updates-from-the-sd-card).
+
 ### From Windows
 
 Download **[diskOS-Disco-for-Windows.zip](https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip)**,
 extract it and run `diskOS-Disco.exe`. It walks you through everything, including your update keys and later SD
 updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
 
-> **Windows: unsupported.** Start from FiiO's stock firmware, not another diskOS build.
+> **Windows: unsupported**, shared as-is. Start from FiiO's stock V2.57 firmware, not another diskOS build.
 
 ### From macOS
 
@@ -321,8 +325,9 @@ checkouts.
 
 - **Testing status.** Each release says what was tried on a real Disc and what was only checked on a computer.
   The newest features of a release usually need some days of everyday use; please report what you find.
-- **Windows: unsupported.** The Windows app is shared as-is. Start from FiiO's stock firmware, not another diskOS
-  build.
+- **Start from stock.** Install on FiiO's stock V2.57 firmware. Installing over upstream diskOS or another diskOS
+  build is not supported and can be buggy.
+- **Windows: unsupported.** The Windows app is shared as-is.
 - **Firmware.** Made for FiiO firmware V2.57 only.
 - **Cover cache.** Covers for Cover Flow and lists are cached on the SD card only while it has enough free space
   (currently 1 GB). On a nearly full card, covers may stay blank.
