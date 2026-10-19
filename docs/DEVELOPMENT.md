@@ -62,4 +62,4 @@ Install UI test builds through the existing signed SD workflow. Keep signature
 verification, trial acceptance and rollback intact. Development uploads never
 contain private keys or stock firmware.
 
-Current candidate: diskOS Disco! **1.4.0 replacement**. See docs/releases/v1.4.0.md for the full scope, pending device acceptance and optional app installation. Disco Options > Layout contains Progress Shape; the theme picker starts with Disco.
+Current release: see the [latest release](https://github.com/zmd22/diskos-disco/releases/latest) and [handoff.md](../handoff.md) for the current state.

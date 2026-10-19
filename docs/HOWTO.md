@@ -6,7 +6,8 @@ Short answers for everyday tasks. For a walk through every screen, see the [tour
 
 ## Squash quick start
 
-Select **Display → Theme → Squash**. Its options are under **Display → Squash Options**. Menu items and Quick settings are the first two entries.
+Select **Settings > Display > Theme > Squash**. Squash uses the same Display menu as every theme; options that
+don't apply to it are dimmed and say why when tapped. Menu items and Quick settings are under **Display > Navigation**.
 
 | Action | Touch control |
 |---|---|
@@ -20,11 +21,28 @@ Select **Display → Theme → Squash**. Its options are under **Display → Squ
 | Volume auto-hide | 1.8 seconds without input; stays open while dragging |
 | Seek | Tap/drag the line or arc; hold for precision |
 
-**Music Screen settings:** Nunito Bold is the default; Original and Inter Semibold retain fixed 36/32/28 px sizes. Set Left/Centred text, Track Times and the independent Playback state / Playback mode toggles. Squash uses gestures on Music; QS retains its touch play/pause button. Blur has a 20% overlay, Cover 30%, or choose Plain.
+**Music screen settings** (Display > Music screen): Nunito Bold is the default; Original and Inter Semibold retain fixed 36/32/28 px sizes. Set Left/Centred text, Track Times and the independent Playback state / Playback mode toggles. Squash uses gestures on Music; QS retains its touch play/pause button. Blur has a 20% overlay, Cover 30%, or choose Plain.
 
-**Need a reminder?** Open **Settings → Help**, directly below Battery. How to has one topic per page and an arrow at the bottom. First-use hints appear in context; switch their mode or choose Show hints again. Squash, Disco and Null remember learning separately. The small permanent dots/arrows around Squash’s logo are removed; contextual hints still work.
+**Need a reminder?** Open **Settings > Help > How to**: one topic per page, with an arrow at the bottom. First-use
+hints appear in context; switch them in **Display > Navigation > Interaction hints**, or bring them back with
+**Show hints again** on the same page. Squash, Disco and Null remember learning separately. The small permanent dots/arrows around Squash’s logo are removed; contextual hints still work.
 
 [Squash details](themes/squash.md) · [Null details](NULL_THEME.md)
+
+## The Display menu at a glance
+
+Every theme has the same Display menu. Settings that don't apply to the current theme are dimmed; tap one to see why.
+Switching themes never resets your choices.
+
+| Display > | What's there |
+|---|---|
+| Brightness | Screen brightness |
+| Theme | Disco, Ring, Braun, Stone, Null or Squash |
+| Appearance | Light / dark, Automatic appearance, Outdoor mode, Null colour scheme, Accent colour, Rim sheen, Equalizer / Volume / Menu colours |
+| Music screen | Background, Controls, Text, Information, Progress, Now Playing style, Immersive |
+| Standby | Screensaver delay, Screen-off delay, Screensaver style |
+| Navigation | Menu items, Quick settings, Shortcuts, Gestures, Interaction hints, Navigation side, Menu timeout, Show hints again |
+| Layout & extras | Text size, Screen rotation, 24-hour time, List motion, Screen transitions, Album track numbers, Album view, Startup disc colour, Online & cache |
 
 ## Getting around — Disco
 
@@ -37,24 +55,24 @@ A bubble follows your finger and turns your accent colour once the swipe will co
 **Switch sections.** Tap the shard on the right edge (left edge in left-handed mode), then tap the top or bottom of the circle (or swipe
 on it) until you see the section you want, and tap its middle. Tap outside the circle or its › to close it.
 
-**Change what's in the navigation circle.** Settings > Display > Disco Options > Menu items. Use the arrows to
+**Change what's in the navigation circle.** Settings > Display > Navigation > Menu items. Use the arrows to
 move a section, × to remove it, and Add to bring one in. Music always stays first; Music and Settings can't be
 removed.
 
 **Open Quick Settings.** Pull down from the top edge; swipe up to close.
 
-**Change Quick Settings.** Disco Options > Quick Settings: **Style** picks Arc (round buttons) or List (rows);
+**Change Quick Settings.** Display > Navigation > Quick settings: **Layout** picks Arc (round buttons) or List (rows);
 **Items** chooses and orders up to seven buttons in Disco; Squash and Null support eight.
 
-**Change what a double tap or hold on the open circle does.** Settings > Display > Disco Options > Layout > Double tap / Hold.
+**Change what a double tap or hold on the open circle does.** Settings > Display > Navigation > Gestures > Menu double tap / Menu hold.
 
-**Bring the first-use tips back.** Settings > Help > Show hints again (or turn them Off there).
+**Bring the first-use tips back.** Settings > Display > Navigation > Show hints again (turn them Off with Interaction hints).
 
-**Use it left-handed.** Settings > Display > Disco Options > Layout > Side: choose **Left** and tap **Apply**. The
+**Use it left-handed.** Settings > Display > Navigation > Navigation side: choose **Left** and tap **Apply**. The
 interface restarts with the navigation circle, Quick Settings, Weather and the rest on the left, and the back
 swipe on the right edge.
 
-**Change how lists scroll.** Disco Options > Layout > Scroll: **Classic** follows the screen's edge, **Straight**
+**Change how lists scroll.** Display > Layout & extras > List motion: **Classic** follows the screen's edge, **Straight**
 keeps rows flat, **Disco** swings them round the navigation circle like a CD.
 
 ## Playing music
@@ -63,6 +81,8 @@ keeps rows flat, **Disco** swings them round the navigation circle like a CD.
 Play and Shuffle at the top.
 
 **Seek.** On Music, drag or tap the progress line under the title (or the arc around the rim).
+Hold the line or arc instead for a large time preview that follows your finger; the song jumps there when you let go
+(Null has the same hold-to-preview).
 
 **Change shuffle / repeat.** On Music, tap the small icon between previous and next. Each tap moves to the next
 mode and a toast names it: Sequential, Shuffle, Repeat One, Repeat All, Single.
@@ -75,11 +95,11 @@ album) is highlighted in the list.
 **Full-screen cover.** Hold the title on Music, with Title Hold set to Immersive (or use the Immersive shortcut).
 Tap to leave.
 
-**Favourite with one hold.** Disco Options > Music Screen > Title Hold > Favourite: holding the title then adds or removes the
+**Favourite with one hold.** Display > Navigation > Gestures > Title hold > Favourite: holding the title then adds or removes the
 song from Favourites (a toast confirms).
 
 **Lyrics.** Tap the title on Music, then Lyrics. Lyrics come from an .lrc file beside the song, the song's own
-tags, or (with Display > Online & Extras > Online Lyrics on) an online lookup.
+tags, or (with Display > Layout & extras > Online & cache > Online lyrics on) an online lookup.
 
 **Resume the last song after a restart.** Settings > Playback > Resume Playback: **Song** reopens the last song,
 **Position** also returns to where you were.
@@ -111,6 +131,9 @@ anywhere else to close it.
 
 **Limit the volume.** Settings > Audio > Max Volume.
 
+**Turn the EQ on or off quickly.** Tap EQ in Quick Settings: it switches your last preset on or off and shows which
+one. Hold it to open the Equalizer.
+
 **Pick an EQ preset.** Open EQ (navigation circle or a shortcut) and use the arrows. Off and the player's
 built-in presets are listed first, then your own USER1–USER10.
 
@@ -126,31 +149,45 @@ going back to Playback (Modes, then Playback). USB DAC needs 2.2.1 or later on t
 
 ## Make it yours
 
-**Change the theme.** Settings > Display > Theme > Theme: Disco, Ring, Braun or Stone. On the same page,
-Appearance switches between Dark and Light; Automatic Appearance does it for you (light by day).
+**Change the theme.** Settings > Display > Theme: Disco, Ring, Braun, Stone, Null or Squash. Display > Appearance
+switches between Dark and Light; Automatic appearance does it for you (light by day). Null is always dark and
+Squash has its own colours, so these are dimmed there.
 
-**Change the accent colour.** Settings > Display > Theme > Accent Colour. **Follow album** takes the colour from each
+**Change the accent colour.** Settings > Display > Appearance > Accent colour. **Follow album** takes the colour from each
 cover; or pick a fixed one.
 
-**Make the rainbow parts use your accent instead.** Settings > Display > Disco Options > Colours: set Equalizer,
-Volume or Progress Bar to **Accent**. Progress Bar can also be **Off**.
+**Make the rainbow parts use your accent instead.** Settings > Display > Appearance: set Equalizer colours or
+Volume colours to **Accent**. The progress line's colour is in Display > Music screen > Progress > Progress colour
+(it can also be **Off**).
 
-**Progress around the rim.** Disco Options > Layout > Progress Shape > Arc. **Title from the left:** Disco Options > Music
-Screen > Title Position > Left.
+**Progress around the rim.** Display > Music screen > Progress > Progress shape > Arc. **Title from the left:** Display > Music
+screen > Text > Text alignment > Left.
 
-**Hide the clock on Music.** Hold the top of Music (the clock); hold again to bring it back. Or Disco Options >
-Music Screen > Show Clock. **Hide the times under the progress line:** Disco Options > Music Screen > Track Times. **Turn off the rainbow rim:** Disco Options > Colours > Rim Sheen.
+**Hide the clock on Music.** Hold the top of Music (the clock); hold again to bring it back. Or Display > Music screen >
+Information > Show clock. **Hide the times under the progress line:** Display > Music screen > Information > Track times.
+**Turn off the rainbow rim:** Display > Appearance > Rim sheen.
 
-**Thicker Music text.** Settings > Display > Disco Options > Music Screen > Track Font:
+**Thicker Music text.** Settings > Display > Music screen > Text > Track font:
 choose **Inter Semibold** or **Nunito Bold**, or keep Original. Applying restarts the UI while music keeps playing.
 
-**Bigger text.** Settings > Display > Text & Layout > Font Size > Large.
+**Bigger text.** Settings > Display > Layout & extras > Text size > Large.
 
-**Choose your shortcuts.** Settings > Display > Online & Extras > Shortcuts. Tap one of the five slots and pick what it opens.
+**Choose your shortcuts.** Settings > Display > Navigation > Shortcuts. Tap one of the five slots and pick what it opens.
 
-**Change the full-screen cover.** Settings > Display > Text & Layout > Immersive: Vinyl or CD (it spins) or None (the plain cover, standing still). Immersive Lyrics turns the lyrics and their dark shade on or off.
+**Change the full-screen cover.** Settings > Display > Music screen > Immersive > Immersive style: Vinyl, CD or
+Cover (the plain artwork, no disc around it); all three turn slowly. Immersive lyrics turns the lyrics and their dark
+shade on or off; new lyric lines slide up.
 
-**Make the back swipe easier or harder.** Settings > Display > Text & Layout > Back-swipe (how far you have to swipe).
+**Seek or change volume by turning the cover.** Display > Music screen > Immersive > Circular control On, then
+Control action: **Duration** or **Volume**. In Immersive, turn the artwork with your finger: clockwise for more,
+anticlockwise for less. Duration shows the new time and seeks once when you let go. With Circular control on,
+leave Immersive by swiping from the left edge (tapping the cover no longer closes it). [More](IMMERSIVE_CONTROLS.md)
+
+**Make the back swipe easier or harder.** Settings > Display > Navigation > Gestures > Back-swipe distance (how far you have to swipe).
+
+**Jump through a long list by letter.** Tap the letter on the list's scroll marker for the A-Z picker. Prefer turning
+a wheel? Settings > Playback > Library seeking > Letter wheel: hold the letter, move round the screen, tap the centre
+(or wait a second) to jump.
 
 ## Library upkeep
 
@@ -201,5 +238,5 @@ stock one. Restart the Disc to return. Your music and settings are safe.
 **Install from Windows.** Use the [Windows app](WINDOWS.md): Check, Prepare, Install, and later Update for SD updates.
 
 **Install Disc Shelf.** It's separate from the interface: follow [Disc Shelf](DISC_SHELF_INSTALL.md). Open it from
-the navigation circle (add it in Disco Options > Menu items), Apps, All apps or a shortcut. Boomshine, Album Roulette,
+the navigation circle (add it in Display > Navigation > Menu items), Apps, All apps or a shortcut. Boomshine, Album Roulette,
 Listening Stats and SongSphere are built in: just add them.

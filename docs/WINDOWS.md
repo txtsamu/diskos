@@ -2,6 +2,9 @@
 
 [Back to the README](../README.md) · [Tour](DISCO_TOUR.md) · [SD updates](UPDATING.md)
 
+> **Unsupported.** Start from FiiO's stock firmware, not another diskOS build. The Windows app is shared as-is:
+> it worked for the author, it may or may not work for you.
+
 **Install diskOS Disco! on your Snowsky Disc from a Windows PC, by clicking through four pages.** No terminal, no
 Linux knowledge, no typing commands. The app checks your PC, sets everything up, flashes the Disc, and later puts new
 versions on your SD card, signed with your own keys.

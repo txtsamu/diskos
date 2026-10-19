@@ -1,6 +1,6 @@
 # Squash — 2.5.0
 
-2.5.4 uses the [common Display settings layout](../DISPLAY_SETTINGS.md). Historical change notes below retain their original paths.
+**Today:** Squash's settings are in the same Display menu as every theme ([Display settings](../DISPLAY_SETTINGS.md)): Music screen for fonts, background and information, Navigation for Menu items, Quick settings and Gestures. Options that don't apply to Squash are dimmed and explain why. Since 2.5.4 its Weather screen has four paired forecast pills and the current weather in a bottom flyout, and Battery is centred. Historical change notes below keep their original paths.
 
 
 A separate, opt-in theme, featured in diskOS Disco! 2.5.0. Existing presets keep their IDs,
@@ -11,7 +11,7 @@ popup, editor and system actions rather than duplicating their behaviour.
 
 Choose Display → Theme → Squash. Double-tap Music text for play/pause, swipe right/left to skip, single-tap for actions/Mood. D! opens a rising launcher; drag, release to snap, and tap the icon to open. The configured Hold works on the logo and large icon. Pull down for eight editable Quick Settings.
 
-**Settings → Help**, below Battery: How to has one topic per page; first-use hints appear in context; Show hints again resets learning. Squash stores hint preferences separately from Disco and Null. Volume now uses the clean bottom arc and D! dismissal, with no ± buttons or whole-screen dimmer. It auto-hides after 1.8 seconds idle, paused while dragging.
+**Settings → Help → How to** has one topic per page. First-use hints appear in context; **Display → Navigation** holds their setting and **Show hints again**. Squash stores hint preferences separately from Disco and Null. Volume now uses the clean bottom arc and D! dismissal, with no ± buttons or whole-screen dimmer. It auto-hides after 1.8 seconds idle, paused while dragging.
 
 The sections labelled Preview/2.4.0 below record design history; the 2.5.0 summary and final refinement/Volume B sections describe the shipped configuration. The permanent dots/arrows from earlier previews are removed. Nunito Bold defaults; all three Track Font options use fixed 36/32/28 px roles.
 

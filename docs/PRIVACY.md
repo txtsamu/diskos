@@ -15,11 +15,11 @@ observed behaviour. It is a good-faith summary, not a guarantee - read the sourc
 
 ## The diskOS UI (`mq_ui`) on the device
 
-diskOS is a local music player. Weather on Home is **on by default**. While it is on, diskOS fetches the weather when the UI starts, retries after failures, and refreshes later. With Wi-Fi connected, this can contact `wttr.in` without opening the Weather app. Turning off Settings > Display > Online & Extras > Weather on Home stops automatic startup, retry and refresh fetches and hides the glance. Changing or resetting the location in the Weather app explicitly requests weather even while that toggle is off. A request already in flight may still finish after you turn it off. Other online features act under the conditions below. Each request reveals the device's public IP to the service it contacts.
+diskOS is a local music player. The Weather setting is **on by default**. While it is on, diskOS fetches the weather when the UI starts, retries after failures, and refreshes later. With Wi-Fi connected, this can contact `wttr.in` without opening the Weather app. Turning off Settings > Display > Layout & extras > Online & cache > Weather stops automatic startup, retry and refresh fetches and hides the glance. Changing or resetting the location in the Weather app explicitly requests weather even while that toggle is off. A request already in flight may still finish after you turn it off. Other online features act under the conditions below. Each request reveals the device's public IP to the service it contacts.
 
 | Feature | Endpoint | Protocol | What is sent |
 |---|---|---|---|
-| **Weather** | `wttr.in` | **plain HTTP** | With Weather on Home on, diskOS fetches at UI startup and later refreshes or retries when Wi-Fi works. With it off, automatic fetches stop, but changing or resetting location in the Weather app explicitly requests weather. A request already in flight may still finish after you turn it off. It sends your configured location, or no location so wttr.in can estimate one from your public IP. HTTP traffic is visible on the network. |
+| **Weather** | `wttr.in` | **plain HTTP** | With the Weather setting on, diskOS fetches at UI startup and later refreshes or retries when Wi-Fi works. With it off, automatic fetches stop, but changing or resetting location in the Weather app explicitly requests weather. A request already in flight may still finish after you turn it off. It sends your configured location, or no location so wttr.in can estimate one from your public IP. HTTP traffic is visible on the network. |
 | **Online album art** | `itunes.apple.com` | HTTPS | When Online Album Art is enabled and a playing track has no cover, track and album metadata are used to look for artwork. Off by default. |
 | **Lyrics** | `lrclib.net` | HTTPS | The current track's **title and artist**, to find matching lyrics. |
 | **MA Sendspin** (experimental) | Your Music Assistant server on the local network | WebSocket (plain, local) | Only while Sendspin is on: the player name and ID, playback commands and timing. Auto mode finds the server with a local mDNS query. Music and track details come back from your own server. Off by default. |
@@ -55,7 +55,7 @@ behaviours are inherited from the stock firmware and are outside diskOS's code. 
 - No analytics, telemetry, or usage tracking.
 - It does not upload your music library, your listening history (beyond Last.fm scrobbles if you turn
   them on), or any personal files.
-- Weather on Home Off stops automatic fetches, including startup; changing or resetting location in the Weather app still requests weather. Online Lyrics starts on by default but requests occur only when the Lyrics page is opened for a song without local or embedded words. Online Album Art and Last.fm start off.
+- The Weather setting Off stops automatic fetches, including startup; changing or resetting location in the Weather app still requests weather. Online Lyrics starts on by default but requests occur only when the Lyrics page is opened for a song without local or embedded words. Online Album Art and Last.fm start off.
 
 ## Reporting
 

@@ -45,7 +45,7 @@ Clearer Display settings, bigger Null text, circular Immersive controls and a fr
 
 **[Squash](docs/themes/squash.md)** is our warm, readable take on the round screen: large Nunito Bold text, charcoal or off-white with orange accents, and controls made for touch. Double-tap track text to play/pause, swipe to skip, and tap D! for a rising circular launcher. Eight editable Quick Settings and a clean bottom volume arc keep everyday actions close.
 
-**Help is part of the interface.** Open **Settings → Help**, below Battery, for one-topic **How to** pages, contextual first-use hints and **Show hints again**. Learning is saved separately in Squash, Disco and Null.
+**Help is part of the interface.** Open **Settings → Help → How to** for one-topic pages. Contextual first-use hints and **Show hints again** live in **Display → Navigation**. Learning is saved separately in Squash, Disco and Null.
 
 **Null stays pixel-perfect.** Its full section and customization options remain, alongside Disco, Ring and Braun. Each theme keeps its own look and preferences.
 
@@ -171,8 +171,9 @@ All the details: [2.2.1 fixes](docs/releases/v2.2.1.md) · [2.2 release notes](d
   will count.
 - **Readable on any cover.** Text and fades adapt to each album, and the accent colour follows the cover (or your
   own pick).
-- **Disco Options** let you choose the menu sections, clock, track times, track number, title position, font and hold,
-  rim sheen, EQ / volume / progress colours, progress shape, Quick Settings, the side and the scroll style.
+- **Display settings** let you choose the menu sections, clock, track times, track number, title position, font and hold,
+  rim sheen, EQ / volume / progress colours, progress shape, Quick Settings, the side and the scroll style; the same
+  menu in every theme ([map](docs/DISPLAY_SETTINGS.md)).
 - **MA Sendspin** *(experimental)*: the Disc as a [Music Assistant](https://www.music-assistant.io/) speaker, with
   the track, cover and controls on Music. See the [tour](docs/DISCO_TOUR.md#ma-sendspin-experimental).
 - **Safe updates.** Signed builds from the SD card install as a trial and roll back by themselves if they don't
@@ -226,6 +227,8 @@ about 30 quiet minutes.
 Download **[diskOS-Disco-for-Windows.zip](https://github.com/zmd22/diskos-disco/releases/latest/download/diskOS-Disco-for-Windows.zip)**,
 extract it and run `diskOS-Disco.exe`. It walks you through everything, including your update keys and later SD
 updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
+
+> **Windows: unsupported.** Start from FiiO's stock firmware, not another diskOS build.
 
 ### From macOS
 
@@ -300,6 +303,33 @@ The toolchain is musl-cross-make with [`ui/toolchain/mcm-config.mak`](ui/toolcha
 FP64, NaN2008, GCC 11.2). It reproduces upstream's binaries byte for byte. More is in
 [docs/DEV_WORKFLOW.md](docs/DEV_WORKFLOW.md) and [ui/README.md](ui/README.md).
 
+**Shortcuts for a fresh machine.** You don't have to build the compiler: a prebuilt copy is attached to the
+[`toolchain-gcc11.2`](https://github.com/zmd22/diskos-disco/releases/tag/toolchain-gcc11.2) pre-release (unpack it
+into `/opt`). Release builds use the helper, which builds from tracked files only and checks the result:
+
+```sh
+python3 ui/tools/build_device.py --toolchain /opt/mipsel-n2008-musl-cross --cache <cache dir> --out <new dir> --approved
+```
+
+Rebuilding a tagged release this way gives the same `mq_ui` as the one in the release. For screenshots, the
+renderer's `preview-<page>` pages (Music, Quick Settings, Settings...) expect a cover picture next to the output:
+`host-render PRESET VARIANT preview-home 0 out.ppm` reads `out.png` as the cover. Theme numbers: Stone 6, Ring 8,
+Braun 9, Disco 10, Null 11, Squash 12; variant 0 is dark, 1 light. Keep the desktop and Disc builds in separate
+checkouts.
+
+## Known limits
+
+- **Testing status.** Each release says what was tried on a real Disc and what was only checked on a computer.
+  The newest features of a release usually need some days of everyday use; please report what you find.
+- **Windows: unsupported.** The Windows app is shared as-is. Start from FiiO's stock firmware, not another diskOS
+  build.
+- **Firmware.** Made for FiiO firmware V2.57 only.
+- **Cover cache.** Covers for Cover Flow and lists are cached on the SD card only while it has enough free space
+  (currently 1 GB). On a nearly full card, covers may stay blank.
+- **If you suddenly see FiiO's own interface,** Disco! stopped and the Disc fell back to the stock one; restart to
+  return. Over SSH (Debug Mode), `/usr/data/diskos_boot.log` and `/usr/data/diskos_install.log` show why.
+- **No online updates.** New versions come by signed SD-card update or a fresh install.
+
 ## Going back
 
 Stock is never far:
@@ -336,6 +366,12 @@ Stock is never far:
 - **Dieter Rams** and the Braun SK4, for the design language the Braun theme borrows with respect.
 - FiiO / Snowsky for a lovely little round player. This project is **not affiliated with or endorsed by FiiO,
   Snowsky or Ingenic**.
+
+### A note on the contributor list
+
+Early commits in this repository show an author called "disco" because of a misconfigured author email; they
+were made by the project's maintainer ([zmd22](https://github.com/zmd22)). The history is left as it is, since
+rewriting it would break tags, links and existing clones.
 
 ## License
 

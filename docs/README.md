@@ -2,23 +2,33 @@
 
 [Back to the README](../README.md)
 
-## New in 2.5.0
+## Themes
 
-- [Squash](themes/squash.md): big bold text, touch playback, a rising launcher and clean bottom volume arc.
-- [2.5.0 release notes](releases/v2.5.0.md) and [release handoff](RELEASE_2.5.0.md).
-- [Null](NULL_THEME.md): the pixel theme remains fully documented.
-- On the Disc, **Settings → Help** (below Battery) contains **How to**, **First-use hints** and **Show hints again**.
+- **Disco** (the default): the album cover, a navigation circle and a rainbow CD rim. See the [tour](DISCO_TOUR.md).
+- **[Squash](themes/squash.md)**: big bold text, touch playback, a rising launcher and a bottom volume arc.
+- **[Null](NULL_THEME.md)**: pixel fonts, a dithered cover and colour palettes, including Matrix.
+- **Ring**, **Braun** and **Stone**: earlier themes, still included. [Why each looks the way it does](UI_CHOICES.md).
+- [Writing a new theme](../themes.md) - the rules and checklist for adding one.
 
 ## Using diskOS Disco!
 
 - [A tour of Disco!](DISCO_TOUR.md) - every screen, gesture and setting, with screenshots.
-- [How-to](HOWTO.md) - short answers for everyday tasks.
+- [How-to](HOWTO.md) - short answers for everyday tasks, including the Display menu at a glance.
+- [Display settings](DISPLAY_SETTINGS.md) - what's under each Display page and why some are dimmed.
+- [Immersive controls](IMMERSIVE_CONTROLS.md) - turning the cover to seek or change volume.
 - [Updating from the SD card](UPDATING.md) - keys, signing, flashing once, troubleshooting.
-- [diskOS Disco! for Windows](WINDOWS.md) - install and update from a Windows PC, no terminal needed.
+- [macOS](MACOS.md) - installing from a Mac.
+- [diskOS Disco! for Windows](WINDOWS.md) - unsupported, shared as-is. Start from FiiO's stock firmware.
 - [UI choices](UI_CHOICES.md) - why things look and work the way they do.
 - [Privacy and network use](PRIVACY.md).
 - [Release notes](releases/) and the [changelog](../CHANGELOG.md).
 - [Project site](https://zmd22.github.io/diskos-disco/) - the landing page (this folder, served by GitHub Pages).
+
+## Built-in apps
+
+- **Listening Stats** - your week, month and year in music, with highlights. See the [tour](DISCO_TOUR.md#listening-stats).
+- **SongSphere** - tag songs by mood, then pick a spot on the sphere for a playlist. See the [tour](DISCO_TOUR.md#songsphere); Settings > Playback > SongSphere turns it off.
+- **Album Roulette** and **Boomshine** - see below.
 
 ## Optional apps
 

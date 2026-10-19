@@ -11,9 +11,43 @@ fall out of those three facts.
 ## Themes
 
 ### One theme = the whole interface
-A theme is not a colour scheme. Picking **Ring** or **Braun** changes Home, Now Playing, the screensaver,
+A theme is not a colour scheme. Picking **Disco**, **Squash**, **Null**, **Ring** or **Braun** changes Home, Now Playing, the screensaver,
 popups, toasts, the equalizer and every list together. Switching restarts the UI; that's deliberate —
 it keeps the running interface simple and fast instead of re-skinning live.
+
+### One Display menu for every theme
+Since 2.5.4 every theme has the same Display menu in the same order. A setting that doesn't apply to the current
+theme stays visible but dimmed, and tapping it says why. That way a page never looks different from the how-to,
+and switching themes never loses a choice: each theme keeps its own saved preferences.
+
+### Disco (the default)
+- **The Disc looks like a CD, so the interface does too.** The playing album's cover fills the screen, sharp on
+  Music and blurred and tinted behind everything else; a faint rainbow CD sheen runs round the rim (it can be
+  turned off).
+- **One navigation circle instead of menus.** It slides out of the right edge (or the left, for left-handers),
+  leaving the opposite edge free for the back swipe. Its sections can be reordered, added and removed; Music and
+  Settings always stay.
+- **Arcs follow the rim.** Transport buttons, progress (Line or Arc) and Quick Settings sit on curves concentric
+  with the screen, so nothing gets clipped by the round edge.
+- **Text always readable.** Colours taken from the cover are darkened on light screens and lightened on dark
+  ones, and title/artist get a soft shadow, so they never disappear into a pale cover.
+
+### Squash
+- **Big, bold, made for touch.** Large Nunito Bold text, charcoal or off-white with orange accents and outlined
+  round controls. It's the theme for reading at arm's length.
+- **The track text is the control.** Double-tap it to play or pause, swipe across it to skip, tap it for track
+  actions. That leaves room for the text itself instead of a row of small buttons.
+- **A launcher that rises from the bottom.** Tapping D! raises a large circular wheel with one big item at a time;
+  drag, let it snap, tap. Bigger targets than a list, and it reuses the same menu order as Disco.
+- **A quiet volume arc at the bottom**, with no extra buttons or dimming, so the screen stays calm.
+
+### Null
+- **Pixel style, Nothing-phone inspired.** Pixel fonts, a dithered cover (or full colour), squared shapes and a
+  few strong colour pops. Palettes include cyan/yellow, red/lime and Matrix.
+- **Always dark and right-handed.** The look depends on a black background and a fixed drawer, so those choices
+  are dimmed rather than half-supported.
+- **Hold to seek with a preview**, like Disco: the time follows your finger and the song only jumps when you let go,
+  so a slip doesn't lose your place.
 
 ### Ring
 - **The progress ring is the interface.** Home puts the clock inside the playing track's ring, with the
@@ -34,10 +68,9 @@ it keeps the running interface simple and fast instead of re-skinning live.
 - **Braun Dark** (charcoal body, aluminium knobs) and an **Automatic Appearance** toggle for day/night.
   The volume popup uses the theme's own surfaces in Dark, so it no longer flashes a light band at night.
 
-### Hidden upstream themes
-Upstream ships eight presets. The theme list shows **Disco, Ring, Braun, Stone** only. The others are still
-compiled in and keep working if they were already selected — they're hidden, not removed, so nothing
-breaks after an update.
+### Upstream themes
+The theme list shows **Disco, Squash, Null, Ring, Braun and Stone**. Upstream's other presets were hidden at
+first and removed in 2.5.1 to keep the interface smaller; a Disc that still had one selected switches to Disco.
 
 ---
 
@@ -129,7 +162,8 @@ See [UPDATING.md](UPDATING.md).
 
 ## On hold
 
-- **Null** (Nothing-phone pixel style) and a 90s cassette theme — shelved after testing.
+- A Winamp-style theme and a 90s cassette theme: ideas only. (Null was shelved once, then finished and ships
+  since 2.4.)
 
 ## Disco 1.3.1 and 1.4.0
 

@@ -1,4 +1,56 @@
-# diskOS Disco handoff - 2.3.0 (2026-10-15)
+# diskOS Disco handoff - 2.5.4 (current state, updated 2026-10-19)
+
+Read this first, then `todo.md` (the live list). Older release-by-release notes follow below as history.
+
+## Where things are
+- Repo github.com/zmd22/diskos-disco, branch main. Latest release 2.5.4 (tag v2.5.4, 2026-10-18).
+  Payload `payload/mq_ui` sha256 033c7a49... (`payload/mq_ui.build.json` records source commit and hashes).
+- Owner tests on a Snowsky Disc, FiiO firmware V2.57. SSH root@192.168.178.63 (no adb/scp); installs by signed
+  SD-card update. The owner pushes and tags; Claude prepares bundles (`disco-<version>-b<n>.bundle`).
+- Commits are authored `zmd22 <zmd22@users.noreply.github.com>`. Old commits by "disco" stay (no history rewrite;
+  README explains it).
+
+## Themes (preset IDs never change)
+| ID | Theme | Main source | Guide |
+|---|---|---|---|
+| 10 | Disco (default) | disco.c, disco_home.c, disco_saver.c | docs/DISCO_TOUR.md |
+| 12 | Squash (internal name "simple") | simple_theme.c, font_simple_* / font_squash_* | docs/themes/squash.md |
+| 11 | Null | null_theme.c, null_menu.c, font_null* | docs/NULL_THEME.md |
+| 8 / 9 | Ring / Braun | theme_kits.c, braun*.c | docs/UI_CHOICES.md |
+| 6 | Stone | upstream | - |
+Upstream's other presets were removed in 2.5.1; retired IDs migrate to Disco. Rules for theme work: `themes.md`.
+
+## Settings layout (since 2.5.4, same in every theme)
+Display: Brightness, Theme, Appearance, Music screen (Text, Information, Progress, Immersive), Standby, Navigation
+(Menu items, Quick settings, Shortcuts, Gestures, Interaction hints, Navigation side, Show hints again),
+Layout & extras (Online & cache). Settings that don't apply are dimmed and explain why. Help > How to.
+Note: settings.c keeps older internal group names ("Disco Options", "Text & Layout"...) mapped onto these pages;
+render the menus (below) instead of trusting the table names when writing docs.
+
+## Recent features (2.4.0-2.5.4)
+Null theme (2.4.0); Squash theme (2.5.0); per-theme QS item editing; Help/How to and per-theme hints; Library
+letter wheel (Playback > Library seeking); QS EQ tap = on/off, hold = Equalizer; Null Matrix palette (2.5.3);
+shared Display menu, Immersive circular seek/volume + Cover style + sliding lyrics, Null hold-to-scrub, Squash
+weather and Squash/Null battery layout (2.5.4). 2.5.4's newest controls still need extended device use.
+
+## Build, render, check
+- Compiler: prebuilt release `toolchain-gcc11.2` (sha256 20a212c0...), unpack in /opt. Never delete it.
+- Device build: `python3 ui/tools/build_device.py --toolchain /opt/mipsel-n2008-musl-cross --cache <dir>
+  --out <new dir> --approved`. Rebuilding v2.5.4 gives the released mq_ui byte for byte (checked 2026-10-19).
+- Host renderer in a SEPARATE checkout: `make -C ui CROSS= host-render`, then
+  `ui/tests/host_build/host-render PRESET VARIANT PAGE 0 out.ppm`. `preview-<page>` pages (home, quick, settings,
+  display, group with SETGROUP=<page name>...) read `out.png` beside the output as the cover. The plain `home` page
+  is an old self-check that asserts on the newer themes.
+- Gates: `make -C ui check-theme checkpunct`. Heavier suites (`make -C ui/tests run review`) only when needed.
+
+## Workflow
+Owner suggests -> Claude offers fixes -> host renders for big visual changes -> owner's go -> batch -> one test
+build -> 2-3 days on the Disc -> one release, one bundle, owner pushes + tags. Website/docs link to
+releases/latest, never a fixed tag. No upstream diskOS version shown to users. Windows install path: unsupported.
+
+---
+
+# History: diskOS Disco handoff - 2.3.0 (2026-10-15)
 
 ## 2.3.0 specifics
 - usage.c: Battery page (full_minutes, fmt_clock, figure(), place_tip, tick dots).

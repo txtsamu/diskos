@@ -187,7 +187,7 @@ something. The other screens use the same CD behind their glass.
 
 The text is always readable: it is dark on the light theme and white on the dark one, and the soft fade behind
 it gets just as strong as each cover needs. The accent colour comes from the cover (or your own choice under
-Display > Theme > Accent Colour); a too-dark or too-pale accent is adjusted so it stays visible.
+Display > Appearance > Accent colour); a too-dark or too-pale accent is adjusted so it stays visible.
 
 <table>
 <tr>
@@ -434,6 +434,7 @@ little scrolling, and back steps up one page at a time. Display uses common cate
 | Network | Wi-Fi, MA Sendspin, Bluetooth, Bluetooth Codec (SBC, AAC, LDAC levels). |
 | System | **Power** (Sleep Timer, When Sleep Ends, Idle Power-off, Charging Limit, Shut down player); **Date & Time**; **Library** (Rescan, Import Playlists); **Controls** (Volume Keys, Default UI, Language); **Maintenance** (Update from SD Card, Restart, Reset diskOS Settings, Debug Mode); **About** (About, Device Info, Temperature). |
 | Battery | The [battery](#battery) page. |
+| Help | **How to**: one topic per page. (Hint settings are in Display > Navigation.) |
 
 Font Size changes the text of lists, titles and search results.
 

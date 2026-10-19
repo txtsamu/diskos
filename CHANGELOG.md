@@ -6,7 +6,7 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
-## [2.5.4]
+## [2.5.4] - 2026-10-18
 
 - Shared Display settings organization, explanations for unsupported controls, static wrapping setting labels and reduced invisible/repeated visual work.
 - Larger Null list/Music fonts and hold-to-scrub time preview with guarded seek-on-release.
@@ -18,14 +18,14 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 [2.5.4 release notes](docs/releases/v2.5.4.md)
 
-## [2.5.3]
+## [2.5.3] - 2026-10-18
 
 - Null Matrix palette, fixed palette accents and less repeated UI styling.
 - Matching fixed Shortcuts/Working mode layouts in Null and Squash; Shortcuts swipe feedback in all themes.
 - History tracking while screen is off and guarded History row interactions.
 - Native validation only; physical testing pending. No experimental migration feature.
 
-## [2.5.2]
+## [2.5.2] - 2026-10-18
 
 - Fresh-install defaults: Disco dark, hints On, linear progress, no Music track-number prefix; saved choices retained.
 - Roulette result actions beside Play, larger two-line metadata, 224px stored covers, direct capped built-in decoding and safe release of hidden artwork.
@@ -35,9 +35,7 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 - Orange/black website with the firmware logo font, restrained rainbow accents, pinned desktop chapters.
 - Native UI, artwork/decoder and regression checks passed; device validation pending.
 
-## [Unreleased]
-
-### 2.5.1 test candidate
+## [2.5.1] - 2026-10-18
 
 - Squash volume and Library highlight fixes; bounded Album Wall background work, deferred prewarm, nonblocking database reads and lazy cold buffers.
 - Lossless Roulette resource compression; themed Again/Exit actions.
@@ -68,6 +66,19 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 [2.5.0 release notes](docs/releases/v2.5.0.md) · [Squash guide](docs/themes/squash.md) · [release handoff](docs/RELEASE_2.5.0.md)
 
+
+## [2.4.0] - 2026-10-16
+
+- Null theme: pixel typography, palettes, black/darkened/pixelated artwork backgrounds, sliding navigation and a
+  vertical Quick Settings panel; text or icons and four Music font combinations.
+- Quick Settings items can be added, removed and reordered separately in each theme.
+- Clearer settings: larger centred selectors and explanations, better touch targets.
+- Help with How to pages, contextual gesture hints and separate first-use hint preferences per theme.
+- Calmer scrolling: only the focused library row scrolls; Music text scrolls three times after a track change.
+- More readable Disco standby; themed Bluetooth, Wi-Fi and track information screens.
+- themes.md: the rules for adding a theme without changing the existing ones.
+
+[2.4.0 release notes](docs/releases/v2.4.0.md)
 
 ## [2.3.0] - 2026-10-15
 

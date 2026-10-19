@@ -97,9 +97,9 @@ it. After changing it, close and reopen Disc Shelf.
 
 ## 3. Open it
 
-- **From the navigation circle:** Disco Options > Disco Menu, add **Disc Shelf**. Choosing it shows its landing
+- **From the navigation circle:** Display > Navigation > Menu items, add **Disc Shelf**. Choosing it shows its landing
   page; tap **Open Disc Shelf**.
-- **From Shortcuts:** Display > Online & Extras > Shortcuts, pick Disc Shelf.
+- **From Shortcuts:** Display > Navigation > Shortcuts, pick Disc Shelf.
 - **From All apps** in Shortcuts.
 
 If it doesn't appear in the list yet, restart the screen once (Settings > System > Maintenance > Restart).

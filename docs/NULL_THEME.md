@@ -1,8 +1,8 @@
 # Null — retained in diskOS Disco! 2.5.0
 
-Select Display > Theme > Null. Theme settings are under Display > Null Options.
+Select Display > Theme > Null. Null uses the same Display menu as every theme ([Display settings](DISPLAY_SETTINGS.md)): Appearance > Colour scheme picks its palette (including Matrix, since 2.5.3), Music screen holds fonts, background and information, Navigation holds Menu items and Quick settings. Null is always dark and right-handed, so those choices are dimmed. Since 2.5.4 its list and Music text is larger, and holding the progress line shows a time preview before seeking. Older notes below keep their original paths (such as Null Options).
 
-Null stays the complete pixel theme alongside the new Squash. Its existing appearance, font/background choices, drawer and vertical QS remain. Menu items and Quick settings lead its options; Music and Settings cannot be removed from the main menu. Help is directly below Battery, with How to, First-use hints and Show hints again, saved independently per theme. [2.5.0 notes](releases/v2.5.0.md) · [Squash](themes/squash.md).
+Null stays the complete pixel theme alongside the new Squash. Its existing appearance, font/background choices, drawer and vertical QS remain. Menu items and Quick settings lead its options; Music and Settings cannot be removed from the main menu. Help > How to explains the gestures; hint settings are in Display > Navigation, saved independently per theme. [2.5.0 notes](releases/v2.5.0.md) · [Squash](themes/squash.md).
 
 The Null.N entries below retain the original device-test history; current cumulative fixes are described in the 2.4.0 polish and shared Help sections.
 
