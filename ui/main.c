@@ -2514,6 +2514,15 @@ static int coldplug_mounted(void){
     fclose(m);
     return ok;
 }
+/* Mount the card the way the stock player does (`mount -o iocharset=utf8`). With no options the kernel uses
+ * iocharset=iso8859-1, which turns every Japanese/CJK/full-width character in a file name into '?': the scanner then
+ * records those '?' paths, and when the player later remounts with utf8 the library holds both spellings of each
+ * song - one of which can never be opened. Retry without options only if the option itself is rejected. */
+static int sd_mount_utf8(const char *fstype){
+    if(mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, "iocharset=utf8") == 0) return 0;
+    if(errno != EINVAL) return -1;
+    return mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, NULL);
+}
 static void coldplug_log(const char *msg){
     FILE *f = fopen("/usr/data/coldplug.log", "a");
     if(f){ fprintf(f, "%ld %s\n", (long)time(NULL), msg); fclose(f); }
@@ -2682,7 +2691,7 @@ static void *coldplug_thread(void *arg){
                  * it, so a mount can still race an export begun in the window after sd_exported_to_host().
                  * Re-check the REAL gadget state AFTER a successful mount: if the card became host-exported,
                  * unmount immediately (fail-closed) rather than dual-access; the one-shot then gives up. */
-                if(sd_cold_mount_allowed() && mount("/dev/mmcblk0p1", "/tmp/sdcard", "exfat", 0, NULL) == 0){
+                if(sd_cold_mount_allowed() && sd_mount_utf8("exfat") == 0){
                     if(sd_exported_to_host()){
                         if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
@@ -2692,7 +2701,7 @@ static void *coldplug_thread(void *arg){
                     }
                     coldplug_log("SD direct-mounted (V2.40 exfat)"); pthread_mutex_unlock(&g_sd_mode_mu); return NULL;
                 }
-                else if(sd_cold_mount_allowed() && mount("/dev/mmcblk0p1", "/tmp/sdcard", "vfat", 0, NULL) == 0){
+                else if(sd_cold_mount_allowed() && sd_mount_utf8("vfat") == 0){
                     if(sd_exported_to_host()){
                         if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
