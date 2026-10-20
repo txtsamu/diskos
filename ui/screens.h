@@ -21,6 +21,9 @@ void usage_tick(int screen_on, int playing);        /* main loop: one sample a m
 void usage_note_battery(int pct, int charging);     /* status poll */
 void ui_shutdown_screen(void);   /* the themed "Shutting down" screen (top layer) */
 void ui_shutdown_hide(void);
+void chargemode_boot(void);          /* charger at boot (never with USB Audio/DAC/Storage): show the charging screen (chargemode.c) */
+void chargemode_tick(void);          /* main loop: refresh it; unplug while it shows = power off */
+int  chargemode_active(void);        /* 1 while the charging screen is up */
 void ui_power_off(void);         /* shutdown screen, save, sync, poweroff */
 void usage_save(void);                              /* before a power-off */
 long queue_pid(int create);          /* the "Queue" playlist */
