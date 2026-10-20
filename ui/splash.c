@@ -1,225 +1,254 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* splash.c - the Disco! boot splash: a CD spins up and says its name.
+/* splash.c - the diskOS boot splash: the pressed disc under one light (the website's first act).
  *
- * A CD fills the round screen, its rainbow rim turning; it spins up (the marks on its hub blur away at speed),
- * slows, and its hub becomes a "D" in Monoton with an accent ring drawn round it. The D rolls out to the left and
- * "isco!" unrolls behind it - "Disco!", the "!" in the accent colour. Then everything fades and Home is there.
- * 2.6 s, once per boot, on lv_layer_top; it swallows taps and deletes itself.
+ * The screen is the data side of a disc in the dark. One light passes across it once: where it falls, the track
+ * pitch splits it into two small spectra, cut into eight tracks by the grooves, with a white streak and a lit rim.
+ * The hub (the real screen) warms in the theme's accent and shows "diskOS"; the light leaves, the hub is the only
+ * light left, and it opens: the disc is pushed outwards past the edge, the hub's edge becomes the screen's edge, and
+ * Home is underneath.
+ * 2.4 s, once per boot, on lv_layer_top; it swallows taps and deletes itself.
  *
- * Cost on the GPU-less renderer: the disc itself (grooves, its rainbow sheen, the hub) is one 360 px picture made once
- * and never redrawn - a real CD's reflections stay with the light, not the disc, so only what is printed on it turns:
- * two marks on the hub and the 36 coloured arcs of its rim. Those are small areas; nothing is scaled, masked or
- * blurred. The word unrolls inside a plain rectangular clip. */
+ * Cost on the GPU-less renderer: plain circles, rings and short arcs moved by one integer timeline; no images, no
+ * transforms, no shadows, no masks beyond the renderer's own circle edges. The light only ever changes arc angles,
+ * and each spectrum lives in a small box that follows it (its arcs are clipped to that box), so while it moves only
+ * those two boxes are repainted; the hub's glow repaints the hub; the whole screen is repainted only while the hub
+ * opens, as the old splash did while its Disc grew. */
 #include "screens.h"
 #include "theme.h"
-#include "theme_fonts.h"
 #include "theme_kit.h"
-#include <math.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#define SP_MS   2600            /* the whole splash */
-#define CDR     178             /* the disc's radius */
-#define HUBR    54              /* its clear centre */
-#define NRIM    36              /* coloured arcs round the rim */
+LV_FONT_DECLARE(diskos_brand_disk_32)   /* the website's wordmark: Archivo, expanded; "disk" semibold, "OS" light */
+LV_FONT_DECLARE(diskos_brand_os_32)
+
+#define SP_MS    2400          /* the whole splash */
+#define SP_CX    180
+#define SP_R     178           /* the disc's rim, just inside the round glass */
+#define SP_SLICE 5             /* colours in one spectrum */
+#define SP_GAPS  7             /* grooves between the 8 tracks */
+#define SP_GLOW  4
+
+/* the disc, in 1/1000 of its radius (the website's phone geometry: hub .46, mirror band .50-.56, data to .985) */
+#define K_HUB   460
+#define K_B0    500
+#define K_B1    560
+#define K_LIT0  640            /* the light is faint on the innermost tracks: spectra start here */
+#define K_DATA  985
 
 static struct {
-    lv_obj_t *root, *cd, *rim[NRIM], *mark, *hubring, *banner, *dl, *clip, *rest;
-    int frames, dw, ww;         /* the D's width; the whole word's */
+    lv_obj_t *root, *face, *rim, *rim_hl, *lobe[2], *slice[2][SP_SLICE], *streak, *shade[2], *gap[2][(SP_GAPS + 1) / 2],
+             *glow[SP_GLOW], *hub, *hub_edge, *word;
+    int th, warm, opened, frames;
     uint32_t t0;
 } g_sp;
-static uint8_t *g_px;           /* the disc, XRGB8888, made once */
-static lv_image_dsc_t g_dsc;
-static lv_obj_t *g_cover;
 
-static float clampf(float v){ return v < 0 ? 0 : v > 1 ? 1 : v; }
-static float seg(float t, float a, float b){ return clampf((t - a) / (b - a)); }
-static float smooth(float t){ t = clampf(t); return t * t * (3 - 2 * t); }
-static float ease(float t){ t = clampf(t); float r = 1 - t; return 1 - r * r * r; }
-static void rainbow(float h, float *r, float *g, float *b){   /* h 0..1 round the colour wheel */
-    h -= floorf(h);
-    *r = clampf(fabsf(h * 6 - 3) - 1); *g = clampf(2 - fabsf(h * 6 - 2)); *b = clampf(2 - fabsf(h * 6 - 4));
+/* 0..1024 fixed point */
+static int clampk(int v){ return v < 0 ? 0 : v > 1024 ? 1024 : v; }
+static int win_k(int t, int a, int b){ return clampk((t - a) * 1024 / (b - a)); }
+static int ease_out(int k){ int r = 1024 - k; return 1024 - (int)((int64_t)r * r * r >> 20); }      /* cubic out */
+static int ease_io(int k){                                                                             /* cubic in-out */
+    if(k < 512) return (int)(4 * (int64_t)k * k * k >> 20);
+    int r = 1024 - k; return 1024 - (int)(4 * (int64_t)r * r * r >> 20);
 }
-static uint32_t rainbow_rgb(float h){
-    float r, g, b; rainbow(h, &r, &g, &b);
-    return ((uint32_t)(255 * (0.4f + 0.6f * r)) << 16) | ((uint32_t)(255 * (0.4f + 0.6f * g)) << 8) | (uint32_t)(255 * (0.4f + 0.6f * b));
+static int scl(int v, int k){ return (int)((int64_t)v * k >> 10); }
+static lv_opa_t opa_k(int max, int k){ return (lv_opa_t)(max * clampk(k) >> 10); }
+
+/* set a style value only when it changes: every style write repaints the whole object, and most of these objects
+ * are as big as the disc */
+static void sty(lv_obj_t *o, lv_style_prop_t p, int32_t v, lv_style_selector_t sel){
+    lv_style_value_t cur;
+    if(lv_obj_get_local_style_prop(o, p, &cur, sel) == LV_STYLE_RES_FOUND && cur.num == v) return;
+    lv_style_value_t nv = { .num = v };
+    lv_obj_set_local_style_prop(o, p, nv, sel);
 }
 
-/* ---- the disc, once ---- */
-static int disc_make(uint32_t bg){
-    g_px = malloc(360 * 360 * 4);
-    if(!g_px) return 0;
-    float bb = (float)(bg & 255), bgc = (float)((bg >> 8) & 255), br = (float)((bg >> 16) & 255);
-    for(int j = 0; j < 360; j++) for(int i = 0; i < 360; i++){
-        uint8_t *o = g_px + ((size_t)j * 360 + i) * 4;
-        float dx = i + 0.5f - 180, dy = j + 0.5f - 180, d = sqrtf(dx * dx + dy * dy);
-        float c[3] = { bb, bgc, br };                                          /* B, G, R: the room */
-        if(d < CDR + 0.5f){
-            float a = atan2f(dy, dx), base;
-            if(d < 15){ /* the hole */ }
-            else if(d < HUBR){                                                 /* clear plastic, two moulded rings */
-                base = 26 + (fabsf(d - 30) < 1 || fabsf(d - 44) < 1 ? 22 : 0);
-                c[0] = base + 4; c[1] = base + 2; c[2] = base;
-            } else if(d < HUBR + 8){                                           /* the mirror band */
-                base = 70 + 40 * (0.5f + 0.5f * cosf(a * 2 + 0.8f));
-                c[0] = base + 6; c[1] = base + 3; c[2] = base;
-            } else {                                                           /* the data side */
-                float k = (d - HUBR - 8) / (CDR - HUBR - 8);
-                base = 46 - 26 * k + 2 * sinf(d * 1.7f);                       /* darker outwards, fine grooves */
-                c[0] = base + 4; c[1] = base + 2; c[2] = base;
-                /* two rainbow reflections, fixed to the light (up-left and down-right), colour changing with radius */
-                for(int w = 0; w < 2; w++){
-                    float da = a - (-2.2f + w * 3.14159f);
-                    while(da > 3.14159f) da -= 6.28318f;
-                    while(da < -3.14159f) da += 6.28318f;
-                    float s = expf(-da * da / 0.09f) * (0.35f + 0.65f * k);
-                    if(s < 0.01f) continue;
-                    float r, g, b; rainbow(k * 0.85f + w * 0.1f, &r, &g, &b);
-                    c[2] += (r * 255 - c[2]) * s * 0.55f; c[1] += (g * 255 - c[1]) * s * 0.55f; c[0] += (b * 255 - c[0]) * s * 0.55f;
-                }
-                float sh = expf(-(a + 0.9f) * (a + 0.9f) / 0.02f) * 0.25f * k;   /* a thin white glint */
-                for(int q = 0; q < 3; q++) c[q] += (255 - c[q]) * sh;
-            }
-            float cov = clampf(CDR + 0.5f - d);                                /* antialiased edge */
-            c[0] = bb + (c[0] - bb) * cov; c[1] = bgc + (c[1] - bgc) * cov; c[2] = br + (c[2] - br) * cov;
+/* every splash object is marked styled: it lives on the top layer, where a theme's styling pass would otherwise
+ * restyle it as a popup. The splash is a fixed identity in every theme. */
+static lv_obj_t *shape(lv_obj_t *parent){
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o);
+    kit_keep(o);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+    return o;
+}
+static lv_obj_t *ring(lv_obj_t *parent, lv_color_t c, lv_opa_t opa){    /* a circle drawn as its border only */
+    lv_obj_t *o = shape(parent);
+    lv_obj_set_style_border_color(o, c, 0);
+    lv_obj_set_style_border_opa(o, opa, 0);
+    return o;
+}
+static lv_obj_t *arc(lv_obj_t *parent, lv_color_t c, lv_opa_t opa){      /* a bare arc: MAIN part only */
+    lv_obj_t *a = lv_arc_create(parent);
+    lv_obj_remove_style_all(a);
+    kit_keep(a);
+    lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_arc_color(a, c, LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(a, opa, LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(a, LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_arc_set_bg_angles(a, 0, 1);
+    return a;
+}
+/* a band from radius r0 to r1 (r0 < r1), centred on the screen: a ring object or an arc */
+static void place_band(lv_obj_t *o, int r0, int r1, int is_arc){
+    if(r1 < 1) r1 = 1;
+    if(r0 > r1 - 1) r0 = r1 - 1;
+    lv_obj_set_pos(o, SP_CX - r1, SP_CX - r1);
+    lv_obj_set_size(o, 2 * r1, 2 * r1);
+    sty(o, is_arc ? LV_STYLE_ARC_WIDTH : LV_STYLE_BORDER_WIDTH, r1 - r0, 0);
+}
+static void place_disc(lv_obj_t *o, int r){                  /* a filled circle of radius r */
+    if(r < 1) r = 1;
+    lv_obj_set_pos(o, SP_CX - r, SP_CX - r);
+    lv_obj_set_size(o, 2 * r, 2 * r);
+}
+static int ang(int a){ a %= 360; return a < 0 ? a + 360 : a; }
+static void span(lv_obj_t *a, int mid, int half){ lv_arc_set_bg_angles(a, ang(mid - half), ang(mid + half)); }
+static int gap_r(int i){ return SP_R * (K_B1 + (K_DATA - K_B1) * (i + 1) / 8) / 1000; }   /* groove i of 7 */
+
+/* mark the box around a sector of the disc dirty, so the arcs that move inside it add no dirty areas of their own
+ * (the renderer keeps 32; past that it repaints the whole screen) */
+static void sector_box(int r0, int r1, int a0, int a1, lv_area_t *box){
+    int x1 = 9999, y1 = 9999, x2 = -9999, y2 = -9999;
+    for(int a = a0;; a += 5){
+        if(a > a1) a = a1;
+        int s = lv_trigo_sin((int16_t)ang(a)), c = lv_trigo_cos((int16_t)ang(a));
+        for(int k = 0; k < 2; k++){
+            int r = k ? r1 : r0, x = SP_CX + (r * c >> 15), y = SP_CX + (r * s >> 15);
+            if(x < x1) x1 = x;
+            if(x > x2) x2 = x;
+            if(y < y1) y1 = y;
+            if(y > y2) y2 = y;
         }
-        for(int q = 0; q < 3; q++) o[q] = (uint8_t)(c[q] < 0 ? 0 : c[q] > 255 ? 255 : c[q]);
-        o[3] = 255;
+        if(a == a1) break;
     }
-    memset(&g_dsc, 0, sizeof g_dsc);
-    g_dsc.header.magic = LV_IMAGE_HEADER_MAGIC; g_dsc.header.cf = LV_COLOR_FORMAT_XRGB8888;
-    g_dsc.header.w = g_dsc.header.h = 360; g_dsc.header.stride = 360 * 4;
-    g_dsc.data = g_px; g_dsc.data_size = 360 * 360 * 4;
-    return 1;
+    box->x1 = x1 - 4; box->y1 = y1 - 4; box->x2 = x2 + 4; box->y2 = y2 + 4;
+}
+static void inv_sector(int r0, int r1, int a0, int a1){
+    lv_area_t box;
+    sector_box(r0, r1, a0, a1, &box);
+    lv_obj_invalidate_area(g_sp.root, &box);
 }
 
-/* ---- the timeline ---- */
-static void splash_frame(int ms){
-    float t = ms / (float)SP_MS;
-    /* spin: up to speed by 0.42, then slowing to a stop at 0.64 (the angle is the integral of the speed) */
-    float ang;
-    if(t < 0.42f){ float u = t / 0.42f; ang = 2900 * u * u * u; }                  /* degrees, accelerating */
-    else { float u = seg(t, 0.42f, 0.64f); ang = 2900 + 1100 * (1 - (1 - u) * (1 - u) * (1 - u)); }
-    float speed = t < 0.42f ? t / 0.42f : 1 - seg(t, 0.42f, 0.64f);
+/* one frame of the timeline, t in ms */
+static void splash_frame(int t){
+    /* the hub opens 1800..2350: the disc is pushed outwards until the hub's edge passes the screen's edge */
+    int ok = ease_io(win_k(t, 1800, 2350));
+    int S = 1024 + scl((SP_CX + 10) * 1024 / (SP_R * K_HUB / 1000) - 1024, ok);   /* scale, 1024 = 1 */
+    int R = scl(SP_R, S);
+#define RK(k) (R * (k) / 1000)
 
-    lv_obj_set_style_opa(g_sp.cd, (lv_opa_t)(255 * smooth(seg(t, 0, 0.12f))), 0);
-    int a0 = ((int)ang % 360 + 360) % 360;
-    for(int i = 0; i < NRIM; i++){
-        int s = (a0 + i * 360 / NRIM) % 360;
-        lv_arc_set_bg_angles(g_sp.rim[i], s, s + 360 / NRIM);
+    /* the light: it comes on 150..650 as a white line that splits into two spectra, sweeps 110 deg of the clock
+     * (from the sides, as the website opens, to the top), and leaves 1500..1800 the way it came. Everything it does
+     * is a change of arc angles, so only the sector it moves through is repainted. */
+    int th = 175 + scl(110, ease_io(win_k(t, 150, 1650)));
+    int sp = scl(ease_out(win_k(t, 150, 650)), 1024 - ease_io(win_k(t, 1500, 1800)));   /* the spread, 0..1024 */
+    if(t >= 1800 && !g_sp.opened){
+        /* the light has gone: its objects leave the draw list, and from here the hub must be a hole onto Home: the
+         * root stops painting black and the disc face (the same black) is drawn as a ring instead. Nothing on
+         * screen changes in this frame. */
+        g_sp.opened = 1;
+        lv_obj_t *gone[] = { g_sp.rim_hl, g_sp.streak };
+        for(unsigned i = 0; i < sizeof gone / sizeof *gone; i++) lv_obj_add_flag(gone[i], LV_OBJ_FLAG_HIDDEN);
+        for(int s = 0; s < 2; s++) lv_obj_add_flag(g_sp.lobe[s], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_opa(g_sp.root, LV_OPA_TRANSP, 0);
+        lv_obj_remove_flag(g_sp.face, LV_OBJ_FLAG_HIDDEN);
     }
-    lv_arc_set_rotation(g_sp.mark, a0);
-    lv_obj_set_style_opa(g_sp.mark, (lv_opa_t)(220 * (1 - speed * 0.85f) * (1 - seg(t, 0.56f, 0.62f))), 0);   /* blurs away at speed */
+    if(g_sp.opened) place_band(g_sp.face, RK(K_HUB), R + 2, 0);
 
-    /* the hub becomes the D, an accent ring drawn round it */
-    float d = smooth(seg(t, 0.58f, 0.66f)), ring = ease(seg(t, 0.6f, 0.7f));
-    lv_arc_set_bg_angles(g_sp.hubring, 270, 270 + (int)(360 * ring));
-    lv_obj_set_style_opa(g_sp.hubring, (lv_opa_t)(255 * (1 - seg(t, 0.71f, 0.75f))), 0);
-    /* then it rolls out: the D moves to where the word starts, "isco!" unrolls behind it on a growing dark pill */
-    float roll = smooth(seg(t, 0.71f, 0.83f));
-    int x0 = 180 - g_sp.dw / 2, x1 = 180 - g_sp.ww / 2;
-    int dx = x0 + (int)((x1 - x0) * roll);
-    lv_obj_set_x(g_sp.dl, dx);
-    lv_obj_set_style_opa(g_sp.dl, (lv_opa_t)(255 * d), 0);
-    lv_obj_set_style_transform_rotation(g_sp.dl, roll > 0 && roll < 1 ? (int)(-3600 * (1 - roll)) : 0, 0);   /* it rolls as it goes */
-    int open = (int)((g_sp.ww - g_sp.dw) * roll);
-    lv_obj_set_x(g_sp.clip, dx + g_sp.dw); lv_obj_set_width(g_sp.clip, open > 0 ? open : 1);
-    if(open > 0) lv_obj_remove_flag(g_sp.clip, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_sp.clip, LV_OBJ_FLAG_HIDDEN);
-    int bw = 2 * HUBR + 8 + (int)((g_sp.ww + 40 - 2 * HUBR - 8) * roll);
-    lv_obj_set_x(g_sp.banner, 180 - bw / 2); lv_obj_set_width(g_sp.banner, bw);
-    lv_obj_set_style_bg_opa(g_sp.banner, (lv_opa_t)(230 * smooth(seg(t, 0.58f, 0.66f))), 0);
+    /* the rim: drawn out from the light's first touch until it closes, then it stays */
+    place_band(g_sp.rim, RK(K_DATA) + 1, R, 1);
+    int rim_half = scl(180, ease_out(win_k(t, 150, 1000)));
+    if(rim_half >= 180) lv_arc_set_bg_angles(g_sp.rim, 0, 360);
+    else span(g_sp.rim, 175, rim_half);
 
-    /* hand-over to Home */
-    lv_obj_set_style_opa(g_sp.root, (lv_opa_t)(255 * (1 - seg(t, 0.9f, 1))), 0);   /* after a moment on the name */
+    if(!g_sp.opened){
+        int lo = LV_MIN(th, g_sp.th) - 24, hi = LV_MAX(th, g_sp.th) + 24;
+        if(g_sp.th < 0) lo = th - 24, hi = th + 24;
+        int r0 = RK(K_LIT0) - 8;
+        inv_sector(r0, R, lo, hi);                       /* where the light was and is, both sides */
+        inv_sector(r0, R, lo + 180, hi + 180);
+        g_sp.th = th;
+        place_band(g_sp.rim_hl, RK(K_DATA) + 1, R, 1);
+        span(g_sp.rim_hl, th, scl(22, sp));                  /* inside the spectrum's box */
+        int half = sp > 0 ? LV_MAX(1, scl(7, sp)) : 0;   /* neighbours overlap by half: the colours blend */
+        for(int s = 0; s < 2; s++){
+            /* each spectrum lives in a box that follows it: its arcs and grooves are drawn only inside that box */
+            int axis = th + 180 * s;
+            lv_area_t box;
+            sector_box(r0, R, axis - 24, axis + 24, &box);
+            lv_obj_set_pos(g_sp.lobe[s], box.x1, box.y1);
+            lv_obj_set_size(g_sp.lobe[s], lv_area_get_width(&box), lv_area_get_height(&box));
+            int ox = box.x1, oy = box.y1;
+            for(int i = 0; i < SP_SLICE; i++){           /* violet to red across the light, mirrored on the far side */
+                lv_obj_t *a = g_sp.slice[s][i];
+                place_band(a, RK(K_LIT0), RK(K_DATA), 1);
+                lv_obj_set_pos(a, SP_CX - RK(K_DATA) - ox, SP_CX - RK(K_DATA) - oy);
+                span(a, axis + scl((2 * i - (SP_SLICE - 1)) * 7 / 2 * (s ? -1 : 1), sp), half);
+            }
+            int rs = RK(K_LIT0 + (K_DATA - K_LIT0) * 45 / 100);
+            place_band(g_sp.shade[s], RK(K_LIT0), rs, 1);
+            lv_obj_set_pos(g_sp.shade[s], SP_CX - rs - ox, SP_CX - rs - oy);
+            span(g_sp.shade[s], axis, half > 0 ? 24 : 0);
+            for(int k = 0; k < (SP_GAPS + 1) / 2; k++){  /* the grooves: two per object, its border and its outline */
+                int g = gap_r(2 * k);
+                lv_obj_set_pos(g_sp.gap[s][k], SP_CX - g - 1 - ox, SP_CX - g - 1 - oy);
+            }
+            if(s == 0){
+                place_band(g_sp.streak, RK(K_LIT0), RK(K_DATA), 1);
+                lv_obj_set_pos(g_sp.streak, SP_CX - RK(K_DATA) - ox, SP_CX - RK(K_DATA) - oy);
+                span(g_sp.streak, th, sp > 0 ? 1 : 0);
+            }
+        }
+    }
+
+    /* the hub warms in the accent 650..1300; as it opens its glow rides the hub's edge outwards and lets go */
+    int warm = scl(ease_out(win_k(t, 650, 1300)), 1024 - win_k(t, 1850, 2150));
+    int hr = RK(K_HUB);
+    static const int GW[SP_GLOW] = { 4, 10, 18, 28 };  /* outer radius of each glow step past the hub's edge */
+    static const int GO[SP_GLOW] = { 54, 30, 15, 6 };
+    if(!g_sp.opened && warm != g_sp.warm){
+        lv_area_t gb = { SP_CX - hr - GW[SP_GLOW - 1] - 1, SP_CX - hr - GW[SP_GLOW - 1] - 1,
+                         SP_CX + hr + GW[SP_GLOW - 1] + 1, SP_CX + hr + GW[SP_GLOW - 1] + 1 };
+        lv_obj_invalidate_area(g_sp.root, &gb);
+    }
+    g_sp.warm = warm;
+    for(int i = 0; i < SP_GLOW; i++){
+        place_band(g_sp.glow[i], hr, hr + scl(GW[i], S), 0);
+        sty(g_sp.glow[i], LV_STYLE_BORDER_OPA, opa_k(GO[i], warm), 0);
+    }
+    place_disc(g_sp.hub, hr);
+    sty(g_sp.hub, LV_STYLE_BG_OPA, 255 - scl(255, ease_io(win_k(t, 1850, 2300))), 0);
+    place_band(g_sp.hub_edge, hr - 1, hr, 0);
+    sty(g_sp.hub_edge, LV_STYLE_BORDER_OPA, opa_k(36, scl(warm, 1024 - win_k(t, 1850, 2100))), 0);
+
+    /* the name, in the hub, once: it rises a little as it arrives and dissolves as the hub starts to open */
+    int wm = scl(ease_out(win_k(t, 950, 1400)), 1024 - win_k(t, 1740, 1900));
+    sty(g_sp.word, LV_STYLE_OPA, opa_k(255, wm), 0);
+    lv_obj_set_y(g_sp.word, SP_CX - lv_obj_get_height(g_sp.word) / 2 + 2 + scl(6, 1024 - ease_out(win_k(t, 950, 1400))));
+#undef RK
 }
 
-static void splash_anim_cb(void *var, int32_t v){ (void)var; if(g_sp.root) splash_frame((int)v); }
+static void splash_anim_cb(void *var, int32_t v){ (void)var; if(g_sp.root){ splash_frame((int)v); } }
 static void splash_drawn_cb(lv_event_t *e){ (void)e; g_sp.frames++; }   /* a frame actually drawn to the screen */
 static void splash_done(lv_anim_t *a){
     (void)a;
+    /* one line in the boot log: how smoothly this Disc drew it */
     lv_display_remove_event_cb_with_user_data(lv_display_get_default(), splash_drawn_cb, NULL);
-    fprintf(stderr, "splash: %d frames drawn in %u ms\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0));   /* how smoothly this Disc drew it */
+    fprintf(stderr, "splash: %d frames drawn in %u ms\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0));
     if(g_sp.root) lv_obj_delete(g_sp.root);
     memset(&g_sp, 0, sizeof g_sp);
-    free(g_px); g_px = NULL;
-}
-static lv_obj_t *plain(lv_obj_t *parent){
-    lv_obj_t *o = lv_obj_create(parent);
-    lv_obj_remove_style_all(o); kit_keep(o);
-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    return o;
-}
-static lv_obj_t *bare_arc(lv_obj_t *parent, int r, int w, lv_color_t c, lv_opa_t opa){
-    lv_obj_t *a = lv_arc_create(parent);
-    lv_obj_remove_style_all(a); kit_keep(a);
-    lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(a, 2 * r, 2 * r); lv_obj_set_pos(a, 180 - r, 180 - r);
-    lv_obj_set_style_arc_width(a, w, LV_PART_MAIN); lv_obj_set_style_arc_color(a, c, LV_PART_MAIN);
-    lv_obj_set_style_arc_opa(a, opa, LV_PART_MAIN); lv_obj_set_style_arc_rounded(a, 0, LV_PART_MAIN);
-    lv_obj_set_style_arc_opa(a, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    return a;
-}
-static lv_obj_t *word_label(lv_obj_t *parent, const char *s, lv_color_t c){
-    lv_obj_t *l = lv_label_create(parent); kit_keep(l);
-    lv_label_set_text(l, s);
-    lv_obj_set_style_text_font(l, &diskos_splash_disco_72, 0);
-    lv_obj_set_style_text_color(l, c, 0);
-    return l;
-}
-static int build(void){
-    if(!disc_make((uint32_t)lv_color_to_u32(TC(FIXED_SPLASH_BG)) & 0xFFFFFF)) return 0;
-    g_sp.root = plain(lv_layer_top());
-    lv_obj_set_size(g_sp.root, 360, 360);
-    lv_obj_set_style_bg_color(g_sp.root, TC(FIXED_SPLASH_BG), 0);
-    lv_obj_set_style_bg_opa(g_sp.root, LV_OPA_COVER, 0);
-    lv_obj_add_flag(g_sp.root, LV_OBJ_FLAG_CLICKABLE);             /* swallow taps during the splash */
-
-    g_sp.cd = lv_image_create(g_sp.root); kit_keep(g_sp.cd);
-    lv_image_set_src(g_sp.cd, &g_dsc); lv_obj_set_pos(g_sp.cd, 0, 0);
-    for(int i = 0; i < NRIM; i++)                                   /* the turning rainbow rim */
-        g_sp.rim[i] = bare_arc(g_sp.cd, CDR - 1, 4, theme_color_from_rgb(rainbow_rgb((float)i / NRIM)), 130);
-    g_sp.mark = bare_arc(g_sp.cd, 42, 4, TC(FIXED_SPLASH_3), LV_OPA_COVER);   /* two marks on the hub, opposite */
-    lv_arc_set_bg_angles(g_sp.mark, 0, 14);
-    lv_obj_set_style_arc_opa(g_sp.mark, LV_OPA_COVER, LV_PART_INDICATOR); lv_obj_set_style_arc_color(g_sp.mark, TC(FIXED_SPLASH_3), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(g_sp.mark, 4, LV_PART_INDICATOR); lv_obj_set_style_arc_rounded(g_sp.mark, 0, LV_PART_INDICATOR);
-    lv_arc_set_range(g_sp.mark, 0, 360); lv_arc_set_bg_angles(g_sp.mark, 0, 14);
-    lv_arc_set_angles(g_sp.mark, 180, 194);
-
-    g_sp.banner = plain(g_sp.root);                                 /* the dark pill the word sits on */
-    lv_obj_set_style_radius(g_sp.banner, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(g_sp.banner, TC(FIXED_SPLASH_BG), 0);
-    lv_obj_set_y(g_sp.banner, 180 - HUBR - 4); lv_obj_set_height(g_sp.banner, 2 * HUBR + 8);
-    g_sp.hubring = bare_arc(g_sp.root, HUBR + 4, 3, ui_current_accent(), LV_OPA_COVER);
-    lv_arc_set_bg_angles(g_sp.hubring, 270, 270);
-
-    /* the word: the D on its own, and "isco!" inside a clip that widens as it unrolls */
-    g_sp.dl = word_label(g_sp.root, "D", TC(FIXED_SPLASH_3));
-    lv_obj_update_layout(g_sp.dl);
-    g_sp.dw = lv_obj_get_width(g_sp.dl);
-    int lh = lv_obj_get_height(g_sp.dl);
-    lv_obj_set_y(g_sp.dl, 180 - lh / 2);
-    lv_obj_set_style_transform_pivot_x(g_sp.dl, g_sp.dw / 2, 0); lv_obj_set_style_transform_pivot_y(g_sp.dl, lh / 2, 0);
-    g_sp.clip = plain(g_sp.root);
-    lv_obj_set_y(g_sp.clip, 180 - lh / 2); lv_obj_set_height(g_sp.clip, lh);
-    g_sp.rest = plain(g_sp.clip);
-    lv_obj_set_size(g_sp.rest, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(g_sp.rest, LV_FLEX_FLOW_ROW);
-    word_label(g_sp.rest, "isco", TC(FIXED_SPLASH_3));
-    word_label(g_sp.rest, "!", ui_current_accent());
-    lv_obj_update_layout(g_sp.rest);
-    g_sp.ww = g_sp.dw + lv_obj_get_width(g_sp.rest);
-    lv_obj_add_flag(g_sp.clip, LV_OBJ_FLAG_HIDDEN);
-    return 1;
 }
 
 /* A plain cover in the splash's colour, put up before the first frame is drawn: Home is built and painted during
  * startup, well before the splash can start (the loop isn't running yet), and showed for a moment without it. */
+static lv_obj_t *g_cover;
 void splash_cover(void){
     if(g_cover || g_sp.root) return;
-    g_cover = plain(lv_layer_top());
+    g_cover = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(g_cover);
     lv_obj_set_size(g_cover, 360, 360);
     lv_obj_set_style_bg_color(g_cover, TC(FIXED_SPLASH_BG), 0); lv_obj_set_style_bg_opa(g_cover, LV_OPA_COVER, 0);
     lv_obj_add_flag(g_cover, LV_OBJ_FLAG_CLICKABLE);
@@ -227,8 +256,72 @@ void splash_cover(void){
 static void cover_off(void){ if(g_cover){ lv_obj_delete(g_cover); g_cover = NULL; } }
 void splash_start(void){
     if(g_sp.root){ cover_off(); return; }                           /* one splash at a time */
-    if(!build()){ free(g_px); g_px = NULL; cover_off(); return; }   /* no memory for the disc: straight to Home */
-    cover_off();                                                    /* the splash's own black takes over from here */
+    static const theme_color_role_t BAND[SP_SLICE] = { THEME_CLR_FIXED_SPLASH_BAND_5, THEME_CLR_FIXED_SPLASH_BAND_4,
+        THEME_CLR_FIXED_SPLASH_BAND_3, THEME_CLR_FIXED_SPLASH_BAND_2, THEME_CLR_FIXED_SPLASH_BAND_1 };   /* violet..red */
+    static const lv_opa_t BAND_OPA[SP_SLICE] = { 76, 104, 96, 104, 84 };   /* softer at the spectrum's ends */
+    lv_color_t accent = TC(ACCENT_PRIMARY);                         /* the light of the screen the hub opens onto */
+
+    cover_off();                                                    /* the splash's own face takes over from here */
+    g_sp.root = shape(lv_layer_top());
+    lv_obj_set_style_radius(g_sp.root, 0, 0);
+    lv_obj_set_size(g_sp.root, 360, 360);
+    lv_obj_set_style_bg_color(g_sp.root, TC(FIXED_SPLASH_BG), 0);   /* the disc's face, in the dark */
+    lv_obj_set_style_bg_opa(g_sp.root, LV_OPA_COVER, 0);
+    lv_obj_add_flag(g_sp.root, LV_OBJ_FLAG_CLICKABLE);             /* swallow taps during the splash */
+
+    g_sp.face = ring(g_sp.root, TC(FIXED_SPLASH_BG), LV_OPA_COVER); /* the same face, as a ring, once the hub opens */
+    lv_obj_add_flag(g_sp.face, LV_OBJ_FLAG_HIDDEN);
+    for(int s = 0; s < 2; s++){
+        /* a spectrum: a box that follows the light (its children are clipped to it), holding five colour slices,
+         * the white streak (near side only) and the grooves that cut the light into eight tracks */
+        g_sp.lobe[s] = shape(g_sp.root);
+        lv_obj_set_style_radius(g_sp.lobe[s], 0, 0);
+        for(int i = 0; i < SP_SLICE; i++)
+            g_sp.slice[s][i] = arc(g_sp.lobe[s], theme_color(BAND[i]), (lv_opa_t)(BAND_OPA[i] * (s ? 2 : 3) / 3));
+        if(s == 0) g_sp.streak = arc(g_sp.lobe[s], TC(FIXED_SPLASH_3), 70);
+        g_sp.shade[s] = arc(g_sp.lobe[s], TC(FIXED_SPLASH_BG), 130);  /* the light fades towards the hub */
+        for(int k = 0; k < (SP_GAPS + 1) / 2; k++){
+            int g = gap_r(2 * k);                                   /* border: groove 2k, outline: groove 2k+1 */
+            lv_obj_t *o = ring(g_sp.lobe[s], TC(FIXED_SPLASH_HOLE), 130);
+            lv_obj_set_size(o, 2 * (g + 1), 2 * (g + 1));
+            lv_obj_set_style_border_width(o, 2, 0);
+            if(2 * k + 1 < SP_GAPS){
+                lv_obj_set_style_outline_color(o, TC(FIXED_SPLASH_HOLE), 0);
+                lv_obj_set_style_outline_opa(o, 130, 0);
+                lv_obj_set_style_outline_width(o, 2, 0);
+                lv_obj_set_style_outline_pad(o, gap_r(2 * k + 1) - 1 - (g + 1), 0);
+            }
+            g_sp.gap[s][k] = o;
+        }
+    }
+    g_sp.rim = arc(g_sp.root, TC(FIXED_SPLASH_SPINDLE), LV_OPA_COVER);
+    g_sp.rim_hl = arc(g_sp.root, TC(FIXED_SPLASH_HUB_LINE), 150);   /* the rim where the light falls on it */
+    for(int i = SP_GLOW - 1; i >= 0; i--) g_sp.glow[i] = ring(g_sp.root, accent, 0);   /* widest first */
+    g_sp.hub = shape(g_sp.root);                                    /* the real screen, still dark: as black as */
+    lv_obj_set_style_bg_color(g_sp.hub, TC(FIXED_SPLASH_BG), 0);    /* the face, so the first frames are one black */
+    lv_obj_set_style_bg_opa(g_sp.hub, LV_OPA_COVER, 0);
+    g_sp.hub_edge = ring(g_sp.root, TC(FIXED_SPLASH_3), 0);
+
+    /* "diskOS", as on the website: a semibold "disk", a light "OS", expanded */
+    g_sp.word = shape(g_sp.root);
+    lv_obj_set_style_radius(g_sp.word, 0, 0);
+    lv_obj_set_size(g_sp.word, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(g_sp.word, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(g_sp.word, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    const lv_font_t *F[2] = { &diskos_brand_disk_32, &diskos_brand_os_32 };
+    const char *T[2] = { "disk", "OS" };
+    for(int i = 0; i < 2; i++){
+        lv_obj_t *l = lv_label_create(g_sp.word);
+        kit_keep(l);
+        lv_label_set_text(l, T[i]);
+        lv_obj_set_style_text_font(l, F[i], 0);
+        lv_obj_set_style_text_letter_space(l, -1, 0);                /* the website's -0.02 em */
+        lv_obj_set_style_text_color(l, TC(FIXED_SPLASH_3), 0);
+    }
+    lv_obj_update_layout(g_sp.word);
+    lv_obj_set_x(g_sp.word, SP_CX - lv_obj_get_width(g_sp.word) / 2);
+
+    g_sp.th = -1;
     g_sp.t0 = lv_tick_get();
     lv_display_add_event_cb(lv_display_get_default(), splash_drawn_cb, LV_EVENT_RENDER_READY, NULL);
     splash_frame(0);
@@ -240,9 +333,4 @@ void splash_start(void){
     lv_anim_set_exec_cb(&a, splash_anim_cb);
     lv_anim_set_completed_cb(&a, splash_done);
     lv_anim_start(&a);
-}
-/* host renders: the splash standing at `ms` (no animation, nothing deleted) */
-void splash_test_frame(int ms){
-    if(!g_sp.root && !build()) return;
-    splash_frame(ms);
 }
