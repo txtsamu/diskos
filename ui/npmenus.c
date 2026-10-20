@@ -364,7 +364,7 @@ static void hnp_ctx_artist_cb(lv_event_t *e){
     char a[160]; hnp_first_artist(src, a, sizeof a);
     library_open_artist(a); screen_show(SCR_LIBRARY);
 }
-static void hnp_plpick_reload(void);
+static void plpick_reload(void);   /* the shared Add-to-Playlist picker (SCR_PLPICK) */
 static void hnp_ctx_addpl_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     if(!hnp_g_path[0]){ ui_toast("No song to add"); return; }   /* nothing playing/loaded */
@@ -372,7 +372,7 @@ static void hnp_ctx_addpl_cb(lv_event_t *e){
     track_state_t now; ipc_get_state(&now);
     if(now.have_track && strcmp(now.path, hnp_g_path) == 0) hnp_g_pos_id = now.pos_id; else hnp_g_pos_id = 0;
     plpick_set_song(hnp_g_path, hnp_g_pos_id, now.have_track ? now.title : "");   /* add the current track (just that CUE/ISO track if it is one) */
-    hnp_plpick_reload();                  /* refresh list + clear any old toast */
+    plpick_reload();                  /* refresh list + clear any old toast */
     screen_show(SCR_PLPICK);
 }
 static void hnp_ctx_fav_cb(lv_event_t *e){
