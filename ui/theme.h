@@ -45,7 +45,7 @@ int         theme_outdoor(void);                    /* 1 = Outdoor mode (light v
 #define THEME_PRESET_HALO 0      /* the original diskOS look (Default palette + Default builders, no kit) */
 #define THEME_PRESET_STONE 6
 int theme_preset_available(int preset);
-int th_halo(void);         /* the Halo (original diskOS) theme is active */
+int th_halo(void);         /* the original-diskOS screens are active: Halo or Stone */
 #define THEME_PRESET_SQUASH 12
 #define THEME_PRESET_SIMPLE THEME_PRESET_SQUASH /* saved ID / internal compatibility */
 int th_simple(void);
