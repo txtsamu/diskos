@@ -3768,7 +3768,8 @@ int main(int argc, char **argv){
             } else if(touch_gate_wake && lifted) touch_gate_wake = 0;
         }
         if(kbinput_active()) last_activity = lv_tick_get();
-        power_tick(last_activity, playing || ma_playing());   /* Sendspin: AirPlay playback the player may not report */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
+        { static int cm_boot; if(!cm_boot){ cm_boot = 1; chargemode_boot(); } chargemode_tick(); }
+        power_tick(chargemode_active() ? lv_tick_get() : last_activity, playing || ma_playing());   /* the charging screen may dim/blank but never idle-powers-off */   /* Sendspin: AirPlay playback the player may not report */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
         int in_saver = (screen_current()==SCR_SAVER);
         /* a manual Sleep request ends the moment the panel is woken (we leave SCR_SAVER) */
         if(g_manual_sleep && !in_saver) g_manual_sleep = 0;
