@@ -113,6 +113,13 @@ namespace DiskosDisco
             {
                 bool exists = Demo.On || Env.Exists();
                 string version = Demo.On ? Env.Generation + " 2026-10-13 ui-2.0.0" : exists ? Env.Version() : null;
+                // Every run: a working environment is brought up to the latest release's installer files first.
+                if (!Demo.On && exists && version != null && version.StartsWith(Env.Generation))
+                {
+                    BeginInvoke(new Action(() => status.Text = "Checking for a newer release…"));
+                    string sync = Latest.SyncEnvironment(l => BeginInvoke(new Action(() => Append(l))));
+                    if (sync != null) { BeginInvoke(new Action(() => Append(sync))); version = Env.Version() ?? version; }
+                }
                 string package = Demo.On ? "demo" : Env.FindPackage();
                 BeginInvoke(new Action(() =>
                 {

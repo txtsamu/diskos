@@ -8,6 +8,10 @@ diskOS remains beta software; version numbers do not imply broad hardware or fea
 
 ## [Unreleased]
 
+- Windows app: on every start it checks for a newer release and, if found, updates the installer files inside its
+  environment (installer, boot scripts, interface; checked against the release's checksums, nothing changed on a
+  mismatch). An environment set up by an older app no longer keeps installing that app's version.
+
 From the 2.5.8 memory and CPU audit:
 - Queue: a manual skip with nothing queued no longer reads and maps the player's whole list; the song-path index is
   ensured when the library opens (not only on a rescan).

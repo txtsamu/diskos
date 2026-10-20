@@ -6,9 +6,10 @@
 > for Windows-specific problems, though. Start from FiiO's stock V2.57 firmware, not another diskOS build:
 > installing over upstream diskOS or another diskOS build can be buggy.
 >
-> **Always the latest version.** Install and Update download the latest release from GitHub each time (checked
-> against its checksums), unless you choose an `mq_ui` file of your own. Without internet, Install offers the
-> version built into the app.
+> **Always the latest version.** Each time the app starts, it checks GitHub for a newer release and, if there is one,
+> updates its installer files (the installer, the boot scripts and the interface) before you install, checked against
+> the release's checksums. Install and Update also download the latest `mq_ui` each time, unless you choose a file of
+> your own. Without internet, the app uses what it already has.
 
 > Switched to Disco from upstream diskOS or another build, and something looks or behaves wrong? **Settings > System > Maintenance > Reset diskOS Settings** gives the interface a fresh start; your music, Wi-Fi, Bluetooth, EQ and audio settings stay. Going back to stock in between does *not* clear what diskOS leaves on the Disc.
 
