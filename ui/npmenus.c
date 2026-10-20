@@ -23,6 +23,11 @@
  *  - SCR_NPMENU  (right "3-dot" icon): context - Song Info / Go to Album / Artist
  *  - SCR_TUNE    (left "tuning" icon): quick playback - Play Mode / Equalizer    */
 
+/* Halo variants (defined further down) */
+void halo_npmenu_set(const track_state_t *st, int playing, const void *thumb_src);
+void halo_npmenu_create(lv_obj_t *root);
+void halo_nphub_refresh(void);
+void halo_nphub_create(lv_obj_t *root);
 #define ACC UI_RED
 
 
@@ -40,6 +45,7 @@ static void fav_refresh(void){
     if(g_orb.n) orbit_set_on(&g_orb, 0, g_fav, ui_current_accent());   /* a favourite fills the heart button */
 }
 void npmenu_set(const track_state_t *st, int playing, const void *thumb_src){
+    if(th_halo()){ halo_npmenu_set(st, playing, thumb_src); return; }
     (void)playing; (void)thumb_src;
     if(g_orb.ring && st && st->have_track && st->duration_ms > 0){      /* the cover's ring: the track's progress */
         int v = (int)((long long)st->position_ms * 1000 / st->duration_ms);
@@ -260,12 +266,192 @@ static void build_menu(lv_obj_t *box){
                     if(g_menu_title){ lv_obj_set_style_text_color(g_menu_title, TC(TEXT_PRIMARY), 0); lv_obj_set_style_text_font(g_menu_title, br_font(14, 0), 0); } }
 }
 void npmenu_create(lv_obj_t *root){
+    if(th_halo()){ halo_npmenu_create(root); return; }
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     g_box_menu = lv_obj_create(root); lv_obj_remove_style_all(g_box_menu); lv_obj_set_size(g_box_menu, 360, 360);
     lv_obj_clear_flag(g_box_menu, LV_OBJ_FLAG_SCROLLABLE);
 }
+
+/* ---- Halo: the original diskOS Options panels (reference, verbatim; names prefixed hnp_) ---- */
+static int hnp_lset(lv_obj_t *o, const char *t){ if(!o) return 0; if(strcmp(lv_label_get_text(o), t)){ lv_label_set_text(o, t); return 1; } return 0; }
+/* ---- shared current-track context (set from main.c) --------------------- */
+static char hnp_g_album[160];
+static char hnp_g_artist[160];
+static char hnp_g_path[256];
+static int  hnp_g_fav, hnp_g_have, hnp_g_pos_id;
+static lv_obj_t *hnp_g_fav_lbl;
+
+static void hnp_fav_refresh(void){   /* every playback update: the text only when it changed */
+    hnp_lset(hnp_g_fav_lbl, tr(hnp_g_fav ? "Remove from Favourites" : "Add to Favourites"));
+}
+void halo_npmenu_set(const track_state_t *st, int playing, const void *thumb_src){
+    (void)playing; (void)thumb_src;
+    hnp_g_have = st && st->have_track;
+    snprintf(hnp_g_album,  sizeof hnp_g_album,  "%s", hnp_g_have ? st->album  : "");
+    snprintf(hnp_g_artist, sizeof hnp_g_artist, "%s", hnp_g_have ? st->artist : "");
+    snprintf(hnp_g_path,   sizeof hnp_g_path,   "%s", hnp_g_have ? st->path   : "");
+    hnp_g_pos_id = hnp_g_have ? st->pos_id : 0;
+    hnp_g_fav = hnp_g_have ? st->is_favorite : 0;
+    hnp_fav_refresh();
+}
+
+/* first artist token (so "A, B" -> "A" matches the split Artists browse) */
+static void hnp_first_artist(const char *raw, char *out, int n){
+    int i=0; while(raw[i] && raw[i]!=',' && raw[i]!=';' && i<n-1){ out[i]=raw[i]; i++; }
+    out[i]=0;
+    while(i>0 && out[i-1]==' ') out[--i]=0;
+}
+
+/* ---- generic list row --------------------------------------------------- */
+static lv_obj_t *hnp_menu_row(lv_obj_t *list, const char *text, lv_event_cb_t cb, void *ud){
+    lv_obj_t *r = lv_button_create(list);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, 268, 52);
+    lv_obj_set_style_radius(r, 12, 0);
+    lv_obj_set_style_bg_color(r, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(r, LV_OPA_70, 0);
+    lv_obj_set_style_bg_color(r, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    ui_on(r, cb, LV_EVENT_CLICKED, ud, "npmenus.cb", UI_CORE);
+    lv_obj_t *l = lv_label_create(r);
+    lv_label_set_text(l, tr(text));
+    lv_obj_set_pos(l, 16, 16);
+    lv_obj_set_style_text_font(l, TF(USER_16), 0);   /* rows carry playlist names: chain (issue #3) */
+    lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+    return r;
+}
+
+static lv_obj_t *hnp_panel_header(lv_obj_t *root, const char *title){
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    return ui_header(root, title);   /* shared standard header; returns the title label */
+}
+
+static lv_obj_t *hnp_panel_list(lv_obj_t *root){
+    lv_obj_t *list = lv_obj_create(root);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, 46, 76); lv_obj_set_size(list, 280, 250);
+    lv_obj_set_style_pad_bottom(list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_row(list, 10, 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    return list;
+}
+
+/* ---- context menu (SCR_NPMENU) ------------------------------------------ */
+static void hnp_ctx_info_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED){ screen_show(SCR_SONGINFO); } }
+static void hnp_ctx_lyrics_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED){ lyrics_open(); } }
+static void hnp_ctx_album_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    /* drill the canonical DB album for this track (its path), not the player's
+     * metadata album string, which may not match the DB and show an empty list */
+    char dbal[160], dbar[160];
+    const char *album = hnp_g_album;
+    if(mdb_song_meta_by_path(hnp_g_path, dbal, sizeof dbal, dbar, sizeof dbar) && dbal[0]) album = dbal;
+    if(!album[0]){ ui_toast("No album info"); return; }
+    library_open_album(album); screen_show(SCR_LIBRARY);
+}
+static void hnp_ctx_artist_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    char dbal[160], dbar[160];
+    const char *src = hnp_g_artist;
+    if(mdb_song_meta_by_path(hnp_g_path, dbal, sizeof dbal, dbar, sizeof dbar) && dbar[0]) src = dbar;
+    if(!src[0]){ ui_toast("No artist info"); return; }
+    char a[160]; hnp_first_artist(src, a, sizeof a);
+    library_open_artist(a); screen_show(SCR_LIBRARY);
+}
+static void hnp_plpick_reload(void);
+static void hnp_ctx_addpl_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    if(!hnp_g_path[0]){ ui_toast("No song to add"); return; }   /* nothing playing/loaded */
+    /* read the player's pos_id NOW (not the value cached at the last refresh): a track change since then would name the wrong row */
+    track_state_t now; ipc_get_state(&now);
+    if(now.have_track && strcmp(now.path, hnp_g_path) == 0) hnp_g_pos_id = now.pos_id; else hnp_g_pos_id = 0;
+    plpick_set_song(hnp_g_path, hnp_g_pos_id, now.have_track ? now.title : "");   /* add the current track (just that CUE/ISO track if it is one) */
+    hnp_plpick_reload();                  /* refresh list + clear any old toast */
+    screen_show(SCR_PLPICK);
+}
+static void hnp_ctx_fav_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    hnp_g_fav = !hnp_g_fav;                   /* optimistic; player confirms on next a2 */
+    ui_set_favorite(hnp_g_fav);
+    hnp_fav_refresh();
+    ui_toast(hnp_g_fav ? "Added to Favourites" : "Removed from Favourites");   /* match Now Playing */
+}
+void halo_npmenu_create(lv_obj_t *root){
+    hnp_panel_header(root, "Options");
+    lv_obj_t *list = hnp_panel_list(root);
+    lv_obj_t *favrow = hnp_menu_row(list, "Add to Favourites", hnp_ctx_fav_cb, NULL);
+    hnp_g_fav_lbl = lv_obj_get_child(favrow, 0);
+    hnp_fav_refresh();
+    hnp_menu_row(list, "Add to Playlist", hnp_ctx_addpl_cb,  NULL);
+    hnp_menu_row(list, "Song Info",       hnp_ctx_info_cb,   NULL);
+    hnp_menu_row(list, "Go to Album",     hnp_ctx_album_cb,  NULL);
+    hnp_menu_row(list, "Go to Artist",    hnp_ctx_artist_cb, NULL);
+}
+
+/* ---- Now Playing hub (SCR_NPHUB): swipe-right page. Secondary actions for
+ * the current track (play-mode & favorite live on the Now Playing screen). - */
+static void hnp_hub_eq_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED){ screen_show(SCR_TUNE); } }
+
+static void hnp_fsart_deferred_cb(lv_timer_t *t){ lv_timer_delete(t); ui_np_fsart_open(); }
+static void hnp_hub_fsart_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    screen_show(SCR_NOWPLAYING);   /* fsart lives on the NP root -> make NP the active screen first */
+    /* open after the NP slide-in settles so the transition can't stomp the overlay's z-order/opacity */
+    lv_timer_t *t = lv_timer_create(hnp_fsart_deferred_cb, 360, NULL);
+    lv_timer_set_repeat_count(t, 1);
+}
+static void hnp_hub_chapters_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) chapters_open(); }
+static void hnp_hub_upnext_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) upnext_open(); }
+
+static lv_obj_t *hnp_g_hub_list;
+/* (Re)populate the hub for the current track. Books get Chapters and drop the music-only entries
+ * (Lyrics / Go to Album / Go to Artist / Add to Playlist) that make no sense for a single audiobook. */
+static void hnp_nphub_populate(void){
+    if(!hnp_g_hub_list) return;
+    lv_obj_clean(hnp_g_hub_list);
+    track_state_t st; ipc_get_state(&st);
+    int book = st.path[0] && mdb_is_book_path(st.path);
+    if(book){
+        /* navigate, understand the book, then the rest - the order the listener reaches for most first */
+        hnp_menu_row(hnp_g_hub_list, "Chapters",        hnp_hub_chapters_cb, NULL);
+        hnp_menu_row(hnp_g_hub_list, "Book details",    hnp_ctx_info_cb,     NULL);   /* Song Info screen, relabelled for books */
+        hnp_menu_row(hnp_g_hub_list, "Equalizer",       hnp_hub_eq_cb,       NULL);
+        hnp_menu_row(hnp_g_hub_list, "Full-screen Art", hnp_hub_fsart_cb,    NULL);
+    } else {
+        hnp_menu_row(hnp_g_hub_list, "Up Next",         hnp_hub_upnext_cb, NULL);
+        hnp_menu_row(hnp_g_hub_list, "Full-screen Art", hnp_hub_fsart_cb,  NULL);
+        hnp_menu_row(hnp_g_hub_list, "Equalizer",       hnp_hub_eq_cb,     NULL);
+        hnp_menu_row(hnp_g_hub_list, "Song Info",       hnp_ctx_info_cb,   NULL);
+        hnp_menu_row(hnp_g_hub_list, "Lyrics",          hnp_ctx_lyrics_cb, NULL);
+        hnp_menu_row(hnp_g_hub_list, "Go to Album",     hnp_ctx_album_cb,  NULL);
+        hnp_menu_row(hnp_g_hub_list, "Go to Artist",    hnp_ctx_artist_cb, NULL);
+        hnp_menu_row(hnp_g_hub_list, "Add to Playlist", hnp_ctx_addpl_cb,  NULL);
+    }
+}
+void halo_nphub_refresh(void){ hnp_nphub_populate(); }   /* called on each SCR_NPHUB show (screenmgr) */
+
+void halo_nphub_create(lv_obj_t *root){
+    hnp_panel_header(root, "Options");
+    hnp_g_hub_list = hnp_panel_list(root);
+    hnp_nphub_populate();
+    /* page dots - the hub is the right page (Now Playing is the left) */
+    for(int i=0;i<2;i++){
+        lv_obj_t *dot = lv_obj_create(root);
+        lv_obj_remove_style_all(dot);
+        lv_obj_set_size(dot, 7, 7);
+        lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, i==0 ? -8 : 8, -10);
+        lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(dot, (i==1 ? TC(PAGE_DOT_ACTIVE) : TC(PAGE_DOT_INACTIVE)), 0);
+        lv_obj_set_style_bg_opa(dot, i==1 ? LV_OPA_COVER : LV_OPA_60, 0);
+    }
+}
+
 
 /* ---- add-to-playlist picker (SCR_PLPICK) -------------------------------- */
 static char g_pick_path[256];
@@ -475,8 +661,9 @@ static void hub_fsart_cb(lv_event_t *e){
 static void hub_chapters_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) chapters_open(); }
 
 static void hub_eq_open_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED){ screen_show(SCR_EQ); } }   /* the round EQ */
-void nphub_refresh(void){ build_menu(g_box_hub); }   /* called on each SCR_NPHUB show (screenmgr) */
+void nphub_refresh(void){ if(th_halo()){ halo_nphub_refresh(); return; } build_menu(g_box_hub); }   /* called on each SCR_NPHUB show (screenmgr) */
 void nphub_create(lv_obj_t *root){
+    if(th_halo()){ halo_nphub_create(root); return; }
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);

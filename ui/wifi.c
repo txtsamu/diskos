@@ -679,10 +679,10 @@ static void info_row(const char *key, const char *val){
     lv_obj_set_style_text_color(k, TC(TEXT_MUTED), 0);
     lv_obj_t *v = lv_label_create(r);
     lv_label_set_text(v, val && val[0] ? val : "-");
-    lv_label_set_long_mode(v, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_long_mode(v, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(v, 110, 11); lv_obj_set_size(v, 128, 18);
     lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_font(v, ui_font_cjk(14), 0);   /* "Network" value = SSID: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(v, th_halo() ? TF(USER_14) : ui_font_cjk(14), 0);   /* "Network" value = SSID: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(v, TC(TEXT_PRIMARY), 0);
 }
 static void info_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
@@ -819,7 +819,7 @@ static void add_signal_bars(lv_obj_t *parent, int x, int y, int sig){
         lv_obj_set_pos(b, x + i*6, y + (17 - h[i]));
         lv_obj_set_style_radius(b, 1, 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(b, i < bars ? TC(TEXT_PRIMARY) : TC(SURFACE_STRONG), 0);
+        lv_obj_set_style_bg_color(b, th_halo() ? (i < bars ? TC(SIGNAL_ACTIVE) : TC(SIGNAL_INACTIVE)) : (i < bars ? TC(TEXT_PRIMARY) : TC(SURFACE_STRONG)), 0);
     }
 }
 
@@ -827,32 +827,45 @@ static void add_signal_bars(lv_obj_t *parent, int x, int y, int sig){
 static void add_net_row(const char *ssid, int signal, int secured, int connected){
     lv_obj_t *r = lv_button_create(g_list);
     lv_obj_remove_style_all(r);
+    if(th_halo()){                                          /* the original flat row */
+        lv_obj_set_size(r, 268, 46);
+        lv_obj_set_style_radius(r, 8, 0);
+        lv_obj_set_style_bg_color(r, (connected ? TC(CONNECTED_SURFACE) : TC(SURFACE)), 0);
+        lv_obj_set_style_bg_opa(r, connected ? LV_OPA_COVER : LV_OPA_50, 0);
+        lv_obj_set_style_bg_color(r, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    } else {
     lv_obj_set_size(r, WROW_W, 50);
     lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);                 /* curves with the circle */
     lv_obj_set_style_radius(r, TH_R_ROW, 0);
     lv_obj_set_style_bg_color(r, connected ? TC(SURFACE_RAISED) : TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
+    }
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
     netrow_t *nr = malloc(sizeof *nr);
     if(nr){ nr->flags = (secured?1:0) | (connected?2:0); snprintf(nr->ssid, sizeof nr->ssid, "%s", ssid); }
     lv_obj_add_event_cb(r, net_cb, LV_EVENT_CLICKED, nr);
     lv_obj_add_event_cb(r, row_free_cb, LV_EVENT_DELETE, nr);
 
-    int tx = 16;
+    int tx = th_halo() ? 12 : 16;
     if(connected){
         lv_obj_t *ck = lv_label_create(r);
         lv_label_set_text(ck, LV_SYMBOL_OK);
-        lv_obj_set_pos(ck, 14, 16);
+        lv_obj_set_pos(ck, th_halo() ? 12 : 14, th_halo() ? 15 : 16);
         lv_obj_set_style_text_font(ck, TF(UI_14), 0);
-        lv_obj_set_style_text_color(ck, th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
-        tx = 38;
+        lv_obj_set_style_text_color(ck, th_halo() ? TC(STATUS_INFO) : th_null()?TC(TEXT_PRIMARY):ui_current_accent(), 0);
+        tx = th_halo() ? 34 : 38;
     }
     lv_obj_t *t = lv_label_create(r);
     lv_label_set_text(t, ssid);
+    if(th_halo()){
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(t, tx, 13); lv_obj_set_size(t, 190 - tx, 20);
+        lv_obj_set_style_text_font(t, TF(USER_16), 0);
+    } else {
     lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, tx, 13); lv_obj_set_size(t, WROW_W - 78 - tx, 24);
-    lv_obj_set_style_text_font(t, th_simple()?TF(UI_20):th_null()?TF(UI_18):ui_font_cjk(18), 0);       /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, th_simple()?TF(UI_20):th_null()?TF(UI_18):ui_font_cjk(18), 0); }      /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
     if(secured){
@@ -1068,7 +1081,64 @@ int wifi_toggle(void){
 static void rescan_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) start_scan(); }
 __attribute__((unused)) static void back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
 
+static void halo_wifi_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
+/* Halo: the original diskOS Wi-Fi screen (shared header, a switch row, a rescan button, a flat list) */
+static void halo_wifi_create(lv_obj_t *root){
+    g_hring = g_hglyph = g_hname = g_hsub = g_hknob = NULL;   /* no status header in this layout (hdr_set is then a no-op) */
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    ui_header_cb(root, "Wi-Fi", halo_wifi_back_cb);
+
+    lv_obj_t *trow = lv_obj_create(root);
+    lv_obj_remove_style_all(trow);
+    lv_obj_set_pos(trow, 50, 64); lv_obj_set_size(trow, 208, 48);
+    lv_obj_set_style_radius(trow, 12, 0);
+    lv_obj_set_style_bg_color(trow, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(trow, LV_OPA_70, 0);
+    lv_obj_clear_flag(trow, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *tl = lv_label_create(trow);
+    lv_label_set_text(tl, "Wi-Fi");
+    lv_obj_set_pos(tl, 16, 14);
+    lv_obj_set_style_text_font(tl, TF(UI_16), 0);
+    lv_obj_set_style_text_color(tl, TC(TEXT_PRIMARY), 0);
+
+    g_sw = lv_switch_create(trow);
+    lv_obj_set_size(g_sw, 46, 24);
+    lv_obj_set_ext_click_area(g_sw, 10);
+    lv_obj_align(g_sw, LV_ALIGN_RIGHT_MID, -14, 0);
+    ui_on(g_sw, sw_cb, LV_EVENT_VALUE_CHANGED, NULL, "wifi.sw.value", UI_CORE);
+
+    lv_obj_t *rb = lv_button_create(root);
+    lv_obj_remove_style_all(rb);
+    lv_obj_set_pos(rb, 266, 72); lv_obj_set_size(rb, 36, 32);
+    lv_obj_set_ext_click_area(rb, 8);
+    lv_obj_set_style_radius(rb, 10, 0);
+    lv_obj_set_style_bg_color(rb, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(rb, LV_OPA_70, 0);
+    lv_obj_set_style_bg_color(rb, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    ui_on(rb, rescan_cb, LV_EVENT_CLICKED, NULL, "wifi.rescan", UI_CORE);
+    lv_obj_t *rl = lv_label_create(rb);
+    lv_label_set_text(rl, LV_SYMBOL_REFRESH);
+    lv_obj_set_style_text_font(rl, TF(UI_16), 0);
+    lv_obj_set_style_text_color(rl, TC(TEXT_SECONDARY), 0);
+    lv_obj_center(rl);
+
+    g_list = lv_obj_create(root);
+    lv_obj_remove_style_all(g_list);
+    lv_obj_set_pos(g_list, 40, 126); lv_obj_set_size(g_list, 280, 192);
+    lv_obj_set_style_pad_bottom(g_list, 44, 0);
+    lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_row(g_list, 6, 0);
+    lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+}
+
 void wifi_create(lv_obj_t *root){
+    if(th_halo()){ halo_wifi_create(root); return; }
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);

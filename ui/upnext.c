@@ -70,8 +70,9 @@ static void un_add_row(int i){
     int cur = (i == 0);
     lv_obj_t *r = lv_button_create(g_un_list);
     lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, 288, 62);
-    lv_obj_set_style_radius(r, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0);
+    if(th_halo()){ lv_obj_set_size(r, 268, 52); lv_obj_set_style_radius(r, 10, 0); }
+    else{ lv_obj_set_size(r, 288, 62);
+    lv_obj_set_style_radius(r, th_disco_family() ? LV_RADIUS_CIRCLE : TH_R_ROW, 0); }
     lv_obj_set_style_bg_color(r, (cur ? TC(SURFACE_RAISED) : TC(SURFACE)), 0);
     lv_obj_set_style_bg_opa(r, cur ? LV_OPA_COVER : LV_OPA_50, 0);
     lv_obj_set_style_bg_color(r, TC(RAISED_PRESSED), LV_STATE_PRESSED);
@@ -80,25 +81,34 @@ static void un_add_row(int i){
 
     lv_obj_t *t = lv_label_create(r);                           /* title (may be non-Latin) */
     lv_label_set_text(t, q->title[0] ? q->title : "Untitled");
+    lv_obj_t *s = lv_label_create(r);                           /* artist; "Now Playing" on the current row */
+    lv_label_set_text(s, cur ? "Now Playing" : q->artist);
+    if(th_halo()){
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(t, 14, 6); lv_obj_set_size(t, 186, 21);
+        lv_obj_set_style_text_font(t, TF(USER_16), 0);
+        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(s, 14, 28); lv_obj_set_size(s, 186, 17);
+        lv_obj_set_style_text_font(s, cur ? TF(UI_14) : TF(USER_14), 0);
+    } else {
     lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(t, 20, 8); lv_obj_set_size(t, 196, 26);
     lv_obj_set_style_text_font(t, ui_font_user(20), 0);
-    lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
-
-    lv_obj_t *s = lv_label_create(r);                           /* artist; "Now Playing" on the current row */
-    lv_label_set_text(s, cur ? "Now Playing" : q->artist);
     lv_label_set_long_mode(s, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_pos(s, 20, 35); lv_obj_set_size(s, 196, 21);
     lv_obj_set_style_text_font(s, cur ? TF(UI_16) : ui_font_user(16), 0);
+    }
+    lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_text_color(s, (cur ? TC(STATUS_INFO) : TC(TEXT_MUTED)), 0);
 
     char dur[12]; un_fmt_dur(q->dur_ms, dur, sizeof dur);
     if(dur[0]){
         lv_obj_t *d = lv_label_create(r);                       /* length, right-aligned */
         lv_label_set_text(d, dur);
-        lv_obj_set_pos(d, 214, 20); lv_obj_set_size(d, 56, 20);
+        if(th_halo()){ lv_obj_set_pos(d, 202, 17); lv_obj_set_size(d, 54, 18); }
+        else{ lv_obj_set_pos(d, 214, 20); lv_obj_set_size(d, 56, 20); }
         lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_style_text_font(d, TF(UI_14), 0);
+        lv_obj_set_style_text_font(d, th_halo() ? TF(UI_12) : TF(UI_14), 0);
         lv_obj_set_style_text_color(d, TC(TEXT_MUTED), 0);
     }
 }

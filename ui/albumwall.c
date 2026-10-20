@@ -527,20 +527,20 @@ void albumwall_refresh(void){
     for(int k=0;k<AW_CARDS;k++) g_front[zc[k]] = aw_img();
 
     g_initial = lv_label_create(g_root);
-    lv_obj_set_style_text_font(g_initial, ui_text_font(20), 0);
+    lv_obj_set_style_text_font(g_initial, th_halo() ? TF(USER_20) : ui_text_font(20), 0);
     lv_obj_set_style_text_color(g_initial, TC(TEXT_MUTED), 0);
     lv_obj_align(g_initial, LV_ALIGN_TOP_MID, 0, 72 + AW_SRC/2 - 12);
     lv_obj_add_flag(g_initial, LV_OBJ_FLAG_HIDDEN);
 
     g_name = lv_label_create(g_root);
-    lv_label_set_long_mode(g_name, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(g_name, 260, 24);
+    lv_label_set_long_mode(g_name, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(g_name, 260, 24);
     lv_obj_set_style_text_align(g_name, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(g_name, LV_ALIGN_TOP_MID, 0, 266);
-    lv_obj_set_style_text_font(g_name, ui_text_font(18), 0); lv_obj_set_style_text_color(g_name, TC(TEXT_PRIMARY), 0);
+    lv_obj_set_style_text_font(g_name, th_halo() ? TF(USER_18) : ui_text_font(18), 0); lv_obj_set_style_text_color(g_name, TC(TEXT_PRIMARY), 0);
 
     g_artist = lv_label_create(g_root);
-    lv_label_set_long_mode(g_artist, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(g_artist, 220, 20);
+    lv_label_set_long_mode(g_artist, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_set_size(g_artist, 220, 20);
     lv_obj_set_style_text_align(g_artist, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(g_artist, LV_ALIGN_TOP_MID, 0, 292);
-    lv_obj_set_style_text_font(g_artist, ui_text_font(16), 0); lv_obj_set_style_text_color(g_artist, TC(TEXT_MUTED), 0);
+    lv_obj_set_style_text_font(g_artist, th_halo() ? TF(USER_16) : ui_text_font(16), 0); lv_obj_set_style_text_color(g_artist, TC(TEXT_MUTED), 0);
 
     g_counter = lv_label_create(g_root);
     lv_obj_align(g_counter, LV_ALIGN_TOP_MID, 0, 318);

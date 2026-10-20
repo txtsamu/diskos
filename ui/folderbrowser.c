@@ -187,7 +187,8 @@ static void fb_empty_label(const char *msg){
 }
 
 #define FB_ROW_W 268
-#define FB_ROW_H TH_ROW_H
+#define FB_ROW_H (th_halo() ? 46 : TH_ROW_H)
+#define FB_PAD (th_halo() ? 6 : 4)
 static curvelist_t g_fcl;                   /* curved rows + position dots, like the Library */
 static void fb_row_cb(lv_event_t *e);
 static void fb_long_cb(lv_event_t *e);
@@ -208,7 +209,7 @@ static void fb_jump(char L){
     else {
         fb_fill_stop(); for(; g_fb_i < g_nent; g_fb_i++) fb_add_row(g_fb_i);   /* short folder: make sure the row exists */
         lv_obj_update_layout(g_list);
-        lv_obj_scroll_to_y(g_list, idx * (FB_ROW_H + 4), LV_ANIM_OFF);
+        lv_obj_scroll_to_y(g_list, idx * (FB_ROW_H + FB_PAD), LV_ANIM_OFF);
     }
     lv_obj_update_layout(g_list); curvelist_update(&g_fcl);
 }
@@ -243,7 +244,7 @@ static int fb_pick_collect(const uint8_t *sel, int cap, int **out){
     if(fail){ free(ids); *out = NULL; return -1; }
     *out = ids; return n;
 }
-static void fb_pick_az(int show){ azjump_show(&g_faz, show && g_nent > 12); }
+static void fb_pick_az(int show){ azjump_show(&g_faz, !th_halo() && show && g_nent > 12); }
 int folderbrowser_pick_back(void){ if(!mp_active(&g_fmp)) return 0; mp_exit(&g_fmp); return 1; }
 void folderbrowser_pick_demo(const char *csv){ mp_demo(&g_fmp, csv); }
 
@@ -252,10 +253,16 @@ static void fb_add_row(int i){
         lv_obj_t *r = lv_button_create(g_list);
         lv_obj_remove_style_all(r);
         lv_obj_set_size(r, FB_ROW_W, FB_ROW_H);
+        if(th_halo()){
+            lv_obj_set_style_radius(r, 8, 0);
+            lv_obj_set_style_bg_color(r, TC(LIST_PRESSED), LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(r, LV_OPA_70, LV_STATE_PRESSED);
+        } else {
         lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);                         /* curves with the circle */
         lv_obj_set_style_radius(r, TH_R_ROW, 0);
         lv_obj_set_style_bg_color(r, TC(SURFACE), LV_STATE_PRESSED);
         lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
+        }
         lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_ext_click_area(r, 2);
         if(fb_pickable(i)) mp_row(&g_fmp, r, i);   /* swipe to pick (before the row's own tap/hold) */
@@ -264,25 +271,31 @@ static void fb_add_row(int i){
 
         lv_obj_t *ic = lv_label_create(r);
         lv_label_set_text(ic, en->is_dir ? LV_SYMBOL_DIRECTORY : LV_SYMBOL_AUDIO);
-        lv_obj_set_pos(ic, 12, 17);
+        lv_obj_set_pos(ic, th_halo() ? 10 : 12, th_halo() ? 14 : 17);
         lv_obj_set_style_text_font(ic, TF(UI_16), 0);
-        lv_obj_set_style_text_color(ic, en->is_dir ? ui_current_accent() : TC(TEXT_DISABLED), 0);
+        lv_obj_set_style_text_color(ic, th_halo() ? (en->is_dir ? TC(FOLDER_ICON) : TC(TEXT_MUTED)) : en->is_dir ? ui_current_accent() : TC(TEXT_DISABLED), 0);
 
         lv_obj_t *nm = lv_label_create(r);
         lv_label_set_text(nm, en->name);
+        if(th_halo()){
+            lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+            lv_obj_set_pos(nm, 40, 14);
+            lv_obj_set_size(nm, en->is_dir ? 194 : 216, 20);
+            lv_obj_set_style_text_font(nm, TF(USER_16), 0);
+        } else {
         lv_label_set_long_mode(nm, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_pos(nm, 40, en->is_dir ? 15 : 6);
         lv_obj_set_size(nm, en->is_dir ? FB_ROW_W - 72 : FB_ROW_W - 50, 22);
-        lv_obj_set_style_text_font(nm, ui_font_user(18), 0);           /* CJK filenames, like Library/Search */
+        lv_obj_set_style_text_font(nm, ui_font_user(18), 0); }          /* CJK filenames, like Library/Search */
         lv_obj_set_style_text_color(nm, TC(TEXT_PRIMARY), 0);
 
         if(en->is_dir){
             lv_obj_t *ch = lv_label_create(r);
             lv_label_set_text(ch, LV_SYMBOL_RIGHT);
-            lv_obj_set_pos(ch, FB_ROW_W - 26, 18);
-            lv_obj_set_style_text_font(ch, TF(UI_14), 0);
+            lv_obj_set_pos(ch, th_halo() ? 244 : FB_ROW_W - 26, th_halo() ? 15 : 18);
+            lv_obj_set_style_text_font(ch, th_halo() ? TF(UI_16) : TF(UI_14), 0);
             lv_obj_set_style_text_color(ch, TC(TEXT_DISABLED), 0);
-        } else {                                                    /* detail: the format */
+        } else if(!th_halo()){                                      /* detail: the format */
             const char *e = strrchr(en->name, '.'); char fmt[8] = "";
             if(e){ int k = 0; for(e++; *e && k < 6; e++) fmt[k++] = (char)((*e >= 'a' && *e <= 'z') ? *e - 32 : *e); fmt[k] = 0; }
             lv_obj_t *dt = lv_label_create(r);
@@ -291,7 +304,7 @@ static void fb_add_row(int i){
             lv_obj_set_style_text_font(dt, TH_F_DETAIL, 0);
             lv_obj_set_style_text_color(dt, TC(TEXT_SECONDARY), 0);
         }
-        theme_list_row(r);
+        if(!th_halo()) theme_list_row(r);
 }
 
 static void fb_fill_cb(lv_timer_t *t){
@@ -311,7 +324,7 @@ static void fb_rebuild(void){
     if(!g_list) return;
     vlist_end(&g_fbv);
     lv_obj_clean(g_list);
-    azjump_show(&g_faz, g_nent > 12);                    /* worth it only once the folder is longer than a screen or two */
+    azjump_show(&g_faz, !th_halo() && g_nent > 12);                    /* worth it only once the folder is longer than a screen or two */
 
     /* opendir failed at scan time -> either no SD or an unreadable dir. */
     if(g_nent == 0){
@@ -331,7 +344,7 @@ static void fb_rebuild(void){
     /* Render the first screenful synchronously, then the rest on a timer so a folder with
      * thousands of files doesn't stall the UI on open (mirrors the Library song list). */
     lv_obj_scroll_to_y(g_list, 0, LV_ANIM_OFF);
-    if(g_nent >= VLIST_MIN){ vlist_begin(&g_fbv, g_list, g_nent, FB_ROW_H, 4, 0, 272, fb_add_row); g_fb_i = g_nent; curvelist_update(&g_fcl); return; }
+    if(g_nent >= VLIST_MIN){ vlist_begin(&g_fbv, g_list, g_nent, FB_ROW_H, FB_PAD, 0, 272, fb_add_row); g_fb_i = g_nent; curvelist_update(&g_fcl); return; }
     g_fb_i = 0;
     int first = g_nent < 20 ? g_nent : 20;
     for(; g_fb_i < first; g_fb_i++) fb_add_row(g_fb_i);
@@ -447,7 +460,7 @@ void folderbrowser_create(lv_obj_t *root){
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(g_list, 4, 0);
+    lv_obj_set_style_pad_row(g_list, th_halo() ? 6 : 4, 0);
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);

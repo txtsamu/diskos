@@ -899,12 +899,18 @@ static void poster_reload(void){
     if(g_np_poster) poster_shading_live(!g_poster_baked);
 }
 static void fsart_refresh_text(void){
+    if(th_halo()){                                          /* the original: the track's title and artist over the cover */
+        if(fsart_title)  lv_label_set_text(fsart_title,  lv_label_get_text(title));
+        if(fsart_artist) lv_label_set_text(fsart_artist, lv_label_get_text(artist));
+        return;
+    }
     /* immersive: like Home - the title in the album colour, the artist under it, centred under the arch */
     if(fsart_title) lv_label_set_text(fsart_title, "");     /* immersive: cover + lyrics only, no title/artist */
     if(fsart_artist) lv_label_set_text(fsart_artist, "");
 }
 /* ---- immersive: spinning cover + synced lyrics ---- */
 static void imm_lyrics_reload(void){
+    if(th_halo()) return;                                   /* no lyrics on Halo's full-screen art */
     static unsigned revision;
     unsigned now;
     if(!imm_lyrics_on()){                                   /* Immersive Lyrics off: just the cover, no shade */
@@ -1179,6 +1185,7 @@ static void imm_control_sample(lv_point_t p){
 }
 static void fsart_click_cb(lv_event_t *e){
     lv_event_code_t c=lv_event_get_code(e);
+    if(th_halo()){ if(c==LV_EVENT_CLICKED) ui_np_fsart_close(); return; }   /* the original: tap anywhere closes */
     if(!imm_control_enabled()){if(c==LV_EVENT_CLICKED)ui_np_fsart_close();return;}
     if(c==LV_EVENT_CLICKED)return; /* Left-edge back gesture replaces exit-on-tap. */
     lv_indev_t *in=lv_indev_active();if(!in)return;lv_point_t p;lv_indev_get_point(in,&p);
@@ -1421,25 +1428,25 @@ lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t ba
     lv_obj_set_pos(back, 72, 24); lv_obj_set_size(back, 44, 40);   /* inset from the clipped corner */
     lv_obj_set_ext_click_area(back, 10);                            /* easier near the round bezel */
     lv_obj_set_style_radius(back, 20, 0);
-    lv_obj_set_style_bg_color(back, TC(SURFACE), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(back, th_halo() ? TC(LIST_PRESSED) : TC(SURFACE), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(back, LV_OPA_70, LV_STATE_PRESSED);
     ui_on(back, back_cb ? back_cb : ui_header_back_cb, LV_EVENT_CLICKED, NULL, "nav.back", UI_CORE);
-    lv_obj_add_event_cb(back, ui_header_home_cb, LV_EVENT_CLICKED, NULL);   /* runs AFTER the screen's own back: a long press then goes Home (covers back arrows that step up inside a screen, e.g. Library, Files) */
+    if(!th_halo()) lv_obj_add_event_cb(back, ui_header_home_cb, LV_EVENT_CLICKED, NULL);   /* Halo: no long-press Home. Runs AFTER the screen's own back: a long press then goes Home (covers back arrows that step up inside a screen, e.g. Library, Files) */
     lv_obj_t *ic = lv_label_create(back);
     lv_label_set_text(ic, LV_SYMBOL_LEFT);
     lv_obj_set_style_text_font(ic, TF(UI_20), 0);
-    lv_obj_set_style_text_color(ic, TC(TEXT_LYRICS), 0);
+    lv_obj_set_style_text_color(ic, th_halo() ? TC(TEXT_SECONDARY) : TC(TEXT_LYRICS), 0);
     lv_obj_align(ic, LV_ALIGN_CENTER, 0, -2);
 
     lv_obj_t *t = lv_label_create(root);
-    lv_obj_set_user_data(t, (void *)&theme_title_tag);
+    if(!th_halo()) lv_obj_set_user_data(t, (void *)&theme_title_tag);
     theme_title_text(t, title);
     /* Screen-centred (label centre = 104+76 = 180) but bounded to a zone that clears the back chevron on
      * both sides, so a long album/playlist name truncates with an ellipsis instead of sliding under it. */
     lv_obj_set_pos(t, 104, 30); lv_obj_set_size(t, 152, 26);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_font(t, ui_font_cjk(18), 0);   /* headers show folder/album/playlist names: chain (issue #3) */
+    lv_label_set_long_mode(t, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_font(t, th_halo() ? TF(HEADER) : ui_font_cjk(18), 0);   /* headers show folder/album/playlist names: chain (issue #3) */
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     if(th_braun()){                                           /* Braun: dark title, grey arrow, on the grille */
         lv_obj_set_style_text_color(ic, TC(TEXT_SECONDARY), 0);
@@ -1586,6 +1593,7 @@ static void np_queue_place(void){ if(btn_queue && btn_mode) lv_obj_align_to(btn_
 void ui_queue_changed(void){                                  /* the badge: the queue's size, hidden when empty */
     if(!queue_badge) return;
     int n = queue_count();
+    if(th_halo() && btn_queue){ if(n > 0) lv_obj_remove_flag(btn_queue, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(btn_queue, LV_OBJ_FLAG_HIDDEN); }
     if(n <= 0){ lv_obj_add_flag(queue_badge, LV_OBJ_FLAG_HIDDEN); return; }
     char b[8]; if(n > 99) snprintf(b, sizeof b, "99"); else snprintf(b, sizeof b, "%d", n);
     if(strcmp(lv_label_get_text(queue_badge_lbl), b)) lv_label_set_text(queue_badge_lbl, b);
@@ -1605,6 +1613,7 @@ void ui_set_np_style(int style)
 {
     if(!cover) return;
     if(th_ringlike())style=3;
+    if(th_halo() && style > 1) style = 0;      /* the original has only Cover and Vinyl */
     int vinyl = (style == 1);
     g_np_poster = (style == 2);
     g_np_ring = (style == 3);
@@ -1736,7 +1745,7 @@ static void np_layout(int poster){
     if(ring){ lv_obj_set_size(ring, ARC_D, ARC_D); lv_obj_align(ring, LV_ALIGN_CENTER, 0, 0); }
     if(cover) lv_obj_align(cover, LV_ALIGN_TOP_MID, 0, 42);
     if(btn_pp) lv_obj_set_style_text_font(btn_pp, TF(UI_32), 0);
-    if(artist){ lv_obj_set_style_text_font(artist, &s_font16, 0); lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR); }
+    if(artist){ lv_obj_set_style_text_font(artist, &s_font16, 0); lv_label_set_long_mode(artist, th_halo()?LV_LABEL_LONG_DOT:LV_LABEL_LONG_SCROLL_CIRCULAR); }
     if(ring){ lv_arc_set_bg_angles(ring, 0, g_arc_sweep); lv_arc_set_rotation(ring, g_arc_rot);
               lv_arc_set_mode(ring, poster ? LV_ARC_MODE_REVERSE : LV_ARC_MODE_NORMAL);   /* fills from the left end */
               lv_obj_set_style_arc_width(ring, poster ? 4 : 6, LV_PART_MAIN); lv_obj_set_style_arc_width(ring, poster ? 4 : 6, LV_PART_INDICATOR); }
@@ -1758,7 +1767,7 @@ static void np_layout(int poster){
     if(artist_sh){ lv_obj_set_style_text_font(artist_sh, &s_font16, 0); lv_obj_set_width(artist_sh, 220);
                    lv_label_set_long_mode(artist_sh, LV_LABEL_LONG_SCROLL_CIRCULAR); lv_obj_align(artist_sh, LV_ALIGN_TOP_MID, 1, 224); }
     if(artist){ lv_obj_set_width(artist, poster ? 220 : 238);
-                lv_obj_set_style_text_color(artist, poster ? TC(POSTER_SUBTITLE) : TC(TEXT_LYRICS), 0);
+                lv_obj_set_style_text_color(artist, poster ? TC(POSTER_SUBTITLE) : th_halo() ? TC(TEXT_SECONDARY) : TC(TEXT_LYRICS), 0);
                 lv_obj_align(artist, LV_ALIGN_TOP_MID, 0, poster ? 222 : 226); }
     lv_color_t side = poster ? TC(POSTER_SIDE) : TC(TEXT_MUTED);
     if(btn_prev){ lv_obj_set_style_text_color(btn_prev, side, 0); lv_obj_align(btn_prev, LV_ALIGN_TOP_MID, poster ? -62 : -60, poster ? 272 : 284); }
@@ -2239,7 +2248,7 @@ static void apply_art(const art_req_t *job)
     g_spin_ok = 0;
     if(g_np_poster) poster_reload();
     else g_poster_stale = 1;
-    if(fsart_on){
+    if(fsart_on && !th_halo()){
         if(g_poster_stale) poster_reload();
         if(g_spin_ok){imm_bind_record();lv_obj_remove_flag(imm_spin,LV_OBJ_FLAG_HIDDEN);lv_obj_add_flag(fsart_img,LV_OBJ_FLAG_HIDDEN);}
     }
@@ -2507,16 +2516,17 @@ static void sleep_click_cb(lv_event_t *e)
 
     lv_obj_t *panel = lv_obj_create(scrim);
     lv_obj_remove_style_all(panel);
-    lv_obj_set_size(panel, 224, 296); lv_obj_center(panel);
+    if(th_halo()) lv_obj_set_size(panel, 204, 272); else lv_obj_set_size(panel, 224, 296);
+    lv_obj_center(panel);
     lv_obj_set_style_radius(panel, 16, 0);
     lv_obj_set_style_bg_color(panel, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(panel, 1, 0);
-    lv_obj_set_style_border_color(panel, TC(SURFACE_RAISED), 0);
+    lv_obj_set_style_border_color(panel, th_halo() ? TC(BORDER) : TC(SURFACE_RAISED), 0);
     lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(panel, 6, 0);
-    lv_obj_set_style_pad_ver(panel, 14, 0);
+    lv_obj_set_style_pad_ver(panel, th_halo() ? 12 : 14, 0);
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *hdr = lv_label_create(panel);
@@ -2529,11 +2539,11 @@ static void sleep_click_cb(lv_event_t *e)
     for(unsigned i = 0; i < sizeof OPT_V / sizeof OPT_V[0]; i++){
         lv_obj_t *b = lv_button_create(panel);
         lv_obj_remove_style_all(b);
-        lv_obj_set_size(b, 196, 34);
+        if(th_halo()) lv_obj_set_size(b, 188, 32); else lv_obj_set_size(b, 196, 34);
         lv_obj_set_style_radius(b, 10, 0);
         lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(b, TC(SURFACE_STRONG), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(b, th_halo() ? TC(RAISED_PRESSED) : TC(SURFACE_STRONG), LV_STATE_PRESSED);
         lv_obj_add_event_cb(b, sleep_opt_cb, LV_EVENT_CLICKED, (void *)(intptr_t)OPT_V[i]);
         lv_obj_t *l = lv_label_create(b);
         lv_label_set_text(l, OPT_T[i]);
@@ -2982,7 +2992,7 @@ void ui_create(lv_obj_t *root)
 
     lv_obj_clean(scr);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(scr, theme_ring_light()?TC(CANVAS):TC(SCRIM), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(scr, (th_halo()||theme_ring_light())?TC(CANVAS):TC(SCRIM), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
     g_np_scr = scr;
@@ -2992,8 +3002,8 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_size(backdrop, 360, 360);
     lv_obj_align(backdrop, LV_ALIGN_CENTER, 0, 0);
     /* darken the blurred art so foreground text/controls stay readable */
-    lv_obj_set_style_image_recolor(backdrop,theme_ring_light()?TC(CANVAS):TC(SCRIM),LV_PART_MAIN);
-    lv_obj_set_style_image_recolor_opa(backdrop,theme_ring_light()?85:150,LV_PART_MAIN);
+    lv_obj_set_style_image_recolor(backdrop,th_halo()?TC(IMAGE_TINT):theme_ring_light()?TC(CANVAS):TC(SCRIM),LV_PART_MAIN);
+    lv_obj_set_style_image_recolor_opa(backdrop,(!th_halo()&&theme_ring_light())?85:150,LV_PART_MAIN);
     lv_obj_add_flag(backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(backdrop, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
@@ -3056,7 +3066,7 @@ void ui_create(lv_obj_t *root)
     lv_arc_set_rotation(ring, ARC_ROT);
     lv_arc_set_mode(ring, LV_ARC_MODE_NORMAL);
     lv_obj_set_style_arc_width(ring, 6, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(ring, TC(SURFACE_RAISED), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(ring, th_halo()?TC(CONTROL_TRACK):TC(SURFACE_RAISED), LV_PART_MAIN);
     lv_obj_set_style_arc_opa(ring, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_arc_width(ring, 6, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(ring, accent, LV_PART_INDICATOR);
@@ -3078,7 +3088,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_style_arc_color(vol_arc, accent, LV_PART_INDICATOR);
     SHOW(vol_arc, 0);
     /* draggable seek: a small knob thumb + scrub handler */
-    lv_obj_set_style_bg_color(ring, TC(FIXED_MEDIA_WHITE), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(ring, th_halo()?TC(CONTROL_KNOB):TC(FIXED_MEDIA_WHITE), LV_PART_KNOB);
     lv_obj_set_style_bg_opa(ring, LV_OPA_COVER, LV_PART_KNOB);
     lv_obj_set_style_pad_all(ring, 5, LV_PART_KNOB);
     lv_obj_clear_flag(ring, LV_OBJ_FLAG_SCROLLABLE);
@@ -3111,11 +3121,12 @@ void ui_create(lv_obj_t *root)
     lv_obj_clear_flag(cover_img, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
     cover_note = lv_label_create(cover);
-    style_text(cover_note, TF(UI_28), TC(FIXED_MEDIA_WHITE));
+    style_text(cover_note, TF(UI_28), th_halo()?TC(TEXT_PRIMARY):TC(FIXED_MEDIA_WHITE));
     lv_label_set_text(cover_note, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_opa(cover_note, LV_OPA_90, LV_PART_MAIN);
     lv_obj_center(cover_note);
     lv_obj_clear_flag(cover_note, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    if(th_halo()) set_cover_fallback(true);   /* the original default kit styles the placeholder note */
 
     /* vinyl centre label: accent disc with a small spindle hole, on top of the
      * art. Shown only in Vinyl style. */
@@ -3132,7 +3143,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_size(hole, 8, 8);
     lv_obj_center(hole);
     lv_obj_set_style_radius(hole, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(hole, TC(SCRIM), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(hole, th_halo()?TC(CANVAS):TC(SCRIM), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(hole, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_add_flag(spindle, LV_OBJ_FLAG_HIDDEN);
 
@@ -3200,6 +3211,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_set_style_text_color(queue_badge_lbl, TC(ON_ACCENT), 0);
     lv_obj_center(queue_badge_lbl);
     lv_obj_add_flag(queue_badge, LV_OBJ_FLAG_HIDDEN);
+    if(th_halo()) lv_obj_add_flag(btn_queue, LV_OBJ_FLAG_HIDDEN);   /* Halo: not on the original screen; shown only while a queue exists */
     lv_obj_add_event_cb(btn_mode, mode_click_cb, LV_EVENT_CLICKED, NULL);
     mode_icon = lv_label_create(btn_mode);
     lv_obj_set_style_text_font(mode_icon, TF(ICON_28), LV_PART_MAIN);
@@ -3242,15 +3254,15 @@ void ui_create(lv_obj_t *root)
 
     artist = lv_label_create(scr);
     lv_obj_set_width(artist, 238);
-    style_text(artist, &s_font16, TC(TEXT_LYRICS));
-    lv_label_set_long_mode(artist, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    style_text(artist, &s_font16, th_halo()?TC(TEXT_SECONDARY):TC(TEXT_LYRICS));
+    lv_label_set_long_mode(artist, th_halo()?LV_LABEL_LONG_DOT:LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(artist, "");
     lv_obj_align(artist, LV_ALIGN_TOP_MID, 0, 226);
 
     album = lv_label_create(scr);
     lv_obj_set_width(album, 218);
     style_text(album, &s_font14, TC(TEXT_MUTED));
-    lv_label_set_long_mode(album, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_long_mode(album, th_halo()?LV_LABEL_LONG_DOT:LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(album, "");
     lv_obj_align(album, LV_ALIGN_TOP_MID, 0, 246);
 
@@ -3269,7 +3281,7 @@ void ui_create(lv_obj_t *root)
 
     btn_pp = lv_label_create(scr);
     style_text(btn_pp, TF(UI_32), accent);
-    lv_label_set_text(btn_pp, LV_SYMBOL_PLAY);
+    ui_pp_glyph(btn_pp, 0);
     lv_obj_align(btn_pp, LV_ALIGN_TOP_MID, 0, 280);
 
     btn_next = lv_label_create(scr);
@@ -3290,7 +3302,7 @@ void ui_create(lv_obj_t *root)
     lv_obj_align(t_elapsed, LV_ALIGN_TOP_MID, -46, 318);
 
     t_sep = lv_label_create(scr);
-    style_text(t_sep, TF(UI_14), TC(SURFACE_RAISED));
+    style_text(t_sep, TF(UI_14), th_halo()?TC(TEXT_SEPARATOR):TC(SURFACE_RAISED));
     lv_label_set_text(t_sep, "/");
     lv_obj_align(t_sep, LV_ALIGN_TOP_MID, 0, 318);
 
@@ -3308,7 +3320,7 @@ void ui_create(lv_obj_t *root)
         lv_obj_set_size(dot, 7, 7);
         lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, i==0 ? -8 : 8, -14);
         lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(dot, i==0 ? TC(TEXT_PRIMARY) : TC(SURFACE_RAISED), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(dot, th_halo() ? (i==0 ? TC(PAGE_DOT_ACTIVE) : TC(PAGE_DOT_DIM)) : (i==0 ? TC(TEXT_PRIMARY) : TC(SURFACE_RAISED)), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(dot, i==0 ? LV_OPA_COVER : LV_OPA_60, LV_PART_MAIN);
     }
 
@@ -3413,6 +3425,26 @@ void ui_create(lv_obj_t *root)
     lv_obj_align(fsart_artist, LV_ALIGN_TOP_MID, 0, 75);
     lv_obj_clear_flag(fsart_artist, LV_OBJ_FLAG_CLICKABLE);
 
+    if(th_halo()){                                  /* Halo: the original full-screen art - the cover, a bottom scrim, title and artist; tap closes */
+        lv_obj_set_style_bg_color(fsart, TC(CANVAS), 0);
+        if(imm_spin) lv_obj_add_flag(imm_spin, LV_OBJ_FLAG_HIDDEN);
+        for(int k = 0; k < 6; k++) if(imm_deco[k]) lv_obj_add_flag(imm_deco[k], LV_OBJ_FLAG_HIDDEN);
+        if(imm_prog) lv_obj_add_flag(imm_prog, LV_OBJ_FLAG_HIDDEN);
+        if(imm_hint) lv_obj_add_flag(imm_hint, LV_OBJ_FLAG_HIDDEN);
+        for(int j = 0; j < 3; j++) if(imm_lyr[j]) lv_obj_add_flag(imm_lyr[j], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_size(scrim, 360, 130); lv_obj_align(scrim, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_set_style_bg_main_stop(scrim, 0, 0); lv_obj_set_style_bg_grad_stop(scrim, 255, 0);
+        lv_obj_set_style_bg_color(scrim, TC(SCRIM), 0); lv_obj_set_style_bg_grad_color(scrim, TC(SCRIM), 0);
+        lv_obj_set_style_bg_grad_opa(scrim, LV_OPA_80, 0);
+        lv_obj_set_width(fsart_title, 240);
+        style_text(fsart_title, TF(USER_20), TC(TEXT_PRIMARY));
+        lv_label_set_long_mode(fsart_title, LV_LABEL_LONG_DOT);
+        lv_obj_align(fsart_title, LV_ALIGN_BOTTOM_MID, 0, -50);
+        lv_obj_set_width(fsart_artist, 176);
+        style_text(fsart_artist, TF(USER_16), TC(TEXT_SECONDARY));
+        lv_label_set_long_mode(fsart_artist, LV_LABEL_LONG_DOT);
+        lv_obj_align(fsart_artist, LV_ALIGN_BOTTOM_MID, 0, -26);
+    }
     apply_accent();
     ui_set_np_style(simple_cfg_get_int("np_style", 0));
 }
@@ -3461,7 +3493,7 @@ void ui_update(const track_state_t *st)
         set_label_text_changed(album, "");
         set_label_text_changed(t_elapsed, "0:00");
         set_label_text_changed(t_remain, "0:00");
-        set_label_text_changed(btn_pp, LV_SYMBOL_PLAY);
+        ui_pp_glyph(btn_pp, 0);
         art_request_clear();   /* clear art + invalidate any in-flight decode (was a bare fallback) */
         g_np_curpath[0] = '\0'; g_favp_active = 0;   /* no track -> drop any optimistic-favourite hold */
         fav_refresh(0, 0);
@@ -3615,7 +3647,7 @@ static void vol_arc_cb(lv_event_t *e)
     if(g_vol_suppress) return;                       /* programmatic update, ignore */
     int v = lv_arc_get_value(g_vol_arc);
     dvol_paint(v);
-    char b[12]; snprintf(b, sizeof b, "%d", v); lv_label_set_text(g_vol_num, b);
+    char b[12]; if(th_halo()) snprintf(b, sizeof b, "%d/%d", v, VOL_MAX); else snprintf(b, sizeof b, "%d", v); lv_label_set_text(g_vol_num, b);
     vol_needle(v);
     if(code == LV_EVENT_VALUE_CHANGED){
         if(lv_tick_elaps(g_vol_last_send) >= 120){
@@ -3673,6 +3705,47 @@ void ui_show_volume(int vol)
     onboarding_context(HINT_VOLUME);
     if(th_simple()){simple_volume_show(vol);imm_volume_input_apply(simple_volume_root());return;}
     if(th_null()){null_volume_show(vol);imm_volume_input_apply(null_volume_root());return;}
+    if(!g_vol_panel && th_halo()){
+        /* Halo: the original centred round dial - a translucent disc, a draggable arc, a speaker glyph and the level */
+        lv_obj_t *top = lv_layer_top();
+        g_vol_panel = lv_obj_create(top);
+        lv_obj_remove_style_all(g_vol_panel);
+        lv_obj_set_size(g_vol_panel, 200, 200);
+        lv_obj_center(g_vol_panel);
+        lv_obj_set_style_radius(g_vol_panel, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(g_vol_panel, TC(CANVAS), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(g_vol_panel, 240, LV_PART_MAIN);
+        lv_obj_clear_flag(g_vol_panel, LV_OBJ_FLAG_SCROLLABLE);
+        kit_keep(g_vol_panel);
+
+        g_vol_arc = lv_arc_create(g_vol_panel);
+        lv_obj_set_size(g_vol_arc, 184, 184);
+        lv_obj_center(g_vol_arc);
+        lv_arc_set_rotation(g_vol_arc, 135);
+        lv_arc_set_bg_angles(g_vol_arc, 0, 270);
+        lv_arc_set_range(g_vol_arc, 0, VOL_MAX);
+        lv_obj_set_style_arc_width(g_vol_arc, 10, LV_PART_MAIN);
+        lv_obj_set_style_arc_width(g_vol_arc, 10, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(g_vol_arc, TC(CONTROL_TRACK_STRONG), LV_PART_MAIN);
+        lv_obj_set_style_arc_color(g_vol_arc, TC(CONTROL_FILL), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(g_vol_arc, TC(ACCENT_PRIMARY), LV_PART_KNOB);
+        lv_obj_add_event_cb(g_vol_arc, vol_arc_cb, LV_EVENT_VALUE_CHANGED, NULL);
+        lv_obj_add_event_cb(g_vol_arc, vol_arc_cb, LV_EVENT_RELEASED, NULL);
+        lv_obj_add_event_cb(g_vol_arc, vol_arc_cb, LV_EVENT_PRESS_LOST, NULL);
+
+        lv_obj_t *spk = lv_label_create(g_vol_panel);
+        lv_label_set_text(spk, LV_SYMBOL_VOLUME_MAX);
+        lv_obj_align(spk, LV_ALIGN_CENTER, 0, -22);
+        lv_obj_set_style_text_color(spk, TC(TEXT_SECONDARY), LV_PART_MAIN);
+
+        g_vol_num = lv_label_create(g_vol_panel);
+        lv_obj_align(g_vol_num, LV_ALIGN_CENTER, 0, 10);
+        lv_obj_set_style_text_font(g_vol_num, TF(UI_28), LV_PART_MAIN);
+        lv_obj_set_style_text_color(g_vol_num, TC(TEXT_PRIMARY), LV_PART_MAIN);
+
+        g_vol_timer = lv_timer_create(vol_hide_cb, 1800, NULL);
+        lv_timer_pause(g_vol_timer);
+    }
     if(!g_vol_panel){
         /* the rim arc: a level on the right rim filling bottom -> top in the current accent, rounded ends,
          * a white handle, and the value at clock size in a badge beside it. The screen stays visible,
@@ -3836,7 +3909,7 @@ void ui_show_volume(int vol)
             lv_obj_t *mid = lv_obj_get_child(g_vol_panel, 1); (void)mid;
         }
     }
-    if(!th_braun()){ lv_color_t acc = ui_current_accent();       /* follow an accent change (Braun: always orange) */
+    if(!th_braun() && !th_halo()){ lv_color_t acc = ui_current_accent();       /* follow an accent change (Braun: always orange) */
       lv_obj_set_style_arc_color(g_vol_arc, acc, LV_PART_INDICATOR);
       lv_obj_set_style_bg_color(g_vol_arc, acc, LV_PART_KNOB);
       lv_obj_set_style_text_color(lv_obj_get_child(lv_obj_get_parent(g_vol_num), 0), acc, 0); }
@@ -3850,7 +3923,7 @@ void ui_show_volume(int vol)
         vol_needle(vol);
         dvol_paint(vol);
         g_vol_suppress = 0;
-        char b[12]; snprintf(b, sizeof b, "%d", vol); lv_label_set_text(g_vol_num, b);
+        char b[12]; if(th_halo()) snprintf(b, sizeof b, "%d/%d", vol, VOL_MAX); else snprintf(b, sizeof b, "%d", vol); lv_label_set_text(g_vol_num, b);
     }
     lv_obj_remove_flag(g_vol_panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(g_vol_panel);

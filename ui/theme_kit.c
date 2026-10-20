@@ -72,7 +72,7 @@ static void click_swipe_guard(lv_event_t *e){
 
 void ui_on(lv_obj_t *obj, lv_event_cb_t cb, lv_event_code_t code, void *user_data, const char *action, ui_tier_t tier){
     if(!obj) return;
-    if(action && !strcmp(action,"nav.back"))lv_obj_add_flag(obj,LV_OBJ_FLAG_USER_2);
+    if(!th_halo() && action && !strcmp(action,"nav.back"))lv_obj_add_flag(obj,LV_OBJ_FLAG_USER_2);
     if(code == LV_EVENT_CLICKED || code == LV_EVENT_SHORT_CLICKED || code == LV_EVENT_LONG_PRESSED){
         lv_obj_add_event_cb(obj, click_origin_cb, LV_EVENT_PRESSED, NULL);
         lv_obj_add_event_cb(obj, click_swipe_guard, code, NULL);       /* before the handler: see above */
