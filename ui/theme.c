@@ -1101,7 +1101,9 @@ const theme_kit_t *theme_kit_for_active(void){ return (g_def && g_def->kit) ? g_
 
 int theme_ring_light(void){return (g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_DISCO) && g_variant==1;}
 int theme_auto_supported(void){return g_preset==THEME_PRESET_RING || g_preset==THEME_PRESET_BRAUN || g_preset==THEME_PRESET_DISCO;}
-int th_halo(void){return g_preset==THEME_PRESET_HALO;}
+/* The original-diskOS screens (Halo, and Stone, which is the same screens recoloured + Stone's kit styling): both must take
+ * the restored original layouts, or Stone mixes Disco's Ring-style Home/Now Playing with its own list screens. */
+int th_halo(void){return g_preset==THEME_PRESET_HALO || g_preset==THEME_PRESET_STONE;}
 int th_null(void){return g_preset==THEME_PRESET_NULL;}
 int th_disco(void){return g_preset==THEME_PRESET_DISCO;}
 int th_simple(void){return g_preset==THEME_PRESET_SIMPLE;}
