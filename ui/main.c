@@ -4,6 +4,7 @@
 #include "version.h"
 #include "logrotate.h"
 #include "azjump.h"
+#include "usbhid.h"
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include <stdio.h>
@@ -3768,6 +3769,7 @@ int main(int argc, char **argv){
             } else if(touch_gate_wake && lifted) touch_gate_wake = 0;
         }
         if(kbinput_active()) last_activity = lv_tick_get();
+        if(usbhid_poll(bl_state == 0) && bl_state == 0) last_activity = lv_tick_get();   /* USB IEM buttons: activity, never a wake */
         { static int cm_boot; if(!cm_boot){ cm_boot = 1; chargemode_boot(); } chargemode_tick(); }
         power_tick(chargemode_active() ? lv_tick_get() : last_activity, playing || ma_playing());   /* the charging screen may dim/blank but never idle-powers-off */   /* Sendspin: AirPlay playback the player may not report */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
         int in_saver = (screen_current()==SCR_SAVER);
