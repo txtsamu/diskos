@@ -305,7 +305,7 @@ static void halo_apps_create(lv_obj_t *root){
     lv_obj_set_style_pad_row(g_hlist, 10, 0);
     lv_obj_set_style_pad_column(g_hlist, 10, 0);
     lv_obj_set_flex_flow(g_hlist, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(g_hlist, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(g_hlist, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);   /* track START: a CENTER track overflows above the top and cannot be scrolled to (first row cut off) */
     lv_obj_set_scroll_dir(g_hlist, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_hlist, LV_SCROLLBAR_MODE_OFF);
     halo_apps_reload();
