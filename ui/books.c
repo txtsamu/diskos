@@ -98,6 +98,34 @@ static void book_row_cb(lv_event_t *e){
  * has art in the cache), otherwise a music glyph on the accent tile. Books that have never
  * been opened have no cached art yet - they show the glyph until first play. */
 static void books_add_cover(lv_obj_t *row, const book_t *b, int i){
+    if(th_halo()){                                    /* the original plain rounded cover tile */
+        lv_obj_t *tile = lv_obj_create(row);
+        lv_obj_remove_style_all(tile);
+        lv_obj_set_pos(tile, 12, 8); lv_obj_set_size(tile, 42, 42);
+        lv_obj_set_style_radius(tile, 8, 0);
+        lv_obj_set_style_clip_corner(tile, true, 0);
+        lv_obj_set_style_bg_color(tile, TC(SURFACE_STRONG), 0);
+        lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        char tmp[64], src[72]; int have = 0;
+        if(i < BOOKS_COVER_MAX && b->path[0]){
+            snprintf(tmp, sizeof tmp, "/tmp/bthumb_%u_%d.bmp", g_cover_gen, i);
+            have = (artcache_get_thumb(b->path, tmp) == 0);
+        }
+        if(have){
+            snprintf(src, sizeof src, "A:/tmp/bthumb_%u_%d.bmp", g_cover_gen, i);
+            lv_obj_t *img = lv_image_create(tile);
+            lv_image_set_src(img, src);
+            lv_obj_center(img);
+        } else {
+            lv_obj_t *g = lv_label_create(tile);
+            lv_label_set_text(g, LV_SYMBOL_AUDIO);
+            lv_obj_set_style_text_font(g, TF(UI_20), 0);
+            lv_obj_set_style_text_color(g, TC(TEXT_SECONDARY), 0);
+            lv_obj_center(g);
+        }
+        return;
+    }
     /* the progress ring: how far through the book (a full green ring once finished) */
     int frac = b->completed ? 1000 : (b->duration_ms > 0 ? (int)((long long)(b->position_ms < 0 ? 0 : b->position_ms) * 1000 / b->duration_ms) : 0);
     if(frac > 1000) frac = 1000;
@@ -172,17 +200,44 @@ static void books_rebuild(void){
         book_t *b = &g_books[i];
         lv_obj_t *r = lv_button_create(g_list);
         lv_obj_remove_style_all(r);
+        if(th_halo()){
+            lv_obj_set_size(r, 268, 58);
+            lv_obj_set_style_radius(r, 10, 0);
+            lv_obj_set_style_bg_color(r, TC(SURFACE), 0);
+            lv_obj_set_style_bg_opa(r, LV_OPA_50, 0);
+            lv_obj_set_style_bg_color(r, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+        } else {
         lv_obj_set_size(r, 268, 66);
         lv_obj_add_flag(r, LV_OBJ_FLAG_USER_1);                 /* curves with the circle */
         lv_obj_set_style_radius(r, TH_R_ROW, 0);
         lv_obj_set_style_bg_color(r, TC(SURFACE), 0);
         lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_STATE_PRESSED);
+        }
         lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
         ui_on(r, book_row_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i, "books.book_row", UI_CORE);
 
         books_add_cover(r, b, i);                               /* the cover in its progress ring */
 
+        if(th_halo()){
+        lv_obj_t *t = lv_label_create(r);                       /* title (book names may be non-Latin) */
+        lv_label_set_text(t, b->title[0] ? b->title : "Untitled");
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(t, 64, 8); lv_obj_set_size(t, 190, 20);
+        lv_obj_set_style_text_font(t, TF(USER_16), 0);
+        lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
+        char prog[32]; progress_text(b, prog, sizeof prog);
+        char sub[224];
+        if(b->author[0]) snprintf(sub, sizeof sub, "%s - %s", b->author, prog);
+        else             snprintf(sub, sizeof sub, "%s", prog);
+        lv_obj_t *s2 = lv_label_create(r);                      /* author - progress */
+        lv_label_set_text(s2, sub);
+        lv_label_set_long_mode(s2, LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(s2, 64, 32); lv_obj_set_size(s2, 190, 18);
+        lv_obj_set_style_text_font(s2, TF(USER_14), 0);
+        lv_obj_set_style_text_color(s2, TC(TEXT_MUTED), 0);
+        continue;
+        }
         lv_obj_t *t = lv_label_create(r);                       /* title (book names may be non-Latin) */
         lv_label_set_text(t, b->title[0] ? b->title : "Untitled");
         lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -215,12 +270,13 @@ void books_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 46, 72); lv_obj_set_size(g_list, 268, 276);
-    lv_obj_set_style_pad_bottom(g_list, 30, 0);   /* last row clears the round bottom bezel */
+    if(th_halo()){ lv_obj_set_pos(g_list, 30, 72); lv_obj_set_size(g_list, 300, 272); lv_obj_set_style_pad_bottom(g_list, 44, 0); }
+    else{ lv_obj_set_pos(g_list, 46, 72); lv_obj_set_size(g_list, 268, 276);
+    lv_obj_set_style_pad_bottom(g_list, 30, 0); }   /* last row clears the round bottom bezel */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(g_list, 4, 0);
+    lv_obj_set_style_pad_row(g_list, th_halo() ? 6 : 4, 0);
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
@@ -297,7 +353,7 @@ static void chapters_rebuild(void){
         lv_obj_set_style_radius(r, 10, 0);
         lv_obj_set_style_bg_color(r, (i == cur ? TC(SURFACE_RAISED) : TC(SURFACE)), 0);
         lv_obj_set_style_bg_opa(r, i == cur ? LV_OPA_COVER : LV_OPA_50, 0);
-        lv_obj_set_style_bg_color(r, TC(CONTROL_TRACK), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(r, th_halo() ? TC(RAISED_PRESSED) : TC(CONTROL_TRACK), LV_STATE_PRESSED);
         lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
         ui_on(r, chap_row_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i, "books.chap_row", UI_CORE);
 
@@ -306,13 +362,13 @@ static void chapters_rebuild(void){
         lv_label_set_text(num, nb);
         lv_obj_set_pos(num, 12, 16); lv_obj_set_size(num, 34, 20);
         lv_obj_set_style_text_font(num, TF(UI_14), 0);
-        lv_obj_set_style_text_color(num, i == cur ? TC(ACCENT_PRIMARY) : TC(TEXT_MUTED), 0);
+        lv_obj_set_style_text_color(num, i == cur ? (th_halo() ? TC(STATUS_INFO) : TC(ACCENT_PRIMARY)) : TC(TEXT_MUTED), 0);
 
         lv_obj_t *t = lv_label_create(r);                       /* chapter title (may be non-Latin) */
         lv_label_set_text(t, g_chlist[i].title);
-        lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_pos(t, 50, 16); lv_obj_set_size(t, 168, 20);
-        lv_obj_set_style_text_font(t, ui_font_cjk(16), 0);
+        lv_label_set_long_mode(t, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_pos(t, 50, 16); lv_obj_set_size(t, th_halo() ? 148 : 168, 20);
+        lv_obj_set_style_text_font(t, th_halo() ? TF(USER_16) : ui_font_cjk(16), 0);
         lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
         lv_obj_t *d = lv_label_create(r);                       /* chapter duration, right-aligned */
@@ -438,7 +494,25 @@ static lv_obj_t *ch_btn(lv_obj_t *root, const char *txt, int cx, int w, int dir,
     lv_obj_set_style_text_font(l, TF(UI_14), 0); lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0); lv_obj_center(l);
     return b;
 }
+static void halo_chapters_create(lv_obj_t *root){           /* the original plain chapter list */
+    g_ch_canvas = NULL; g_chap_ov = NULL;
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    ui_header(root, "Chapters");
+    g_chap_list = lv_obj_create(root);
+    lv_obj_remove_style_all(g_chap_list);
+    lv_obj_set_pos(g_chap_list, 30, 72); lv_obj_set_size(g_chap_list, 300, 272);
+    lv_obj_set_style_pad_bottom(g_chap_list, 44, 0);
+    lv_obj_set_style_bg_opa(g_chap_list, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(g_chap_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(g_chap_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(g_chap_list, 6, 0);
+    lv_obj_set_scroll_dir(g_chap_list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(g_chap_list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(g_chap_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+}
 void chapters_create(lv_obj_t *root){
+    if(th_halo()){ halo_chapters_create(root); return; }
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);

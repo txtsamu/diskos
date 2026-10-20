@@ -65,7 +65,7 @@ static void plv_add_row(int i){
         if(i < 0 || i >= g_pl_n) return;
         lv_obj_t *r = lv_button_create(g_song_list);
         lv_obj_remove_style_all(r);
-        lv_obj_set_size(r, 280, 46);
+        lv_obj_set_size(r, th_halo() ? 268 : 280, 46);
         lv_obj_set_style_radius(r, 8, 0);
         lv_obj_set_style_bg_color(r, TC(SURFACE), LV_STATE_PRESSED);
         lv_obj_set_style_bg_opa(r, LV_OPA_70, LV_STATE_PRESSED);
@@ -74,18 +74,18 @@ static void plv_add_row(int i){
         lv_obj_add_event_cb(r, plv_remove_cb, LV_EVENT_LONG_PRESSED, (void*)(intptr_t)(i+1));  /* L32: hold to remove */
         lv_obj_t *t = lv_label_create(r);
         lv_label_set_text(t, g_pl_songs[i].title);
-        if(g_pl_songs[i].id == g_cur_id) lv_obj_set_style_text_color(t, ui_current_accent(), 0);   /* the playing song */
-        lv_label_set_long_mode(t, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_pos(t, 12, 5); lv_obj_set_size(t, 256, 19);
-        lv_obj_set_style_text_font(t, ui_font_user(16), 0);   /* CJK titles like Library/Search */
+        if(!th_halo() && g_pl_songs[i].id == g_cur_id) lv_obj_set_style_text_color(t, ui_current_accent(), 0);   /* the playing song */
+        lv_label_set_long_mode(t, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_pos(t, 12, 5); lv_obj_set_size(t, th_halo() ? 244 : 256, 19);
+        lv_obj_set_style_text_font(t, th_halo() ? TF(USER_16) : ui_font_user(16), 0);   /* CJK titles like Library/Search */
         lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
         lv_obj_t *a = lv_label_create(r);
         lv_label_set_text(a, g_pl_songs[i].artist);
-        lv_label_set_long_mode(a, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_pos(a, 12, 25); lv_obj_set_size(a, 256, 16);
-        lv_obj_set_style_text_font(a, ui_font_user(14), 0);
-        lv_obj_set_style_text_color(a, TC(TEXT_LYRICS), 0);
-        ui_library_row(r);
+        lv_label_set_long_mode(a, th_halo() ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_pos(a, 12, 25); lv_obj_set_size(a, th_halo() ? 244 : 256, 16);
+        lv_obj_set_style_text_font(a, th_halo() ? TF(USER_14) : ui_font_user(14), 0);
+        lv_obj_set_style_text_color(a, th_halo() ? TC(TEXT_SECONDARY) : TC(TEXT_LYRICS), 0);
+        if(!th_halo()) ui_library_row(r);
 }
 static void plv_scroll_cb(lv_event_t *e){ (void)e; vlist_follow(&g_plv); }
 static void plv_reload(void);   /* fwd */
@@ -342,8 +342,18 @@ void plview_create(lv_obj_t *root){
     if(!ui_edge_nav()) lv_obj_align(g_title_lbl, LV_ALIGN_TOP_MID, 0, 30);   /* edge-nav themes place their own */
 
     /* Play / Shuffle / 3-dots row */
+    if(th_halo()){                                    /* 84 + 6 + 108 + 6 + 36 = 240, centred (60..300) */
+        g_play_btn    = icon_btn(root, 60,  68, 84,  tr_sym(LV_SYMBOL_PLAY, "Play"),   TC(ACCENT_PRIMARY), play_cb);
+        g_shuffle_btn = icon_btn(root, 150, 68, 108, tr_sym(LV_SYMBOL_SHUFFLE, "Shuffle"), TC(TEXT_PRIMARY), shuffle_cb);
+        lv_obj_t *tb[2] = { g_play_btn, g_shuffle_btn };
+        for(int i=0;i<2;i++){
+            lv_obj_set_style_opa(tb[i], LV_OPA_60, LV_STATE_DISABLED);
+            lv_obj_set_style_text_color(lv_obj_get_child(tb[i], 0), TC(TEXT_DISABLED), LV_STATE_DISABLED);
+        }
+    } else {
     g_play_btn    = icon_btn(root, 62,  68, 96, LV_SYMBOL_PLAY "  Play",   TC(STATUS_SUCCESS), play_cb);
     g_shuffle_btn = icon_btn(root, 164, 68, 96, LV_SYMBOL_SHUFFLE "  Shuffle", TC(TEXT_PRIMARY), shuffle_cb);
+    }
     /* "more/options" (edit/rename/delete). Drawn "•••" - Apple-Music-style More - because the
      * bullet glyph isn't in this tree's montserrat; LV_SYMBOL_LIST misread as a track list. */
     lv_obj_t *menu_btn = icon_btn(root, 266, 68, 36, "", TC(TEXT_LYRICS), open_menu_cb);

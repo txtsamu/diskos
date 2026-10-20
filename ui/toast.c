@@ -28,6 +28,29 @@ void ui_toast_icon(const char *icon, lv_color_t icol, const char *msg)
     if(g_toast){ lv_obj_delete_async(g_toast); g_toast = NULL; }
     if(g_toast_timer){ lv_timer_delete(g_toast_timer); g_toast_timer = NULL; }
 
+    if(th_halo()){                                            /* Halo: the original bottom pill */
+        g_toast = lv_obj_create(lv_layer_top());
+        lv_obj_remove_style_all(g_toast);
+        lv_obj_set_style_bg_color(g_toast, TC(SURFACE_RAISED), 0);
+        lv_obj_set_style_bg_opa(g_toast, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(g_toast, 16, 0);
+        lv_obj_set_style_pad_all(g_toast, 12, 0);
+        lv_obj_set_size(g_toast, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_max_width(g_toast, 230, 0);
+        lv_obj_align(g_toast, LV_ALIGN_BOTTOM_MID, 0, -64);
+        lv_obj_clear_flag(g_toast, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(g_toast, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *hl = lv_label_create(g_toast);
+        lv_label_set_text(hl, msg);
+        lv_label_set_long_mode(hl, LV_LABEL_LONG_WRAP);
+        lv_obj_set_width(hl, 204);
+        lv_obj_set_style_text_align(hl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_font(hl, TF(USER_16), 0);
+        lv_obj_set_style_text_color(hl, TC(TEXT_PRIMARY), 0);
+        g_toast_timer = lv_timer_create(toast_hide_cb, 2200, NULL);
+        return;
+    }
+
     g_toast = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(g_toast);
     int br = th_braun();                                       /* Braun: an off-white panel, dark text, an orange lamp */

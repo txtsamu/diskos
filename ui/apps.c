@@ -253,7 +253,66 @@ static void build_page(void){
     else orbit_hub_create(&g_orb, g_box, hub_cb, LV_SYMBOL_LEFT, "Back");
 }
 
+/* ---- Halo: the original diskOS Apps tile grid (Last.fm, homebrew apps, Settings) ---- */
+static lv_obj_t *g_hlist;
+static void halo_app_row_cb(lv_event_t *e){
+    if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    int i = (int)(uintptr_t)lv_event_get_user_data(e);
+    if(i>=0 && i<g_napps) app_launch(g_apps[i].exec);
+}
+static void halo_lastfm_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) lastfm_open(); }
+static void halo_settings_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_show(SCR_SETTINGS); }
+static void halo_make_tile(const char *icon, const lv_font_t *ifont, const char *name, lv_event_cb_t cb, void *ud){
+    lv_obj_t *r = lv_button_create(g_hlist);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, 128, 108);
+    lv_obj_set_style_radius(r, 18, 0);
+    lv_obj_set_style_bg_color(r, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(r, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_ext_click_area(r, 4);
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    ui_on(r, cb, LV_EVENT_CLICKED, ud, "apps.cb", UI_CORE);
+    lv_obj_t *ic = lv_label_create(r);
+    lv_label_set_text(ic, icon);
+    lv_obj_set_style_text_font(ic, ifont, 0);
+    lv_obj_set_style_text_color(ic, TC(TEXT_PRIMARY), 0);
+    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 22);
+    lv_obj_t *l = lv_label_create(r);
+    lv_label_set_text(l, name);
+    lv_obj_set_style_text_font(l, TF(UI_14), 0);
+    lv_obj_set_style_text_color(l, TC(TEXT_SECONDARY), 0);
+    lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -14);
+}
+static void halo_apps_reload(void){
+    if(!g_hlist) return;
+    lv_obj_clean(g_hlist);
+    scan_apps();
+    halo_make_tile(LFM_ICON, TF(ICON_28), "Last.fm", halo_lastfm_row_cb, NULL);
+    for(int i=0;i<g_napps;i++) halo_make_tile(LV_SYMBOL_FILE, TF(ICON_28), g_apps[i].name, halo_app_row_cb, (void*)(uintptr_t)i);
+    halo_make_tile(LV_SYMBOL_SETTINGS, TF(ICON_28), "Settings", halo_settings_row_cb, NULL);
+}
+static void halo_apps_create(lv_obj_t *root){
+    g_box = NULL;                                  /* the orbit/rows layout is not built in this theme */
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    ui_header(root, "Apps");
+    g_hlist = lv_obj_create(root);
+    lv_obj_remove_style_all(g_hlist);
+    lv_obj_set_pos(g_hlist, 44, 74); lv_obj_set_size(g_hlist, 272, 252);
+    lv_obj_set_style_pad_bottom(g_hlist, 44, 0);
+    lv_obj_set_style_bg_opa(g_hlist, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_row(g_hlist, 10, 0);
+    lv_obj_set_style_pad_column(g_hlist, 10, 0);
+    lv_obj_set_flex_flow(g_hlist, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(g_hlist, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(g_hlist, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(g_hlist, LV_SCROLLBAR_MODE_OFF);
+    halo_apps_reload();
+}
+
 void apps_reload(void){
+    if(th_halo()){ halo_apps_reload(); return; }
     if(!g_box) return;
     scan_apps();
     g_nitems = 0;
@@ -277,6 +336,8 @@ void apps_reload(void){
 }
 
 void apps_create(lv_obj_t *root){
+    if(th_halo()){ halo_apps_create(root); return; }
+    g_hlist = NULL;
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
@@ -289,7 +350,7 @@ void apps_create(lv_obj_t *root){
     apps_reload();
 }
 
-lv_obj_t *apps_scroller(void){ return NULL; }      /* an orbit has no long list */
+lv_obj_t *apps_scroller(void){ return th_halo() ? g_hlist : NULL; }      /* an orbit has no long list */
 
 /* ---- Settings > Display > Shortcuts: five slots; tap one to pick what it opens ----------------------------- */
 static lv_obj_t *g_cfg_root, *g_cfg_list, *g_cfg_title;

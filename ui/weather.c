@@ -324,7 +324,7 @@ void weather_poll(lv_timer_t *t)
 static lv_obj_t *g_wd_pill[4];
 static lv_obj_t *g_wd_icon[WD_SLOTS], *g_wd_temp[WD_SLOTS], *g_wd_hour[WD_SLOTS];
 static lv_obj_t *g_wd_cicon, *g_wd_ctemp, *g_wd_cond, *g_wd_loc, *g_wd_hl, *g_wd_hint;
-void weather_app_open(void) { forecast_fetch_async(); weather_app_refresh(); screen_show(SCR_WEATHER); }
+void weather_app_open(void) { if(!th_halo()) forecast_fetch_async(); weather_app_refresh(); screen_show(SCR_WEATHER); }
 
 /* wttr.in weather codes -> our icon set (night clear = moon) */
 static const char *wd_icon(int code, int night){
@@ -346,8 +346,28 @@ static lv_color_t wd_col(const char *ic){
     return TC(TEXT_SECONDARY);
 }
 static void set_if(lv_obj_t *l, const char *t){ if(strcmp(lv_label_get_text(l), t)) lv_label_set_text(l, t); }
+/* ---- Halo: the original diskOS Weather page (current text, location line, two buttons) ---- */
+static lv_obj_t *g_app_w, *g_app_loc;
+static void halo_weather_app_refresh(void)
+{
+    if (g_app_w) {
+        char snap[160]; int wfail;
+        pthread_mutex_lock(&g_wx_mu);
+        snprintf(snap, sizeof snap, "%s", g_wbuf);
+        wfail = g_wfail;
+        pthread_mutex_unlock(&g_wx_mu);
+        lv_label_set_text(g_app_w, g_have ? snap : (wfail ? "Weather unavailable" : "Fetching..."));
+    }
+    if (g_app_loc) {
+        const char *l = simple_cfg_get_str("weather_loc", "");
+        char b[128];
+        snprintf(b, sizeof b, "Location:  %s", (l && l[0]) ? l : "Auto (by IP)");
+        lv_label_set_text(g_app_loc, b);
+    }
+}
 static void weather_app_refresh(void)
 {
+    if(th_halo()){ halo_weather_app_refresh(); return; }
     if(!g_wd_ctemp) return;
     char snap[160]; int wfail;
     pthread_mutex_lock(&g_wx_mu);                     /* the worker can be mid-write: snapshot under the lock */
@@ -451,8 +471,51 @@ static lv_obj_t *wlabel(lv_obj_t *root, const lv_font_t *f, lv_color_t col){
     lv_obj_set_style_text_font(l, f, 0); lv_obj_set_style_text_color(l, col, 0);
     return l;
 }
+static lv_obj_t *halo_wapp_btn(lv_obj_t *root, int y, const char *label, lv_event_cb_t cb)
+{
+    lv_obj_t *b = lv_button_create(root);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, 50, y); lv_obj_set_size(b, 260, 52);
+    lv_obj_set_style_radius(b, 26, 0);
+    lv_obj_set_style_bg_color(b, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_70, 0);
+    lv_obj_set_style_bg_color(b, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
+    ui_on(b, cb, LV_EVENT_CLICKED, NULL, "weather.cb", UI_CORE);
+    lv_obj_t *l = lv_label_create(b);
+    lv_label_set_text(l, label);
+    lv_obj_set_style_text_font(l, TF(UI_16), 0);
+    lv_obj_set_style_text_color(l, TC(TEXT_PRIMARY), 0);
+    lv_obj_center(l);
+    return b;
+}
+static void halo_weather_app_create(lv_obj_t *root)
+{
+    g_wd_ctemp = NULL;                              /* the dial layout is not built here */
+    memset(g_wd_pill, 0, sizeof g_wd_pill);
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    ui_header(root, "Weather");
+    s_appwfont = *TF(UI_22);
+    s_appwfont.fallback = &font_weather16;
+    g_app_w = lv_label_create(root);
+    lv_obj_set_pos(g_app_w, 0, 96); lv_obj_set_width(g_app_w, 360);
+    lv_obj_set_style_text_align(g_app_w, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(g_app_w, &s_appwfont, 0);
+    lv_obj_set_style_text_color(g_app_w, TC(TEXT_PRIMARY), 0);
+    g_app_loc = lv_label_create(root);
+    lv_obj_set_pos(g_app_loc, 0, 140); lv_obj_set_width(g_app_loc, 360);
+    lv_obj_set_style_text_align(g_app_loc, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(g_app_loc, TF(UI_14), 0);
+    lv_obj_set_style_text_color(g_app_loc, TC(TEXT_MUTED), 0);
+    halo_wapp_btn(root, 186, "Set Location", set_loc_cb);
+    halo_wapp_btn(root, 248, "Auto (by IP)", auto_loc_cb);
+    halo_weather_app_refresh();
+}
 void weather_app_create(lv_obj_t *root)
 {
+    if(th_halo()){ halo_weather_app_create(root); return; }
+    g_app_w = g_app_loc = NULL;
     memset(g_wd_pill,0,sizeof g_wd_pill);
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
