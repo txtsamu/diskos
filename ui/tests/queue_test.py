@@ -53,6 +53,14 @@ int main(int argc,char **argv){
     assert(mdb_queue_current_id("/next.flac",0,"")==20);
     int ids[8];assert(mdb_queue_live_ids(ids,8)==3 && ids[0]==10 && ids[1]==11 && ids[2]==20);
     assert(mdb_queue_live_ids(ids,2)==-1);
+    sql(db,"CREATE TABLE SONG_BAK AS SELECT * FROM SONG WHERE ID=20;");
+    sql(db,"UPDATE SONG_BAK SET ID=99;INSERT INTO SONG SELECT * FROM SONG_BAK;UPDATE SONG_BAK SET ID=20;");   /* same identity twice */
+    assert(mdb_queue_live_ids(ids,8)==-1);
+    sql(db,"DELETE FROM SONG WHERE ID IN (20,99);");                          /* and none at all: missing */
+    assert(mdb_queue_live_ids(ids,8)==-1);
+    sql(db,"INSERT INTO SONG SELECT * FROM SONG_BAK;DROP TABLE SONG_BAK;");
+    assert(mdb_queue_live_ids(ids,8)==3 && ids[2]==20);
+    puts("PASS the player's list maps in one query; an ambiguous or missing row is an error, never guessed or dropped");
     puts("PASS ambiguous subtracks require verified row/title; live queues retain exact track identity");
     state.have_track=1;state.pos_id=1;strcpy(state.path,"/album.flac");strcpy(state.title,"First");
     assert(queue_add_path("/album.flac")==2 && g_q[0].id==10 && g_q[1].id==11);

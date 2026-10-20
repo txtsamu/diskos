@@ -1,6 +1,6 @@
 # diskOS Disco! - to do
 
-Live list. Baseline: 2.5.8 (tag v2.5.8). Older notes: `todo-history.md`.
+Live list. Baseline: 2.5.9 (tag v2.5.9). Older notes: `todo-history.md`.
 How we work: owner suggests -> Claude offers fixes -> host renders for big visual changes -> owner's go ->
 batch -> one test build -> 2-3 days on the Disc -> one release, one bundle, owner pushes + tags.
 List words: "add to the list" pins an item; "major" / "minor" sorts it; "priority" puts it first.
@@ -26,6 +26,15 @@ Links always point to releases/latest. No upstream diskOS version shown to users
   built-in runtime TTF renderer (LV_USE_TINY_TTF, currently 0) with one font file (~0.1-0.15 MB) instead of ~2 MB
   of pre-made sizes. Needs a render pass of all themes (wider/taller font overflows clocks-adjacent text, pills,
   buttons, QS, Squash/Null) and a real Disc test (CPU on first draw); not to be released untested.
+
+## Major (from the 2.5.8 change specification, not done yet)
+- R02 fully asynchronous queue operations (worker with its own connection, request tokens, one deadline; queue_next /
+  queue_jump database stages off the UI thread). 2.5.9 only bounds the wait.
+- R03 compact, paged playlist rows (membership IDs + 128-row page cache); R04 compact history IDs; R05 group buffers
+  sized by group count.
+- R07/R08/R10 artwork: decode-worker process with parent-side deadlines, one decode into a shared output bundle, cache
+  writes off the foreground worker. R09 reuse matched accents; R11 negative no-art cache; R13 -O2 experiment (measure
+  on the Disc first).
 
 ## Minor
 - From the 2.5.8 audit (not done yet): artwork decoding has no deadline/cancellation inside the decoder (a stuck SD

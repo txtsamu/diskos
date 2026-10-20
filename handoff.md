@@ -1,8 +1,10 @@
-# diskOS Disco handoff - 2.5.8 (current state, updated 2026-10-19)
+# diskOS Disco handoff - 2.5.9 (current state, updated 2026-10-19)
 
 Read this first, then `todo.md` (the live list). Older release-by-release notes follow below as history.
 
 ## Where things are
+- 2.5.9 (2026-10-20): memory/CPU audit fixes and R01 of the change specification (one-query list mapping,
+  background path index 45 s after start), Windows app self-update (Latest.SyncEnvironment). 2.5.8 released at 9b1d620.
 - 2.5.8 (2026-10-19): #13 LDAC follow-up: route_hold_tick (music waits for the AAC/LDAC switch, 8 s SBC
   fallback), no discovery while routed to Bluetooth (scan_kick). 2.5.7 was released at 3f7680e.
 - 2.5.7 (2026-10-19): code-review fixes (exact-ID multi-select, queue atomicity, truthful Favourites, Files

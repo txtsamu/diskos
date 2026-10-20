@@ -78,6 +78,38 @@ static sqlite3 *g_db;
  * The mutex also gives a memory barrier so a published g_db is fully initialised
  * before another thread sees it. FULLMUTEX makes concurrent USE of the open handle
  * safe (sqlite serializes every API call on it). */
+/* The path index queue and history lookups rely on (a rescan makes it too). Without it every lookup by path scans the
+ * whole song table, so an existing library gets it once, on its own connection in a background thread: building it on
+ * a large library takes a while and must never hold up start-up or a frame. A locked database (the player writing) is
+ * retried a few times; failing that, the next start tries again. Nothing else waits for it: lookups just stay slower
+ * until it exists. Building it holds a short write lock, so it starts 45 s after launch, once the player has finished
+ * its own start-up writes. The same non-unique index the scanner creates, so the player's own query order is unchanged. */
+static void *mdb_index_worker(void *a){
+    (void)a;
+    sleep(45);              /* after start-up settles: the player writes this database while it starts */
+    for(int attempt = 0; attempt < 4; attempt++){
+        if(attempt) sleep(20);
+        sqlite3 *d = NULL;
+        if(sqlite3_open_v2(DB_PATH, &d, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK){ if(d) sqlite3_close(d); continue; }
+        sqlite3_busy_timeout(d, 3000);
+        char *err = NULL;
+        int rc = sqlite3_exec(d, "CREATE INDEX IF NOT EXISTS diskos_song_path ON SONG(PATH);", 0, 0, &err);
+        sqlite3_close(d);
+        if(rc == SQLITE_OK){ sqlite3_free(err); return NULL; }
+        fprintf(stderr, "musicdb: path index not created yet (%s), will retry\n", err ? err : "error"); fflush(stderr);
+        sqlite3_free(err);
+        if(rc != SQLITE_BUSY && rc != SQLITE_LOCKED) return NULL;   /* not a lock: no point retrying now */
+    }
+    return NULL;
+}
+static void mdb_index_start(void){
+    static int started;
+    if(started) return;
+    started = 1;
+    pthread_t th; pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);
+    if(pthread_create(&th, &at, mdb_index_worker, NULL) != 0) started = 0;   /* couldn't start: try on the next open */
+    pthread_attr_destroy(&at);
+}
 static pthread_mutex_t g_db_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t writer_owner;static int writer_owner_set;
 static sqlite3 *db(void){
@@ -102,9 +134,7 @@ static sqlite3 *db(void){
             sqlite3_exec(tmp, "CREATE TABLE IF NOT EXISTS PLAY_LOG(ID INTEGER PRIMARY KEY, AT INTEGER NOT NULL, "
                               "MS INTEGER NOT NULL, PATH TEXT, TITLE TEXT, ARTIST TEXT, ALBUM TEXT, AARTIST TEXT);", 0, 0, 0);
             sqlite3_exec(tmp, "CREATE INDEX IF NOT EXISTS PLAY_LOG_AT ON PLAY_LOG(AT);", 0, 0, 0);
-            /* the path index queue and history lookups rely on (also made by a rescan): without it every lookup by
-             * path scans the whole song table, so an existing library gets it here too (once; instant afterwards) */
-            sqlite3_exec(tmp, "CREATE INDEX IF NOT EXISTS diskos_song_path ON SONG(PATH);", 0, 0, 0);
+            mdb_index_start();      /* the SONG(PATH) index, in the background (never on this thread) */
             /* diskOS-owned audiobook progress (separate table, path-keyed like PLAY_STATS, survives
              * rescans + the stock DB rebuild). One bookmark per book; MEMBER_PATH is the file that was
              * playing (a multipart book has several), POSITION_MS the spot within it. */
@@ -3912,20 +3942,21 @@ int mdb_queue_song(int id, char *path, int cap, mdb_song_t *out){
 }
 int mdb_queue_live_ids(int *out, int cap){
     if(!out || cap<=0 || !sd_io_begin()) return -1;
-    sqlite3 *d=db_read_wait(QUEUE_READ_WAIT_MS); sqlite3_stmt *rows=NULL,*map=NULL; int n=0,rc=SQLITE_ERROR,ok=0;
-    if(d && sqlite3_prepare_v2(d,"SELECT PATH,TRACK,IS_CUE,IS_ISO FROM LIST_SONG_0 ORDER BY ID;",-1,&rows,NULL)==SQLITE_OK
-        && sqlite3_prepare_v2(d,"SELECT ID FROM SONG WHERE PATH=?1 AND TRACK IS ?2 AND IS_CUE IS ?3 AND IS_ISO IS ?4;",-1,&map,NULL)==SQLITE_OK){
+    /* One statement for the whole list (not one lookup per row), in the player's list order. Every row must match
+     * exactly one song on the same identity as before (PATH, TRACK IS, IS_CUE IS, IS_ISO IS): none or several, or more
+     * rows than fit, is an error, never a silently shorter or guessed list. */
+    sqlite3 *d=db_read_wait(QUEUE_READ_WAIT_MS); sqlite3_stmt *st=NULL; int n=0,rc=SQLITE_ERROR,ok=0;
+    if(d && sqlite3_prepare_v2(d,
+        "SELECT COUNT(S.ID),MIN(S.ID) FROM LIST_SONG_0 L LEFT JOIN SONG S ON S.PATH=L.PATH AND S.TRACK IS L.TRACK "
+        "AND S.IS_CUE IS L.IS_CUE AND S.IS_ISO IS L.IS_ISO GROUP BY L.ID ORDER BY L.ID;",-1,&st,NULL)==SQLITE_OK){
         ok=1;
-        while((rc=sqlite3_step(rows))==SQLITE_ROW){
-            sqlite3_reset(map); for(int c=0;c<4;c++) sqlite3_bind_value(map,c+1,sqlite3_column_value(rows,c));
-            int id=0,hits=0,mrc;
-            while((mrc=sqlite3_step(map))==SQLITE_ROW){ id=sqlite3_column_int(map,0); hits++; }
-            if(mrc!=SQLITE_DONE || hits!=1 || n>=cap){ ok=0; break; }
-            out[n++]=id;
+        while((rc=sqlite3_step(st))==SQLITE_ROW){
+            if(sqlite3_column_int(st,0)!=1 || n>=cap){ ok=0; break; }
+            out[n++]=sqlite3_column_int(st,1);
         }
-        if(rc!=SQLITE_DONE) ok=0;
+        if(ok && rc!=SQLITE_DONE) ok=0;
     }
-    if(map) sqlite3_finalize(map); if(rows) sqlite3_finalize(rows); sd_io_end(); return ok?n:-1;
+    if(st) sqlite3_finalize(st); sd_io_end(); return ok?n:-1;
 }
 /* The playing song's SONG.ID on connection d; *busy = the database was locked (the answer is unknown, not "none"). */
 static int queue_current_id_on(sqlite3 *d, const char *path, int pos, const char *title, int *busy){

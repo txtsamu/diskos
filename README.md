@@ -37,11 +37,11 @@
 > a power cut, a bad cable or an interrupted flash can leave it unbootable. Back up your music and keep the
 > saved stock image somewhere safe before you start. Not affiliated with FiiO, Snowsky or Ingenic.
 
-## New in 2.5.8
+## New in 2.5.9
 
-**Bluetooth LDAC/AAC fixes:** no more songs stopping a few seconds in, and no more short dropouts while the Disc
-searches for devices. Not yet tested with LDAC/AAC headphones; reports welcome. 2.5.7 brought code-review fixes and
-safer Bluetooth recovery. [See what’s new](docs/releases/v2.5.8.md).
+**Faster and lighter:** quicker skipping and song lookups on large libraries, no long freezes when queuing many songs,
+and much less memory used by playlists and history. The **Windows app** now updates itself on every start.
+[See what’s new](docs/releases/v2.5.9.md).
 
 ## Big. Bold. Squash.
 

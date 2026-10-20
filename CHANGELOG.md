@@ -6,7 +6,7 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
-## [Unreleased]
+## [2.5.9] - 2026-10-20
 
 - Windows app: on every start it checks for a newer release and, if found, updates the installer files inside its
   environment (installer, boot scripts, interface; checked against the release's checksums, nothing changed on a
@@ -22,6 +22,10 @@ From the 2.5.8 memory and CPU audit:
 - Most / Recently Played reserve room for the history, not the whole library; the buffer is released in other views.
 - Hidden library lists stop scrolling their focused row (it kept the main loop in its busy pace).
 - Immersive: the CD sheen buffers (0.74 MB) are released with the rest when Immersive closes.
+- The player's list is mapped to songs in one query instead of one per row; the path index is built in the
+  background 45 s after start-up instead of when the library opens.
+
+[2.5.9 release notes](docs/releases/v2.5.9.md)
 
  - 2026-10-19
 
