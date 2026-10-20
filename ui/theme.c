@@ -345,6 +345,7 @@ static uint32_t FORK_RING[2][THEME_CLR_COUNT], FORK_BRAUN[2][THEME_CLR_COUNT], F
 /* Sparse slots preserve every shipped theme ID; retired IDs are unavailable. */
 static const theme_preset_t PRESETS[THEME_PRESET_COUNT] = {
     THEME_PRESETS_GENERATED
+    [THEME_PRESET_HALO] = { "halo", DEFAULT_DARK, DEFAULT_LIGHT },   /* original diskOS look, restored */
     [THEME_PRESET_RING] = { "Ring", FORK_RING[0], FORK_RING[1] },
     [THEME_PRESET_BRAUN] = { "Braun", FORK_BRAUN[0], FORK_BRAUN[1] },
     [THEME_PRESET_DISCO] = { "Disco", FORK_DISCO[0], FORK_DISCO[1] },
@@ -353,7 +354,7 @@ static const theme_preset_t PRESETS[THEME_PRESET_COUNT] = {
 };
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
 const char *const theme_preset_names[THEME_PRESET_COUNT] = { THEME_PRESET_NAMES_GENERATED,
- [THEME_PRESET_RING]="Ring",[THEME_PRESET_BRAUN]="Braun",[THEME_PRESET_DISCO]="Disco",[THEME_PRESET_NULL]="Null",[THEME_PRESET_SIMPLE]="Squash" };
+ [THEME_PRESET_HALO]="halo",[THEME_PRESET_RING]="Ring",[THEME_PRESET_BRAUN]="Braun",[THEME_PRESET_DISCO]="Disco",[THEME_PRESET_NULL]="Null",[THEME_PRESET_SIMPLE]="Squash" };
 int theme_preset_available(int preset){return preset>=0&&preset<THEME_PRESET_COUNT&&PRESETS[preset].name!=NULL;}
 static int g_preset;
 static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
