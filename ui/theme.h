@@ -42,6 +42,7 @@ int         theme_outdoor(void);                    /* 1 = Outdoor mode (light v
 /* Built-in presets keep their shipped configuration IDs. Retired slots are unavailable.
  * Each active preset has dark/light palettes; Appearance / Outdoor selects the variant. */
 #define THEME_PRESET_COUNT 13 /* saved-ID capacity, including retired holes */
+#define THEME_PRESET_HALO 0      /* the original diskOS look (Default palette + Default builders, no kit) */
 #define THEME_PRESET_STONE 6
 int theme_preset_available(int preset);
 #define THEME_PRESET_SQUASH 12
