@@ -611,7 +611,7 @@ static void fork_config_migrate(void){
         int old=cfg_get_int("ui_theme",-1);
         if(old<0){
             /* First flash: never replace saved theme or Music preferences. */
-            cfg_set_int("theme_preset",THEME_PRESET_DISCO);
+            cfg_set_int("theme_preset",THEME_PRESET_HALO);   /* first flash: the stock diskOS look */
             if(cfg_get_int("theme_variant",-1)<0) cfg_set_int("theme_variant",0);
             if(cfg_get_int("disco_hints",-1)<0) cfg_set_int("disco_hints",1);
             if(cfg_get_int("disco_prog_shape",-1)<0) cfg_set_int("disco_prog_shape",0);
@@ -636,9 +636,9 @@ void theme_init(void){
     int outdoor = cfg_get_int("outdoor", 0) == 1;
     g_outdoor = outdoor;
     g_variant = (outdoor || cfg_get_int("theme_variant", 0) == 1) ? 1 : 0;
-    g_preset = cfg_get_int("theme_preset", THEME_PRESET_DISCO);
+    g_preset = cfg_get_int("theme_preset", THEME_PRESET_HALO);
     if(g_preset!=THEME_PRESET_CUSTOM&&!theme_preset_available(g_preset)){
-        g_preset=THEME_PRESET_DISCO;cfg_set_int("theme_preset",g_preset);
+        g_preset=THEME_PRESET_HALO;cfg_set_int("theme_preset",g_preset);
     }
     if(g_preset==THEME_PRESET_NULL)g_variant=0;
     if(theme_auto_supported() && cfg_get_int("theme_auto",0) && !outdoor){
@@ -651,8 +651,8 @@ void theme_init(void){
         g_custom_on = 1;
         g_pal = g_custom[g_variant];
     } else if(g_preset == THEME_PRESET_CUSTOM){
-        g_preset = THEME_PRESET_DISCO;  /* temporary fallback; KEEP the custom choice in configuration */
-        g_pal = g_variant ? FORK_DISCO[1] : FORK_DISCO[0];g_def=theme_def_find("Disco");
+        g_preset = THEME_PRESET_HALO;  /* temporary fallback; KEEP the custom choice in configuration */
+        g_pal = g_variant ? DEFAULT_LIGHT : DEFAULT_DARK; g_def = NULL;   /* Halo = Default palette, no kit */
     } else {
         g_pal = g_variant ? PRESETS[g_preset].light : PRESETS[g_preset].dark;
         g_def = theme_def_find(PRESETS[g_preset].name);   /* NULL for Default */
@@ -661,7 +661,7 @@ void theme_init(void){
      * refused as a whole rather than half-applied */
     for(int r = THEME_CLR_FIXED_LASTFM; r <= THEME_CLR_FIXED_MEDIA_ARTIST; r++)
         if(g_pal[r] != DEFAULT_DARK[r]){ fprintf(stderr, "theme: palette changes fixed role %d, using dark\n", r);
-                                         g_pal = FORK_DISCO[0]; g_variant = 0; g_preset = THEME_PRESET_DISCO; g_custom_on = 0; g_def = theme_def_find("Disco"); break; }
+                                         g_pal = DEFAULT_DARK; g_variant = 0; g_preset = THEME_PRESET_HALO; g_custom_on = 0; g_def = NULL; break; }
     g_traits = g_def ? g_def->traits : 0;
     if(g_def && g_def->texture != THEME_TEX_NONE) g_traits |= 1u << THEME_TRAIT_DOT_GRID;   /* textured screens */
     theme_fonts_install();
