@@ -78,6 +78,7 @@ static int g_have_track = 0; /* is a track currently loaded? The art savers (Cov
                                 (main.c), so a paused-but-loaded track shows the cover, frozen. */
 
 static int g_style = -1;   /* currently-applied style */
+static void halo_song_visibility(void);   /* Halo: the original Default saver's song rules */
 
 /* Sharp full-bleed vinyl cover: the art worker's cover is only 148px (blurry when
  * upscaled to 360 for a full-bleed spin), so decode the stock player's 364px
@@ -147,6 +148,7 @@ static void vinyl_update_vis(void)
     if (!g_vinyl) return;
     if (g_style == 4 && g_vbuf && g_vbuf_valid && g_have_track) lv_obj_remove_flag(g_vinyl, LV_OBJ_FLAG_HIDDEN);
     else                                                        lv_obj_add_flag(g_vinyl, LV_OBJ_FLAG_HIDDEN);
+    if(th_halo()) halo_song_visibility();
 }
 
 /* The vinyl saver is an album-art SHOWCASE, so it should stay at the user's set
@@ -296,6 +298,10 @@ static void vinyl_load_sharp_cover(void)
 
 #define CX 180
 #define CY 180
+/* Halo = the original diskOS Default saver: the analog face sits higher (centre y 138, ticks r105) with shorter hands */
+static int halo_cy(void){ return th_halo() ? 138 : CY; }
+static int halo_minlen(void){ return th_halo() ? 80 : 104; }
+static int halo_seclen(void){ return th_halo() ? 83 : 118; }
 
 static lv_obj_t *mk(lv_obj_t *p, const lv_font_t *font, lv_color_t c, int y)
 {
@@ -316,7 +322,7 @@ static lv_obj_t *mk_hand(lv_obj_t *p, int w, lv_color_t c, lv_point_precise_t *p
     lv_obj_set_style_line_width(ln, w, 0);
     lv_obj_set_style_line_color(ln, c, 0);
     lv_obj_set_style_line_rounded(ln, true, 0);
-    pts[0].x = CX; pts[0].y = CY; pts[1].x = CX; pts[1].y = CY - 1;
+    pts[0].x = CX; pts[0].y = halo_cy(); pts[1].x = CX; pts[1].y = halo_cy() - 1;
     lv_line_set_points(ln, pts, 2);
     return ln;
 }
@@ -324,9 +330,9 @@ static lv_obj_t *mk_hand(lv_obj_t *p, int w, lv_color_t c, lv_point_precise_t *p
 static void set_hand(lv_obj_t *ln, lv_point_precise_t *pts, double deg, int len)
 {
     double r = deg * 3.14159265 / 180.0;
-    pts[0].x = CX; pts[0].y = CY;
+    pts[0].x = CX; pts[0].y = halo_cy();
     pts[1].x = (lv_value_precise_t)(CX + len * sin(r));
-    pts[1].y = (lv_value_precise_t)(CY - len * cos(r));
+    pts[1].y = (lv_value_precise_t)(halo_cy() - len * cos(r));
     lv_line_set_points(ln, pts, 2);
     lv_obj_invalidate(ln);
 }
@@ -339,8 +345,8 @@ static void saver_anim_cb(lv_timer_t *t)
     if (g_style != 1 || screen_current() != SCR_SAVER) return;
     time_t now = time(NULL); struct tm lt; localtime_r(&now, &lt);
     set_hand(g_hour, g_hpts, (lt.tm_hour % 12) * 30.0 + lt.tm_min * 0.5, 70);
-    set_hand(g_min,  g_mpts, lt.tm_min * 6.0, 104);
-    set_hand(g_sec,  g_spts, lt.tm_sec * 6.0, 118);
+    set_hand(g_min,  g_mpts, lt.tm_min * 6.0, halo_minlen());
+    set_hand(g_sec,  g_spts, lt.tm_sec * 6.0, halo_seclen());
 }
 
 /* vinyl spin - idempotent; main.c calls it each loop with the live condition
@@ -384,6 +390,48 @@ void saver_vinyl_spin(int want)
     }
 }
 
+/* Halo (original Default saver): the song shows only while playing (and not over the spinning vinyl cover); it sits
+ * at y 254 / 278 (278 / 302 on Analog), pushed below the weather/date when they reach it, in 18 / 16 px faces. */
+static void halo_song_visibility(void)
+{
+    int show = ui_is_playing() && g_have_track;
+    if (g_style == 4 && g_vinyl && !lv_obj_has_flag(g_vinyl, LV_OBJ_FLAG_HIDDEN)) show = 0;
+    if (g_track)  { if (show) lv_obj_remove_flag(g_track, LV_OBJ_FLAG_HIDDEN);  else lv_obj_add_flag(g_track, LV_OBJ_FLAG_HIDDEN); }
+    if (g_artist) { if (show) lv_obj_remove_flag(g_artist, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_artist, LV_OBJ_FLAG_HIDDEN); }
+}
+static void halo_song_layout(int style)
+{
+    int analog = style == 1;
+    int song_y = analog ? 278 : 254;
+    if (g_track)  { lv_obj_set_style_text_font(g_track, TF(UI_18), 0);  lv_label_set_long_mode(g_track, LV_LABEL_LONG_DOT); }
+    if (g_artist) { lv_obj_set_style_text_font(g_artist, TF(UI_16), 0); lv_label_set_long_mode(g_artist, LV_LABEL_LONG_DOT); }
+    if ((style == 0 || style == 3) && g_weather) {
+        lv_obj_update_layout(g_weather);
+        int below = lv_obj_get_y(g_weather) + lv_obj_get_height(g_weather) + 12;
+        if (below > song_y) song_y = below;
+    }
+    if (analog && g_date && !lv_obj_has_flag(g_date, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_update_layout(g_date);
+        int below = lv_obj_get_y(g_date) + lv_obj_get_height(g_date) + 8;
+        if (below > song_y) song_y = below;
+    }
+    if (g_track) lv_obj_align(g_track, LV_ALIGN_TOP_MID, 0, song_y);
+    if (g_artist) lv_obj_align(g_artist, LV_ALIGN_TOP_MID, 0, song_y + 24);
+    int width = analog ? 200 : 230;
+    if (analog && g_artist) {
+        lv_obj_update_layout(g_artist);
+        int bottom = lv_obj_get_y(g_artist) + lv_obj_get_height(g_artist);
+        int dy = bottom - 180;
+        if ((width / 2) * (width / 2) + dy * dy > 176 * 176) {
+            int fit = ui_round_width(bottom, 10);
+            if (fit < width) width = fit;
+        }
+    }
+    if (g_track) lv_obj_set_width(g_track, width);
+    if (g_artist) lv_obj_set_width(g_artist, width);
+    halo_song_visibility();
+}
+
 /* show/hide + position elements for a style */
 static void relayout(int style)
 {
@@ -391,17 +439,17 @@ static void relayout(int style)
     int cover  = (style == 0);
     int minim  = (style == 2);
     int vinyl  = (style == 4);
-    int ring   = (style == 5);
+    int ring   = (style == 5) && !th_halo();   /* Halo has no Ring style */
     /* Ring Light standby uses the light surface; artwork styles keep their scrim. */
     if (g_clock) lv_obj_set_style_bg_color(lv_obj_get_parent(g_clock),
-                                          ring && theme_ring_light() ? TC(SURFACE) : TC(SCRIM), 0);
+                                          ring && theme_ring_light() ? TC(SURFACE) : (th_halo() ? TC(CANVAS) : TC(SCRIM)), 0);
     lv_obj_t *rparts[] = { g_rring, g_rdisc };
     for (unsigned i = 0; i < 2; i++)
         if (rparts[i]) { if (ring && g_have_track) lv_obj_remove_flag(rparts[i], LV_OBJ_FLAG_HIDDEN);
                          else lv_obj_add_flag(rparts[i], LV_OBJ_FLAG_HIDDEN); }
     lv_color_t dimw = ring ? TC(SAVER_TITLE) : TC(FIXED_MEDIA_WHITE);
-    if (g_clock) lv_obj_set_style_text_color(g_clock, dimw, 0);
-    { lv_color_t dimg = ring ? TC(SAVER_SUBTITLE) : TC(TEXT_SECONDARY);   /* the Ring saver: greys only */
+    if (g_clock && !th_halo()) lv_obj_set_style_text_color(g_clock, dimw, 0);   /* Halo keeps the create-time colours */
+    if (!th_halo()) { lv_color_t dimg = ring ? TC(SAVER_SUBTITLE) : TC(TEXT_SECONDARY);   /* the Ring saver: greys only */
       if (g_date) lv_obj_set_style_text_color(g_date, dimg, 0);
       if (g_weather) lv_obj_set_style_text_color(g_weather, dimg, 0); }
 
@@ -428,17 +476,22 @@ static void relayout(int style)
     if (g_clock) {
         if (analog || vinyl) lv_obj_add_flag(g_clock, LV_OBJ_FLAG_HIDDEN);
         else { lv_obj_remove_flag(g_clock, LV_OBJ_FLAG_HIDDEN);
+               if (!th_halo()) {   /* Halo keeps the theme's SAVER_CLOCK face, fitted by saver_clock_fit below */
                lv_obj_set_style_text_font(g_clock, ring ? TF(UI_48) : TF(UI_40), 0);
                /* Ring: 48 px is the largest built-in size, so scale it up ~1.3x (redrawn once a minute: cheap) */
                lv_obj_set_style_transform_pivot_x(g_clock, lv_pct(50), 0); lv_obj_set_style_transform_pivot_y(g_clock, lv_pct(50), 0);
-               lv_obj_set_style_transform_scale(g_clock, ring ? 333 : 256, 0);
+               lv_obj_set_style_transform_scale(g_clock, ring ? 333 : 256, 0); }
                lv_obj_align(g_clock, LV_ALIGN_TOP_MID, 0, ring ? 134 : (minim ? 150 : 110)); }
+        if (th_halo()) saver_clock_fit();   /* a style without a clock (Analog, Vinyl) must hide the AM/PM beside it too */
     }
     /* date: every style except vinyl, position varies */
     if (g_date) {
         if (vinyl || ring) lv_obj_add_flag(g_date, LV_OBJ_FLAG_HIDDEN);   /* Ring: no date */
         else { lv_obj_remove_flag(g_date, LV_OBJ_FLAG_HIDDEN);
-               lv_obj_align(g_date, LV_ALIGN_TOP_MID, 0, ring ? 184 : (analog ? 250 : (minim ? 206 : 170))); }
+               int below = minim ? 56 : 60;   /* Halo: room for the theme's clock face, as the original */
+               if (th_halo()) { int lh = lv_font_get_line_height(TF(SAVER_CLOCK)); if (lh + 12 > below) below = lh + 12; }
+               lv_obj_align(g_date, LV_ALIGN_TOP_MID, 0, th_halo() ? (analog ? 250 : (minim ? 150 : 110) + below)
+                                                                    : ring ? 184 : (analog ? 250 : (minim ? 206 : 170))); }
     }
     /* weather: Cover + Digital */
     if (g_weather) { if (cover || style == 3 || ring) lv_obj_remove_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
@@ -446,15 +499,17 @@ static void relayout(int style)
                      lv_obj_set_style_text_font(g_weather, ring ? &s_swfont_big : &s_swfont, 0);
                      if (ring) lv_obj_align(g_weather, LV_ALIGN_TOP_MID, 0, 80);    /* Ring: weather on top */
                      else lv_obj_align(g_weather, LV_ALIGN_TOP_MID, 0, 200);
+                     if (th_halo() && g_date && !lv_obj_has_flag(g_weather, LV_OBJ_FLAG_HIDDEN)) { lv_obj_update_layout(g_date); lv_obj_align(g_weather, LV_ALIGN_TOP_MID, 0, lv_obj_get_y(g_date) + 30); }
                      weather_apply(); }
     /* track/artist: Cover only */
-    if (g_track)  { if (cover || ring) lv_obj_remove_flag(g_track, LV_OBJ_FLAG_HIDDEN);  else lv_obj_add_flag(g_track, LV_OBJ_FLAG_HIDDEN);
+    if (!th_halo() && g_track)  { if (cover || ring) lv_obj_remove_flag(g_track, LV_OBJ_FLAG_HIDDEN);  else lv_obj_add_flag(g_track, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_set_style_text_font(g_track, ring ? ui_font_cjk(28) : TF(UI_16), 0);
                     lv_obj_set_width(g_track, ring ? 240 : 320);   /* inside the ring */
                     lv_label_set_long_mode(g_track, ring ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_SCROLL_CIRCULAR);
                     if (ring) lv_obj_align(g_track, LV_ALIGN_TOP_MID, 0, 208); else lv_obj_align(g_track, LV_ALIGN_TOP_MID, 0, 254); }
     if (ring) { g_rlast[0] = 0; ring_progress(); }
-    if (g_artist) { if (cover || ring) lv_obj_remove_flag(g_artist, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_artist, LV_OBJ_FLAG_HIDDEN);
+    if (th_halo()) halo_song_layout(style);
+    if (!th_halo() && g_artist) { if (cover || ring) lv_obj_remove_flag(g_artist, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g_artist, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_set_style_text_font(g_artist, ring ? ui_font_cjk(24) : TF(UI_14), 0);
                     lv_obj_set_width(g_artist, ring ? 230 : 320);
                     lv_label_set_long_mode(g_artist, ring ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -467,7 +522,7 @@ void saver_create(lv_obj_t *root)
     if(th_null()){null_saver_create(root);return;}
     if(th_disco_family()){ dsaver_create(root); return; }            /* Disco: the Music screen at rest */
     if(th_braun()){ bsaver_create(root); return; }            /* Braun: its own standby, whatever the saver style */
-    lv_obj_set_style_bg_color(root, TC(SCRIM), 0);
+    lv_obj_set_style_bg_color(root, th_halo() ? TC(CANVAS) : TC(SCRIM), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
     g_bg = lv_image_create(root);
@@ -487,7 +542,7 @@ void saver_create(lv_obj_t *root)
         lv_obj_set_style_bg_color(d, (big ? TC(TEXT_PRIMARY) : TC(TEXT_MUTED)), 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         double r = i * 30 * 3.14159265 / 180.0;
-        int x = (int)(CX + 150 * sin(r)), y = (int)(CY - 150 * cos(r));
+        int rr = th_halo() ? 105 : 150; int x = (int)(CX + rr * sin(r)), y = (int)(halo_cy() - rr * cos(r));
         lv_obj_set_pos(d, x - (big?4:2), y - (big?4:2));
         g_tick[i] = d;
     }
@@ -500,7 +555,7 @@ void saver_create(lv_obj_t *root)
     lv_obj_set_style_radius(g_hub, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(g_hub, ui_current_accent(), 0);
     lv_obj_set_style_bg_opa(g_hub, LV_OPA_COVER, 0);
-    lv_obj_set_pos(g_hub, CX - 7, CY - 7);
+    lv_obj_set_pos(g_hub, CX - 7, halo_cy() - 7);
 
     /* vinyl: STOCK-STYLE - the plain SQUARE album cover free-rotates; the round
      * screen cuts its corners (black shows at the corners mid-tilt). No record
@@ -647,15 +702,22 @@ void saver_set_clock(const char *t, const char *date)
     int s = simple_cfg_get_int("saver_style", 0);
     if (s != g_style) { relayout(s); g_style = s; }
 
+    if (th_halo()) {   /* the original: fitted time (+ AM/PM), the date as given, the song re-placed under them */
+        snprintf(g_clock_text, sizeof g_clock_text, "%s", t ? t : "--:--");
+        saver_clock_fit();
+        if (g_date) lv_label_set_text(g_date, date ? date : "");
+        halo_song_layout(s);
+    } else {
     if (g_clock) lv_label_set_text(g_clock, t ? t : "--:--");
     if (g_style == 5 && t && strcmp(t, g_rlast)){ snprintf(g_rlast, sizeof g_rlast, "%s", t); ring_progress(); }   /* once a minute */
     if (g_date)  lv_label_set_text(g_date, date ? date : "");
+    }
 
     /* analog hands from the live time */
     if (g_style == 1) {
         time_t now = time(NULL); struct tm lt; localtime_r(&now, &lt);
         set_hand(g_hour, g_hpts, (lt.tm_hour % 12) * 30.0 + lt.tm_min * 0.5, 70);
-        set_hand(g_min,  g_mpts, lt.tm_min * 6.0, 104);
+        set_hand(g_min,  g_mpts, lt.tm_min * 6.0, halo_minlen());
     }
 }
 
@@ -695,6 +757,7 @@ void saver_set_track(const char *title, const char *artist, const void *backdrop
     if (g_style == 5) relayout(5);
     if (g_track)  lv_label_set_text(g_track, title ? title : "");
     if (g_artist) lv_label_set_text(g_artist, artist ? artist : "");
+    if (th_halo()) halo_song_layout(g_style);
 
     /* vinyl cover: re-decode the sharp 360px cover only when the vinyl saver is
      * actually on-screen (track auto-advanced while idle); otherwise just refresh

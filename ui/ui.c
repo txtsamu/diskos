@@ -51,6 +51,8 @@ LV_FONT_DECLARE(font_icons_28)
 #define MOON_ICON     "\xEF\x86\x86"   /* FA f186 moon (audiobook sleep timer) */
 #define MODE_ARROW    "\xEF\x85\xB8"   /* FA f178 long-arrow-right (sequential) */
 #define C_ACCENT     UI_RED
+/* Halo (the original diskOS look): a picked / album accent goes through the readable-fit mapping, as in the original */
+static lv_color_t acc_from_rgb(uint32_t rgb){ return th_halo() ? theme_accent_from_rgb(rgb) : theme_color_from_rgb(rgb); }
 
 #define ARC_D        332
 #define ARC_SWEEP    286
@@ -412,8 +414,46 @@ static void style_text(lv_obj_t *obj, const lv_font_t *font, lv_color_t color)
     lv_obj_set_style_text_letter_space(obj, 0, LV_PART_MAIN);
 }
 
+/* where a glyph's ink sits inside its line: the offset that puts the ink's middle on the line box's middle */
+int ui_glyph_ink_dy(const lv_font_t *f, uint32_t cp)
+{
+    lv_font_glyph_dsc_t g;
+    if(!f || !lv_font_get_glyph_dsc(f, &g, cp, 0)) return 0;
+    int lh = lv_font_get_line_height(f);
+    int ink_top = (lh - f->base_line) - (g.ofs_y + g.box_h);      /* from the line's top to the ink's top */
+    return lh / 2 - (ink_top + g.box_h / 2);
+}
+/* a one-glyph label centred in its box by its ink (moved with translate_y, so its box and alignment stay) */
+void ui_glyph_center_ink(lv_obj_t *label)
+{
+    if(!label || !lv_obj_check_type(label, &lv_label_class)) return;
+    const unsigned char *t = (const unsigned char *)lv_label_get_text(label);
+    if(!t || (t[0] & 0xF0) != 0xE0 || (t[1] & 0xC0) != 0x80 || (t[2] & 0xC0) != 0x80) return;   /* words keep their baseline */
+    uint32_t cp = ((uint32_t)(t[0] & 0x0F) << 12) | ((uint32_t)(t[1] & 0x3F) << 6) | (t[2] & 0x3F);
+    if(cp < 0xE000) return;                                       /* icon glyphs only */
+    lv_obj_set_style_translate_y(label, ui_glyph_ink_dy(lv_obj_get_style_text_font(label, 0), cp), 0);
+}
 void ui_pp_glyph(lv_obj_t *label,int playing){
-    if(label) set_label_text_changed(label,playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+    if(!label) return;
+    if(!th_halo()){ set_label_text_changed(label,playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY); return; }
+    /* Halo: the original glyph - a play triangle's weight is on its flat side, so it sits right by a tenth of its width */
+    const char *t = playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY;
+    if(strcmp(lv_label_get_text(label), t) != 0) lv_label_set_text(label, t);
+    const lv_font_t *f = lv_obj_get_style_text_font(label, 0);
+    int dx = 0;
+    lv_font_glyph_dsc_t g;
+    if(!playing && lv_font_get_glyph_dsc(f, &g, 0xF04B, 0)) dx = (g.box_w + 5) / 10;
+    if(lv_obj_get_style_pad_left(label, 0) != dx){
+        lv_obj_set_style_pad_left(label, dx, 0);
+        lv_obj_set_style_pad_right(label, -dx, 0);
+    }
+    int32_t sh = lv_obj_get_style_height(label, 0);
+    if(sh != LV_SIZE_CONTENT && !LV_COORD_IS_PCT(sh) && sh > 0){
+        int bw = lv_obj_get_style_border_width(label, 0), lh = lv_font_get_line_height(f);
+        int pt = sh / 2 - bw - lh / 2 + ui_glyph_ink_dy(f, playing ? 0xF04C : 0xF04B);
+        if(pt < 0) pt = 0;
+        if(lv_obj_get_style_pad_top(label, 0) != pt) lv_obj_set_style_pad_top(label, pt, 0);
+    }
 }
 static _Atomic unsigned art_interactive_until;
 static _Atomic unsigned perf_started;
@@ -1241,8 +1281,8 @@ static void np_accent_from_track(const char *path){
     if(!path[0])np_acc_set=0;
 }
 int ui_accent_is_static(void);   /* fork: a colour picked in Accent wins over the album colour everywhere */
-static lv_color_t np_col(void){ if(th_braun()) return TC(ACCENT_PRIMARY); return ((g_np_poster || g_np_ring) && np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }
-lv_color_t ui_media_accent(void){ if(th_simple())return TC(ACCENT_PRIMARY); if(th_braun()) return TC(ACCENT_PRIMARY); return (np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }   /* theme.h: media surfaces (Braun: orange) */
+static lv_color_t np_col(void){ if(th_halo()) return accent; if(th_braun()) return TC(ACCENT_PRIMARY); return ((g_np_poster || g_np_ring) && np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }
+lv_color_t ui_media_accent(void){ if(th_halo()) return accent; if(th_simple())return TC(ACCENT_PRIMARY); if(th_braun()) return TC(ACCENT_PRIMARY); return (np_acc_set && !ui_accent_is_static()) ? np_acc : accent; }   /* theme.h: media surfaces (Braun: orange) */
 static void apply_accent(void)
 {
     if(ring) {
@@ -1252,7 +1292,7 @@ static void apply_accent(void)
     if(imm_prog) lv_obj_set_style_arc_color(imm_prog, np_col(), LV_PART_INDICATOR);
 
     if(cover_note) {
-        lv_obj_set_style_text_color(cover_note, TC(FIXED_MEDIA_WHITE), LV_PART_MAIN);
+        lv_obj_set_style_text_color(cover_note, th_halo() ? TC(TEXT_PRIMARY) : TC(FIXED_MEDIA_WHITE), LV_PART_MAIN);
     }
 
     if(btn_pp && g_pp_filled){
@@ -1422,6 +1462,11 @@ static void fav_refresh(int on, int have)
     if(!btn_fav || !fav_icon) return;
     if(have) lv_obj_remove_flag(btn_fav, LV_OBJ_FLAG_HIDDEN);
     else     lv_obj_add_flag(btn_fav, LV_OBJ_FLAG_HIDDEN);
+    if(th_halo()){                                                 /* the original: outline heart in grey, solid heart in the accent */
+        set_label_text_changed(fav_icon, on ? HEART_FILLED : HEART_OUTLINE);
+        lv_obj_set_style_text_color(fav_icon, on ? accent : TC(TEXT_MUTED), LV_PART_MAIN);
+        return;
+    }
     lv_label_set_text(fav_icon, HEART_FILLED);                     /* theme: solid, colour carries the state */
     lv_obj_set_style_text_color(fav_icon, on ? np_col() : th_braun() ? TC(TEXT_SECONDARY) : (g_np_poster || g_np_ring) ? TC(TEXT_PRIMARY) : TC(TEXT_MUTED), LV_PART_MAIN);
 }
@@ -1740,6 +1785,14 @@ static void set_cover_fallback(bool show)
         if(cover_img) lv_obj_remove_flag(cover_img, LV_OBJ_FLAG_HIDDEN);
         if(cover_note) lv_obj_add_flag(cover_note, LV_OBJ_FLAG_HIDDEN);
     }
+    if(th_halo() && cover && cover_note){                         /* the original default kit's cover state */
+        int loading = !strcmp(lv_label_get_text(cover_note), LV_SYMBOL_REFRESH);
+        lv_obj_set_style_bg_color(cover, TC(ART_PLACEHOLDER), 0);
+        lv_obj_set_style_radius(cover, g_np_vinyl ? COVER_D / 2 : 16, 0);   /* (the original also forced 16 over the vinyl circle) */
+        lv_obj_set_style_text_font(cover_note, TF(UI_32), 0);
+        lv_obj_set_style_text_color(cover_note, loading ? TC(TEXT_PRIMARY) : TC(ACCENT_PRIMARY), 0);
+        if(show) lv_obj_center(cover_note);
+    }
 }
 
 /* Decode the 148px cover BMP into a RAM ARGB8888 descriptor. A file-sourced
@@ -1961,7 +2014,7 @@ static void update_accent_seed(const track_state_t *st)
     if(g_accent_mode == 1){            /* static: fixed colour; repaint only when it actually changed -
                                         * the 332x332 arc invalidation is ~85% of the screen every tick */
         if(g_static_last != g_accent_color){
-            accent = theme_color_from_rgb(g_accent_color);
+            accent = acc_from_rgb(g_accent_color);
             apply_accent();
             g_static_last = g_accent_color;
         }
@@ -2155,7 +2208,7 @@ static void apply_art(const art_req_t *job)
      * In static mode the user picked a fixed accent - never let cached art override it. */
     if(g_accent_mode != 1){
         int acc_rgb = job->rgb;
-        if(acc_rgb){ accent = theme_color_from_rgb(acc_rgb); apply_accent(); }
+        if(acc_rgb){ accent = acc_from_rgb(acc_rgb); apply_accent(); }
     }
     np_acc_path[0] = '\0'; np_accent_from_track(job->track);
     np_acc_set=job->rgb && np_rgb_vivid(job->rgb);
@@ -2639,7 +2692,7 @@ void ui_set_accent_config(int mode, int rgb){
     g_accent_mode  = mode ? 1 : 0;           /* fork: Ring follows the chosen accent too (the merge had forced the album colour) */
     g_accent_color = (uint32_t)rgb & 0xFFFFFF;
     if(g_accent_mode){
-        accent = theme_color_from_rgb(g_accent_color);   /* paint the fixed colour now */
+        accent = acc_from_rgb(g_accent_color);   /* paint the fixed colour now */
         g_accent_gray = 0;
     } else {
         last_seed_a[0] = '\0'; last_seed_b[0] = '\0';   /* force dynamic recompute next ui_update */
@@ -2912,7 +2965,7 @@ void ui_create(lv_obj_t *root)
      * from cfg, so honor a saved STATIC accent here - otherwise Home/Saver (created right
      * after, and now reading the live accent) would paint the default until the first
      * ui_update() corrected them. Dynamic mode keeps the default until an album accent lands. */
-    accent = (g_accent_mode == 1) ? theme_color_from_rgb(g_accent_color) : TC(ACCENT_PRIMARY);
+    accent = (g_accent_mode == 1) ? acc_from_rgb(g_accent_color) : TC(ACCENT_PRIMARY);
     last_path[0] = '\0';
     last_art_key[0] = '\0';
     want_art_key[0] = '\0';

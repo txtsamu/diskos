@@ -370,6 +370,7 @@ static void apply_grp_musictext(int v);
 static void apply_grp_musicinfo(int v);
 static void apply_grp_musicprogress(int v);
 static void apply_grp_immersive(int v);
+static void apply_qsconfig(int v){ (void)v; screen_show(SCR_QSCONFIG); }   /* Halo only: pick the pull-down drawer tiles */
 static void apply_grp_themecolours(int v);
 static void apply_grp_textlayout(int v);
 static void apply_grp_screenstandby(int v);
@@ -792,6 +793,8 @@ static const setting_t TABLE[] = {
     {"Music screen","Immersive",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_grp_immersive,0,"Disc style and lyrics",NULL},
     { "Display",  "Brightness",  ST_SLIDER, "brightness", 4,40,2, NULL,0, NULL, apply_brightness_row, 16,
       "Screen backlight level. While Outdoor Mode is on the screen stays at full brightness.", NULL },
+    { "Display", "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_qsconfig, 0,
+      "Choose which tiles appear in the pull-down Quick Settings drawer.", NULL },
     { "Display", "Theme", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_themecolours, 0,
       "Theme, appearance, automatic switching, Outdoor Mode and accent colour.", NULL },
     {"Display","Null Options",ST_ACTION,NULL,0,0,0,NULL,0,LV_SYMBOL_RIGHT,apply_null_options,0,"Null theme settings",NULL},
