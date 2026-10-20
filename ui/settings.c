@@ -824,7 +824,7 @@ static const setting_t TABLE[] = {
       "What the screen does when you leave it: screensaver and when the screen switches off.", NULL },
     { "Display", "Online & Extras", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_grp_onlineextras, 0,
       "Online album art and lyrics, the art cache, weather on Home, Shortcuts and the album view.", NULL },
-    { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_DISCO,
+    { "Theme Colours",  "Theme",       ST_CHOICE, "theme_preset", 0,0,0, theme_preset_names, THEME_PRESET_COUNT, NULL, apply_theme_preset, THEME_PRESET_HALO,
       "Choose the UI theme. Restarts the screen; music continues.", NULL },
     { "Theme Colours",  "Appearance",  ST_CYCLER, "theme_variant", 0,0,0, OPT_APPEARANCE, 2, NULL, apply_appearance, 0,
       "Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.", NULL },
@@ -1330,7 +1330,7 @@ void setting_detail_refresh(void){
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
         /* Themes: Disco first, then Ring, Braun and Stone; the other presets stay in the code and keep working if
          * already selected, but are not offered here for now. Rows still carry the real preset index. */
-        int THEME_SHOWN[7] = { THEME_PRESET_DISCO, THEME_PRESET_NULL, THEME_PRESET_SIMPLE, THEME_PRESET_HALO, THEME_PRESET_RING, THEME_PRESET_BRAUN, THEME_PRESET_STONE }, nshown = 7;
+        int THEME_SHOWN[2] = { THEME_PRESET_HALO, THEME_PRESET_STONE }, nshown = 2;   /* this build offers the stock diskOS looks only; the Disco-family themes stay in the code and keep working if already selected */
         int nrows = is_theme ? nshown : s->nopts;
         for(int r = 0; r < nrows; r++){
             int i = is_theme ? THEME_SHOWN[r] : r;
