@@ -53,14 +53,17 @@ static const modeinfo_t MODES[] = {
  * sink, 0x47c040), so diskOS re-checks it right before the frames and refuses instead.
  * If a send fails after the route moved, the internal sequence is retried until it fully lands on a live player
  * connection (recovery-pending: every play/route/source command is refused meanwhile). */
-#ifndef OUT_PCM_GLOB
-#define OUT_PCM_GLOB "/proc/asound/card*/pcm*p/sub*/status"
-#endif
 #ifndef OUT_USB_CARD
 #define OUT_USB_CARD "/proc/asound/card1"   /* the USB DAC card; its usbid node exists for USB audio cards only (UNVERIFIED on this kernel) */
 #endif
 #define OUT_QUIET_MS 500
 #define OUT_WAIT_MS  3000
+/* USB AUDIO cannot be pre-checked: the DAC is unpowered until the player handles 0642 5 (mq_player_257 mode thread
+ * 0x4e5af4: sleep 1 s, role -> host, set_out_device 3 = USB_HOST_NULL with no card yet, SGM41513 OTG_ON). The card
+ * then enumerates and on_usb_audio_add (0x4f39c4) re-runs set_out_device 3 against /proc/asound/card1. So switch
+ * first, then wait for the card; resume only once it is up, and fall back to the internal DAC if it never comes. */
+#define OUT_USB_WAIT_MS   8000
+#define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
 #define OUT_WORKMODE "0657000C0008"
 #define OUT_PAUSE    "0201000C0000"
 typedef struct { const char *route, *gadget; unsigned settle_us; } out_seq_t;
@@ -74,6 +77,7 @@ static int g_out_route = OUT_INTERNAL;
 static unsigned g_out_gen = 0;
 static struct { int target, was_playing, full; unsigned gen; char path[256]; long pos; uint32_t t0, quiet0; lv_timer_t *tm; } g_osw;
 static int g_rec = 0; static unsigned g_rec_gen = 0; static lv_timer_t *g_rec_tm = NULL;
+static struct { lv_timer_t *tm; uint32_t t0, seen; } g_usbw;   /* waiting for the USB DAC to enumerate after 0642 5 */
 
 static void out_set_state(int r){
     g_out_route = r; g_out_gen = ipc_generation();
@@ -84,7 +88,7 @@ int modes_output_route(void){
     return g_out_route;
 }
 void modes_output_reset(void){ out_set_state(OUT_INTERNAL); }
-int modes_output_busy(void){ return g_osw.tm != NULL || g_rec; }
+int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 /* Route-aware local init. with_gadget (the boot timer): internal/SPDIF send 0642 0 first; USB always pairs 0666 3 with 0642 5. */
 int modes_local_init(int with_gadget){
     int r = modes_output_route();
@@ -96,23 +100,15 @@ int modes_local_init(int with_gadget){
     if(ipc_send_cmd(OUT_WORKMODE) < 0) rc = -1;
     return rc;
 }
-/* 1 only when every playback PCM node is readable and none is RUNNING or DRAINING; unreadable / no nodes = not proven */
-static int out_pcm_quiet(void){
-    glob_t g; int quiet = 1;
-    if(glob(OUT_PCM_GLOB, 0, NULL, &g) != 0) return 0;
-    for(size_t i = 0; i < g.gl_pathc && quiet; i++){
-        FILE *f = fopen(g.gl_pathv[i], "r"); char l[96] = "";
-        if(!f){ quiet = 0; break; }
-        if(!fgets(l, sizeof l, f)) l[0] = 0;
-        fclose(f);
-        if(!l[0] || strstr(l, "RUNNING") || strstr(l, "DRAINING")) quiet = 0;
-    }
-    globfree(&g);
-    return quiet;
-}
 static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
     return access(p, F_OK) == 0;
+}
+/* any USB audio card at all (usbid exists only for USB cards, not the Disc's own UAC gadget): tells "no DAC" from "wrong card index" */
+static int out_usb_any_card(void){
+    glob_t g; int n = 0;
+    if(glob("/proc/asound/card*/usbid", 0, NULL, &g) == 0){ n = (int)g.gl_pathc; globfree(&g); }
+    return n > 0;
 }
 /* 0 = whole sequence sent; -1 = the 0666 was refused (nothing changed); -2 = the route moved but the tail failed */
 static int out_seq_send(int t, int full){
@@ -149,11 +145,94 @@ static void out_resume(int moved){
     if(moved && g_osw.pos > 0 && ui_seek_to(g_osw.pos) < 0){ ui_toast("Couldn't resume - press play"); return; }
     if(ipc_send_cmd(OUT_PAUSE) < 0) ui_toast("Couldn't resume - press play");   /* toggle: plays again */
 }
+static int out_switch(int target, int via_mode);
+/* USB DAC unplugged while routed to it: the player falls back to a silent USB_HOST_NULL sink and nothing in the
+ * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
+ * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
+ * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. */
+static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
+static void usbgone_tick(lv_timer_t *t){
+    (void)t;
+    if(modes_output_route() != OUT_USB){ lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL; return; }
+    if(modes_output_busy()) return;
+    if(out_usb_card_ok()){ g_usbgone_miss = 0; return; }
+    if(++g_usbgone_miss < 2) return;
+    g_usbgone_miss = 0;
+    fprintf(stderr, "usb audio: DAC gone - back to the internal DAC (paused)\n"); fflush(stderr);
+    if(out_switch(OUT_INTERNAL, 1) == 0){
+        g_osw.was_playing = 0;   /* out_switch already paused it; never resume into the jack */
+        lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL;
+        ui_toast("USB DAC disconnected - internal DAC");
+    }
+}
+/* The last picked Working Mode survives a restart. "src_mode" (main.c ui_set_source_mode: 0 Local, 1 USB DAC,
+ * 2 BT Receiving; USB Storage is never saved) and "usb_audio_on" (set once a USB DAC is confirmed connected,
+ * cleared when a switch away from USB completes - a user choice or the unplug fallback) are replayed ~15 s after
+ * boot, past the player's settle. A USB Audio restore that finds no DAC falls back via the usbw timeout and keeps
+ * the preference for the next boot. */
+#define OUT_USB_PREF "usb_audio_on"
+static lv_timer_t *g_bootusb_tm; static uint32_t g_bootusb_t0;
+static void bootusb_end(void){ if(g_bootusb_tm){ lv_timer_del(g_bootusb_tm); g_bootusb_tm = NULL; } }
+static void bootusb_tick(lv_timer_t *t){
+    (void)t;
+    int src = cfg_get_int("src_mode", 0), usb = cfg_get_int(OUT_USB_PREF, 0) == 1;
+    if((src != 1 && src != 2 && !usb) || lv_tick_elaps(g_bootusb_t0) > 120000){ bootusb_end(); return; }
+    if(lv_tick_elaps(g_bootusb_t0) < 15000) return;   /* past the player's ~9 s settle and the boot local-init */
+    if(ui_get_source_mode() != 0){ bootusb_end(); return; }   /* already left Local (the user, or a restore) */
+    if(src == 1 || src == 2){
+        if(modes_output_busy()) return;
+        bootusb_end();
+        if(ui_set_source_mode(src) == 0) ui_toast(src == 1 ? "Restoring USB DAC mode..." : "Restoring Bluetooth Receiving...");
+        modes_ui_refresh();
+        return;
+    }
+    if(modes_output_route() == OUT_USB){ bootusb_end(); return; }
+    if(modes_output_busy() || ui_output_blocked()) return;
+    bootusb_end();
+    if(out_switch(OUT_USB, 1) == 0) ui_toast("Restoring USB Audio...");
+}
+void modes_output_boot_restore(void){
+    g_bootusb_t0 = lv_tick_get();
+    if(!g_bootusb_tm) g_bootusb_tm = lv_timer_create(bootusb_tick, 1000, NULL);
+}
+static void usbgone_start(void){
+    g_usbgone_miss = 0;
+    if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL);
+}
+static void usbw_end(void){ if(g_usbw.tm){ lv_timer_del(g_usbw.tm); g_usbw.tm = NULL; } }
+static void usbw_tick(lv_timer_t *t){
+    (void)t;
+    if(ipc_generation() != g_osw.gen){ usbw_end(); out_set_state(OUT_INTERNAL); ui_toast("Player restarted - try again"); modes_ui_refresh(); return; }
+    if(out_usb_card_ok()){
+        if(!g_usbw.seen) g_usbw.seen = lv_tick_get() ? lv_tick_get() : 1;
+        if(lv_tick_elaps(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
+        usbw_end(); ui_toast("USB DAC connected"); out_resume(1); usbgone_start(); modes_ui_refresh();
+        cfg_set_int(OUT_USB_PREF, 1);
+        return;
+    }
+    if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
+    usbw_end();   /* never leave the player on the silent USB_HOST_NULL sink */
+    if(out_seq_send(OUT_INTERNAL, 1) == 0){
+        out_set_state(OUT_INTERNAL);
+        ui_toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
+        out_resume(1);
+    } else {
+        out_rec_enter();
+        ui_toast("Output state uncertain - recovering");
+    }
+    modes_ui_refresh();
+}
+static void usbw_start(void){
+    g_usbw.t0 = lv_tick_get(); g_usbw.seen = 0;
+    g_usbw.tm = lv_timer_create(usbw_tick, 250, NULL);
+    ui_toast("Powering USB DAC...");
+}
 static int out_run(void){
     int target = g_osw.target;
     int rc = out_seq_send(target, g_osw.full);
     if(rc == -1){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
-    if(rc == 0){ out_set_state(target); out_resume(1); modes_ui_refresh(); return 0; }
+    if(rc == 0 && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
+    if(rc == 0){ out_set_state(target); out_resume(1); cfg_set_int(OUT_USB_PREF, 0); modes_ui_refresh(); return 0; }
     /* the route moved but the tail failed: back to the internal DAC; never end without 0657 8 landing */
     if(out_seq_send(OUT_INTERNAL, 1) == 0){
         out_set_state(OUT_INTERNAL);
@@ -179,14 +258,16 @@ static void osw_tick(lv_timer_t *t){
     if(ipc_generation() != g_osw.gen){ osw_stop("Player restarted - try again", 0); return; }
     if(strcmp(st.path, g_osw.path) != 0){ osw_stop("Track changed - try again", 0); return; }
     if(lv_tick_elaps(g_osw.t0) >= OUT_WAIT_MS){ osw_stop("Player is busy - try again", 0); return; }   /* deadline first: a late tick never routes, even with the hold complete */
-    if(ui_is_playing() || !out_pcm_quiet()) g_osw.quiet0 = 0;
+    /* "Quiet" = the track position has stopped advancing. V2.57 keeps the I2S PCM RUNNING (writing silence) while
+     * paused, so a closed-PCM requirement refused every switch after the first play since boot. ui_route_bt()
+     * already sends 0666 straight after a pause on this firmware. */
+    if(ui_is_playing()) g_osw.quiet0 = 0;
     else if(!g_osw.quiet0) g_osw.quiet0 = lv_tick_get() ? lv_tick_get() : 1;
     if(!g_osw.quiet0 || lv_tick_elaps(g_osw.quiet0) < OUT_QUIET_MS){
         return;
     }
     const char *why = ui_output_blocked();
     if(why){ osw_stop(why, g_osw.was_playing); return; }
-    if(g_osw.target == OUT_USB && !out_usb_card_ok()){ osw_stop("USB DAC not found", g_osw.was_playing); return; }   /* re-checked right before 0666 3 */
     lv_timer_del(g_osw.tm); g_osw.tm = NULL;
     out_run();
 }
@@ -195,9 +276,7 @@ static int out_switch(int target, int via_mode){
     if(modes_output_busy()){ ui_toast("Switching..."); return -1; }
     const char *why = ui_output_blocked();
     if(why){ out_set_state(modes_output_route()); ui_toast(why); return -1; }
-    if(target == OUT_USB && !out_usb_card_ok()){ out_set_state(modes_output_route()); ui_toast("Connect a USB DAC first"); return -1; }
     int was_playing = ui_is_playing();
-    if(!was_playing && !out_pcm_quiet()){ out_set_state(modes_output_route()); ui_toast("Player is busy - try again"); return -1; }   /* PCM live but not "playing": a pause toggle would START it */
     track_state_t st; ipc_get_state(&st);
     memset(&g_osw, 0, sizeof g_osw);
     g_osw.target = target; g_osw.was_playing = was_playing;
@@ -278,11 +357,12 @@ static void mark_pending(int m){ paint(slot_of_mode(m), LV_SYMBOL_REFRESH); }
 
 static lv_timer_t *g_settle = NULL;
 static int g_pending_mode = -1;   /* the mode a switch is settling to (so reopening the screen keeps showing "switching") */
+static struct { lv_timer_t *tm; int mode; uint32_t t0; } g_leave;   /* passing through Local before a source switch (see leave_tick) */
 /* M17: after the switch window, settle to the CONFIRMED mode read from the real USB gadget state,
  * not a blind assumption. If the gadget shows the switch didn't take, reflect reality + say so. */
 static void settle_cb(lv_timer_t *t){
     (void)t;
-    if(g_osw.tm) return;
+    if(g_osw.tm || g_leave.tm) return;   /* an output switch is still waiting for the pause, or the source switch behind it */
     if(ui_source_switch_pending()) return;
     if(lv_tick_elaps(g_last_switch) < 3200) return;
     lv_timer_del(g_settle); g_settle = NULL;
@@ -303,13 +383,55 @@ static void settle_cb(lv_timer_t *t){
     if(show != 0 && screen_current() == SCR_WORKMODE) modeinfo_refresh_and_show();   /* the mode's own screen */
 }
 
+/* honest wording: the frames are queued; the async switch completes a moment later. */
+static const char *const SWITCH_MSG[] = {
+    "Switching to playback", "Switching to USB DAC",
+    "Switching to Bluetooth receiving", "Switching to USB storage",
+    "Bluetooth streaming on", "AirPlay on \xE2\x80\x93 pick the Disc on your device" };
+/* Via Local (see main.c ui_set_source_mode): USB Audio -> USB DAC / BT / Storage and USB DAC -> Storage first go to
+ * plain Local - USB Audio through the internal-DAC output switch, USB DAC through ui_set_source_mode(0) - and only
+ * once that landed and the player had 3 s to apply it, re-enter ui_set_source_mode with the picked mode so all its
+ * guards (and the SD drain) run. Playback stays paused: never resume into the jack on the way through. */
+static void leave_end(const char *why){
+    if(g_leave.tm){ lv_timer_del(g_leave.tm); g_leave.tm = NULL; }
+    if(g_settle){ lv_timer_del(g_settle); g_settle = NULL; }   /* nothing is settling: show the real selection now */
+    g_pending_mode = -1;
+    if(why) ui_toast(why);
+    modes_ui_refresh();
+}
+static void leave_tick(lv_timer_t *t){
+    (void)t;
+    if(lv_tick_elaps(g_leave.t0) >= 10000){ leave_end("Couldn't return to Local - mode not changed"); return; }
+    if(modes_output_busy() || lv_tick_elaps(g_leave.t0) < 3000) return;   /* still pausing / routing / recovering, or settling */
+    if(modes_output_route() != OUT_INTERNAL || ui_get_source_mode() != 0){ leave_end("Still not on Local - mode not changed"); return; }
+    int m = g_leave.mode;
+    lv_timer_del(g_leave.tm); g_leave.tm = NULL;
+    cfg_set_int(OUT_USB_PREF, 0);   /* a deliberate leave, also when out_run only got here through its fallback */
+    g_last_switch = lv_tick_get();  /* the settle window runs from the real source switch */
+    if(ui_set_source_mode(m) != 0){ leave_end(NULL); return; }   /* it toasted why; the picker shows Local */
+    ui_toast(SWITCH_MSG[m]);
+}
+int modes_via_local_then(int mode){
+    if(g_leave.tm){ ui_toast("Switching..."); return -1; }
+    const char *msg = "Leaving USB DAC...";
+    if(modes_output_route() == OUT_USB){
+        if(out_switch(OUT_INTERNAL, 1) != 0) return -1;   /* out_switch toasted why */
+        g_osw.was_playing = 0;   /* out_switch already paused it; never resume into the jack */
+        msg = "Leaving USB Audio...";
+    } else if(ui_set_source_mode(0) != 0) return -1;     /* it toasted why (a connected computer, SD state) */
+    g_leave.mode = mode; g_leave.t0 = lv_tick_get();
+    g_leave.tm = lv_timer_create(leave_tick, 100, NULL);
+    ui_toast(msg);
+    return 0;
+}
+
 static void row_cb(int slot){                 /* a tap inside a slice (the wheel does the hit-testing) */
     if(slot < 0 || slot >= N_MODES) return;
     int m = MODES[slot].mode;
     /* Serialise: ignore taps while the previous switch is still applying (the player's gadget
      * state-machine is asynchronous). NB we do NOT early-return on "same mode" - re-issuing must
      * always be allowed so Local works as a recover even if our cached mode is stale. */
-    if(g_last_switch && lv_tick_elaps(g_last_switch) < 3000) return;   /* still switching: the arrows are turning */
+    if(g_leave.tm || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)) return;   /* still switching: the arrows are turning */
     g_last_switch = lv_tick_get();
     if(m == ROW_USB_AUDIO){   /* USB Audio: an output route of the Local source, not a source mode */
         if(modes_output_mode_switch(OUT_USB) == 0){
@@ -325,12 +447,7 @@ static void row_cb(int slot){                 /* a tap inside a slice (the wheel
         mark_pending(m);      /* async switch in flight: show "switching", not a confirmed selection */
         if(g_settle) lv_timer_del(g_settle);
         g_settle = lv_timer_create(settle_cb, 500, NULL);   /* settle to the checkmark after the switch window */
-        /* honest wording: the frames are queued; the async switch completes a moment later. */
-        static const char *msg[] = {
-            "Switching to playback", "Switching to USB DAC",
-            "Switching to Bluetooth receiving", "Switching to USB storage",
-            "Bluetooth streaming on", "AirPlay on \xE2\x80\x93 pick the Disc on your device" };
-        ui_toast(msg[m]);
+        if(!g_leave.tm) ui_toast(SWITCH_MSG[m]);   /* passing through Local first: its toast stays, leave_tick says this later */
     } else g_last_switch = 0;                                  /* refused (the reason was toasted, if any): tappable again */
 }
 

@@ -178,6 +178,7 @@ int  wifi_toggle(void);        /* Quick Settings tile short-press: flip radio + 
 int  wifi_radio_live(void);   /* Wi-Fi radio really on (wpa_supplicant running) */
 void lastfm_open(void);                   /* Settings -> Last.fm (SCR_LASTFM) */
 void debug_open(void);                     /* Settings -> System -> Debug Mode (SCR_DEBUG) */
+int  debug_ssh_on(void);                   /* 1 while Debug Mode SSH runs (Quick Settings Debug tile) */
 void debug_create(lv_obj_t *root);
 void lastfm_create(lv_obj_t *parent);
 void wifi_init_intent(void);   /* seed wifi_on intent from stock WIFI_STATUS (first run only) */

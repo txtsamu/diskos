@@ -162,7 +162,27 @@ serial_off() {
 status() {
     s=off; pgrep -f "dropbearmulti dropbear" >/dev/null 2>&1 && s=on
     r=off; serial_alive && r=on
-    echo "SSH=$s SERIAL=$r"
+    k=off; pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 && k=on
+    echo "SSH=$s SERIAL=$r KEYSSH=$k"
+}
+
+# Key-only SSH on port 2222 for development (no password login at all: dropbear -s). Runs only when
+# $KEYHOME/.ssh/authorized_keys exists. /root is empty and read-only in the image, so $KEYHOME (on the
+# persistent /usr/data) is bind-mounted over it - dropbear has no option to read keys elsewhere.
+# Started through a "dropbear" symlink so Debug Mode's `pgrep -f "dropbearmulti dropbear"` never
+# matches (and so never kills) this daemon; the two coexist on ports 22 and 2222.
+KEYHOME="$SELF/root_home"
+key_on() {
+    [ -s "$KEYHOME/.ssh/authorized_keys" ] || { echo "no authorized_keys"; return 1; }
+    ensure_db || { echo "err: no dropbear binary"; return 1; }
+    chmod 700 "$KEYHOME" "$KEYHOME/.ssh" 2>/dev/null; chmod 600 "$KEYHOME/.ssh/authorized_keys" 2>/dev/null
+    grep -q ' /root ' /proc/mounts 2>/dev/null || mount -o bind "$KEYHOME" /root 2>/dev/null \
+        || { echo "err: cannot bind $KEYHOME over /root"; return 1; }
+    ln -sf dropbearmulti "$SELF/dropbear" 2>/dev/null
+    pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 || \
+        "$SELF/dropbear" -s -p 2222 -r "$KEYS/ed25519_host_key" -r "$KEYS/rsa_host_key" >/dev/null 2>&1
+    pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 || { echo "err: key dropbear did not start"; return 1; }
+    echo on
 }
 
 case "$1" in
@@ -171,5 +191,6 @@ case "$1" in
     serial-on)  serial_on ;;
     serial-off) serial_off ;;
     status)     status ;;
-    *) echo "usage: $0 {ssh-on <hash>|ssh-off|serial-on|serial-off|status}"; exit 1 ;;
+    key-on)     key_on ;;
+    *) echo "usage: $0 {ssh-on <hash>|ssh-off|serial-on|serial-off|key-on|status}"; exit 1 ;;
 esac

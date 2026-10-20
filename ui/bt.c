@@ -1340,9 +1340,32 @@ static void bootrestore_poll_cb(lv_timer_t *t){
         lv_timer_del(g_bootrestore_timer); g_bootrestore_timer = NULL;
     }
 }
+/* Intent off at boot: the stock side can still bring the radio up during/after the UI start (seen after a cold
+ * power-on), and "stay off" alone never powered it back down. Watch it for the boot window and turn it off,
+ * unless the user enables Bluetooth meanwhile (their intent becomes 1). */
+static lv_timer_t *g_bootoff_timer;
+static uint32_t    g_bootoff_start;
+static void bootoff_poll_cb(lv_timer_t *t){
+    (void)t;
+    static uint32_t last_off;   /* bt_disable() is a background teardown: give it time before trying again */
+    /* also stand down when Bluetooth Receiving is the remembered Working Mode: its boot restore needs the radio */
+    int done = cfg_get_int("bt_on", 0) == 1 || cfg_get_int("src_mode", 0) == 2 || lv_tick_elaps(g_bootoff_start) > 30000;
+    if(!done && bt_radio_on() && (!last_off || lv_tick_elaps(last_off) >= 6000)){
+        fprintf(stderr, "bt: radio came up with intent off at boot - powering it down\n"); fflush(stderr);
+        last_off = lv_tick_get() ? lv_tick_get() : 1;
+        bt_disable();
+    }
+    if(done){ lv_timer_del(g_bootoff_timer); g_bootoff_timer = NULL; }
+}
 void bt_boot_restore(void){
     bt_init_intent();
-    if(cfg_get_int("bt_on", 0) != 1) return;              /* was off -> stay off */
+    if(cfg_get_int("bt_on", 0) != 1){                     /* was off -> stay off, and make it so */
+        g_bootoff_start = lv_tick_get();
+        if(g_bootoff_timer) lv_timer_del(g_bootoff_timer);
+        g_bootoff_timer = lv_timer_create(bootoff_poll_cb, 2000, NULL);
+        bootoff_poll_cb(NULL);
+        return;
+    }
     if(bt_on()){ bt_ensure_services(); bt_autoroute_start(); return; }   /* already up (UI restart) */
     bt_enable();
     g_bootrestore_start = lv_tick_get();

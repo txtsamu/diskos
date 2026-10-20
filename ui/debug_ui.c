@@ -200,6 +200,7 @@ static void btn_cb(lv_event_t *e){
 
 /* On open, reflect the REAL state (dropbear running?) + reload the persisted password, so a restart
  * or a re-open never offers "Enable" while SSH is live (which would rotate the password needlessly). */
+int debug_ssh_on(void){ return ssh_running(); }   /* Quick Settings Debug tile: lit while Debug SSH runs */
 void debug_open(void){
     /* ON if dropbear is up OR the overlay is still mounted (a partial/stuck state must not read as OFF,
      * so the user can Disable again to fully tear it down). */
