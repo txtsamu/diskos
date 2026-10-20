@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#define PLV_MAX_ROWS 8192   /* rows shown (well under LVGL's uint16 child count); playback still uses the whole playlist */
 
 /* Playlist detail (SCR_PLVIEW): opened by tapping a playlist in the Library.
  * Header name + Play / Shuffle + a horizontal 3-dot menu (Edit name / Delete).
@@ -120,13 +121,14 @@ static void plv_reload(void){
     /* size to the real song count (no 300 cap). songs[] is only read while building the rows
      * (plv_song_cb replays by id+position, not a retained pointer) -> malloc + free here. */
     int cnt = mdb_playlist_count(g_pid);
+    if(cnt > PLV_MAX_ROWS) cnt = PLV_MAX_ROWS;       /* cap BEFORE loading: a huge playlist loaded every song, then showed 8192 */
     mdb_song_t *songs = (cnt>0 && (size_t)cnt <= ((size_t)-1) / sizeof(mdb_song_t))   /* 32-bit overflow guard */
                         ? malloc((size_t)cnt*sizeof(mdb_song_t)) : NULL;
     int n = songs ? mdb_playlist_songs(g_pid, songs, cnt) : 0;
     /* Cap RENDERED rows well under LVGL's uint16 child count (65535, where child_cnt wraps and corrupts the
      * child array). 8192 is far above any realistic playlist yet memory-safe; a pathological larger playlist
      * simply shows its first 8192. (Playback still uses the full playlist via id+position replay.) */
-    if(n > 8192) n = 8192;
+    if(n > PLV_MAX_ROWS) n = PLV_MAX_ROWS;
     pl_set_transport_enabled(n > 0);
     if(n<=0){
         free(songs);   /* NULL-safe */
@@ -147,6 +149,14 @@ static void plv_reload(void){
  * to SCR_PLVIEW (incl. back-nav), so tap positions can't go stale after the playlist's
  * membership changes elsewhere (e.g. add-to-playlist from Now Playing). */
 void plview_refresh(void){ plv_reload(); }
+/* The screen manager calls this once the playlist screen is fully hidden (not during its slide-out): the song details
+ * (848 bytes each) go, and plview_refresh rebuilds them on the next entry. */
+void plview_release(void){
+    if(!g_pl_songs) return;
+    vlist_end(&g_plv);
+    if(g_song_list) lv_obj_clean(g_song_list);
+    free(g_pl_songs); g_pl_songs = NULL; g_pl_n = 0;
+}
 
 void plview_open(long pid, const char *name){
     g_pid = pid;

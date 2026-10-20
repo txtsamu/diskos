@@ -70,7 +70,13 @@ static int library_row_marked(lv_obj_t *row){
 }
 static void list_focus_update(lv_timer_t *t){
     lv_obj_t *list=lv_timer_get_user_data(t);
-    if(!lv_obj_is_visible(list))return;
+    if(!lv_obj_is_visible(list)){                     /* hidden: no row scrolls (it kept animating, and any running */
+        for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){   /* animation keeps the main loop in its busy pace) */
+            lv_obj_t *r=lv_obj_get_child(list,i);
+            if(library_row_marked(r))list_text_mode(r,0);
+        }
+        return;
+    }
     lv_obj_t *nearest=NULL;int distance=10000;
     for(uint32_t i=0;i<lv_obj_get_child_count(list);i++){
         lv_obj_t *r=lv_obj_get_child(list,i);

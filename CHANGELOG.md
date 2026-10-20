@@ -6,7 +6,20 @@ Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categ
 diskOS remains beta software; version numbers do not imply broad hardware or feature validation.
 
 
-## [2.5.8] - 2026-10-19
+## [Unreleased]
+
+From the 2.5.8 memory and CPU audit:
+- Queue: a manual skip with nothing queued no longer reads and maps the player's whole list; the song-path index is
+  ensured when the library opens (not only on a rescan).
+- Bulk Queue / Add folder to queue: one 2.5 s time budget for the whole action; a locked database gives up after one
+  wait with "Library busy - try again" and adds nothing (the selection stays), instead of waiting 1.5 s per song.
+- Playlists: only the rows that can be shown (8192) are loaded, and the song list is released once the screen is
+  fully hidden.
+- Most / Recently Played reserve room for the history, not the whole library; the buffer is released in other views.
+- Hidden library lists stop scrolling their focused row (it kept the main loop in its busy pace).
+- Immersive: the CD sheen buffers (0.74 MB) are released with the rest when Immersive closes.
+
+ - 2026-10-19
 
 - Bluetooth (#13): with LDAC/AAC, music waits for the codec switch before playing instead of stopping ~6 s in; no
   device search during Bluetooth playback (it caused short dropouts). Not yet tested on a Disc with LDAC/AAC.

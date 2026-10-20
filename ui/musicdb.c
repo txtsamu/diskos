@@ -102,6 +102,9 @@ static sqlite3 *db(void){
             sqlite3_exec(tmp, "CREATE TABLE IF NOT EXISTS PLAY_LOG(ID INTEGER PRIMARY KEY, AT INTEGER NOT NULL, "
                               "MS INTEGER NOT NULL, PATH TEXT, TITLE TEXT, ARTIST TEXT, ALBUM TEXT, AARTIST TEXT);", 0, 0, 0);
             sqlite3_exec(tmp, "CREATE INDEX IF NOT EXISTS PLAY_LOG_AT ON PLAY_LOG(AT);", 0, 0, 0);
+            /* the path index queue and history lookups rely on (also made by a rescan): without it every lookup by
+             * path scans the whole song table, so an existing library gets it here too (once; instant afterwards) */
+            sqlite3_exec(tmp, "CREATE INDEX IF NOT EXISTS diskos_song_path ON SONG(PATH);", 0, 0, 0);
             /* diskOS-owned audiobook progress (separate table, path-keyed like PLAY_STATS, survives
              * rescans + the stock DB rebuild). One bookmark per book; MEMBER_PATH is the file that was
              * playing (a multipart book has several), POSITION_MS the spot within it. */
@@ -1534,6 +1537,14 @@ static int mdb_stats_list(mdb_song_t *out, int cap, int by_recent){
         s->genre[0] = 0;
         trim(s->title); trim(s->artist); trim(s->album);
     }
+    sqlite3_finalize(st); return n;
+}
+/* How many songs the play history can list at most (an upper bound: rows for songs since removed don't join). */
+int mdb_history_count(void){
+    sqlite3 *d = db_read(); if(!d) return 0;
+    sqlite3_stmt *st; int n = 0;
+    if(sqlite3_prepare_v2(d, "SELECT COUNT(*) FROM PLAY_STATS;", -1, &st, NULL) != SQLITE_OK) return 0;
+    if(sqlite3_step(st) == SQLITE_ROW) n = sqlite3_column_int(st, 0);
     sqlite3_finalize(st); return n;
 }
 int mdb_mostplayed(mdb_song_t *out, int cap){ return mdb_stats_list(out, cap, 0); }

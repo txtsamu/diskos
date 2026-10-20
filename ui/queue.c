@@ -112,13 +112,21 @@ int queue_add_path(const char *path){
 }
 /* Exact songs (SONG.IDs), each with its own track/CUE/ISO identity: never a whole image for one track. All or nothing
  * when the queue can't take them all; saved and shown once. Returns the number added, -1 if they don't fit, 0 if none. */
+#define ADD_BUDGET_MS 2500                                  /* the whole bulk add, not per song */
 static int add_ids(const int *ids, int n){
     if(n <= 0) return 0;
     if(n > QMAX - g_qn) return -1;
-    int added = 0;
+    int added = 0, start_qn = g_qn;
+    uint32_t t0 = lv_tick_get();
     for(int i = 0; i < n; i++){
         mdb_song_t song; char path[256];
-        if(!mdb_queue_song(ids[i], path, sizeof path, &song)) continue;   /* gone from the library: skip that one */
+        uint32_t t = lv_tick_get();
+        int ok = mdb_queue_song(ids[i], path, sizeof path, &song);
+        /* A lookup that waited ~1 s or more met a locked database (the player writing), not a missing song. Each one
+         * may wait 1.5 s, so a long locked spell must not stack those waits on the UI thread: give up as a whole,
+         * undo, and let the user try again with the selection kept. */
+        if((!ok && lv_tick_elaps(t) >= 1000) || lv_tick_elaps(t0) > ADD_BUDGET_MS){ g_qn = start_qn; return -2; }
+        if(!ok) continue;                                         /* gone from the library: skip that one */
         const char *sl = strrchr(path, '/');
         if(add_one(ids[i], path, song.title[0] ? song.title : (sl ? sl + 1 : path), song.artist, song.dur_ms)){
             qitem_t *q = &g_q[g_qn - 1]; q->track = song.track; q->cue = song.is_cue; q->iso = song.is_iso; q->have_key = 1; added++;
@@ -306,6 +314,7 @@ void queue_tick(const track_state_t *st, int playing){
         if(!prev) return;                                  /* the first song we see: nothing to do */
         if(g_skip_change){ g_skip_change = 0; return; }       /* the user just started this one: the queue waits for it to end */
         if(mdb_is_book_path(st->path)) return;                /* a book plays alone */
+        if(!g_active && g_qn == 0){ g_back_at = 0; return; }   /* no queue at all: no need to work out the direction */
         int natural = prev_dur > 0 && prev_pos >= prev_dur - 4000;
         /* forward or back? Works in any play mode (list order means nothing in Shuffle): going back = returning
          * to the song heard before the last one */

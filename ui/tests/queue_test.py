@@ -19,8 +19,11 @@ int ui_local_playback_allowed(void){return local;}
 void ipc_get_state(track_state_t *out){*out=state;}
 int cfg_get_int(const char *key,int fallback){(void)key;return fallback;}
 int simple_cfg_get_int(const char *key,int fallback){return cfg_get_int(key,fallback);}
-uint32_t lv_tick_get(void){return 10000;}
-uint32_t lv_tick_elaps(uint32_t t){return 10000-t;}
+#include <time.h>
+static int real_ticks;                                   /* 0: the clock stands at 10000 (most tests); 1: real time */
+static uint32_t mono_ms(void){struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return (uint32_t)(t.tv_sec*1000+t.tv_nsec/1000000);}
+uint32_t lv_tick_get(void){static uint32_t base;if(!real_ticks)return 10000;if(!base)base=mono_ms();return 10000+(mono_ms()-base);}
+uint32_t lv_tick_elaps(uint32_t t){return lv_tick_get()-t;}
 void ui_queue_changed(void){}
 void ui_toast(const char *s){(void)s;}
 int screen_current(void){return SCR_NOWPLAYING;}
@@ -106,6 +109,15 @@ int main(int argc,char **argv){
     {int two[]={10,20};assert(queue_add_ids(two,2)==2 && queue_count()==3 && g_q[1].id==10 && g_q[2].id==20);}
     {static int many[QMAX+1];for(int k=0;k<QMAX+1;k++)many[k]=20;assert(queue_add_ids(many,QMAX+1)==-1 && queue_count()==3);}
     puts("PASS multi-select queues exact songs (one CUE track stays one track); too many is refused, not cut off");
+    /* Audit #2: a database locked the whole time costs one wait, not one per song; nothing is added */
+    {sqlite3 *player=NULL;assert(sqlite3_open(argv[1],&player)==SQLITE_OK);sql(player,"BEGIN EXCLUSIVE;");
+     int before=queue_count();int ids[]={10,11,20};real_ticks=1;
+     struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
+     int r=queue_add_ids(ids,3);
+     clock_gettime(CLOCK_MONOTONIC,&t1);double sec=(t1.tv_sec-t0.tv_sec)+(t1.tv_nsec-t0.tv_nsec)/1e9;
+     real_ticks=0;sql(player,"COMMIT;");sqlite3_close(player);
+     assert(r==-2 && queue_count()==before && sec<2.5);
+     printf("PASS a locked database stops a bulk add after one wait (%.1f s), adding nothing\n",sec);}
     assert(!leases);sqlite3_close(db);
     puts("HARNESS COMPLETE");
 }

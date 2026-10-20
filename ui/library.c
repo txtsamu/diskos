@@ -1121,6 +1121,9 @@ static void library_reload_inner(void){
                                                                      * reach virt_follow() with freed spacers */
     lv_obj_clean(g_list);
     g_count = 0;
+    if(g_view!=VIEW_FAVS && g_view!=VIEW_MOSTPLAYED && g_view!=VIEW_RECENT && g_favs){   /* not shown now: let it go */
+        free(g_favs); g_favs = NULL; g_fav_cap = 0;
+    }
     g_has_header = 0;
     g_hdr_extra_px = 0;
     lv_obj_scroll_to_y(g_list, 0, LV_ANIM_OFF);
@@ -1229,8 +1232,11 @@ static void library_reload_inner(void){
         for(int i=0;i<n;i++) g_first[i]=first_letter(g_favs[i].title);
         g_count=n; fill_start(n); az_show(1);
     } else if(g_view==VIEW_MOSTPLAYED || g_view==VIEW_RECENT){
-        lib_ensure_fav_cap(g_alloc_n);
-        int cap=g_fav_cap<g_alloc_n?g_fav_cap:g_alloc_n;
+        /* sized to the history, not the whole library (848 bytes a song): a short history stays small */
+        int want=mdb_history_count(); if(want>g_alloc_n) want=g_alloc_n;
+        if(want<=0){ empty_label(tr("Nothing played yet")); return; }
+        lib_ensure_fav_cap(want);
+        int cap=g_fav_cap<want?g_fav_cap:want;
         int n = (g_view==VIEW_MOSTPLAYED) ? mdb_mostplayed(g_favs, cap) : mdb_recent(g_favs, cap);
         if(n<=0){ empty_label(tr("Nothing played yet")); return; }
         g_count=n; fill_start(n);   /* ordered by plays / recency -> no Play-All header, no A-Z */

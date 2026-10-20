@@ -187,6 +187,7 @@ static void transition_core(int from, int to, int dir)
         lv_anim_delete(s_roots[i], NULL);
         lv_obj_add_flag(s_roots[i], LV_OBJ_FLAG_HIDDEN);
         root_rest(s_roots[i]);
+        if (i == SCR_PLVIEW) plview_release();       /* fully hidden now: drop its song details (rebuilt on entry) */
     }
     if (s_scrim) { lv_anim_delete(s_scrim, NULL); scrim_off(); }   /* scrim unused by zoom; keep clear */
 

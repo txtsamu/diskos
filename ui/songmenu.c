@@ -38,7 +38,9 @@ static void pick(int i){
     switch(a){
         case A_QUEUE: {
             int r = g_gcol[0] ? queue_add_group(g_gcol, g_gval) : g_is_dir ? queue_add_folder(g_path) : queue_add_path(g_path);
-            if(g_is_dir || g_gcol[0]){ char t[48]; snprintf(t, sizeof t, r > 0 ? "Added %d songs to the queue" : "Nothing new to add", r); ui_toast(t); }
+            if(g_is_dir || g_gcol[0]){ char t[48];
+                snprintf(t, sizeof t, r > 0 ? "Added %d songs to the queue" : r == -2 ? "Library busy - try again" : r == -1 ? "The queue is full" : "Nothing new to add", r);
+                ui_toast(t); }
             else ui_toast_icon(LV_SYMBOL_LIST, ui_current_accent(), r > 0 ? "Added to the queue" : r < 0 ? "The queue is full" : "Can't queue that");
         } break;
         case A_PLAYLIST:

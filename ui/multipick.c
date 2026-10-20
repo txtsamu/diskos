@@ -170,6 +170,7 @@ static void act_queue(mp_host_t *h){
     int added = queue_add_ids(ids, n);                                      /* exact songs, saved once */
     free(ids);
     char b[48];
+    if(added == -2){ ui_toast("Library busy - try again"); return; }   /* nothing added; the selection stays */
     if(added < 0){ snprintf(b, sizeof b, "Queue full - %d songs don't fit", n); ui_toast(b); return; }
     if(added == 0){ ui_toast("Couldn't queue those"); return; }
     if(added < n) snprintf(b, sizeof b, "%d queued, %d not found", added, n - added);

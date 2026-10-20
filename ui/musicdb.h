@@ -172,6 +172,7 @@ int  mdb_favorites(mdb_song_t *out, int cap, int stock_order);   /* stock_order:
 int  mdb_favorite_count(void);                                   /* MY_LOVE music rows (may exceed SONG); -1 = error */
 int  mdb_love_path(int love_id, char *out, int cap);              /* MY_LOVE.PATH for a MY_LOVE.ID; 1 = found */
 void mdb_record_play(const char *path);            /* bump PLAY_STATS on a new track */
+int  mdb_history_count(void);   /* rows in the play history (upper bound for Most/Recently Played) */
 int  mdb_mostplayed(mdb_song_t *out, int cap);     /* songs by play count desc */
 int  mdb_recent(mdb_song_t *out, int cap);         /* songs by last-played desc */
 int  mdb_unfavorite(int love_id);                   /* remove by MY_LOVE.ID */

@@ -25,7 +25,7 @@ void ui_power_off(void);         /* shutdown screen, save, sync, poweroff */
 void usage_save(void);                              /* before a power-off */
 long queue_pid(int create);          /* the "Queue" playlist */
 int  queue_count(void);
-int  queue_add_ids(const int *ids, int n);   /* exact songs, saved once; -1 if they don't fit, else added */
+int  queue_add_ids(const int *ids, int n);   /* exact songs, saved once; -1 if they don't fit, -2 database busy (nothing added), else added */
 int  queue_add_path(const char *path);   /* 1 added, 0 already there, -1 failed */
 int  queue_add_group(const char *col, const char *val);
 int  queue_add_folder(const char *dir);
@@ -170,6 +170,7 @@ void plpick_set_group(const char *col, const char *val);   /* instead: add every
 void plview_create(lv_obj_t *root);
 void plview_open(long pid, const char *name);
 void plview_refresh(void);   /* rebuild the song list from the DB (called on every entry) */
+void plview_release(void);   /* the hidden playlist screen drops its song list (rebuilt by plview_refresh) */
 /* wifi settings (wifi.c) */
 void wifi_create(lv_obj_t *root);
 void wifi_open(void);

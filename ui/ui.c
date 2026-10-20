@@ -1061,6 +1061,7 @@ static void imm_cold_release(void){
     lv_image_cache_drop(&g_spindsc);lv_image_cache_drop(&imm_frame_dsc);
     imm_overlay_mode(0);for(int k=0;k<4;k++)if(imm_snap[k]){lv_draw_buf_destroy(imm_snap[k]);imm_snap[k]=NULL;}
     free(g_spinbuf);g_spinbuf=NULL;free(imm_frame);imm_frame=NULL;g_spin_ok=imm_fast=0;
+    imm_record_set_cd(0);   /* its sheen buffers (0.74 MB) too; rebuilt with the picture on the next open */
 }
 static void imm_out_done(lv_anim_t *a){
     (void)a;if(fsart_on)return;
