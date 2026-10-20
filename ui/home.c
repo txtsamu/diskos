@@ -16,6 +16,7 @@ void bhome_set_status(int batt, int charging, int wifi, int bt); void bhome_set_
 #include <math.h>
 #include <stdlib.h>
 #include <math.h>
+#include "i18n.h"
 #include "ipc.h"
 
 LV_FONT_DECLARE(font_weather16)
@@ -256,8 +257,516 @@ void home_set_settings_click_cb(home_settings_click_cb_t cb)
     g_settings_cb = cb;
 }
 
+
+/* ======================================================================================================
+ * Halo: the original diskOS Home, ported verbatim from the reference tree (Default code path). Disco rewrote the
+ * shared Default builders (Ring clock); Halo needs the original look, so it runs this copy instead.
+ * ====================================================================================================== */
+static int g_progress, g_has_track;
+static void halo_progress_tick(lv_timer_t *t);
+/* a label's text only when its input changes (a dotted label edits its own copy, so compare with the last input) */
+static int halo_label_changed(lv_obj_t *obj, const char *txt){
+    static struct { lv_obj_t *o; char t[160]; } c[8];
+    if(!obj) return 0;
+    if(!txt) txt = "";
+    int slot = -1;
+    for(int i = 0; i < 8; i++){ if(c[i].o == obj){ slot = i; break; } if(slot < 0 && !c[i].o) slot = i; }
+    if(slot < 0) slot = 0;
+    if(c[slot].o == obj && !strcmp(c[slot].t, txt)) return 0;
+    c[slot].o = obj; snprintf(c[slot].t, sizeof c[slot].t, "%s", txt);
+    lv_label_set_text(obj, txt);
+    return 1;
+}
+
+/* The capsule is a display-only perimeter: parent MAIN_END precedes every child.
+ * Five native draw primitives, no extra object or rounded clipping layer.
+ * Arc radius is the OUTER radius in LVGL; lengths use its stroke centreline. */
+typedef struct {
+    int progress;
+    lv_color_t accent, color;
+    int variant;
+} halo_island_progress_t;
+
+static float halo_island_luminance(lv_color_t c){
+    float v[3] = {c.red / 255.f, c.green / 255.f, c.blue / 255.f};
+    for(int i = 0; i < 3; i++) v[i] = v[i] <= .04045f ? v[i]/12.92f : powf((v[i]+.055f)/1.055f, 2.4f);
+    return .2126f*v[0] + .7152f*v[1] + .0722f*v[2];
+}
+static lv_color_t halo_island_color(lv_color_t accent){
+    /* Default dark historically passes arbitrary album colours through. Fit this
+     * new indicator to 3:1 on both sides of its border, retaining the hue. */
+    float bg[3] = {halo_island_luminance(TC(CANVAS)), halo_island_luminance(TC(SURFACE)),
+                   halo_island_luminance(TC(SURFACE_PRESSED))};
+    lv_color_t c = accent;
+    for(int n = 0; n < 256; n++){
+        float l = halo_island_luminance(c);
+        int pass = 1;
+        for(int i = 0; i < 3; i++) if((fmaxf(l,bg[i])+.05f)/(fminf(l,bg[i])+.05f) < 3.f) pass = 0;
+        if(pass) break;
+        int r = c.red, g = c.green, b = c.blue;
+        if(theme_variant()){ if(r) r--; if(g) g--; if(b) b--; }
+        else { if(r < 255) r++; if(g < 255) g++; if(b < 255) b++; }
+        c = theme_color_from_rgb((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
+    }
+    return c;
+}
+
+/* Visit only the requested interval, in clockwise order from the left end's
+ * 127-degree point, matching Now Playing's rotation. Used for drawing AND damage. */
+static void halo_island_visit(lv_obj_t *pill, float from, float to, lv_layer_t *layer, lv_color_t color){
+    if(to <= from) return;
+    lv_area_t a; lv_obj_get_coords(pill, &a);
+    int radius = lv_obj_get_height(pill)/2;
+    int straight = lv_obj_get_width(pill) - 2*radius;
+    if(radius < 3 || straight < 0) return;
+    float unit = (radius - 1.5f) * (float)M_PI / 180.f;
+    float lengths[5] = {143*unit, straight, 180*unit, straight, 37*unit};
+    float total = 2*straight + 360*unit, cursor = 0;
+    from *= total; to *= total;
+    for(int i = 0; i < 5; i++){
+        float lo = fmaxf(from-cursor, 0), hi = fminf(to-cursor, lengths[i]);
+        cursor += lengths[i];
+        if(hi <= lo) continue;
+        lv_area_t damage;
+        if(i == 1 || i == 3){
+            int x = i == 1 ? a.x1+radius : a.x2+1-radius;
+            int y = i == 1 ? a.y1+1 : a.y2-1;
+            int sign = i == 1 ? 1 : -1;
+            lv_draw_line_dsc_t d; lv_draw_line_dsc_init(&d);
+            d.p1 = (lv_point_precise_t){x+sign*(int)lroundf(lo), y};
+            d.p2 = (lv_point_precise_t){x+sign*(int)lroundf(hi), y};
+            if(d.p1.x == d.p2.x) continue;
+            d.width = 3; d.color = color; d.opa = LV_OPA_COVER;
+            d.round_start = d.round_end = 1;
+            damage = (lv_area_t){LV_MIN(d.p1.x,d.p2.x)-3, y-3, LV_MAX(d.p1.x,d.p2.x)+3, y+3};
+            if(layer) lv_draw_line(layer, &d);
+        } else {
+            int start = i == 0 ? 127 : i == 2 ? 270 : 90;
+            lv_draw_arc_dsc_t d; lv_draw_arc_dsc_init(&d);
+            d.center = (lv_point_t){i == 2 ? a.x2+1-radius : a.x1+radius, a.y1+radius};
+            d.radius = radius; d.width = 3; d.color = color;
+            d.opa = LV_OPA_COVER; d.rounded = 1;
+            d.start_angle = start + (int)lroundf(lo/unit);
+            d.end_angle = start + (int)lroundf(hi/unit);
+            if(d.start_angle == d.end_angle) continue;
+            lv_draw_arc_get_area(d.center.x, d.center.y, d.radius,
+                                 d.start_angle, d.end_angle, d.width, true, &damage);
+            if(layer) lv_draw_arc(layer, &d);
+        }
+        if(!layer) lv_obj_invalidate_area(pill, &damage);
+    }
+}
+static void halo_island_event(lv_event_t *e){
+    halo_island_progress_t *s = lv_event_get_user_data(e);
+    if(lv_event_get_code(e) == LV_EVENT_DELETE){ free(s); return; }
+    if(lv_event_get_code(e) == LV_EVENT_DRAW_MAIN_END)
+        halo_island_visit(lv_event_get_target(e), 0, s->progress/1000.f, lv_event_get_layer(e), s->color);
+}
+static void halo_home_progress(lv_obj_t *pill, int progress, int have_track, lv_color_t accent){
+    if(!pill) return;
+    halo_island_progress_t *s = NULL;
+    for(uint32_t i = 0; i < lv_obj_get_event_count(pill); i++){
+        lv_event_dsc_t *d = lv_obj_get_event_dsc(pill, i);
+        if(lv_event_dsc_get_cb(d) == halo_island_event){ s = lv_event_dsc_get_user_data(d); break; }
+    }
+    if(!s){
+        s = calloc(1, sizeof(*s));
+        if(!s) return;
+        s->variant = -1;
+        lv_obj_add_event_cb(pill, halo_island_event, LV_EVENT_ALL, s);
+    }
+    progress = have_track ? LV_CLAMP(0, progress, 1000) : 0;
+    int recolor = s->variant != theme_variant() || !lv_color_eq(s->accent, accent);
+    if(recolor){ s->accent = accent; s->color = halo_island_color(accent); s->variant = theme_variant(); }
+    int old = s->progress;
+    s->progress = progress;
+    if(recolor) halo_island_visit(pill, 0, LV_MAX(old,progress)/1000.f, NULL, s->color);
+    else if(old != progress) halo_island_visit(pill, LV_MIN(old,progress)/1000.f, LV_MAX(old,progress)/1000.f, NULL, s->color);
+}
+
+#ifndef HOME_TAP_SLOP
+#define HOME_TAP_SLOP 16
+#endif   /* a press that moved further was a swipe (Home -> Apps), not a tap */
+static void halo_nav_event_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    if (ui_press_travel() > HOME_TAP_SLOP) return;
+    screen_show((int)(uintptr_t)lv_event_get_user_data(e));
+}
+
+/* Tap the home weather glance -> open the full weather app (the natural glance->detail flow, so the
+ * app no longer needs a buried Apps entry). No-op when the line is empty (weather off). */
+static void halo_weather_event_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    if (ui_press_travel() > HOME_TAP_SLOP) return;   /* the line spans the screen: a swipe usually starts on it */
+    const char *t = g_weather ? lv_label_get_text(g_weather) : NULL;
+    if (t && t[0]) weather_app_open();
+}
+
+static void halo_pp_event_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED){
+        if(ui_press_travel() > HOME_TAP_SLOP) return;   /* a swipe across the key must not pause the music */
+        if(ui_transport_command("0201000C0000") < 0) return;
+        if (g_np_state) ui_pp_glyph(g_np_state, ui_pp_icon_playing(ui_is_playing()));
+    }
+}
+
+/* A wide rounded "pill" button: icon + label, left-aligned, vertically centered. */
+static lv_obj_t *halo_make_pill(lv_obj_t *parent, int x, int y, int w, int h,
+                           const char *symbol, const char *text,
+                           lv_event_cb_t cb, void *user_data)
+{
+    lv_obj_t *btn = lv_button_create(parent);
+    lv_obj_remove_style_all(btn);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_size(btn, w, h);
+    lv_obj_set_style_radius(btn, h / 2, 0);
+    lv_obj_set_style_bg_color(btn, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_70, 0);
+    lv_obj_set_style_bg_color(btn, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(btn, TC(OUTLINE_BRIGHT), 0);
+    lv_obj_set_style_border_opa(btn, LV_OPA_10, 0);
+    lv_obj_set_style_border_width(btn, 1, 0);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    ui_on(btn, cb, LV_EVENT_CLICKED, user_data, "home.library", UI_CORE);   /* the only pill: Library */
+
+    lv_obj_t *ic = lv_label_create(btn);
+    lv_label_set_text(ic, symbol);
+    lv_obj_set_style_text_font(ic, TF(UI_24), 0);
+    lv_obj_set_style_text_color(ic, TC(TEXT_PRIMARY), 0);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 30, 0);
+
+    lv_obj_t *title = lv_label_create(btn);
+    lv_label_set_text(title, text);
+    lv_obj_set_style_text_font(title, TF(UI_18), 0);
+    lv_obj_set_style_text_color(title, TC(TEXT_PRIMARY), 0);
+    lv_obj_align(title, LV_ALIGN_LEFT_MID, 76, 0);
+    return btn;
+}
+
+static void halo_home_set_clock(const char *time_text, const char *sub_text)
+{
+    /* minute-resolution text on a 10 s tick: a theme's clock drawing follows from the time text alone */
+    if (halo_label_changed(g_clock, time_text ? time_text : "--:--") && theme_kit()->home_clock)
+        theme_kit()->home_clock(time_text ? time_text : "--:--");
+    if (halo_label_changed(g_clock_sub, sub_text)){
+        theme_case_text(g_clock_sub, sub_text);            /* the theme's case (Default: as given) */
+    }
+}
+
+static void halo_home_set_weather(const char *text)
+{
+    if (!g_weather) return;
+    const char *t = text ? text : "";
+    /* weather.c writes "<icon>  <temp>  <condition>". A line too narrow for all of it (a theme's side column) drops the
+     * icon before it cuts the words: "5 C Overcast" reads, "5 C Over..." does not. The icon is one private-use glyph
+     * (3-byte UTF-8, lead 0xEF). */
+    if ((unsigned char)t[0] == 0xEF && t[1] && t[2]) {
+        int32_t room = lv_obj_get_style_width(g_weather, 0);
+        if (room > 0 && room != LV_SIZE_CONTENT && !LV_COORD_IS_PCT(room)) {
+            room -= lv_obj_get_style_pad_left(g_weather, 0) + lv_obj_get_style_pad_right(g_weather, 0);
+            lv_point_t sz;
+            lv_text_get_size(&sz, t, lv_obj_get_style_text_font(g_weather, 0),
+                             lv_obj_get_style_text_letter_space(g_weather, 0), 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (sz.x > room) { t += 3; while (*t == ' ') t++; }
+        }
+    }
+    if (!strcmp(lv_label_get_text(g_weather), t)) return;   /* unchanged fallback: no redraw every poll */
+    lv_label_set_text(g_weather, t);
+}
+
+/* Update the top status row. batt 0-100, charging/wifi/bt are booleans. */
+static void halo_home_set_status(int batt, int charging, int wifi, int bt)
+{
+    if (!g_status) return;
+    char buf[80]; char *p = buf; *p = 0;
+    if (wifi) { p += sprintf(p, LV_SYMBOL_WIFI "  "); }
+    if (bt)   { p += sprintf(p, LV_SYMBOL_BLUETOOTH "  "); }
+    const char *bs = batt >= 90 ? LV_SYMBOL_BATTERY_FULL :
+                     batt >= 65 ? LV_SYMBOL_BATTERY_3 :
+                     batt >= 40 ? LV_SYMBOL_BATTERY_2 :
+                     batt >= 15 ? LV_SYMBOL_BATTERY_1 : LV_SYMBOL_BATTERY_EMPTY;
+    /* while charging show just the bolt + % (the % gives the level); a bolt jammed against the
+     * battery glyph looked mashed. Not charging -> the battery-level glyph. */
+    if (batt >= 0) p += sprintf(p, "%s %d%%", charging ? LV_SYMBOL_CHARGE : bs, batt);
+    halo_label_changed(g_status, buf);
+}
+
+/* Fit the now-playing text in its box, whatever the theme did to the box or the fonts: the title + artist pair is
+ * centred vertically as one block (each line exactly its font's height), and both lines run up to the play key. Each
+ * theme sets its own box height and faces, and fixed y offsets left taller faces sitting low (the owner's Disc, hi-fi:
+ * the artist line touched the bottom edge) and stopped the title well short of the key. */
+static void halo_np_fit_run(void){
+    lv_obj_update_layout(g_np_capsule);
+    int32_t h = lv_obj_get_content_height(g_np_capsule);
+    /* keep the theme's own line spacing (fonts carry different leading); move the pair so the space above the title
+     * equals the space below the artist's line, and give each line at least its font's height (no clipped descenders) */
+    int32_t lt = lv_font_get_line_height(lv_obj_get_style_text_font(g_np_title, 0));
+    int32_t la = lv_font_get_line_height(lv_obj_get_style_text_font(g_np_artist, 0));
+    int32_t gap = lv_obj_get_y(g_np_artist) - lv_obj_get_y(g_np_title);
+    if(gap < lt * 3 / 4 || gap > lt + 8) gap = lt;    /* a theme that stacked them oddly: plain line spacing */
+    /* centre the INK, not the line boxes (those include descender room, which centred the text low): from the top of a
+     * capital in the title to the artist's baseline */
+    const lv_font_t *ft = lv_obj_get_style_text_font(g_np_title, 0), *fa = lv_obj_get_style_text_font(g_np_artist, 0);
+    int32_t cap_top = 0;   /* line top -> top of 'H' in the title face */
+    lv_font_glyph_dsc_t g;
+    if(lv_font_get_glyph_dsc(ft, &g, 'H', 0)) cap_top = (lt - ft->base_line) - (g.ofs_y + g.box_h);
+    int32_t a_base = la - fa->base_line;   /* line top -> baseline in the artist face */
+    int32_t top = (h - (gap + a_base - cap_top)) / 2 - cap_top; if(top < 0) top = 0;
+    lv_obj_set_y(g_np_title, top);
+    lv_obj_set_y(g_np_artist, top + gap);
+    if(lv_obj_get_height(g_np_title) < lt) lv_obj_set_height(g_np_title, lt);
+    if(lv_obj_get_height(g_np_artist) < la) lv_obj_set_height(g_np_artist, la);
+    lv_obj_t *pp = g_np_state ? lv_obj_get_parent(g_np_state) : NULL;
+    if(pp && lv_obj_get_parent(pp) == g_np_capsule && !lv_obj_has_flag(pp, LV_OBJ_FLAG_HIDDEN)){
+        int32_t w = lv_obj_get_x(pp) - 8 - lv_obj_get_x(g_np_title);
+        if(w > 40){ lv_obj_set_width(g_np_title, w); lv_obj_set_width(g_np_artist, w); }
+    }
+}
+/* What the fit reads, as requested (styles and flags): a value set after a layout pass is already here, while
+ * coordinates still show the old one until the next refresh. New text refits as well (halo_np_fit's force). */
+#define HALO_NP_GEOM_N 17
+static void halo_np_geom(intptr_t g[4][HALO_NP_GEOM_N]){
+    lv_obj_t *o[4] = { g_np_capsule, g_np_title, g_np_artist, g_np_state ? lv_obj_get_parent(g_np_state) : NULL };
+    memset(g, 0, sizeof(intptr_t) * 4 * HALO_NP_GEOM_N);
+    for(int i = 0; i < 4; i++){
+        if(!o[i]) continue;
+        intptr_t *v = g[i];
+        v[0] = (intptr_t)lv_obj_get_parent(o[i]); v[1] = lv_obj_has_flag(o[i], LV_OBJ_FLAG_HIDDEN);
+        v[2] = lv_obj_get_style_x(o[i], 0); v[3] = lv_obj_get_style_y(o[i], 0);
+        v[4] = lv_obj_get_style_width(o[i], 0); v[5] = lv_obj_get_style_height(o[i], 0);
+        v[6] = lv_obj_get_style_align(o[i], 0);
+        v[7] = lv_obj_get_style_pad_left(o[i], 0); v[8] = lv_obj_get_style_pad_right(o[i], 0);
+        v[9] = lv_obj_get_style_pad_top(o[i], 0); v[10] = lv_obj_get_style_pad_bottom(o[i], 0);
+        v[11] = lv_obj_get_style_border_width(o[i], 0);
+        v[12] = lv_obj_get_style_translate_x(o[i], 0); v[13] = lv_obj_get_style_translate_y(o[i], 0);
+        v[14] = (intptr_t)lv_obj_get_style_text_font(o[i], 0);
+        v[15] = lv_obj_get_style_text_letter_space(o[i], 0); v[16] = lv_obj_get_style_text_line_space(o[i], 0);
+    }
+}
+/* The fit reads what it last set (the two lines' y and width), so a run that changed them runs once more; once a run
+ * leaves them as it found them, the same geometry gives the same fit and an update (a position tick) skips it. */
+static int g_halo_np_fit_settled;
+static intptr_t g_halo_np_fit_geom[4][HALO_NP_GEOM_N];
+static void halo_np_fit(int force){
+    if(!g_np_capsule || !g_np_title || !g_np_artist) return;
+    intptr_t before[4][HALO_NP_GEOM_N];
+    halo_np_geom(before);
+    if(!force && g_halo_np_fit_settled && !memcmp(before, g_halo_np_fit_geom, sizeof before)) return;
+    halo_np_fit_run();
+    halo_np_geom(g_halo_np_fit_geom);
+    g_halo_np_fit_settled = !memcmp(before, g_halo_np_fit_geom, sizeof before);
+}
+static void halo_np_fit_async(void *p){ (void)p; halo_np_fit(1); }
+
+static void halo_home_set_now_playing(const char *title, const char *artist,
+                          lv_color_t accent, bool playing)
+{
+    g_accent = accent;
+
+    int changed = halo_label_changed(g_np_title, title ? title : tr("Not Playing"));
+    changed |= halo_label_changed(g_np_artist, artist ? artist : tr("Library"));
+    if (g_np_state) ui_pp_glyph(g_np_state, ui_pp_icon_playing(playing));
+    halo_np_fit(changed);
+
+    if (g_np_thumb) lv_obj_set_style_bg_color(g_np_thumb, accent, 0);
+    if (g_status_arc) lv_obj_set_style_arc_color(g_status_arc, accent, LV_PART_INDICATOR);
+}
+
+static void halo_home_set_progress(int progress, int have_track){
+    g_progress = progress; g_has_track = have_track;
+    halo_home_progress(g_np_capsule, progress, have_track, g_accent);
+}
+
+/* repaint the now-playing capsule with the live accent (called from ui.c apply_accent so
+ * Home tracks the same colour as Now Playing - static or album-dynamic). */
+static void halo_home_set_accent(lv_color_t accent)
+{
+    g_accent = accent;
+    if (g_np_thumb) lv_obj_set_style_bg_color(g_np_thumb, accent, 0);
+    if (g_status_arc) lv_obj_set_style_arc_color(g_status_arc, accent, LV_PART_INDICATOR);
+    if(g_np_capsule) halo_home_progress(g_np_capsule, g_progress, g_has_track, accent);
+}
+
+static void halo_home_create(lv_obj_t *root)
+{
+    if (theme_screen_plain(THEME_PLAIN_HOME)) theme_screen_solid(root);   /* the theme draws Home plain */
+    g_accent = TC(ACCENT_EMPHASIS);
+
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+
+    /* full-screen blurred album backdrop (same image Now Playing uses), behind everything;
+     * a dark scrim over it keeps the clock/text readable. Both created first = lowest z. */
+    g_home_bg = lv_image_create(root);
+    lv_obj_remove_style_all(g_home_bg);
+    lv_obj_set_pos(g_home_bg, 0, 0); lv_obj_set_size(g_home_bg, 360, 360);
+    lv_obj_clear_flag(g_home_bg, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(g_home_bg, LV_OBJ_FLAG_HIDDEN);
+    g_home_scrim = lv_obj_create(root);
+    lv_obj_remove_style_all(g_home_scrim);
+    lv_obj_set_pos(g_home_scrim, 0, 0); lv_obj_set_size(g_home_scrim, 360, 360);
+    lv_obj_set_style_bg_color(g_home_scrim, TC(IMAGE_TINT), 0);   /* readability veil over the art */
+    lv_obj_set_style_bg_opa(g_home_scrim, LV_OPA_50, 0);
+    lv_obj_clear_flag(g_home_scrim, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(g_home_scrim, LV_OBJ_FLAG_HIDDEN);
+
+    g_status_arc = NULL;   /* decorative status arc removed (read as a stray progress line) */
+
+    /* Top status row: wifi / bt / battery (populated by main.c poll). */
+    g_status = make_label(root, "", TF(UI_14), TC(TEXT_SECONDARY));
+    lv_obj_set_pos(g_status, 0, 18);
+    lv_obj_set_width(g_status, 360);
+
+    g_clock = make_label(root, "--:--", TF(CLOCK),
+                         TC(TEXT_PRIMARY));
+    lv_obj_set_pos(g_clock, 0, 52);
+    lv_obj_set_width(g_clock, 360);
+
+    g_clock_sub = make_label(root, "diskOS", TF(UI_14),
+                             TC(TEXT_MUTED));
+    lv_obj_set_pos(g_clock_sub, 0, 88);
+    lv_obj_set_width(g_clock_sub, 360);
+
+    /* Weather line (populated by weather.c via wttr.in). Uses montserrat_14 with
+     * the FA weather-icon font chained as fallback so the icon glyph renders. */
+    s_wfont = *TF(UI_14);
+    s_wfont.fallback = &font_weather16;
+    g_weather = make_label(root, "", &s_wfont, TC(TEXT_SECONDARY));
+    lv_obj_set_pos(g_weather, 0, 120);
+    lv_obj_set_width(g_weather, 360);
+    lv_label_set_long_mode(g_weather, LV_LABEL_LONG_DOT);
+    lv_obj_add_flag(g_weather, LV_OBJ_FLAG_CLICKABLE);       /* glance -> tap opens the weather app */
+    lv_obj_set_ext_click_area(g_weather, 12);                /* thin line: enlarge the touch target */
+    ui_on(g_weather, halo_weather_event_cb, LV_EVENT_CLICKED, NULL, "home.weather", UI_CORE);
+
+    /* search button (top-right) with a drawn magnifier glyph */
+    lv_obj_t *sbtn = lv_button_create(root);
+    lv_obj_remove_style_all(sbtn);
+    lv_obj_set_pos(sbtn, 244, 40);         /* nudged in from the round top-right bezel */
+    lv_obj_set_size(sbtn, 44, 44);
+    lv_obj_set_ext_click_area(sbtn, 8);
+    lv_obj_set_style_radius(sbtn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(sbtn, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(sbtn, LV_OPA_COVER, LV_STATE_PRESSED);
+    ui_on(sbtn, halo_nav_event_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)SCR_SEARCH, "home.search", UI_CORE);
+    lv_obj_t *ring = lv_obj_create(sbtn);
+    lv_obj_remove_style_all(ring);
+    lv_obj_set_size(ring, 16, 16);
+    lv_obj_set_pos(ring, 11, 9);
+    lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(ring, 2, 0);
+    lv_obj_set_style_border_color(ring, TC(TEXT_SECONDARY), 0);
+    lv_obj_t *handle = lv_obj_create(sbtn);
+    lv_obj_remove_style_all(handle);
+    lv_obj_set_size(handle, 8, 2);
+    lv_obj_set_pos(handle, 25, 25);
+    lv_obj_set_style_bg_color(handle, TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_bg_opa(handle, LV_OPA_COVER, 0);
+    lv_obj_set_style_transform_rotation(handle, 450, 0);
+    /* decorative: a tap on the glass itself must reach the button (a clickable child swallowed it - only the
+     * button's edge opened Search) */
+    lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(handle, LV_OBJ_FLAG_CLICKABLE);
+
+    /* Library is the primary action: a full-width pill. Apps + Settings live on
+     * the swipe-left panel (SCR_APPS). */
+    lv_obj_t *lib_pill = halo_make_pill(root, 80, 162, 200, 52, LV_SYMBOL_DIRECTORY, tr("Library"),
+              halo_nav_event_cb, (void *)(uintptr_t)SCR_LIBRARY);
+
+    /* subtle hint that swiping left reveals more */
+    lv_obj_t *hint = make_label(root, LV_SYMBOL_RIGHT, TF(UI_14),
+                                TC(TEXT_HINT));
+    lv_obj_align(hint, LV_ALIGN_RIGHT_MID, -6, 0);
+
+    g_np_capsule = lv_button_create(root);
+    lv_obj_remove_style_all(g_np_capsule);
+    lv_obj_set_pos(g_np_capsule, 48, 246);
+    lv_obj_set_size(g_np_capsule, 264, 58);
+    lv_obj_set_style_radius(g_np_capsule, 29, 0);
+    lv_obj_set_style_bg_color(g_np_capsule, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(g_np_capsule, LV_OPA_80, 0);
+    lv_obj_set_style_bg_color(g_np_capsule, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(g_np_capsule, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(g_np_capsule, TC(OUTLINE_BRIGHT), 0);
+    lv_obj_set_style_border_opa(g_np_capsule, LV_OPA_10, 0);
+    lv_obj_set_style_border_width(g_np_capsule, 1, 0);
+    lv_obj_clear_flag(g_np_capsule, LV_OBJ_FLAG_SCROLLABLE);
+    ui_on(g_np_capsule, halo_nav_event_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)SCR_NOWPLAYING, "home.nowplaying", UI_CORE);
+
+    g_np_thumb = lv_obj_create(g_np_capsule);
+    lv_obj_remove_style_all(g_np_thumb);
+    lv_obj_set_pos(g_np_thumb, 9, 8);
+    lv_obj_set_size(g_np_thumb, 42, 42);
+    lv_obj_set_style_radius(g_np_thumb, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_clip_corner(g_np_thumb, true, 0);
+    lv_obj_set_style_bg_color(g_np_thumb, g_accent, 0);
+    lv_obj_set_style_bg_opa(g_np_thumb, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(g_np_thumb, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(g_np_thumb, LV_OBJ_FLAG_CLICKABLE);   /* a tap on the cover opens Now Playing like the rest of the card */
+
+    g_np_art_img = lv_image_create(g_np_thumb);
+    lv_obj_set_size(g_np_art_img, 42, 42);
+    lv_obj_center(g_np_art_img);
+    lv_obj_add_flag(g_np_art_img, LV_OBJ_FLAG_HIDDEN);
+
+    g_np_thumb_glyph = make_label(g_np_thumb, LV_SYMBOL_AUDIO, TF(UI_20),
+                                  TC(TEXT_PRIMARY));
+    lv_obj_center(g_np_thumb_glyph);
+
+    g_np_title = lv_label_create(g_np_capsule);
+    lv_label_set_text(g_np_title, tr("Not Playing"));
+    lv_label_set_long_mode(g_np_title, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(g_np_title, 62, 10);
+    lv_obj_set_size(g_np_title, 148, 20);
+    lv_obj_set_style_text_font(g_np_title, TF(USER_16), 0);   /* CJK/long titles render (was tofu) */
+    lv_obj_set_style_text_color(g_np_title, TC(TEXT_PRIMARY), 0);
+
+    g_np_artist = lv_label_create(g_np_capsule);
+    lv_label_set_text(g_np_artist, tr("Library"));
+    lv_label_set_long_mode(g_np_artist, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(g_np_artist, 62, 31);
+    lv_obj_set_size(g_np_artist, 148, 18);
+    lv_obj_set_style_text_font(g_np_artist, TF(USER_14), 0);   /* CJK artist names render */
+    lv_obj_set_style_text_color(g_np_artist, TC(TEXT_SECONDARY), 0);
+
+    lv_obj_t *pp_btn = lv_button_create(g_np_capsule);
+    lv_obj_remove_style_all(pp_btn);
+    lv_obj_set_pos(pp_btn, 208, 7);
+    lv_obj_set_size(pp_btn, 48, 44);
+    lv_obj_set_style_radius(pp_btn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(pp_btn, TC(RAISED_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(pp_btn, LV_OPA_COVER, LV_STATE_PRESSED);
+    ui_on(pp_btn, halo_pp_event_cb, LV_EVENT_CLICKED, NULL, "home.pp", UI_CORE);
+
+    g_np_state = make_label(pp_btn, LV_SYMBOL_PLAY, TF(UI_20),
+                            TC(TEXT_PRIMARY));
+    lv_obj_center(g_np_state);
+    if (theme_kit()->home){                            /* the active theme lays Home out its own way */
+        home_parts_t hp = { root, g_status, g_clock, g_clock_sub, g_weather, sbtn, lib_pill, hint, g_np_capsule,
+                            g_np_thumb, g_np_art_img, g_np_thumb_glyph, g_np_title, g_np_artist, pp_btn, g_np_state };
+        theme_kit()->home(&hp);
+    }
+    lv_async_call(halo_np_fit_async, NULL);   /* after the theme pass has set the final faces */
+    lv_timer_create(halo_progress_tick, 1000, NULL);
+}
+
+/* the original gets the capsule's progress from the player state; poll it once a second */
+static void halo_progress_tick(lv_timer_t *t){
+    (void)t;
+    if(!g_np_capsule || !lv_obj_is_valid(g_np_capsule)) return;
+    track_state_t st; ipc_get_state(&st);
+    int f = (st.have_track && st.duration_ms > 0) ? (int)((long long)st.position_ms * 1000 / st.duration_ms) : 0;
+    if(f > 1000) f = 1000;
+    if(f != g_progress || (int)st.have_track != g_has_track) halo_home_set_progress(f, st.have_track);
+}
+
 void home_set_clock(const char *time_text, const char *sub_text)
 {
+    if(th_halo()){ halo_home_set_clock(time_text, sub_text); return; }
     if(th_braun()){ bhome_set_clock(time_text, sub_text); return; }
     if(th_null()){ null_home_clock(time_text); return; }
     if(th_disco_family()){ dhome_set_clock(time_text, sub_text); return; }
@@ -274,6 +783,7 @@ static void wx_short(const char *in, char *out, size_t cap){
 }
 void home_set_weather(const char *text)
 {
+    if(th_halo()){ halo_home_set_weather(text); return; }
     char s[96]; wx_short(text, s, sizeof s);
     if(th_braun()){ const char *p = s; while(*p == ' ') p++; bhome_set_weather(p); return; }
     if(th_null()){ null_home_weather(s); return; }
@@ -332,6 +842,7 @@ static void np_progress_tick(lv_timer_t *t){
 
 void home_set_status(int batt, int charging, int wifi, int bt)
 {
+    if(th_halo()){ halo_home_set_status(batt, charging, wifi, bt); return; }
     if(th_braun()){ bhome_set_status(batt, charging, wifi, bt); return; }
     if(th_null()){ null_home_status(batt, charging, wifi, bt); return; }
     if(th_disco_family()){void dsaver_set_status(int,int,int,int);dsaver_set_status(batt,charging,wifi,bt);dhome_set_status(batt, charging, wifi, bt); return; }
@@ -356,6 +867,7 @@ static lv_obj_t *g_hb_lib, *g_hb_srch;   /* fork: Library / Search, recoloured w
 void home_set_now_playing(const char *title, const char *artist,
                           lv_color_t accent, bool playing)
 {
+    if(th_halo()){ halo_home_set_now_playing(title, artist, accent, playing); return; }
     if(th_braun()){ bhome_set_now_playing(title, artist, playing); return; }
     if(th_null()){ null_home_update(title,artist,playing);return; }
     if(th_disco_family()){ dhome_set_now_playing(title, artist, accent, playing); return; }
@@ -384,6 +896,7 @@ void home_set_now_playing(const char *title, const char *artist,
  * Home tracks the same colour as Now Playing - static or album-dynamic). */
 void home_set_accent(lv_color_t accent)
 {
+    if(th_halo()){ halo_home_set_accent(accent); return; }
     if(th_braun()) return;                                   /* Braun: orange only, no album colour */
     if(th_disco_family()){ dhome_set_accent(accent); return; }
     g_accent = accent;
@@ -466,6 +979,7 @@ static lv_obj_t *round_btn(lv_obj_t *root, const char *sym, int dx){
 
 void home_create(lv_obj_t *root)
 {
+    if(th_halo()){ halo_home_create(root); return; }   /* the original Home, untouched by the fork's Default rewrite */
     if(th_null()){ null_home_create(root); return; }
     if(th_disco_family()){ dhome_create(root); return; }   /* fork: Disco's Music screen (disco_home.c) */
     if(th_ringlike())lv_obj_add_flag(root,LV_OBJ_FLAG_USER_2);

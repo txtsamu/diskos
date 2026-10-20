@@ -102,6 +102,7 @@ static int display_variant_hidden(const setting_t *s){
         {"disco_title_hold","null_title_hold"},{"disco_nav_double","null_nav_double"},
         {"disco_nav_hold","null_nav_hold"},{"disco_scroll","null_scroll"}
     };
+    if(!strcmp(s->label,"Quick Settings"))return !th_halo();   /* Halo's pull-down drawer tile picker; the other themes pick tiles elsewhere */
     if(!s->cfg_key)return 0;
     for(size_t i=0;i<sizeof pairs/sizeof pairs[0];i++)if(!strcmp(s->cfg_key,th_null()?pairs[i].common:pairs[i].null_key))return 1;
     return 0;

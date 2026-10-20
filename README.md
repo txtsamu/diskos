@@ -325,7 +325,7 @@ python3 ui/tools/build_device.py --toolchain /opt/mipsel-n2008-musl-cross --cach
 
 Rebuilding a tagged release this way gives the same `mq_ui` as the one in the release. For screenshots, the
 renderer's `preview-<page>` pages (Music, Quick Settings, Settings...) expect a cover picture next to the output:
-`host-render PRESET VARIANT preview-home 0 out.ppm` reads `out.png` as the cover. Theme numbers: Stone 6, Ring 8,
+`host-render PRESET VARIANT preview-home 0 out.ppm` reads `out.png` as the cover. Theme numbers: Halo 0, Stone 6, Ring 8,
 Braun 9, Disco 10, Null 11, Squash 12; variant 0 is dark, 1 light. Keep the desktop and Disc builds in separate
 checkouts.
 

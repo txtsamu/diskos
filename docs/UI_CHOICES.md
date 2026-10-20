@@ -11,7 +11,7 @@ fall out of those three facts.
 ## Themes
 
 ### One theme = the whole interface
-A theme is not a colour scheme. Picking **Disco**, **Squash**, **Null**, **Ring** or **Braun** changes Home, Now Playing, the screensaver,
+A theme is not a colour scheme. Picking **Disco**, **Squash**, **Null**, **Halo**, **Ring** or **Braun** changes Home, Now Playing, the screensaver,
 popups, toasts, the equalizer and every list together. Switching restarts the UI; that's deliberate —
 it keeps the running interface simple and fast instead of re-skinning live.
 
@@ -68,8 +68,11 @@ and switching themes never loses a choice: each theme keeps its own saved prefer
 - **Braun Dark** (charcoal body, aluminium knobs) and an **Automatic Appearance** toggle for day/night.
   The volume popup uses the theme's own surfaces in Dark, so it no longer flashes a light band at night.
 
+### Halo
+- **The original diskOS look.** Halo restores the first-release interface (default palette and components, with Dark and Light), for anyone who preferred it. It has no automatic light/dark switching, as in the original.
+
 ### Upstream themes
-The theme list shows **Disco, Squash, Null, Ring, Braun and Stone**. Upstream's other presets were hidden at
+The theme list shows **Disco, Null, Squash, Halo, Ring, Braun and Stone**. Upstream's other presets were hidden at
 first and removed in 2.5.1 to keep the interface smaller; a Disc that still had one selected switches to Disco.
 
 ---

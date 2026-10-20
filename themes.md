@@ -473,3 +473,7 @@ Squash is a shipped implementation path, not the proposed registry API. See [the
 - **Reuse working behavior.** Main-menu protection, QS editing/catalogue, mode cycling, transport IPC, track actions/Mood, Help and hint counters carry over. Both Squash launcher targets use the configured Hold action; ignore drags and preserve Nothing.
 - **A distinct overlay can stay modular.** Volume B is owned by Squash, selected only in the Squash route of ui_show_volume/visibility. Other volume UI stays untouched. Use the authoritative 0–120 range, throttle writes, commit the final drag value, reject stale touch echoes, pause idle timeout during drag, and retain/pause overlay resources when hidden.
 - **On-screen guidance is documentation too.** Theme-specific How to and onboarding text must describe the current launcher and volume controls. Screenshots, build manifests, release notes and bundled mq_ui must agree.
+
+## 11. Halo: the original diskOS look as a preset
+
+Halo (preset 0, `THEME_PRESET_HALO`, predicate `th_halo()`) restores the first-release interface: the Default palette (Dark and Light) and the Default component builders, with no kit. It exists so people can keep the original look next to Disco, Null and Squash. Rules: restore original behaviour only behind `th_halo()` guards so other themes stay unchanged; Halo gets Appearance (Dark/Light), Outdoor Mode and Accent colour, but not Automatic Appearance (the original had none, so `theme_auto_supported()` stays false for it).
