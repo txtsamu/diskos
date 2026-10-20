@@ -237,6 +237,10 @@ updates. Full guide: **[diskOS Disco! for Windows](docs/WINDOWS.md)**.
 
 > **Windows: unsupported, but working as intended: confirmed several times by users, installs and SD updates included.** The app always installs the latest release (or an `mq_ui` you pick).
 > Start from FiiO's stock V2.57 firmware, not another diskOS build.
+>
+> **Used the Windows app before? Set it up again once.** Download the latest Windows app, open it and click
+> **Set up again** on its setup page. Until then, an older app keeps installing the version it was first set up with.
+> From 2.5.9 on, the app also updates itself to the latest release on every start.
 
 ### From macOS
 

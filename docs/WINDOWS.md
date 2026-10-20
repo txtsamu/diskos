@@ -2,6 +2,10 @@
 
 [Back to the README](../README.md) · [Tour](DISCO_TOUR.md) · [SD updates](UPDATING.md)
 
+> **Used the Windows app before? Set it up again once.** Download the latest Windows app, open it and click
+> **Set up again** on its setup page. Until then, an older app keeps installing the version it was first set up with.
+> From 2.5.9 on, the app also updates itself to the latest release on every start.
+>
 > **Unsupported, but working as intended:** confirmed several times by users, installs and SD updates included. There is no help
 > for Windows-specific problems, though. Start from FiiO's stock V2.57 firmware, not another diskOS build:
 > installing over upstream diskOS or another diskOS build can be buggy.
