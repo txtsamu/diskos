@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <glob.h>
 #include <sys/mount.h>     /* mount(): direct SD mount fallback when the player's uevent listener won't (V2.40) */
 #include <sys/stat.h>
 #include <dirent.h>      /* mkdir() for the SD mount point */
@@ -367,6 +368,7 @@ static void route_hold_tick(void){
 int ui_route_bt(const char *mac){
     if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
     if(!ui_local_playback_allowed()) return -1;
+    if(ui_get_source_mode() != 0) return -1;            /* BT routing re-sends 0657 8: in USB DAC / BT-receive it would drop the player out of that work-mode */
     if(!mac) return -1;
     char norm[20]; route_uppercase(mac, norm, sizeof norm);
     if((int)strlen(norm) != 17) return -1;             /* must be AA:BB:CC:DD:EE:FF */
@@ -570,6 +572,26 @@ static void storage_unknown(const char *why){
     fprintf(stderr, "storage: %s; SD access remains held\n", why); fflush(stderr);
     ui_toast("Storage state uncertain - reboot device");
 }
+/* 1 while a computer has the Disc's USB gadget configured (UDC state "configured"). */
+static int usb_host_configured(void){
+    glob_t g; int on = 0;
+    if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 0;
+    for(size_t i = 0; i < g.gl_pathc && !on; i++){
+        FILE *f = fopen(g.gl_pathv[i], "r"); char s[32] = "";
+        if(!f) continue;
+        if(fgets(s, sizeof s, f)) on = strncmp(s, "configured", 10) == 0;
+        fclose(f);
+    }
+    globfree(&g);
+    return on;
+}
+/* Working Mode transitions (U = Local with the USB Audio output route, 0642 5 = port HOST + OTG 5V). Player 0642 N:
+ * 0 closes UAC/storage, remounts the card, role device, OTG off; 2 closes storage, role device, opens UAC; 5 closes
+ * UAC/storage, role host, OTG on.
+ *   USB DAC -> anything else : refused while a computer has the gadget configured (capture-thread deadlock)
+ *   USB Audio (U) -> any other source : via Local (modes.c out_switch to the internal DAC, then this call again):
+ *                  a direct 0642 from host role never reached the computer and held SD access until a restart
+ *   USB DAC -> USB Storage   : via Local so 0642 0 closes the UAC gadget before 0642 1 opens storage */
 int ui_set_source_mode(int mode){
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(mode < 0 || mode > 5) return -1;                 /* 0 Playback, 1 USB DAC, 2 BT DAC, 3 USB storage, 4 BT streaming, 5 AirPlay */
@@ -579,6 +601,12 @@ int ui_set_source_mode(int mode){
     /* Every source change drives the player (and USB/card ownership with it), so none may happen before this
      * boot's launch verdict has qualified the player - a PENDING or negative verdict refuses it too. */
     if(atomic_load(&g_launch_verdict) != 1){ ui_toast("SD access is not ready yet"); return -1; }
+    /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
+     * sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an idle host;
+     * an unplug then fires reopen_capture_dev, which overwrites 2 with 3, and the join never returns - on the
+     * player's only command thread. Unplugged first, the thread already polls in state 5, so the close completes. */
+    if(g_source_mode == 1 && mode != 1 && usb_host_configured()){ ui_toast("Unplug the USB cable first"); return -1; }
+    if(mode != 0 && (modes_output_route() == OUT_USB || (g_source_mode == 1 && mode == 3))) return modes_via_local_then(mode);
     if(mode == 3){
         if(g_sd_phase == SD_HOST) return 0;
         if(scanner_active()){ ui_toast("Let the library scan finish first"); return -1; }
@@ -606,8 +634,14 @@ int ui_set_source_mode(int mode){
     if(source_send(mode) < 0){ ui_toast("Couldn't switch mode"); return -1; }
     g_source_mode = mode;
     if(mode == 0 && was_playing) ipc_send_cmd("0201000C0000");
+    /* Remember the picked Working Mode for the next boot (modes_output_boot_restore). Only the picker calls this,
+     * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
+     * (mode 3) returns above and is never remembered. */
+    cfg_set_int("src_mode", mode);
+    cfg_set_int("usb_audio_on", 0);
     return 0;
 }
+void settings_restart_now(void);   /* settings.c */
 static void storage_resume_local(void){
     if(unlink(SD_EXPORT_MARKER) != 0 && errno != ENOENT){ storage_unknown("cannot clear handoff state"); return; }
     if(!sd_io_resume()){ storage_unknown("local mount changed during return"); return; }
@@ -615,6 +649,11 @@ static void storage_resume_local(void){
     g_sd_reissue = 0;
     albumwall_prewarm_seed();
     fprintf(stderr, "storage: local mount confirmed; SD readers and artwork cache resumed\n"); fflush(stderr);
+    /* mq_player V2.57 keeps its music thread alive (only paused) across the export, holding a file on the card
+     * that was unmounted under it; the next play's stop_music_theard (0x465230) then pthread_joins it forever on
+     * the main thread and the /player queue fills ("Player didn't respond"). A fresh player is the reliable cure. */
+    ui_toast("Restarting to reload the card...");
+    settings_restart_now();
 }
 static void storage_tick(lv_timer_t *t){
     (void)t;
@@ -855,6 +894,18 @@ static long g_play_initpos = 0;          /* position at play-init: a backward ju
  *    route, never while a play is pending. The play-timeout handler re-asserts once as a safety net. */
 static unsigned g_play_sent_gen = 0xFFFFFFFFu;   /* ipc generation in which a play command was last sent: that generation's one-shot is moot */
 void ui_note_transport_sent(void){ g_play_sent_gen = ipc_generation(); }
+/* Resume Playback (0684 Position/Song) restores the last song at boot, but the player also starts PLAYING it.
+ * Keep the restored song and position, paused: once, within the first 20 s of the UI, if it is playing, toggle it
+ * to pause. (A short window instead of a "user has not touched the transport" check, so a play the user starts
+ * right at boot may be paused once - they just press play again.) */
+static void boot_autoplay_pause_cb(lv_timer_t *t){
+    static uint32_t t0;
+    if(!t0) t0 = lv_tick_get() ? lv_tick_get() : 1;
+    if(lv_tick_elaps(t0) > 20000){ lv_timer_del(t); return; }
+    if(modes_output_busy() || !ui_is_playing()) return;
+    if(ipc_send_cmd("0201000C0000") == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
+    lv_timer_del(t);
+}
 static void localplayer_workmode_cb(lv_timer_t *t){
     /* These commands drive the player and its USB/card ownership, so they need the same admission as any
      * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
@@ -2150,6 +2201,15 @@ static int launch_status_get(void);   /* player-launcher verdict; defined with t
  * seconds until the card mounts (bounded), then exits - same effect as a reinsert.
  * A native thread (not a shell subprocess) can't be orphaned/reaped ambiguously,
  * runs on every UI generation, and logs observably. */
+/* Mount the card the way the stock player does (`mount -o iocharset=utf8`). With no options the kernel uses
+ * iocharset=iso8859-1, which turns every CJK/full-width character in a file name into '?': the scanner then
+ * records those '?' paths and the library ends up with two spellings of each song, one of which can never be
+ * opened. Retry without options only if the option itself is rejected. */
+static int sd_mount_utf8(const char *fstype){
+    if(mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, "iocharset=utf8") == 0) return 0;
+    if(errno != EINVAL) return -1;
+    return mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, NULL);
+}
 static int coldplug_mounted(void){
     FILE *m = fopen("/proc/mounts", "r");
     if(!m) return 0;
@@ -2353,7 +2413,7 @@ static void *coldplug_thread(void *arg){
                  * it, so a mount can still race an export begun in the window after sd_exported_to_host().
                  * Re-check the REAL gadget state AFTER a successful mount: if the card became host-exported,
                  * unmount immediately (fail-closed) rather than dual-access; the one-shot then gives up. */
-                if(sd_cold_mount_allowed() && mount("/dev/mmcblk0p1", "/tmp/sdcard", "exfat", 0, NULL) == 0){
+                if(sd_cold_mount_allowed() && sd_mount_utf8("exfat") == 0){
                     if(sd_exported_to_host()){
                         if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
@@ -2363,7 +2423,7 @@ static void *coldplug_thread(void *arg){
                     }
                     coldplug_log("SD direct-mounted (V2.40 exfat)"); pthread_mutex_unlock(&g_sd_mode_mu); return NULL;
                 }
-                else if(sd_cold_mount_allowed() && mount("/dev/mmcblk0p1", "/tmp/sdcard", "vfat", 0, NULL) == 0){
+                else if(sd_cold_mount_allowed() && sd_mount_utf8("vfat") == 0){
                     if(sd_exported_to_host()){
                         if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
@@ -3070,6 +3130,15 @@ int main(int argc, char **argv){
     swipe_thresh_load();
     settings_apply_startup();   /* restore saved brightness */
     wifi_init_intent();         /* seed wifi_on intent from stock WIFI_STATUS (first run only) */
+    /* Radios start OFF every boot: Quick Settings turns them on for this session only. Set before
+     * bt_boot_restore() and the Wi-Fi reconcile read the intents. Once per boot (marker on tmpfs), so a UI
+     * restart - e.g. a hot-reload over SSH - keeps the radios the user turned on. */
+    if(access("/tmp/.diskos_radios_reset", F_OK) != 0){
+        cfg_set_int("wifi_on", 0);
+        cfg_set_int("bt_on", 0);
+        int fd = open("/tmp/.diskos_radios_reset", O_WRONLY | O_CREAT, 0600);
+        if(fd >= 0) close(fd);
+    }
     fprintf(stderr,"step:screens_init\n");fflush(stderr); screens_init(); ma_boot();   /* MA Sendspin comes back if it was on */
     home_set_settings_click_cb(go_settings);
     library_set_song_click_cb(on_song_play);   /* tap a song -> play it */
@@ -3095,6 +3164,8 @@ int main(int argc, char **argv){
     lv_timer_create(sd_features_gate_cb, 500, NULL);     /* start SD-backed features only on a positive launcher verdict */
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* V2.40: solicit a2, settle past the mode-control thread, then set LOCALPLAYER work-mode once */
+    modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
+    lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
      * always spawn - it just sleeps while disabled or while the player is warm. */

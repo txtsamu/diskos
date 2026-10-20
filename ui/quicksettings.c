@@ -37,7 +37,7 @@ LV_FONT_DECLARE(font_icons_28)          /* FontAwesome 28px */
 #define QS_ARC_W     TH_ARC_CTL         /* brightness: a control arc, rounded ends */
 
 enum { T_WIFI, T_BT, T_LIB, T_RESCAN, T_MODE, T_SET, T_N };
-enum { Q_EQ=T_N, Q_SEARCH, Q_QUEUE, Q_UPNEXT, Q_SHORTCUTS, Q_WEATHER, Q_LYRICS, Q_INFO, Q_IMMERSIVE, Q_FOLDERS, Q_FAVS, Q_PLAYBACK, Q_COUNT };
+enum { Q_EQ=T_N, Q_SEARCH, Q_QUEUE, Q_UPNEXT, Q_SHORTCUTS, Q_WEATHER, Q_LYRICS, Q_INFO, Q_IMMERSIVE, Q_FOLDERS, Q_FAVS, Q_PLAYBACK, Q_DEBUG, Q_COUNT };
 static const qs_item_t CATALOG[Q_COUNT]={
     {"w","Wi-Fi",LV_SYMBOL_WIFI},{"b","Bluetooth",LV_SYMBOL_BLUETOOTH},
     {"l","Library",LV_SYMBOL_DIRECTORY},{"r","Rescan",LV_SYMBOL_REFRESH},
@@ -48,13 +48,14 @@ static const qs_item_t CATALOG[Q_COUNT]={
     {"y","Lyrics",LV_SYMBOL_AUDIO},{"i","Song Info",LV_SYMBOL_FILE},
     {"v","Immersive",LV_SYMBOL_IMAGE},{"d","Folders",LV_SYMBOL_DIRECTORY},
     {"a","Favourites","\xEF\x80\x84"},
-    {"p","Play mode",LV_SYMBOL_LOOP}
+    {"p","Play mode",LV_SYMBOL_LOOP},
+    {"x","Debug",LV_SYMBOL_SETTINGS}          /* opens Debug Mode; lit while its SSH runs */
 };
 int quicksettings_item_count(void){return Q_COUNT;}
 int quicksettings_item_limit(void){return (th_null()||th_simple())?8:th_disco()?7:6;}
 int quicksettings_playback_item(void){return Q_PLAYBACK;}
 int quicksettings_equalizer_item(void){return Q_EQ;}
-int quicksettings_item_active(int id){int p=simple_cfg_get_int("eq_preset",0);return id==T_WIFI?wifi_radio_live()>0:id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():id==T_MODE?ui_get_source_mode()!=0:id==Q_EQ?p>0&&p<=20:id==Q_PLAYBACK?simple_cfg_get_int("work_mode",0)!=0:0;}
+int quicksettings_item_active(int id){int p=simple_cfg_get_int("eq_preset",0);return id==T_WIFI?wifi_radio_live()>0:id==T_BT?bt_state()==BT_ON:id==T_RESCAN?scanner_active():id==T_MODE?ui_get_source_mode()!=0:id==Q_EQ?p>0&&p<=20:id==Q_PLAYBACK?simple_cfg_get_int("work_mode",0)!=0:id==Q_DEBUG?debug_ssh_on():0;}
 static const char*playback_glyph(void){static const char*const g[]={LV_SYMBOL_RIGHT,LV_SYMBOL_SHUFFLE,LV_SYMBOL_LOOP "1",LV_SYMBOL_LOOP,LV_SYMBOL_RIGHT "1"};int v=simple_cfg_get_int("work_mode",0);return g[v>=0&&v<5?v:0];}
 const qs_item_t *quicksettings_item(int id){return id>=0 && id<Q_COUNT?&CATALOG[id]:NULL;}
 int quicksettings_items_load(int *out){
@@ -159,6 +160,7 @@ static void pick_cb(int i){                                       /* short taps 
         case Q_FOLDERS: folderbrowser_open();break;
         case Q_FAVS: library_open_favourites();screen_show(SCR_LIBRARY);break;
         case Q_PLAYBACK:ui_np_mode_next();break;
+        case Q_DEBUG: debug_open();break;   /* the SSH password is shown there, so open it rather than toggle blind */
     }
 }
 static void base_pick(int slot){if(slot>=0&&slot<g_nitems){pick_cb(g_items[slot]);quicksettings_refresh(ui_is_playing());}}

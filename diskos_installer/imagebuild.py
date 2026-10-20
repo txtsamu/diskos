@@ -1138,6 +1138,8 @@ def build_image(stock_squashfs, ui_binary, variant, out_bin, workdir, rep=None, 
         # debug access from the UI without needing the dev build.
         _install(bundle.data("dropbearmulti"), os.path.join(rf, "usr/project/dropbearmulti"), 0o755, rf)
         _install(bundle.data("diskos-debug.sh"), os.path.join(rf, "usr/project/diskos-debug.sh"), 0o755, rf)
+        # Key-only dev SSH (port 2222) at boot; inert until /usr/data/sshd/root_home/.ssh/authorized_keys exists.
+        _install(bundle.data("S98diskos_sshkey"), os.path.join(rf, "etc/init.d/S98diskos_sshkey"), 0o755, rf)
 
         if variant == "dev":
             # Dev only: an ALWAYS-ON USB serial recovery shell (builds the gadget + attaches the one

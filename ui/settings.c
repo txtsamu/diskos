@@ -548,8 +548,14 @@ static void restart_tick(lv_timer_t *t){
     }
     if(lv_tick_elaps(g_rst_t0) >= RESTART_SYNC_MS) restart_fail("Couldn't restart - card busy, try again", "sync still running after 15 s");
 }
+static void restart_begin(void);
 static void boot_confirm_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
+    restart_begin();
+}
+/* Restart without the confirm modal (same drain + sync + reboot path as the Restart button). */
+void settings_restart_now(void){ restart_begin(); }
+static void restart_begin(void){
     if(g_rst_timer) return;                         /* already restarting */
     if(rst_reap_free() < 3){ ui_toast("Couldn't restart - try again"); return; }   /* sync + clock + reboot fallback */
     /* Stop our own SD work: closing admission alone is not enough - a scan holds one lease for its whole walk and
