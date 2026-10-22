@@ -69,6 +69,9 @@ void modes_open(void);                     /* refresh selection + show SCR_WORKM
 /* source/working mode: 0=Local 1=USB-DAC 2=BT-Receiving 3=USB-Storage */
 int  ui_set_source_mode(int mode);         /* replay the stock V2.28 switch sequence; 0=ok -1=bad arg */
 int  ui_get_source_mode(void);
+void chargemode_boot(void);          /* charger at boot (never with USB Audio/DAC/Storage): show the charging screen (chargemode.c) */
+void chargemode_tick(void);          /* main loop: refresh it; unplug while it shows = power off */
+int  chargemode_active(void);        /* 1 while the charging screen is up */
 int  ui_source_switch_pending(void);
 int  ui_source_switch_failed(void);
 int ui_local_playback_allowed(void);
