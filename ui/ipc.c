@@ -746,8 +746,37 @@ static void tx_drain_locked(void){
         g_txh = (g_txh + 1) % TX_MAX; g_txn--;
     }
 }
+/* ---- safety guard: destructive player opcodes diskOS must never send (stock firmware, see ipc catalogue) ----
+ *   0800        FACTORY RESET (wipes Wi-Fi + DBs + ~40 settings, then reboot)
+ *   0621        drops SONG/MY_LOVE/PLAY_LIST tables (library + favourites)
+ *   0724 v1=2   starts the firmware-upgrade thread
+ *   0722 v1=2   starts an OTA download
+ *   0720 v1!=0  starts an OTA check (v1=0 only stops it, harmless)
+ * v1 is the first payload word: frame chars 8..11. Pure function, hex case-insensitive, NULL/short safe. */
+int ipc_frame_is_dangerous(const char *frame){
+    if(!frame) return 0;
+    size_t n = strlen(frame);
+    if(n < 4) return 0;
+    char op[5];
+    for(int i = 0; i < 4; i++){ char c = frame[i]; op[i] = (c >= 'A' && c <= 'F') ? (char)(c - 'A' + 'a') : c; }
+    op[4] = 0;
+    if(!strcmp(op, "0800") || !strcmp(op, "0621")) return 1;
+    int isv = !strcmp(op, "0724") || !strcmp(op, "0722") || !strcmp(op, "0720");
+    if(!isv) return 0;
+    if(n < 12) return 1;                                   /* no parsable argument: refuse to be safe */
+    char *end; char v[5] = { frame[8], frame[9], frame[10], frame[11], 0 };
+    unsigned long v1 = strtoul(v, &end, 16);
+    if(*end) return 1;
+    if(!strcmp(op, "0720")) return v1 != 0;
+    return v1 == 2;
+}
+static int ipc_send_raw(const char*frame, int quiet);
 /* quiet=1 -> never set the user-facing error flag (background state-sync / health probes). */
 static int ipc_send_internal(const char*frame, int quiet){
+    if(ipc_frame_is_dangerous(frame)){ fprintf(stderr, "ipc: refused dangerous frame %.4s\n", frame); return -1; }
+    return ipc_send_raw(frame, quiet);
+}
+static int ipc_send_raw(const char*frame, int quiet){
     if(strlen(frame) >= sizeof g_txq[0].f){ if(!quiet) g_send_err = 1; return -1; }
     pthread_mutex_lock(&g_txmu);
     tx_drain_locked();
@@ -788,6 +817,9 @@ int ipc_send_cmd(const char*frame){
     if(g_quiet_n > 0){ int r = ipc_send_internal(frame, 1); if(r < 0) g_quiet_fails++; return r; }
     return ipc_send_internal(frame, 0);
 }
+/* ESCAPE HATCH: bypasses the deny-list. NOTHING in the UI may call this today (factory reset / DB drop / OTA are
+ * deliberately unreachable). Any future caller needs an explicit user-confirmed flow and review. */
+int ipc_send_cmd_unsafe(const char*frame){ return ipc_send_raw(frame, 0); }
 /* a background command that retries itself: waits in line like any command, but a failure is silent. */
 int ipc_send_quiet(const char*frame){ return ipc_send_internal(frame, 1); }
 /* background send (state-sync / health probe): silent, never toasts. A probe only asks "what's playing?": if the player

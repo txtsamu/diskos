@@ -59,6 +59,8 @@ static inline const char *ipc_display_title(const track_state_t *st){
 int  ipc_start(void);                  /* open queues + start thread; 0=ok */
 void ipc_get_state(track_state_t *out);
 void ipc_seed_state(const track_state_t *s);  /* startup resume-state seed */
+int  ipc_frame_is_dangerous(const char *frame); /* 1 = on the deny-list (0800, 0621, 0724/0722 v1=2, 0720 v1!=0) */
+int  ipc_send_cmd_unsafe(const char *frame);    /* bypasses the deny-list; nothing may call this today */
 int  ipc_send_cmd(const char *frame);  /* e.g. "0201000C0000" play/pause; 0=queued, -1=failed */
 int  ipc_send_probe(const char *frame);/* background send (state-sync/health): silent, no toast */
 int  ipc_send_quiet(const char *frame);/* background command that retries itself: waits in line, never toasts */
