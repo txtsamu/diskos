@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "ui_round.h"
 
 #define MAX_RESULTS 80
 
@@ -32,7 +33,7 @@ static void search_layout(int active){
         lv_obj_align(g_bar_lbl, LV_ALIGN_LEFT_MID, 14, 0);
         if(g_clear) lv_obj_set_pos(g_clear, edge ? 228 : 248, 31);   /* at the pill's right edge (bar 120..284; edge themes 96..264) */
         if(g_hint) lv_obj_add_flag(g_hint, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(g_results, 40, 74); lv_obj_set_size(g_results, 280, 248);
+        lv_obj_set_pos(g_results, UI_LIST_X + 10, 74); lv_obj_set_size(g_results, UI_LIST_W - 20, UI_LIST_H_FROM(74));
         lv_obj_remove_flag(g_results, LV_OBJ_FLAG_HIDDEN);
     } else {
         if(g_back){ if(ui_edge_nav()) lv_obj_set_pos(g_back, 0, 140); else lv_obj_set_pos(g_back, 72, 24); }   /* shared header position in both empty and result states */
@@ -207,13 +208,13 @@ void search_create(lv_obj_t *root){
     /* results - now own the whole lower screen */
     g_results = lv_obj_create(root);
     lv_obj_remove_style_all(g_results);
-    lv_obj_set_pos(g_results, 32, 74);
-    lv_obj_set_size(g_results, 300, 268);
+    lv_obj_set_pos(g_results, UI_LIST_X + 2, 74);
+    lv_obj_set_size(g_results, UI_LIST_W, UI_LIST_H_FROM(74));
     lv_obj_set_style_bg_opa(g_results, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_results, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_results, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(g_results, 6, 0);
-    lv_obj_set_style_pad_bottom(g_results, 44, 0);   /* last rows scroll clear of the round bottom bezel */
+    lv_obj_set_style_pad_bottom(g_results, UI_LIST_PAD_BOTTOM, 0);   /* last rows scroll clear of the round bottom bezel */
     lv_obj_set_scroll_dir(g_results, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_results, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g_results, LV_OBJ_FLAG_SCROLL_MOMENTUM);

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "ui_round.h"
 
 /* Playlist detail (SCR_PLVIEW): opened by tapping a playlist in the Library.
  * Header name + Play / Shuffle + a horizontal 3-dot menu (Edit name / Delete).
@@ -447,8 +448,8 @@ void plview_create(lv_obj_t *root){
     g_song_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_song_list);
     lv_obj_set_pos(g_song_list, 41, 118);   /* its 268 px rows (5 px in) land centred on the screen */
-    lv_obj_set_size(g_song_list, 290, 226);
-    lv_obj_set_style_pad_bottom(g_song_list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_size(g_song_list, 290, UI_LIST_H_FROM(118));
+    lv_obj_set_style_pad_bottom(g_song_list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
     lv_obj_set_style_bg_opa(g_song_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_song_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_song_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

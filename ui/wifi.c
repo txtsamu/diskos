@@ -22,6 +22,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <arpa/inet.h>
+#include "ui_round.h"
 
 /* Wi-Fi settings (SCR_WIFI) + a details screen (SCR_WIFI_INFO).
  * Radio on/off reuses the stock /usr/bin/wifi_up.sh / wifi_down.sh (rfkill +
@@ -1368,8 +1369,8 @@ void wifi_create(lv_obj_t *root){
     /* network list (carries connected/off/scanning state itself) */
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 40, 126); lv_obj_set_size(g_list, 280, 192);
-    lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_pos(g_list, 40, 126); lv_obj_set_size(g_list, 280, UI_LIST_H_FROM(126));
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(g_list, 6, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
