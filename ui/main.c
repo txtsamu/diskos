@@ -761,6 +761,20 @@ static int usb_host_configured(void){
     globfree(&g);
     return on;
 }
+/* 1 while ANY host is on the cable: UDC state is anything but "not attached" (powered, default, addressed, configured, suspended).
+ * Measured: the exit hang also happens with the state "powered"/"suspended", so the guard must not wait for "configured". */
+static int usb_host_attached(void){
+    glob_t g; int on = 0;
+    if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 0;
+    for(size_t i = 0; i < g.gl_pathc && !on; i++){
+        FILE *f = fopen(g.gl_pathv[i], "r"); char s[32] = "";
+        if(!f) continue;
+        if(fgets(s, sizeof s, f)) on = s[0] && strncmp(s, "not attached", 12) != 0;
+        fclose(f);
+    }
+    globfree(&g);
+    return on;
+}
 /* Working Mode transitions (rows: from, cols: to; U = Local with the USB Audio output route, 0642 5 = port HOST +
  * OTG 5V). Player 0642 N (FUN_004e5af4): 0 closes UAC/storage, remounts the card, role device, OTG off; 2 closes
  * storage, role device, opens UAC; 5 closes UAC/storage, role host, OTG on; 1 (storage) is not fully decompiled:
@@ -835,7 +849,7 @@ int ui_set_source_mode(int mode){
      * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
      * fails into state 5 and the join never returns - on the player's only command thread. Unplugged first, the
      * thread already sits in state 5 polling every 100 ms, so the close completes. */
-    if(g_source_mode == 1 && mode != 1 && !g_dac_exit_ok && usb_host_configured()){
+    if(g_source_mode == 1 && mode != 1 && !g_dac_exit_ok && usb_host_attached()){
         if(cfg_get_int("dac_safe_exit", 1) == 0){ ui_toast("Unplug the USB cable first"); return -1; }
         return dac_exit_begin(mode);                      /* the ordered exit (see above); returns 0 = started */
     }
