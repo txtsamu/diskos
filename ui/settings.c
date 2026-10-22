@@ -587,6 +587,8 @@ static void poweroff_confirm_cb(lv_event_t *e){
     boot_modal_close();
     (void)power_shutdown_request();
 }
+static void apply_poweroff(int v);
+void settings_poweroff_prompt(void){ apply_poweroff(0); }   /* also used by the Quick Settings 'Power off' tile */
 static void apply_poweroff(int v){ (void)v;
     boot_modal_close();
     g_boot_modal = lv_obj_create(lv_layer_top());
