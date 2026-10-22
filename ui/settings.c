@@ -580,6 +580,46 @@ static void apply_restart(int v){ (void)v;
     boot_modal_pill(card, -58, "Cancel",  THEME_CLR_TEXT_SECONDARY, boot_cancel_cb);
     boot_modal_pill(card,  58, "Restart", THEME_CLR_ACCENT_EMPHASIS, boot_confirm_cb);
 }
+/* Power off: the SD-safe shutdown (power.c power_shutdown_request: close the card, sync, then the player's own power-off) behind a
+ * confirm card, same look as Restart. The shutdown paints its own themed "Shutting down" screen. */
+static void poweroff_confirm_cb(lv_event_t *e){
+    if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    boot_modal_close();
+    (void)power_shutdown_request();
+}
+static void apply_poweroff(int v){ (void)v;
+    boot_modal_close();
+    g_boot_modal = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(g_boot_modal);
+    lv_obj_set_size(g_boot_modal, 360, 360); lv_obj_center(g_boot_modal);
+    lv_obj_set_style_bg_color(g_boot_modal, TC(SCRIM), 0);
+    lv_obj_set_style_bg_opa(g_boot_modal, LV_OPA_70, 0);
+    lv_obj_clear_flag(g_boot_modal, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(g_boot_modal, LV_OBJ_FLAG_CLICKABLE);                       /* absorb taps */
+    ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);  /* tap outside = cancel */
+    lv_obj_t *card = lv_obj_create(g_boot_modal);
+    lv_obj_remove_style_all(card);
+    lv_obj_set_size(card, 280, 184); lv_obj_center(card);
+    lv_obj_set_style_radius(card, 18, 0);
+    lv_obj_set_style_bg_color(card, TC(SURFACE), 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *t = lv_label_create(card);
+    lv_label_set_text(t, tr("Power off?"));
+    lv_obj_set_style_text_font(t, TF(UI_16), 0);
+    lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 22);
+    lv_obj_t *s = lv_label_create(card);
+    lv_label_set_text(s, tr("Closes the card safely, then switches the device off. Press the power key to turn it on again."));
+    lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(s, 236);
+    lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(s, TF(UI_14), 0);
+    lv_obj_set_style_text_color(s, TC(TEXT_MUTED), 0);
+    lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 50);
+    boot_modal_pill(card, -58, "Cancel",    THEME_CLR_TEXT_SECONDARY, boot_cancel_cb);
+    boot_modal_pill(card,  58, "Power off", THEME_CLR_ACCENT_EMPHASIS, poweroff_confirm_cb);
+}
 /* write the backlight sysfs only (no config change) - used for transient dimming.
  * v==0 fully powers the panel backlight DOWN: writing brightness 0 alone leaves the
  * LED driver enabled at its minimum (screen looks black but the backlight glows), so
@@ -833,6 +873,8 @@ static const setting_t TABLE[] = {
       "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
     { "System",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
       "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
+    { "System",   "Power off",   ST_ACTION, NULL, 0,0,0, NULL,0, "Power off", apply_poweroff, 0,
+      "Shut the device down. The card is closed safely first.", NULL },
 #ifdef DISKOS_SWB_FLASHMODE
     { "System",   "Restart to Flash Mode", ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart_flash, 0,
       "Restart straight into flash (USB boot) mode for the installer, without holding Vol-Down. Nothing is erased.", NULL },
