@@ -886,7 +886,36 @@ int ui_play_mode_now(void){
     if(g_mode_applied == -2 && wm <= 4) return wm;
     return -1;
 }
+static void reapply_audio_body(void);
+static void reapply_sends(void);
+static int g_reapply_tries;
+static lv_timer_t *g_reapply_tmr;
+static void reapply_retry_cb(lv_timer_t *t);
+static void reapply_later(void){ g_reapply_tmr = lv_timer_create(reapply_retry_cb, 1500, NULL); if(g_reapply_tmr) lv_timer_set_repeat_count(g_reapply_tmr, 1); }
+static void reapply_send_all(void){                      /* the sends, quietly; a failure schedules another try */
+    ipc_quiet_begin();
+    reapply_sends();
+    int fails = ipc_quiet_end();
+    if(fails && g_reapply_tries < 3){ g_reapply_tries++; reapply_later(); }
+    else g_reapply_tries = 0;
+    if(fails) fprintf(stderr, "reapply: %d sends failed (try %d)\n", fails, g_reapply_tries);
+}
+/* Re-sync the managed settings after a player (re)start. Silent: the player is still waking and its queue can be full
+ * for a moment; anything that didn't go through is sent again a little later (3 tries), never a "didn't respond" toast.
+ * Only the first pass resets the cached player state (mode, output route); a retry just sends again, so a choice made
+ * in between (an output switch) is never undone. */
 void ui_reapply_audio(void){
+    if(g_reapply_tmr){ lv_timer_delete(g_reapply_tmr); g_reapply_tmr = NULL; }   /* a new (re)start supersedes old retries */
+    g_reapply_tries = 0;
+    reapply_audio_body();
+    reapply_send_all();
+}
+static void reapply_retry_cb(lv_timer_t *t){
+    (void)t; g_reapply_tmr = NULL;                       /* one-shot: LVGL deletes it after this call */
+    if(modes_output_busy()){ reapply_later(); return; }  /* an output switch owns the player right now: try later */
+    reapply_send_all();
+}
+static void reapply_audio_body(void){
     /* NOTE: the v2.40 local-init (0666 route + 0657 LOCALPLAYER work-mode, which fixes the "g_fiio_local
      * is null" / NO_WORK_MODE start_local failure) is DELIBERATELY NOT sent here. This runs at boot-ready
      * and on reconnect, when a freshly-booted player is still idle-fresh - sending 0666 then either wedges
@@ -897,6 +926,8 @@ void ui_reapply_audio(void){
      * Slow-LL filter) so a boot re-apply doesn't change the sound until the user does. */
     g_mode_applied = -1;   /* a fresh or reconnected player: unknown until the mode below is re-sent */
     modes_output_reset();  /* a fresh or reconnected player is on the internal DAC: the SPDIF setting mirrors that */
+}
+static void reapply_sends(void){
     ui_set_dre(cfg_get_int("audio_dre",    1));
     ui_set_gain(cfg_get_int("audio_gain",  0));
     /* Output route (raw 0666) is deliberately NOT reapplied here: this also runs on player
@@ -3483,6 +3514,12 @@ int main(int argc, char **argv){
         st.state = playing ? 2 : 1;
         /* when the backlight is off (deep idle) nothing is visible - skip the whole
          * UI refresh; it catches up on wake (last/ last_playing stay stale). */
+        /* The start clock counts from when the play actually reached the player: while it still waits in our outbound
+         * line (a busy player) the request is re-based each pass (play_start_failed restarts from g_play_pre). */
+        if(g_play_pending && ipc_tx_waiting()){
+            g_play_pending = lv_tick_get(); if(!g_play_pending) g_play_pending = 1;
+            g_play_pre.request = g_play_pre.at = g_play_pending;
+        }
         /* playback-start timeout: retire only after a quiet, bounded wait with no stream. */
         if(play_start_failed(&st)){
             if(g_play_pending && lv_tick_elaps(g_play_pending) > 6000){
@@ -3560,6 +3597,7 @@ int main(int argc, char **argv){
             if(cfg_take_save_error())       ui_toast("Couldn't save settings");
             else if(ipc_take_send_error())  ui_toast("Player didn't respond");
         }
+        ipc_tx_pump();   /* frames that waited for a busy player go out as soon as it reads again (in order) */
 #ifdef DISKOS_PROFILE
         struct timespec pa, pb; clock_gettime(CLOCK_MONOTONIC, &pa);
 #endif
