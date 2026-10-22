@@ -779,6 +779,39 @@ static int usb_host_configured(void){
  * Local/Bluetooth), so every switch into USB DAC started far quieter than the user listens, and the phone cannot help (the
  * gadget has no hardware volume control, Android just attenuates). Carry the Local volume over once the switch has landed:
  * only ever UP to it, never past the Max Volume setting, and never if cfg "dac_match_volume" is 0. */
+/* Leaving USB DAC with a host attached used to be refused ("Unplug the USB cable first"): firmware analysis shows mq_player's
+ * close_pcm_capture_thread sets the capture state to "stop" and pthread_joins with no timeout, while the USB uevents
+ * (UAC_STATE=STOP, UAC_SRATE=0 -> reopen_capture_dev) overwrite that same state from the listener thread, so the stop is lost and
+ * the join never returns - on the player's only command thread. The 0642 0 path tears the gadget down on the mode thread
+ * and the same events settle the capture thread in its idle state (5), after which a close works. So: send 0642 0 FIRST, wait for the
+ * gadget to be gone (+1.5 s margin), and only then do the normal switch (0666 / 0657). cfg dac_safe_exit=0 restores the refusal. */
+static struct { lv_timer_t *tm; int mode; uint32_t t0, gone_at; } g_dacx;
+static int g_dac_exit_ok;   /* set only while the continuation re-enters ui_set_source_mode */
+static void dac_exit_tick(lv_timer_t *t){
+    (void)t;
+    if(lv_tick_elaps(g_dacx.t0) > 12000){
+        lv_timer_del(g_dacx.tm); g_dacx.tm = NULL;
+        fprintf(stderr, "usb dac: exit timed out waiting for the gadget to go away\n"); fflush(stderr);
+        ui_toast("Couldn't leave USB DAC - unplug the cable first");
+        return;
+    }
+    if(access("/sys/kernel/config/usb_gadget/uac_demo", F_OK) == 0){ g_dacx.gone_at = 0; return; }   /* gadget still there */
+    if(!g_dacx.gone_at){ g_dacx.gone_at = lv_tick_get() ? lv_tick_get() : 1; return; }
+    if(lv_tick_elaps(g_dacx.gone_at) < 1500) return;                                               /* the mode thread sleeps ~1 s after teardown */
+    int m = g_dacx.mode;
+    lv_timer_del(g_dacx.tm); g_dacx.tm = NULL;
+    fprintf(stderr, "usb dac: gadget gone, continuing the switch to mode %d\n", m); fflush(stderr);
+    g_dac_exit_ok = 1; (void)ui_set_source_mode(m); g_dac_exit_ok = 0;
+}
+static int dac_exit_begin(int mode){
+    if(g_dacx.tm){ ui_toast("Switching..."); return -1; }
+    if(ipc_send_cmd("0642000C0000") < 0){ ui_toast("Player is busy - try again"); return -1; }
+    g_dacx.mode = mode; g_dacx.t0 = lv_tick_get(); g_dacx.gone_at = 0;
+    g_dacx.tm = lv_timer_create(dac_exit_tick, 100, NULL);
+    fprintf(stderr, "usb dac: leaving with a host attached: 0642 0 first, then mode %d\n", mode); fflush(stderr);
+    ui_toast("Leaving USB DAC...");
+    return 0;
+}
 static int g_dac_carry_vol = -1;
 static uint32_t g_dac_enter_t;   /* when the switch into USB DAC was sent (volume frames before it settles are not the user's) */
 static void dac_volume_cb(lv_timer_t *t){
@@ -802,7 +835,10 @@ int ui_set_source_mode(int mode){
      * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
      * fails into state 5 and the join never returns - on the player's only command thread. Unplugged first, the
      * thread already sits in state 5 polling every 100 ms, so the close completes. */
-    if(g_source_mode == 1 && mode != 1 && usb_host_configured()){ ui_toast("Unplug the USB cable first"); return -1; }
+    if(g_source_mode == 1 && mode != 1 && !g_dac_exit_ok && usb_host_configured()){
+        if(cfg_get_int("dac_safe_exit", 1) == 0){ ui_toast("Unplug the USB cable first"); return -1; }
+        return dac_exit_begin(mode);                      /* the ordered exit (see above); returns 0 = started */
+    }
     if(ui_source_switch_pending()){ ui_toast("Storage is switching"); return -1; }
     if(g_sd_phase == SD_UNKNOWN || g_sd_hold || !sd_io_healthy()){ ui_toast("SD access is held this boot"); return -1; }
     /* Every source change drives the player (and USB/card ownership with it), so none may happen before this
