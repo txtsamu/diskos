@@ -549,8 +549,11 @@ int ipc_start(void){
      * - we're the receiver, the player just opens it O_WRONLY to send. */
     g_rx=mq_open("/ui", O_RDONLY);   /* blocking: thread sleeps until a frame arrives */
     if(g_rx==(mqd_t)-1){
-        struct mq_attr ca; ca.mq_flags=0; ca.mq_maxmsg=10; ca.mq_msgsize=8192; ca.mq_curmsgs=0;
+        /* 32 deep like the stock UI (the player sends with O_NONBLOCK and DROPS a frame on a full queue, no retry); fall back to the
+         * system default of 10 if the kernel refuses (not root / msg_max). */
+        struct mq_attr ca; ca.mq_flags=0; ca.mq_maxmsg=32; ca.mq_msgsize=8192; ca.mq_curmsgs=0;
         g_rx=mq_open("/ui", O_RDONLY|O_CREAT, 0666, &ca);
+        if(g_rx==(mqd_t)-1){ ca.mq_maxmsg=10; g_rx=mq_open("/ui", O_RDONLY|O_CREAT, 0666, &ca); }
     }
     if(g_rx==(mqd_t)-1){ fprintf(stderr,"mq_open /ui fail: %s\n",strerror(errno)); return -1; }
     struct mq_attr at;
