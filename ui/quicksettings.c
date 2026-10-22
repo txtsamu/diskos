@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "ui_round.h"
 
 /* Quick Settings: an iOS-Control-Center-style pull-down panel (top-edge swipe-down; gesture handled
  * in main.c). It is USER-CUSTOMISABLE: the brightness bar sits on top, an optional transport row below
@@ -309,7 +310,7 @@ static void bright_change_cb(lv_event_t *e){ if(!theme_outdoor()) ui_backlight(l
 static void bright_release_cb(lv_event_t *e){ if(!theme_outdoor()) ui_set_brightness(lv_slider_get_value(lv_event_get_target(e))); }
 static void build_brightness(lv_obj_t *root, int y){
     g_bright = lv_slider_create(root);
-    lv_obj_set_size(g_bright, 216, 34);
+    lv_obj_set_size(g_bright, 200, 34);
     lv_obj_set_ext_click_area(g_bright, 8);
     lv_obj_align(g_bright, LV_ALIGN_TOP_MID, 0, y);
     lv_slider_set_range(g_bright, 4, 40);
@@ -375,7 +376,7 @@ void quicksettings_build(void){
     int nblocks = 1 + have_tr + rows;                 /* brightness is always present */
     int total = H_BR + (have_tr ? H_TR : 0) + rows*H_ROW + (nblocks > 1 ? (nblocks-1)*GAP : 0);
     int y = 185 - total/2;                            /* centre the stack a touch below the middle */
-    if(y < 44) y = 44;                                /* never overlap the grab handle */
+    if(y < 52) y = 52;                                /* clear of the grab handle and the round top (slider corners r<=~170; was 173.7 at y44 w216) */
 
     build_brightness(g_qs_root, y);  y += H_BR + GAP;
     if(have_tr){ build_transport(g_qs_root, y); y += H_TR + GAP; }
@@ -483,11 +484,11 @@ void qsconfig_refresh(void){
 
     lv_obj_t *list = lv_obj_create(g_qscfg_root);
     lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 30, 70);
-    lv_obj_set_size(list, 300, 250);
+    lv_obj_set_pos(list, UI_LIST_X, UI_LIST_Y);
+    lv_obj_set_size(list, UI_LIST_W, UI_LIST_H);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(list, 8, 0);
-    lv_obj_set_style_pad_bottom(list, 44, 0);
+    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);

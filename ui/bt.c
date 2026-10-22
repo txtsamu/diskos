@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <poll.h>
 #include <signal.h>
+#include "ui_round.h"
 
 /* Bluetooth settings (SCR_BT) + a details screen (SCR_BT_INFO).
  * The BT chip (BCM43438 / AP6212, 2.4GHz-only) sits on UART /dev/ttyS0. RE of the
@@ -1122,8 +1123,8 @@ void bt_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 40, 138); lv_obj_set_size(g_list, 280, 180);
-    lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_pos(g_list, 40, 138); lv_obj_set_size(g_list, 280, UI_LIST_H_FROM(138));
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(g_list, 6, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);

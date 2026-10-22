@@ -15,14 +15,15 @@
 #include <ctype.h>
 #include "config.h"
 #include "i18n.h"
+#include "ui_round.h"
 
 enum { VIEW_MENU, VIEW_SONGS, VIEW_ALBUMS, VIEW_ARTISTS, VIEW_PLAYLISTS, VIEW_FAVS, VIEW_GENRES, VIEW_GROUP, VIEW_MOSTPLAYED, VIEW_RECENT, VIEW_HISTORY, VIEW_COUNT };
 #define CAT_FOLDERS 1000   /* menu sentinel: opens the folder browser (a screen, not a library view) */
 #define CAT_BOOKS   1001   /* menu sentinel: opens the Books (audiobook) screen */
 
 #define ROW_H 52
-#define LIST_Y 70
-#define LIST_H 252
+#define LIST_Y UI_LIST_Y
+#define LIST_H UI_LIST_H
 
 static lv_obj_t *g_list;
 static lv_obj_t *g_title;
@@ -984,9 +985,9 @@ void library_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 30, LIST_Y); lv_obj_set_size(g_list, 286, LIST_H);
+    lv_obj_set_pos(g_list, UI_LIST_X, LIST_Y); lv_obj_set_size(g_list, 286, LIST_H);
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* round bottom bezel */
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* round bottom bezel */
     lv_obj_set_style_pad_row(g_list, 4, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);

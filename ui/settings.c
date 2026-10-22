@@ -31,6 +31,7 @@
 #include "ota.h"
 #include "controls.h"
 #include "i18n.h"
+#include "ui_round.h"
 
 /* Killed children are always collected, so none is left a zombie: kill_and_reap() waits up to 300 ms (a SIGKILLed
  * child normally exits at once), and anything still unreaped (e.g. stuck in kernel I/O) is parked and swept by a
@@ -558,7 +559,7 @@ static void apply_restart(int v){ (void)v;
     ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);  /* tap outside = cancel */
     lv_obj_t *card = lv_obj_create(g_boot_modal);
     lv_obj_remove_style_all(card);
-    lv_obj_set_size(card, 280, 184); lv_obj_center(card);
+    lv_obj_set_size(card, 268, 180); lv_obj_center(card);
     lv_obj_set_style_radius(card, 18, 0);
     lv_obj_set_style_bg_color(card, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -601,7 +602,7 @@ static void apply_poweroff(int v){ (void)v;
     ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);  /* tap outside = cancel */
     lv_obj_t *card = lv_obj_create(g_boot_modal);
     lv_obj_remove_style_all(card);
-    lv_obj_set_size(card, 280, 184); lv_obj_center(card);
+    lv_obj_set_size(card, 268, 180); lv_obj_center(card);
     lv_obj_set_style_radius(card, 18, 0);
     lv_obj_set_style_bg_color(card, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -1265,11 +1266,11 @@ static void row_cb(lv_event_t *e){
 static lv_obj_t *make_list(lv_obj_t *root){
     lv_obj_t *list = lv_obj_create(root);
     lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 30, 70);
-    lv_obj_set_size(list, 300, 250);
+    lv_obj_set_pos(list, UI_LIST_X, UI_LIST_Y);
+    lv_obj_set_size(list, UI_LIST_W, UI_LIST_H);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(list, 8, 0);       /* small gap between cards (matches the design) */
-    lv_obj_set_style_pad_bottom(list, 44, 0);   /* round bottom bezel: last row must scroll fully clear */
+    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);   /* round bottom bezel: last row must scroll fully clear */
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* rows on the centre line */
     lv_obj_set_scroll_dir(list, LV_DIR_VER);

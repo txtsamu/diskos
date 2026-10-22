@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "ui_round.h"
 
 int ui_label_set_changed(lv_obj_t *obj, const char *txt);   /* ui.c: a label's text only when its input changes */
 
@@ -77,8 +78,8 @@ static lv_obj_t *panel_header(lv_obj_t *root, const char *title){
 static lv_obj_t *panel_list(lv_obj_t *root){
     lv_obj_t *list = lv_obj_create(root);
     lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 46, 76); lv_obj_set_size(list, 280, 250);
-    lv_obj_set_style_pad_bottom(list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_pos(list, 46, 76); lv_obj_set_size(list, 280, UI_LIST_H_FROM(76));
+    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(list, 10, 0);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);

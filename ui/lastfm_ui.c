@@ -17,6 +17,7 @@
 #include "lastfm.h"
 #include <stdio.h>
 #include <string.h>
+#include "ui_round.h"
 
 static lv_obj_t *g_body;
 static lv_timer_t *g_refresh;
@@ -159,8 +160,8 @@ void lastfm_create(lv_obj_t *root){
     /* body: a centered vertical flex column in the clear middle band */
     g_body = lv_obj_create(root);
     lv_obj_remove_style_all(g_body);
-    lv_obj_set_size(g_body, 300, 250);
-    lv_obj_set_style_pad_bottom(g_body, 44, 0);   /* last row scrolls clear of the round bezel */
+    lv_obj_set_size(g_body, UI_LIST_W, UI_LIST_H_FROM(74));
+    lv_obj_set_style_pad_bottom(g_body, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bezel */
     lv_obj_align(g_body, LV_ALIGN_TOP_MID, 0, 74);
     lv_obj_set_flex_flow(g_body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_body, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
