@@ -15,8 +15,8 @@
 
 /* ---- semicircle keyboard ------------------------------------------------- */
 #define SKB_W 360
-#define SKB_Y 180            /* keyboard occupies y 180..360 (bottom half)      */
-#define SKB_H 180
+#define SKB_Y 170            /* container y 170..360; rows start at y178 (container must contain its keys: LVGL clips children) */
+#define SKB_H 190
 #define SKB_ROW_H 32
 #define SKB_MAX_KEYS 31
 
@@ -42,12 +42,12 @@ static const char skb_numr [3][11] = { "1234567890", "-/:;()$&@", ".,?!'\"+" };
 static const char skb_syms [3][11] = { "[]{}#%^*+=", "_\\|~<>/-:", ";()&$!?" };
 
 typedef struct { int16_t y; uint8_t count, gap, key_w; const uint8_t *widths; } skb_rowl_t;
-static const uint8_t skb_util_w[5] = { 32, 32, 52, 32, 32 };  /* Aa 123 space bksp OK */
+static const uint8_t skb_util_w[5] = { 28, 28, 48, 28, 28 };  /* Aa 123 space bksp OK */
 static const skb_rowl_t skb_rows[4] = {
-    {184, 10, 3, 32, NULL},          /* qwertyuiop  total 347 (chord ~353) */
-    {222,  9, 3, 33, NULL},          /* asdfghjkl   total 321 (chord ~329) */
-    {260,  7, 4, 36, NULL},          /* zxcvbnm     total 276 (chord ~283) */
-    {298,  5, 3,  0, skb_util_w},    /* utility     total 192 (chord ~199) */
+    {178, 10, 2, 30, NULL},          /* qwertyuiop  total 318, pitch 36, corners r<=165 on the round glass */
+    {214,  9, 3, 31, NULL},          /* asdfghjkl   total 303 */
+    {250,  7, 3, 32, NULL},          /* zxcvbnm     total 242 */
+    {286,  5, 3,  0, skb_util_w},    /* utility     total 172 */
 };
 
 static int16_t skb_row_w(const skb_rowl_t *r){
@@ -235,8 +235,8 @@ void kbinput_open(const char *title, const char *initial, kbinput_done_cb_t cb){
     if(initial && initial[0]) lv_textarea_set_text(g_ta, initial);
     g_keep_spaces = g_mask_next;
     if(g_mask_next){ lv_textarea_set_password_mode(g_ta, true); g_mask_next = 0; }  /* masked secret entry */
-    lv_obj_set_size(g_ta, 240, 40);
-    lv_obj_align(g_ta, LV_ALIGN_TOP_MID, 0, 52);
+    lv_obj_set_size(g_ta, 220, 40);   /* corners r<=164 on the round glass */
+    lv_obj_align(g_ta, LV_ALIGN_TOP_MID, 0, 58);
     lv_obj_set_style_bg_color(g_ta, TC(SURFACE), 0);
     lv_obj_set_style_text_color(g_ta, TC(TEXT_PRIMARY), 0);
     /* typed text and the placeholder ("Password for <SSID>", a playlist name on Rename) are user

@@ -395,9 +395,9 @@ void eqcustom_create(lv_obj_t *root){
 
     lv_obj_t *flat = lv_button_create(root);
     lv_obj_remove_style_all(flat);
-    lv_obj_set_size(flat, 120, 34); lv_obj_align(flat, LV_ALIGN_TOP_MID, 0, 296);
-    lv_obj_set_ext_click_area(flat, 6);   /* 34px pill -> ~46px touch target */
-    lv_obj_set_style_radius(flat, 17, 0);
+    lv_obj_set_size(flat, 120, 32); lv_obj_align(flat, LV_ALIGN_TOP_MID, 0, 288);   /* y288..320: corners r<=166 on the round glass */
+    lv_obj_set_ext_click_area(flat, 6);   /* 32px pill -> ~44px touch target */
+    lv_obj_set_style_radius(flat, 16, 0);
     lv_obj_set_style_bg_color(flat, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(flat, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(flat, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
@@ -409,7 +409,7 @@ void eqcustom_create(lv_obj_t *root){
         /* View-only firmware: sliders and Flat are disabled (the slot arrows still browse curves), and the
          * Flat pill says why instead of offering a change the player would reject or repair. */
         for(int i=0;i<=NBAND;i++) view_only_slider(i < NBAND ? g_band[i] : g_master);
-        lv_obj_set_width(flat, 196);   /* inside the round glass at this height (y 296..330), square corners too */
+        lv_obj_set_width(flat, 180);   /* x90..270, y288..320: inside the round glass, square corners too */
         lv_label_set_text(fll, "Not on this firmware");
         lv_obj_set_style_text_color(fll, TC(TEXT_MUTED), 0);
     }
