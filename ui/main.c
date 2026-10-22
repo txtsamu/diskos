@@ -789,7 +789,7 @@ static struct { lv_timer_t *tm; int mode; uint32_t t0, gone_at; } g_dacx;
 static int g_dac_exit_ok;   /* set only while the continuation re-enters ui_set_source_mode */
 static void dac_exit_tick(lv_timer_t *t){
     (void)t;
-    if(lv_tick_elaps(g_dacx.t0) > 12000){
+    if(lv_tick_elaps(g_dacx.t0) > 30000){   /* measured on a Disc with a phone attached: the host flaps configured/suspended for ~17 s before the gadget is gone */
         lv_timer_del(g_dacx.tm); g_dacx.tm = NULL;
         fprintf(stderr, "usb dac: exit timed out waiting for the gadget to go away\n"); fflush(stderr);
         ui_toast("Couldn't leave USB DAC - unplug the cable first");
@@ -809,7 +809,7 @@ static int dac_exit_begin(int mode){
     g_dacx.mode = mode; g_dacx.t0 = lv_tick_get(); g_dacx.gone_at = 0;
     g_dacx.tm = lv_timer_create(dac_exit_tick, 100, NULL);
     fprintf(stderr, "usb dac: leaving with a host attached: 0642 0 first, then mode %d\n", mode); fflush(stderr);
-    ui_toast("Leaving USB DAC...");
+    ui_toast("Leaving USB DAC... (up to 20 s)");
     return 0;
 }
 static int g_dac_carry_vol = -1;
