@@ -25,6 +25,7 @@ void anim_press(lv_obj_t *o);  /* quick 100%->94%->100% tactile feedback */
 /* Give a full-screen panel a crisp 1px hairline on its LEADING (left) edge - the card boundary for
  * a push transition, visible on a near-black UI where a drop-shadow would not be. */
 void anim_panel_shadow(lv_obj_t *root);
+void anim_panel_hairline(lv_obj_t *root, int on);   /* the slide's leading-edge line: on while sliding, off at rest */
 /* iOS-style ease-in-out page slide (gentle start + stop). */
 void anim_page_slide(lv_obj_t *o, int from, int to, uint32_t ms, lv_anim_completed_cb_t done);
 /* Fade the depth scrim in (over the covered screen) on push / out on back. */

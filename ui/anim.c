@@ -71,10 +71,17 @@ void anim_press(lv_obj_t *o){
  * it slides in, and at rest (x=0) it sits on the round bezel's extreme-left column (masked). */
 void anim_panel_shadow(lv_obj_t *root){
     lv_obj_set_style_border_side(root, LV_BORDER_SIDE_LEFT, 0);
-    lv_obj_set_style_border_width(root, 1, 0);
     lv_obj_set_style_border_color(root, TC(OUTLINE_BRIGHT), 0);
     lv_obj_set_style_border_opa(root, 26, 0);   /* ~10% */
-    lv_obj_set_style_pad_left(root, -1, 0);     /* the hairline must not indent the screen: content stays truly centred */
+    anim_panel_hairline(root, 0);               /* only drawn while the panel slides (see anim_panel_hairline) */
+}
+/* The hairline is the card's leading edge WHILE it slides. At rest it used to stay on forever, and on the real round glass the
+ * extreme-left column is NOT masked: a thin light line ran down the left side of every screen. So: on for the slide, off at rest.
+ * The negative left padding cancels the border's 1px so content never moves. */
+void anim_panel_hairline(lv_obj_t *root, int on){
+    if(!root) return;
+    lv_obj_set_style_border_width(root, on ? 1 : 0, 0);
+    lv_obj_set_style_pad_left(root, on ? -1 : 0, 0);
 }
 
 /* Like start(), but with a cubic EASE-OUT path (cubic-bezier 0.33,1,0.68,1) - the "confident arrival"

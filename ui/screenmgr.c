@@ -81,6 +81,7 @@ static lv_obj_t *screen_make_root(lv_obj_t *parent)
 static void root_rest(lv_obj_t *o)
 {
     lv_obj_set_x(o, 0);
+    anim_panel_hairline(o, 0);
     lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
     lv_obj_set_style_transform_scale_x(o, 256, 0);
     lv_obj_set_style_transform_scale_y(o, 256, 0);
@@ -107,6 +108,7 @@ static void show_raw(int which)
  * rewrite the opacity back to 36 after this reset, breaking the hidden-rest invariant. */
 static void scrim_off(void)
 {
+    for (int i = 0; i < SCR_COUNT; i++) if (s_roots[i]) anim_panel_hairline(s_roots[i], 0);   /* the slide is over: no leading-edge line at rest */
     s_scrim_panel = NULL;
     if (s_scrim) {
         lv_anim_delete(s_scrim, NULL);
@@ -219,6 +221,7 @@ static void transition(int from, int to, int dir)
         lv_obj_clear_flag(nw, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(nw);                 /* incoming on top: gets input */
         s_push_hide = (od && from != to) ? from : -1;   /* hide the covered screen when the slide ends */
+        anim_panel_hairline(nw, 1);                 /* its leading edge while it slides in */
         anim_page_slide(nw, SCR_W, 0, PUSH_MS, anim_done_push);
     } else {                                        /* BACK: `od` slides out, revealing static `nw` */
         s_scrim_panel = od;
@@ -234,6 +237,7 @@ static void transition(int from, int to, int dir)
             lv_obj_set_x(od, 0);
             lv_obj_clear_flag(od, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(od);             /* outgoing on top slides away to the right */
+            anim_panel_hairline(od, 1);             /* its leading edge while it slides out */
             anim_page_slide(od, 0, SCR_W, POP_MS, anim_done_hide);
         } else {
             lv_obj_move_foreground(nw);
