@@ -15,11 +15,18 @@ config_test: ../config.c config_test.c ../config.h
 playstate_test: ../playstate.c playstate_test.c ../playstate.h
 	$(CC) $(CFLAGS) -I.. ../playstate.c playstate_test.c -o $@
 
+ipc_guard_test: ipc_guard_test.c
+	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
+	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
+	$(CC) $(CFLAGS) ipc_guard_test.c ipc_guard_fn.c -o $@
+	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
+
 .PHONY: run clean
-run: config_test playstate_test
+run: config_test playstate_test ipc_guard_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
+	./ipc_guard_test
 
 clean:
-	rm -f config_test playstate_test
+	rm -f config_test playstate_test ipc_guard_test
