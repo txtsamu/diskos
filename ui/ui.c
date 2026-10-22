@@ -2237,7 +2237,7 @@ void ui_create(lv_obj_t *root)
     btn_prev = lv_label_create(scr);
     style_text(btn_prev, TF(UI_28), TC(TEXT_MUTED));
     lv_label_set_text(btn_prev, LV_SYMBOL_PREV);
-    lv_obj_align(btn_prev, LV_ALIGN_TOP_MID, -60, 284);
+    lv_obj_align(btn_prev, LV_ALIGN_TOP_MID, -52, 278);   /* pitch 52 / y 278: the box corners stay inside the glass */
 
     btn_pp = lv_label_create(scr);
     style_text(btn_pp, TF(UI_32), accent);
@@ -2247,7 +2247,7 @@ void ui_create(lv_obj_t *root)
     btn_next = lv_label_create(scr);
     style_text(btn_next, TF(UI_28), TC(TEXT_MUTED));
     lv_label_set_text(btn_next, LV_SYMBOL_NEXT);
-    lv_obj_align(btn_next, LV_ALIGN_TOP_MID, 60, 284);
+    lv_obj_align(btn_next, LV_ALIGN_TOP_MID, 52, 278);
 
     if(theme_trait(THEME_TRAIT_NP_BIG_PLAY)){
         /* assets/reference/something/nowplaying_dark.png: dot-matrix title, a filled accent play circle */
@@ -2271,6 +2271,10 @@ void ui_create(lv_obj_t *root)
     make_clickable(btn_prev, "0201000C0002");
     make_clickable(btn_pp,   "0201000C0000");
     make_clickable(btn_next, "0201000C0001");
+    /* touch targets >= 56 px: a 28 px glyph + 14 px each side; play/pause (32 px glyph) + 12 so the three never overlap */
+    lv_obj_set_ext_click_area(btn_prev, 14);
+    lv_obj_set_ext_click_area(btn_next, 14);
+    lv_obj_set_ext_click_area(btn_pp, 12);
 
     /* Times sit as a centered pair below the transport buttons, inside the
      * arc's bottom gap so they never clash with the green progress fill. */

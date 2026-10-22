@@ -776,9 +776,9 @@ static void term_home(const home_parts_t *p){
     lv_obj_set_style_text_color(p->date, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(p->weather, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_pos(p->weather, 62, 182); lv_obj_set_width(p->weather, 240);
-    term_text(p->root, "$ now", TC(TEXT_MUTED), 62, 208);
+    term_text(p->root, "$ now", TC(TEXT_MUTED), 62, 196);
     /* $ now: the now-playing line, with its play key. Everything hangs from x 62 and ends at 298 (mirrored) */
-    lv_obj_set_pos(p->np, 54, 224); lv_obj_set_size(p->np, 252, 44);
+    lv_obj_set_pos(p->np, 54, 212); lv_obj_set_size(p->np, 252, 44);
     kit_keep(p->np);
     lv_obj_set_style_radius(p->np, 0, 0);
     lv_obj_set_style_bg_opa(p->np, LV_OPA_TRANSP, 0);
@@ -798,13 +798,13 @@ static void term_home(const home_parts_t *p){
     lv_obj_set_pos(p->pp, 200, 4); lv_obj_set_size(p->pp, 44, 38);
     term_key(p->pp);
     /* [ library ] [ find ] */
-    lv_obj_set_pos(p->library, 62, 276); lv_obj_set_size(p->library, 136, 38);
+    lv_obj_set_pos(p->library, 66, 262); lv_obj_set_size(p->library, 132, 34);   /* bottom corners at r~164 (was 178: on the bezel) */
     term_key(p->library);
     lv_obj_t *ll = NULL; for(uint32_t i = 0; i < lv_obj_get_child_count(p->library); i++){
         lv_obj_t *c = lv_obj_get_child(p->library, (int32_t)i);
         if(lv_obj_check_type(c, &lv_label_class)){ if(!ll && strlen(lv_label_get_text(c)) == 3) lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN); else ll = c; } }
     if(ll){ lv_label_set_text(ll, "library"); lv_obj_center(ll); }
-    lv_obj_set_pos(p->search, 208, 276); lv_obj_set_size(p->search, 90, 38);
+    lv_obj_set_pos(p->search, 208, 262); lv_obj_set_size(p->search, 86, 34);
     term_key(p->search);
     for(uint32_t i = 0; i < lv_obj_get_child_count(p->search); i++) lv_obj_add_flag(lv_obj_get_child(p->search, (int32_t)i), LV_OBJ_FLAG_HIDDEN);
     lv_obj_t *fl = lv_label_create(p->search);
@@ -1783,18 +1783,18 @@ static void stone_home(const home_parts_t *p){
     lv_obj_set_pos(p->date, 0, 168);
     lv_obj_set_style_text_color(p->date, TC(TEXT_SECONDARY), 0);
     lv_obj_set_pos(p->weather, 0, 188);
-    /* Library + 8 + Search share the now-playing pill's edges (62..298) */
-    lv_obj_set_pos(p->library, 62, 222); lv_obj_set_size(p->library, 186, 42);
+    /* Library + 8 + Search share the now-playing pill's edges (68..292) */
+    lv_obj_set_pos(p->library, 68, 218); lv_obj_set_size(p->library, 174, 42);
     stone_pill(p->library, TC(SURFACE));
     home_library_fit(p->library);
-    lv_obj_set_pos(p->search, 256, 222); lv_obj_set_size(p->search, 42, 42);
+    lv_obj_set_pos(p->search, 250, 218); lv_obj_set_size(p->search, 42, 42);
     stone_pill(p->search, TC(SURFACE));
-    lv_obj_set_pos(p->np, 62, 274); lv_obj_set_size(p->np, 236, 48);
+    lv_obj_set_pos(p->np, 68, 264); lv_obj_set_size(p->np, 224, 48);   /* end caps inside r~164 (was 175) */
     stone_pill(p->np, TC(SURFACE));
     lv_obj_set_pos(p->np_thumb, 8, 6); lv_obj_set_size(p->np_thumb, 38, 38);
-    lv_obj_set_pos(p->np_title, 54, 6);  lv_obj_set_width(p->np_title, 130);
-    lv_obj_set_pos(p->np_artist, 54, 26); lv_obj_set_width(p->np_artist, 130);
-    lv_obj_set_pos(p->pp, 184, 1); lv_obj_set_size(p->pp, 44, 44);   /* 8 px from the pill's end, as the art is from its start */
+    lv_obj_set_pos(p->np_title, 54, 6);  lv_obj_set_width(p->np_title, 118);
+    lv_obj_set_pos(p->np_artist, 54, 26); lv_obj_set_width(p->np_artist, 118);
+    lv_obj_set_pos(p->pp, 172, 1); lv_obj_set_size(p->pp, 44, 44);   /* 8 px from the pill's end, as the art is from its start */
     lv_obj_set_style_bg_color(p->pp, TC(ACCENT_PRIMARY), 0);
     lv_obj_set_style_bg_opa(p->pp, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(p->pp_label, TC(ON_ACCENT), 0);
