@@ -775,6 +775,25 @@ static int usb_host_configured(void){
  *   U -> 0       : direct (0666 6, 0642 0, 0657 8 restore device role; usb_audio_on cleared below)
  *   U -> 1/2/3   : via Local (modes.c out_switch to the internal DAC, then this call again): a direct 0642 1 from
  *                  host role never reached the computer and held SD access until a restart */
+/* The player keeps a separate saved volume per work mode (sysconfig UAC_VOLUME = 27 of 120 for USB DAC, against ~53-60 for
+ * Local/Bluetooth), so every switch into USB DAC started far quieter than the user listens, and the phone cannot help (the
+ * gadget has no hardware volume control, Android just attenuates). Carry the Local volume over once the switch has landed:
+ * only ever UP to it, never past the Max Volume setting, and never if cfg "dac_match_volume" is 0. */
+static int g_dac_carry_vol = -1;
+static uint32_t g_dac_enter_t;   /* when the switch into USB DAC was sent (volume frames before it settles are not the user's) */
+static void dac_volume_cb(lv_timer_t *t){
+    lv_timer_del(t);
+    if(g_source_mode != 1 || cfg_get_int("dac_match_volume", 1) == 0) return;
+    /* The player sends no a714 volume frame when the mode (and with it the active volume slot) changes, so the volume we
+     * hold is still Local's: never compare against it - set the level outright. The level is what the user last chose
+     * while in USB DAC (cfg dac_volume), else the Local volume carried over. 0715 is not clamped by the player's MAX_VOL. */
+    int want = cfg_get_int("dac_volume", 0); if(want <= 0) want = g_dac_carry_vol;
+    int mv = cfg_get_int("max_vol", -1);
+    if(want <= 0) return;
+    if(mv >= 10 && want > mv) want = mv;
+    fprintf(stderr, "usb dac: volume -> %d (%s)\n", want, cfg_get_int("dac_volume", 0) > 0 ? "your last USB DAC level" : "carried over from Local"); fflush(stderr);
+    ui_set_volume(want);
+}
 int ui_set_source_mode(int mode){
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(mode < 0 || mode > 3) return -1;
@@ -819,8 +838,10 @@ int ui_set_source_mode(int mode){
     }
     int was_playing = g_playing;
     if(was_playing && ipc_send_cmd("0201000C0000") < 0){ ui_toast("Player is busy - try again"); return -1; }
+    if(g_source_mode == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }   /* the Local volume, before the player swaps volumes */
     if(source_send(mode) < 0){ ui_toast("Couldn't switch mode"); return -1; }
     g_source_mode = mode;
+    if(mode == 1){ g_dac_enter_t = lv_tick_get(); lv_timer_create(dac_volume_cb, 4500, NULL); }   /* after the gadget and the player's own per-mode volume have settled */
     if(mode == 0 && was_playing) ipc_send_cmd("0201000C0000");
     /* Remember the picked Working Mode for the next boot (modes_output_boot_restore). Only the picker calls this,
      * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
@@ -1549,6 +1570,7 @@ int ui_pp_icon_playing(int real_playing){
  * cs43131 gain path as the hardware vol keys. */
 int ui_set_volume(int vol){
     if(vol < 0) vol = 0; if(vol > VOL_MAX) vol = VOL_MAX;
+    { int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }   /* 0715 itself is not clamped by the player's MAX_VOL */
     char f[16]; snprintf(f, sizeof f, "0715000C%04X", vol);
     int rc = ipc_send_cmd(f);
     fprintf(stderr,"set volume %d -> %s (rc=%d)\n", vol, f, rc); fflush(stderr);
@@ -3567,6 +3589,7 @@ int main(int argc, char **argv){
         if(st.volume_seq != last_vol_seq){
             last_vol_seq = st.volume_seq;
             power_note_input();   /* a volume key press counts as input for idle power-off (last_activity only moves when the panel is off) */
+            if(g_source_mode == 1 && lv_tick_elaps(g_dac_enter_t) > 8000 && st.volume > 0) cfg_set_int("dac_volume", st.volume);   /* remember the USB DAC level the user picked */
             if(bl_state == 0){
                 last_activity = lv_tick_get();
                 if(screen_current()==SCR_SAVER) screen_back();
