@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 /* Power settings and the SD-safe shutdown (see power.h for the stock facts this is built on). */
+#include "command_spawn.h"
 #include "power.h"
 #include <stdio.h>
 #include <string.h>
@@ -221,9 +222,9 @@ static int  real_drained(void *c){ (void)c; return ui_sd_quiesce_drained(); }
 static void real_quiesce_end(void *c){ (void)c; ui_sd_quiesce_end(); }
 static int  real_sync_start(void *c){
     (void)c;
-    pid_t p = fork();
-    if(p < 0) return -1;
-    if(p == 0){ setsid(); execlp("sync", "sync", (char *)NULL); _exit(127); }
+    pid_t p = 0;                                   /* posix_spawn, not fork(): a fork of the big UI can fail for memory */
+    char *argv[] = { "sync", NULL };
+    if(command_spawn(&p, argv) != 0 || p <= 0) return -1;
     g_sync_pid = p; return 0;
 }
 static int  real_sync_poll(void *c){

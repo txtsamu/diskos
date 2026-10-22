@@ -23,6 +23,7 @@
 #include <dirent.h>      /* mkdir() for the SD mount point */
 #include <linux/input.h>   /* EVIOCGKEY / KEY_MAX for the boot-time Vol-Up override */
 #include <net/if.h>
+#include "command_spawn.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/core/lv_refr_private.h"
 #include "theme.h"
@@ -1983,16 +1984,12 @@ static void app_run(const char *exec){
     }
     if(!gpio_gpb_pin()) ui_toast("Note: hold-to-close is unavailable");   /* no silent loss of the escape */
     int failed = 0, killed = 0;
-    pid_t pid = fork();
-    if(pid == 0){
-        setpgid(0, 0);                 /* own group so one kill takes any grandchildren too */
-        execl(exec, exec, (char*)NULL);
-        _exit(127);
-    } else if(pid > 0){
+    pid_t pid = -1;
+    char *argv[] = { (char *)exec, NULL };
+    if(command_spawn(&pid, argv) != 0) pid = -1;   /* posix_spawn in its own group (a fork() of the UI can fail for memory) */
+    if(pid > 0){
         int status = 0;
-        /* EACCES means the child already exec'd, which only happens after IT called setpgid - so the
-         * group exists either way. Any other error means grouping genuinely failed. */
-        int grouped = (setpgid(pid, pid) == 0 || errno == EACCES);
+        int grouped = 1;                            /* POSIX_SPAWN_SETPGROUP: the group exists before exec */
         /* The app owns the screen until it exits, so a HUNG app used to own it forever - taking Settings,
          * and with it the user's route back to the stock firmware, for the rest of the session. Wait
          * without a deadline (a long-running app is legitimate) but keep an escape: hold Vol-Up for ~3s
@@ -2196,20 +2193,14 @@ static int run_bounded(char *const argv[], int timeout_ms){
     sigset_t alrm, prev;
     sigemptyset(&alrm); sigaddset(&alrm, SIGALRM);
     sigprocmask(SIG_BLOCK, &alrm, &prev);
-    pid_t pid = fork();
-    if(pid < 0){ sigprocmask(SIG_SETMASK, &prev, NULL); return -1; }
-    if(pid == 0){
-        setpgid(0, 0);                 /* own group: one kill takes any grandchildren too */
-        sigprocmask(SIG_SETMASK, &prev, NULL);   /* the child must not inherit our blocked mask */
-        for(int fd = 3; fd < 256; fd++) close(fd);   /* don't inherit our fb/mqueue/etc fds */
-        int nul = open("/dev/null", O_RDWR);
-        if(nul >= 0){ dup2(nul, 0); if(nul > 2) close(nul); }  /* no stdin; keep 1/2 = boot log */
-        execvp(argv[0], argv);
-        _exit(127);                    /* exec failed */
+    pid_t pid;
+    int spawn_rc=command_spawn(&pid,argv);
+    if(spawn_rc){
+        sigprocmask(SIG_SETMASK,&prev,NULL);
+        fprintf(stderr,"command spawn failed: %s (%s)\n",argv[0],strerror(spawn_rc));
+        return -1;
     }
-    /* EACCES means the child already exec'd, which says nothing about whether ITS setpgid worked - so the
-     * group is only claimed when it is verified to exist. */
-    int grouped = (setpgid(pid, pid) == 0 || (errno == EACCES && getpgid(pid) == pid));
+    int grouped=1; /* POSIX_SPAWN_SETPGROUP succeeded before returning */
     g_bounded_pid = pid;                  /* always: the direct child is killable even without a group */
     g_bounded_pgid = grouped ? pid : 0;   /* only claim group-kill when the group really exists */
     sigprocmask(SIG_SETMASK, &prev, NULL);
@@ -2294,17 +2285,9 @@ static void hwclock_save_tick(lv_timer_t *t){
     if(g_rtc_pid) return;                    /* the previous save is still in flight: its poll times it out */
     defer_reap_sweep();
     if(!defer_reap_has_slot()) return;       /* same leak bound as run_bounded: never a child we couldn't reap */
-    pid_t pid = fork();
-    if(pid < 0) return;
-    if(pid == 0){
-        setpgid(0, 0);
-        for(int fd = 3; fd < 256; fd++) close(fd);
-        int nul = open("/dev/null", O_RDWR);
-        if(nul >= 0){ dup2(nul, 0); if(nul > 2) close(nul); }
-        char *a[] = { "hwclock", "-w", NULL };
-        execvp(a[0], a);
-        _exit(127);
-    }
+    pid_t pid = 0;                           /* posix_spawn, not fork(): a fork of the big UI can fail for memory */
+    char *a[] = { "hwclock", "-w", NULL };
+    if(command_spawn(&pid, a) != 0 || pid <= 0) return;
     g_rtc_grouped = (setpgid(pid, pid) == 0 || (errno == EACCES && getpgid(pid) == pid));
     g_rtc_pid = pid;
     g_rtc_t0 = lv_tick_get();

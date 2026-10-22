@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "command_spawn.h"
 #include <poll.h>
 #include <signal.h>
 #include <time.h>
@@ -173,18 +174,10 @@ static lfm_http_err_t lfm_http_post(const void *body, size_t body_len, lfm_http_
     if(body_fd < 0) return LFM_HTTP_IO;
     int pfd[2];
     if(pipe2(pfd, O_CLOEXEC) < 0){ close(body_fd); return LFM_HTTP_IO; }
-    pid_t pid = fork();
-    if(pid < 0){ close(body_fd); close(pfd[0]); close(pfd[1]); return LFM_HTTP_SPAWN; }
-    if(pid == 0){
-        char post_arg[64];
-        if(dup2(pfd[1], STDOUT_FILENO) < 0) _exit(126);
-        close(pfd[0]); close(pfd[1]);
-        int fl = fcntl(body_fd, F_GETFD);                 /* body_fd must survive exec */
-        if(fl<0 || fcntl(body_fd, F_SETFD, fl & ~FD_CLOEXEC)<0) _exit(126);
-        snprintf(post_arg, sizeof post_arg, "--post-file=/proc/self/fd/%d", body_fd);
-        execlp("wget","wget","-qO-","--content-on-error","-T","15",post_arg,LFM_ENDPOINT,(char*)NULL);
-        _exit(errno==ENOENT ? 127 : 126);
-    }
+    /* posix_spawn, not fork(): a fork of the big UI can fail for memory. The body reaches wget as its fd 3. */
+    pid_t pid;
+    char *argv[] = { "wget", "-qO-", "--content-on-error", "-T", "15", "--post-file=/proc/self/fd/3", LFM_ENDPOINT, NULL };
+    if(command_spawn_io(&pid, argv, pfd[1], body_fd) != 0){ close(body_fd); close(pfd[0]); close(pfd[1]); return LFM_HTTP_SPAWN; }
     close(pfd[1]); close(body_fd);
     int rfl = fcntl(pfd[0], F_GETFL);                 /* nonblock only the read end; keep other flags */
     if(rfl < 0 || fcntl(pfd[0], F_SETFL, rfl | O_NONBLOCK) < 0){

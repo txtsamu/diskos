@@ -2,6 +2,8 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "fwcaps.h"
 #include "screens.h"
+#include "command_spawn.h"
+#include <fcntl.h>
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"       /* cfg_get_int/cfg_set_int: persist the BT on/off intent */
@@ -287,14 +289,10 @@ static int bt_codec_query_cmd(const char *mac, char *out, int cap){
 static int bt_probe_run(const char *cmd, char *out, int cap, int timeout_ms){
     out[0] = 0;
     int fds[2];
-    if(pipe(fds) != 0) return 0;
-    pid_t pid = fork();
-    if(pid < 0){ close(fds[0]); close(fds[1]); return 0; }
-    if(pid == 0){
-        close(fds[0]); dup2(fds[1], 1); close(fds[1]); setpgid(0, 0);
-        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL); _exit(127);
-    }
-    setpgid(pid, pid);
+    if(pipe2(fds, O_CLOEXEC) != 0) return 0;
+    pid_t pid;
+    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
+    if(command_spawn_io(&pid, argv, fds[1], -1) != 0){ close(fds[0]); close(fds[1]); return 0; }   /* posix_spawn: no fork() of the UI */
     close(fds[1]);
     int n = 0, left = timeout_ms;
     while(left > 0 && n < cap - 1){
