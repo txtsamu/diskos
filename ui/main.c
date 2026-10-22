@@ -42,6 +42,7 @@
 #include "prof.h"
 #include "lvgl/src/drivers/evdev/lv_evdev.h"
 #include "config.h"
+#include "phonehome.h"
 #include "lastfm.h"
 #include "scanner.h"
 #include "playstate.h"
@@ -3399,6 +3400,7 @@ int main(int argc, char **argv){
         fprintf(stderr,"fbpan try %d failed, retry\n",i); fflush(stderr); usleep(250000); }
     if(!fbok){ fprintf(stderr,"fbpan failed (gave up)\n"); return 1; }
     cfg_load();
+    phonehome_apply();   /* optional: block the stock FiiO update lookups (cfg block_fiio_checks, default off) */
     (void)route_state_restore();  /* restore the live player's route before BT-off/disconnect handlers run */
     fontft_init();
     theme_init();   /* the palette for this run: before any screen is built */
