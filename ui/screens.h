@@ -138,6 +138,7 @@ void apps_reload(void);
 void app_launch(const char *exec);
 /* settings (master list + drill-in detail) */
 void settings_create(lv_obj_t *root);      /* SCR_SETTINGS: the category list (Playback/Audio/...) */
+void settings_poweroff_prompt(void);   /* the 'Power off?' confirm card, then the SD-safe shutdown (settings.c; Settings > System and the Quick tile) */
 void settings_refresh_list(void);
 void setlist_create(lv_obj_t *root);       /* SCR_SETLIST: one category's rows (built per entry) */
 void setlist_open(const char *group);      /* open one category ("Playback", "Audio", ...) */

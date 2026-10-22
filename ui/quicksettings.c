@@ -36,7 +36,7 @@ LV_FONT_DECLARE(font_icons_20)          /* FontAwesome 20px - EQ + Search glyphs
 
 /* ---- tile palette ---------------------------------------------------------------------------- */
 enum { QT_WIFI, QT_BT, QT_EQ, QT_SEARCH, QT_RESCAN, QT_MODE, QT_SCREENOFF,
-       QT_SHUFFLE, QT_FAV, QT_LYRICS, QT_TIMER, QT_GAPLESS, QT_GAIN, QT_DRE, QT_RG, QT_OUTDOOR, QT_THEME, QT_DEBUG, QT_COUNT };
+       QT_SHUFFLE, QT_FAV, QT_LYRICS, QT_TIMER, QT_GAPLESS, QT_GAIN, QT_DRE, QT_RG, QT_OUTDOOR, QT_THEME, QT_DEBUG, QT_POWEROFF, QT_COUNT };
 
 typedef struct {
     const char       *cfg;      /* per-tile enable key */
@@ -67,6 +67,7 @@ static const qtile_t QTILES[QT_COUNT] = {
     [QT_OUTDOOR]   = { "qs_t_outdoor",   "Outdoor",    WI_SUN,              THEME_FONT_ICON_20,         0, 1 },
     [QT_THEME]     = { "qs_t_theme",     "Theme",      WI_TINT,             THEME_FONT_ICON_20,         0, 1 },
     [QT_DEBUG]     = { "qs_t_debug",     "Debug",      LV_SYMBOL_SETTINGS,  THEME_FONT_UI_20, 0, 0 },   /* opens Debug Mode; lit while its SSH runs */
+    [QT_POWEROFF]  = { "qs_t_poweroff",  "Power off",  LV_SYMBOL_POWER,     THEME_FONT_UI_20, 0, 0 },   /* opt-in: asks, then the SD-safe shutdown */
 };
 
 static lv_obj_t *g_qs_root;
@@ -163,6 +164,7 @@ static void tile_short_cb(lv_event_t *e){
         case QT_RESCAN:    ui_rescan_library(); break;
         case QT_MODE:      modes_open(); break;
         case QT_SCREENOFF: ui_request_sleep(); screen_show(SCR_SAVER); break;
+        case QT_POWEROFF:  settings_poweroff_prompt(); break;   /* a confirm card first: a stray tap must not switch the device off */
         case QT_DEBUG:     debug_open(); break;   /* the SSH password is shown there, so open it rather than toggle blind */
         case QT_SHUFFLE: {
             if(ui_book_active()){ ui_toast("Not available in books"); break; }   /* books stay in Single */
