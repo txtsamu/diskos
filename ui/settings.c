@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
+#include "command_spawn.h"
 #include "screens.h"
 #include "theme.h"
 #include "theme_kit.h"
@@ -64,9 +65,9 @@ static void kill_and_reap(pid_t p){
 /* Run a shell command as a bounded child in its OWN process group, and NEVER blocking-reap it: a child
  * stuck in kernel I/O must not be able to hold the UI thread - or a restart - even for a moment. */
 static void bounded_detached(const char *cmd, int ms){
-    pid_t p = fork();
-    if(p == 0){ setsid(); execl("/bin/sh", "sh", "-c", cmd, (char*)NULL); _exit(127); }
-    if(p <= 0) return;
+    pid_t p = 0;                                   /* posix_spawn, not fork(): a fork of the big UI can fail for memory */
+    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
+    if(command_spawn(&p, argv) != 0 || p <= 0) return;
     for(int i = 0; i < ms/100; i++){
         if(waitpid(p, NULL, WNOHANG) == p) return;
         usleep(100000);
@@ -430,10 +431,10 @@ static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLI
 static int         g_rst_phase;    /* 0 = waiting for writers, 1 = waiting for sync */
 static uint32_t    g_rst_t0;
 static pid_t       g_rst_sync, g_rst_clock;
-static pid_t spawn_detached(const char *cmd){
-    pid_t p = fork();
-    if(p == 0){ setsid(); execl("/bin/sh", "sh", "-c", cmd, (char*)NULL); _exit(127); }
-    return p;
+static pid_t spawn_detached(const char *cmd){      /* own process group; posix_spawn (see bounded_detached) */
+    pid_t p = 0;
+    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
+    return command_spawn(&p, argv) == 0 ? p : -1;
 }
 static void stop_child(pid_t *p){ kill_and_reap(*p); *p = 0; }
 static void restart_fail(const char *why){

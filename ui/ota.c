@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "command_spawn.h"
 #include <time.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -387,18 +388,17 @@ static int dl_file(const ota_paths_t *p, const char *tag, const char *asset, int
     char url[400], part[80], target[160];
     if(snprintf(url, sizeof url, "%s/%s/%s", p->dl_base, tag, asset) >= (int)sizeof url) return OTA_E_BAD;
     if(snprintf(part, sizeof part, "%s.part", local) >= (int)sizeof part) return OTA_E_BAD;
-    snprintf(target, sizeof target, "/proc/self/fd/%d/%s", ifd, part);
+    snprintf(target, sizeof target, "/proc/self/fd/3/%s", part);       /* the incoming directory is the child's fd 3 */
     unlinkat(ifd, part, 0);
-    pid_t pid = fork();
-    if(pid < 0) return OTA_E_IO;
-    if(pid == 0){
-        setpgid(0, 0);
-        if(cap > 0){ struct rlimit rl = { (rlim_t)(cap + 1), (rlim_t)(cap + 1) }; setrlimit(RLIMIT_FSIZE, &rl); }
-        int nul = open("/dev/null", O_RDWR);
-        if(nul >= 0){ dup2(nul, 0); dup2(nul, 1); dup2(nul, 2); }
-        execlp("wget", "wget", "-q", "-T", "15", "-t", "1", "-O", target, url, (char *)NULL);
-        _exit(127);
-    }
+    /* posix_spawn, not fork() (a fork of the big UI can fail for memory). The file-size limit is set by a small shell
+     * (ulimit -f counts 512-byte blocks: the cap rounded up, +1 block, so an over-cap file is still detectable below);
+     * the arguments go in as $1..$3, never into the command text. */
+    char blocks[24]; snprintf(blocks, sizeof blocks, "%lld", cap > 0 ? cap / 512 + 2 : 0LL);
+    char *argv[] = { "/bin/sh", "-c", cap > 0 ? "ulimit -f \"$1\" || exit 126; exec wget -q -T 15 -t 1 -O \"$2\" \"$3\""
+                                              : "exec wget -q -T 15 -t 1 -O \"$2\" \"$3\"",
+                     "sh", blocks, target, url, NULL };
+    pid_t pid;
+    if(command_spawn_io(&pid, argv, -1, ifd) != 0) return OTA_E_IO;
     struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
     time_t last = now.tv_sec; long long lastsz = -1;
     int st = 0, rc = OTA_OK;
