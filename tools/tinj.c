@@ -62,7 +62,7 @@ static int fy(int y) { return 360 - y; }
 
 static void usage(const char *p)
 {
-    fprintf(stderr, "usage: %s tap <x> <y> | swipe <x1> <y1> <x2> <y2>\n", p);
+    fprintf(stderr, "usage: %s tap <x> <y> | hold <x> <y> <ms> | swipe <x1> <y1> <x2> <y2>\n", p);
 }
 
 /* parse a screen coordinate, rejecting junk / negatives / out-of-range (valid range 0..359) */
@@ -84,7 +84,8 @@ int main(int argc, char **argv)
     g_fd = open("/dev/input/event1", O_WRONLY);
     if (g_fd < 0) { perror("open /dev/input/event1"); return 1; }
 
-    if (!strcmp(argv[1], "tap") && argc == 4) {
+    if ((!strcmp(argv[1], "tap") && argc == 4) || (!strcmp(argv[1], "hold") && argc == 5)) {
+        int hold_ms = !strcmp(argv[1], "hold") ? atoi(argv[4]) : 0;   /* hold x y ms: a long press (LVGL long-press is 400 ms) */
         int x = fx(parse_coord(argv[2])), y = fy(parse_coord(argv[3]));
         emit(EV_ABS, ABS_MT_SLOT, 0);
         emit(EV_ABS, ABS_MT_TRACKING_ID, 1);
@@ -97,7 +98,7 @@ int main(int argc, char **argv)
          * never register a click. A generous hold guarantees at least one poll sees a steady PRESSED
          * before the release lands as a separate poll. */
         usleep(80000);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4 + hold_ms / 35; i++) {
             emit(EV_ABS, ABS_MT_POSITION_X, x);
             emit(EV_ABS, ABS_MT_POSITION_Y, y);
             syn();
