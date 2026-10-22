@@ -5,6 +5,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"
+#include "phonehome.h"
 #include "anim.h"
 #include "musicdb.h"
 #include "fwcaps.h"
@@ -194,6 +195,7 @@ static void apply_auto_time(int v){
     }
     ui_toast("Applies after the next restart");        /* the player reads it only when it starts (see musicdb.c) */
 }
+static void apply_block_fiio(int v){ (void)v; phonehome_apply(); }   /* set_val has already saved cfg block_fiio_checks */
 /* Artists grouping (stock "Artist / Album Artist", ARTIST_CLASS_TYPE via 0648): the player owns the value (mirrored
  * at startup); a send that fails puts the choice back so the menu never shows a grouping the player isn't using. */
 static void apply_artist_class(int v){
@@ -823,6 +825,8 @@ static const setting_t TABLE[] = {
       "Which UI boots by default. To boot the other one, hold Vol-Up from power-on until it appears.", NULL },
     { "System",   "Automatic Time", ST_TOGGLE, "auto_time", 0,1,1, NULL, 0, NULL, apply_auto_time, 1,
       "Set the time and time zone from the internet whenever Wi-Fi connects. A change applies after the next restart.", NULL },
+    { "System",   "Block FiiO update checks", ST_TOGGLE, "block_fiio_checks", 0,1,1, NULL, 0, NULL, apply_block_fiio, 0,
+      "Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics, weather and Last.fm still work. While on, the stock firmware update prompts will not appear.", NULL },
     { "System",   "Set Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_datetime, 0,
       "Set the clock by hand. With Automatic Time on, Wi-Fi may correct it later.", NULL },
     { "System",   "Time Zone",   ST_CHOICE, "tz_idx", 0,0,0, TZ_LABEL, TZ_COUNT, NULL, apply_timezone, 0,
