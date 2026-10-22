@@ -626,6 +626,17 @@ lv_color_t ui_current_accent(void){ return accent; }
 
 /* ---- shared standard header (back chevron + centred title) ------------------------------------- */
 static void ui_header_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
+/* Hold the back arrow = straight to Home (there is no Home button: the docs only say 'left-edge right swipe to go back'). LVGL still
+ * sends CLICKED on release after a long press, so a filter registered BEFORE the real back handler swallows that one click. */
+static int g_back_held;
+static void back_press_cb(lv_event_t *e){ (void)e; g_back_held = 0; }
+static void back_long_cb(lv_event_t *e){ (void)e; g_back_held = 1; screen_show(SCR_HOME); }
+static void back_click_filter_cb(lv_event_t *e){ if(g_back_held){ g_back_held = 0; lv_event_stop_processing(e); } }
+static void back_hold_home(lv_obj_t *back){
+    lv_obj_add_event_cb(back, back_press_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(back, back_click_filter_cb, LV_EVENT_CLICKED, NULL);   /* must come before the screen's own back handler */
+    lv_obj_add_event_cb(back, back_long_cb, LV_EVENT_LONG_PRESSED, NULL);
+}
 /* the edge Back sits where a screen's list starts: once the screen has built its body (after this call), raise Back
  * above it so its whole target takes taps. The object is checked first: the screen may have been rebuilt meanwhile. */
 static void header_back_raise(void *o){ lv_obj_move_foreground((lv_obj_t *)o); }
@@ -669,6 +680,7 @@ lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t ba
     lv_obj_set_style_radius(back, 20, 0);
     lv_obj_set_style_bg_color(back, TC(LIST_PRESSED), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(back, LV_OPA_70, LV_STATE_PRESSED);
+    back_hold_home(back);
     ui_on(back, back_cb ? back_cb : ui_header_back_cb, LV_EVENT_CLICKED, NULL, "nav.back", UI_CORE);
     lv_obj_t *ic = lv_label_create(back);
     lv_label_set_text(ic, LV_SYMBOL_LEFT);
@@ -728,6 +740,7 @@ lv_obj_t *kit_edge_header(lv_obj_t *root, const char *title, lv_event_cb_t back_
     lv_obj_set_style_radius(back, 20, 0);
     lv_obj_set_style_bg_color(back, TC(LIST_PRESSED), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(back, LV_OPA_70, LV_STATE_PRESSED);
+    back_hold_home(back);
     ui_on(back, back_cb ? back_cb : ui_header_back_cb, LV_EVENT_CLICKED, NULL, "nav.back", UI_CORE);
     lv_async_call(header_back_raise, back);
     lv_obj_add_event_cb(back, header_back_deleted, LV_EVENT_DELETE, NULL);
