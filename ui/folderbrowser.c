@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include "ui_round.h"
 
 /* File/folder browser (SCR_FOLDER).
  *
@@ -474,9 +475,9 @@ void folderbrowser_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 41, 72);   /* its 268 px rows (5 px in) land centred on the screen */
-    lv_obj_set_size(g_list, 290, 272);
-    lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_pos(g_list, 41, UI_LIST_Y);   /* its 268 px rows (5 px in) land centred on the screen */
+    lv_obj_set_size(g_list, 290, UI_LIST_H);
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

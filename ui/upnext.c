@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "ui_round.h"
 
 /* ---- Up Next (SCR_UPNEXT): reached from the Now Playing right-hub. The stock player owns the queue (LIST_SONG_0,
  * shuffle order in LIST_SONG_3); this screen only reads it (mdb_upnext) and jumps within it (ui_queue_jump). It
@@ -203,8 +204,8 @@ void upnext_create(lv_obj_t *root){
 
     g_un_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_un_list);
-    lv_obj_set_pos(g_un_list, 30, 72); lv_obj_set_size(g_un_list, 300, 272);
-    lv_obj_set_style_pad_bottom(g_un_list, 44, 0);                 /* last row scrolls clear of the round bezel */
+    lv_obj_set_pos(g_un_list, UI_LIST_X, UI_LIST_Y); lv_obj_set_size(g_un_list, UI_LIST_W, UI_LIST_H);
+    lv_obj_set_style_pad_bottom(g_un_list, UI_LIST_PAD_BOTTOM, 0);                 /* last row scrolls clear of the round bezel */
     lv_obj_set_style_bg_opa(g_un_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_un_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_un_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

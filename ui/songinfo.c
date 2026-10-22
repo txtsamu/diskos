@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include "ui_round.h"
 
 int ui_label_input_changed(lv_obj_t *obj, const char *txt);   /* ui.c: a label's text only when its input changes */
 int ui_label_set_changed(lv_obj_t *obj, const char *txt);
@@ -244,9 +245,9 @@ void songinfo_create(lv_obj_t *root)
 
     lv_obj_t *list = lv_obj_create(root);
     lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 35, 70); lv_obj_set_size(list, 290, 252);   /* centred on the screen (35 + 290 / 2 = 180) */
+    lv_obj_set_pos(list, 35, UI_LIST_Y); lv_obj_set_size(list, 290, UI_LIST_H);   /* centred on the screen (35 + 290 / 2 = 180) */
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_pad_bottom(list, 44, 0);   /* round bottom bezel */
+    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);   /* round bottom bezel */
     lv_obj_set_style_pad_row(list, 12, 0);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* cells on the centre line */

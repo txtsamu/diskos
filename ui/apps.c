@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
+#include "ui_round.h"
 
 /* Homebrew app launcher. Lists /usr/data/apps/<name>/ entries; each may carry an
  * app.conf ("name=...", "exec=..."), else defaults to dir name + .../app. Tapping
@@ -104,8 +105,8 @@ void apps_create(lv_obj_t *root){
 
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
-    lv_obj_set_pos(g_list, 44, 74); lv_obj_set_size(g_list, 272, 252);
-    lv_obj_set_style_pad_bottom(g_list, 44, 0);   /* bottom tile row scrolls clear of the round bezel */
+    lv_obj_set_pos(g_list, 44, 74); lv_obj_set_size(g_list, 272, UI_LIST_H_FROM(74));
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* bottom tile row scrolls clear of the round bezel */
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(g_list, 10, 0);
     lv_obj_set_style_pad_column(g_list, 10, 0);
