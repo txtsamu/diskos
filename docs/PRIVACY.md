@@ -21,23 +21,14 @@ diskOS is a local music player. Weather on Home is **on by default**; turning it
 | **Weather** | `wttr.in` | HTTPS | With Weather on Home on, diskOS fetches at UI startup and later refreshes or retries when Wi-Fi works. With it off, automatic fetches stop, but changing or resetting location in the Weather app explicitly requests weather. A request already in flight may still finish after you turn it off. It sends your configured location, or no location so wttr.in can estimate one from your public IP. |
 | **Online album art** | `itunes.apple.com`, `*.mzstatic.com` | HTTPS | When Online Album Art is enabled and a playing track has no cover, artist and album or title metadata, plus a storefront country selected from the player's language, are sent to search for artwork. Matching images are downloaded from Apple's image hosts. Off by default. |
 | **Lyrics** | `lrclib.net` | HTTPS | Online Lyrics is on by default. Opening Lyrics for a song without local or embedded words sends the current track's **title and artist** to find matching lyrics, if Online Lyrics is enabled. |
-| **Scrobbling (Last.fm)** | `ws.audioscrobbler.com` | HTTPS | Off by default. If enabled and connected: the device sends `track.updateNowPlaying` and scrobbles with track metadata (artist/title/album/duration, plus a timestamp for scrobbles), API key and session key to **your** Last.fm account. |
 | **Update check and download** | `api.github.com`, `github.com` | HTTPS | Opening Update diskOS checks the latest release. The 1.2.1 release image includes the diskOS release key by default; confirming a supported update downloads its signed app bundle. Switching Allow diskOS Updates off prevents download and staging but still permits a release check. |
-| **Last.fm sign-in** | `ws.audioscrobbler.com/2.0/`, `www.last.fm/api/auth/`, `www.last.fm/api/account/create` | HTTPS | The device POSTs `auth.getToken` and polls `auth.getSession` at `https://ws.audioscrobbler.com/2.0/` with the API key and authorization token. It displays a QR approval URL; your phone opens that URL. The local setup page also links to `www.last.fm/api/account/create` for obtaining an API key. |
 
-### Last.fm credential setup happens over your LOCAL network in plaintext
+### Last.fm is no longer part of diskOS
 
-To connect Last.fm, diskOS runs a **temporary web server on the device** at
-`http://<device-wifi-ip>:8080/<random-token>/`, shows a QR for it, and your phone posts your Last.fm
-**API key and shared secret** to it. Important properties:
-
-- It is **plain HTTP on your Wi-Fi LAN** - your API key/secret cross your local network unencrypted.
-  Do this on a network you trust.
-- The server is **transient** (runs only during setup), bound to the Wi-Fi interface, and gated by a
-  random URL token.
-- Your Last.fm **API key, secret, and session key are then stored on the device** under `/usr/data`
-  (device config); **offline scrobbles are queued** in `/usr/data/lastfm.queue` until they can be sent.
-  Nothing Last.fm-related is sent anywhere except your device, your phone (during setup), and Last.fm.
+Earlier versions could scrobble to Last.fm. That feature has been removed and diskOS no longer contacts
+Last.fm. If you used it, your old API key, secret and session key may still sit in the device config
+(`/usr/data`), and an unsent queue in `/usr/data/lastfm.queue`. Nothing reads or sends them any more; you
+can delete those entries (the `lastfm_*` lines in the config) and that file if you want them gone.
 
 ### The stock FiiO player still runs alongside diskOS
 
@@ -49,8 +40,7 @@ behaviours are inherited from the stock firmware and are outside diskOS's code. 
 ## What diskOS does NOT do
 
 - No analytics, telemetry, or usage tracking.
-- It does not upload your music library, your listening history (beyond Last.fm scrobbles if you turn
-  them on), or any personal files.
+- It does not upload your music library, your listening history, or any personal files.
 
 ## Reporting
 

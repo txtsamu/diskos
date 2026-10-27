@@ -10,7 +10,7 @@ diskOS is a touch interface for the FiiO Snowsky Disc's 360x360 screen. It uses 
 - **Listening:** [Now Playing](#now-playing), [Now Playing menus](#now-playing-menus), [Up Next](#up-next), [Song Info and lyrics](#song-info-and-lyrics), [Equalizer](#equalizer).
 - **Your library:** [Library](#library), [Search and keyboard](#search-and-keyboard), [Favourites and History](#favourites-and-history), [Playlists](#playlists), [Books and chapters](#books-and-chapters), [Browse Files](#browse-files).
 - **Make it yours:** [Settings](#settings), [Settings: Playback](#settings-playback), [Settings: Audio and working mode](#settings-audio-and-working-mode), [Settings: Display](#settings-display), [Eight themes](#eight-themes).
-- **Connections and apps:** [Settings: Network](#settings-network), [Wi-Fi and Bluetooth](#wi-fi-and-bluetooth), [Apps, Last.fm, and weather](#apps-lastfm-and-weather).
+- **Connections and apps:** [Settings: Network](#settings-network), [Wi-Fi and Bluetooth](#wi-fi-and-bluetooth), [Apps and weather](#apps-and-weather).
 - **System and safety:** [Settings: System](#settings-system), [Updates, startup, and power](#updates-startup-and-power), [Limits](#limits), [Safety and stock UI](#safety-and-stock-ui).
 
 ## Getting around
@@ -339,16 +339,15 @@ On Wi-Fi, use the switch to enable the radio, tap Rescan to refresh the list, ta
 
 Wi-Fi allows up to 75 seconds for a connection. Network details refresh as it completes; IP and router values appear only when the connection is ready.
 
-### Apps, Last.fm, and weather
+### Apps and weather
 
-Swipe left from Home to Apps, then tap Last.fm, Settings, or an installed external app. An external app takes over the screen and touch input while it runs; its behavior depends on that app. Last.fm setup shows a QR code for entering your own API key and secret on a phone, then a second authorization step; after connection, toggle Scrobbling or tap Disconnect. It is Off until you set it up; the setup page uses plain HTTP on your local Wi-Fi.
+Swipe left from Home to Apps, then tap Settings or an installed external app. An external app takes over the screen and touch input while it runs; its behavior depends on that app.
 
 With Weather on Home enabled, tap the glance to open Weather. "Weather unavailable" is tappable too, so you can set the location before a reading is available. In Weather, choose a location manually or request automatic location. Weather depends on Wi-Fi and the remote service.
 
 <table>
 <tr>
 <td align="center" valign="top" width="33%"><img src="tour/apps.png" width="220" alt="Apps"><br><sub>Built-in and external app tiles</sub></td>
-<td align="center" valign="top" width="33%"><img src="tour/lastfm.png" width="220" alt="Last.fm"><br><sub>Scrobbling setup</sub></td>
 </tr>
 </table>
 
@@ -379,7 +378,7 @@ System covers language, power, library maintenance, time, updates, recovery, and
 | Update from SD Card | Find a stock-style update filename and explain the stock route; diskOS does not run it. |
 | Allow diskOS Updates | On by default when the installed image includes an update key; Off blocks download and staging, but a release check remains possible. |
 | Update diskOS | Check for a later signed diskOS app update over Wi-Fi, then confirm download and restart. |
-| Reset diskOS Settings | Confirm reset of diskOS appearance and behavior choices; music, radios, Last.fm, EQ, and audio settings remain. |
+| Reset diskOS Settings | Confirm reset of diskOS appearance and behavior choices; music, radios, EQ, and audio settings remain. |
 | Debug Mode | Off by default; enable temporary SSH over Wi-Fi with a new shown password. |
 | Temperature; About | Read battery temperature and the exact diskOS build identifier. |
 

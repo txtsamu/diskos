@@ -178,7 +178,7 @@ Windows ZIP, for the full recovery steps, saved backup locations, and error code
 
 ## Current limitations
 
-Last.fm remains Beta. In 1.2.1, Wi-Fi skips the extra startup wait on V2.57 when Bluetooth is
+In 1.2.1, Wi-Fi skips the extra startup wait on V2.57 when Bluetooth is
 saved off; other startup cases can still take about a minute. If no IP appears, reconnect in
 Settings > Network > Wi-Fi. On the first boot after installing, a "Player didn't respond" message may
 appear once; it is harmless.
