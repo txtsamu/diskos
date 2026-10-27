@@ -28,7 +28,7 @@ _Avoid_: output device, out mode
 
 **USB Audio**:
 An output route in which the Disc drives an external USB DAC. It is not a source mode, even where the picker shows it as a row.
-_Avoid_: USB DAC (that is a source mode: the Disc acting as a sound card for a computer)
+_Avoid_: USB DAC (that is a source mode: the Disc acting as a DAC for a phone or computer)
 
 **Player work mode**:
 The Player's own record of what it is doing: playing local files, acting as a USB sound card, receiving Bluetooth, or nothing. After changing an output route or source mode, the Player must be left with a valid one, or it stops playing.

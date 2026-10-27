@@ -20,7 +20,7 @@
 typedef struct { const char *name, *sub; } modeinfo_t;
 static const modeinfo_t MODES[] = {
     { "Local Playback",      "Play from the microSD card" },
-    { "USB DAC",             "Be a USB sound card for a PC" },
+    { "USB DAC",             "Be a DAC for a phone or PC" },
     { "Bluetooth Receiving", "Play audio sent from a phone" },
     { "USB Storage",         "Open the card on a computer" },
 #ifdef DISKOS_TEST_OUTPUTS
