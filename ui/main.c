@@ -3169,6 +3169,7 @@ int ui_theme_reload(const char *screen){
     ui_toast("Couldn't apply the theme now - it applies next start");
     return -1;
 }
+static void pdbg_boot_cb(lv_timer_t *t){ (void)t; debug_boot_restore(); }
 int main(int argc, char **argv){
     /* Arm the boot watchdog BEFORE anything else - in particular before the argv dispatch and the
      * stock-UI selection below. Those read /usr/data and /dev/mem, so they can block; until now they
@@ -3314,7 +3315,7 @@ int main(int argc, char **argv){
      * bt_boot_restore() and the Wi-Fi reconcile read the intents. Once per boot (marker on tmpfs), so a UI
      * restart - e.g. a hot-reload over SSH - keeps the radios the user turned on. */
     if(access("/tmp/.diskos_radios_reset", F_OK) != 0){
-        cfg_set_int("wifi_on", 0);
+        cfg_set_int("wifi_on", cfg_get_int("pdbg_wifi", 0) ? 1 : 0);   /* Persistent debug: Wi-Fi comes back (debug_ui.c) */
         cfg_set_int("bt_on", 0);
         int fd = open("/tmp/.diskos_radios_reset", O_WRONLY | O_CREAT, 0600);
         if(fd >= 0) close(fd);
@@ -3331,6 +3332,7 @@ int main(int argc, char **argv){
     clock_tick(NULL);                           /* set immediately */
     g_t_status = lv_timer_create(status_poll_cb, 3000, NULL); /* charging/battery/wifi every 3s (BT every ~12s inside); paused at screen-off */
     status_poll_cb(NULL);                        /* populate immediately */
+    if(cfg_get_int("pdbg_ssh", 0)) lv_timer_set_repeat_count(lv_timer_create(pdbg_boot_cb, 6000, NULL), 1);   /* Persistent debug: SSH, once the UI is up */
     bt_boot_restore();                           /* re-enable BT + arm auto-route if it was on (persist like WiFi) */
     g_t_wx  = lv_timer_create(weather_poll, 1000, NULL);  /* apply weather + retry/refresh */
     if(cfg_get_int("weather_on", 1)) weather_fetch_async();   /* first fetch - only with Weather on (Settings off = no network use) */

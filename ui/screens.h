@@ -94,6 +94,7 @@ void debug_open(void);                     /* Settings -> System -> Debug Mode (
 int  debug_ssh_on(void);                   /* 1 while Debug Mode SSH runs (Quick Settings Debug tile) */
 void debug_create(lv_obj_t *root);
 void lastfm_create(lv_obj_t *parent);
+void debug_boot_restore(void);   /* Persistent debug: re-enable SSH at boot when "pdbg_ssh" is set (debug_ui.c) */
 void wifi_init_intent(void);   /* seed wifi_on intent from stock WIFI_STATUS (first run only) */
 void wifi_supervise(void);     /* keepalive: (re)start supplicant if Wi-Fi should be on but isn't */
 void wifi_info_create(lv_obj_t *root);
