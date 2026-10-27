@@ -598,8 +598,7 @@ static int route_analog(int force){
     if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
     /* the route commands MUST land; if either fails, keep g_route_mac set + return failure so a
      * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;     /* out_dev = analog/local DAC */
-    if(ipc_send_cmd("0657000C0008") < 0) return -1;
+    if(outseq_analog() != OUTSEQ_OK) return -1;         /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     g_route_mac[0] = 0;

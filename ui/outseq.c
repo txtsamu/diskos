@@ -68,6 +68,9 @@ static const step_t SRC_USB_DAC[] = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_GADG
 static const step_t SRC_BT_RX[]   = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_BT_RX_PREP, 0, MUST, 0 }, { F_GADGET_NONE, 0, MUST, 0 }, { F_WORKMODE_BTRX, 0, MUST, 0 } };
 static const step_t SRC_STORAGE[] = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_GADGET_STORAGE, 0, MUST, 0 }, { F_WORKMODE_LOCAL, 0, MUST, 0 } };
 
+/* leaving a Bluetooth sink: the UI does not track an output route for it, so no step is route-moved */
+static const step_t ANALOG[] = { { F_ROUTE_INTERNAL, 0, MUST, 0 }, { F_WORKMODE_LOCAL, 0, MUST, 0 } };
+
 typedef struct { const step_t *s; int n; } seq_t;
 #define SEQ(a) { (a), N(a) }
 static const seq_t FULL[3]  = { SEQ(FULL_INTERNAL),  SEQ(FULL_SPDIF),  SEQ(FULL_USB) };
@@ -96,4 +99,8 @@ void outseq_local_preamble(outseq_route_t current){
 outseq_rc outseq_source(outseq_src_t mode){
     if(mode < OUTSEQ_SRC_LOCAL || mode > OUTSEQ_SRC_USB_STORAGE) return OUTSEQ_REFUSED;
     return run_seq(&SRC[mode]);
+}
+
+outseq_rc outseq_analog(void){
+    return run(ANALOG, N(ANALOG));
 }

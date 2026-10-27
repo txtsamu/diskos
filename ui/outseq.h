@@ -33,4 +33,8 @@ void      outseq_local_preamble(outseq_route_t current);
  * sends nothing. */
 outseq_rc outseq_source(outseq_src_t mode);
 
+/* Leave a Bluetooth sink for the analog DAC: 0666 6 then 0657 8, both must land. There is no route-moved step, so any
+ * failure is OUTSEQ_REFUSED and the caller keeps its recorded Bluetooth route (a retry re-runs it). */
+outseq_rc outseq_analog(void);
+
 #endif
