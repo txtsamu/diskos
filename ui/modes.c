@@ -24,7 +24,7 @@ static const modeinfo_t MODES[] = {
     { "Bluetooth Receiving", "Play audio sent from a phone" },
     { "USB Storage",         "Open the card on a computer" },
 #ifdef DISKOS_TEST_OUTPUTS
-    { "USB Audio",           "Play through an external USB DAC" },   /* device-unverified: test builds only */
+    { "USB Audio",           "Play to an external USB DAC" },   /* device-unverified: test builds only */
 #endif
 };
 #define N_MODES ((int)(sizeof(MODES)/sizeof(MODES[0])))
@@ -57,7 +57,8 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
  * 0x4e5af4: sleep 1 s, role -> host, set_out_device 3 = USB_HOST_NULL with no card yet, SGM41513 OTG_ON). The card
  * then enumerates and on_usb_audio_add (0x4f39c4) re-runs set_out_device 3 against /proc/asound/card1. So switch
  * first, then wait for the card; resume only once it is up, and fall back to the internal DAC if it never comes. */
-#define OUT_USB_WAIT_MS   8000
+#define OUT_USB_WAIT_MS   20000  /* was 8 s: on a cold boot the player's mode thread takes ~7 s before the DAC even enumerates
+                                  * (seen 8.2 s, so the old limit fell back to the internal DAC 0.14 s after the DAC appeared) */
 #define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
 #define OUT_PAUSE    "0201000C0000"
 /* The route frames themselves live in outseq.c; its route enum must stay the same numbers as OUT_* */
@@ -84,6 +85,7 @@ static void usbgone_tick(lv_timer_t *t);
 void modes_output_adopt(int route){
     if(route < OUT_INTERNAL || route > OUT_USB) return;
     out_set_state(route);
+    modes_ui_refresh();   /* the picker and Settings may already be on screen with the old (internal) mark */
     if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
