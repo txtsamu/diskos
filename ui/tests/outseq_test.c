@@ -145,8 +145,16 @@ static void check_bt_sink(void){
     assert(outseq_bt_sink("") == OUTSEQ_REFUSED && g_n == 0);
 }
 
+/* work-mode re-assert: exactly 0657 8, and a failed send changes nothing else */
+static void check_assert_workmode(void){
+    const char *want[] = { W8 };
+    reset(-1); outseq_assert_workmode(); expect_frames("assert workmode", want, 1);
+    reset(0);  outseq_assert_workmode(); expect_frames("assert workmode fail", want, 1);
+}
+
 int main(void){
     check_bt_sink();
+    check_assert_workmode();
     for(int i = 0; i < NG; i++){ check_golden(&G[i]); check_fail_each(&G[i]); }
     /* an out-of-range route sends nothing */
     reset(-1);

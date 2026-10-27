@@ -1391,7 +1391,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * the flashed boot gate). Sent past the settle window so the async mode-control thread can't
      * clobber it. If the send fails, DON'T mark this generation done - retry next tick rather than
      * leave the card exported. */
-    if(modes_local_init(1) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
+    if(outseq_local_boot((outseq_route_t)modes_output_route()) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
     done_gen = gen;   /* only mark this generation initialised once ALL three commands were actually sent */
     fprintf(stderr,"v2.40 workmode: local-init sent once (gen %u)\n", gen); fflush(stderr);
 }
@@ -1550,7 +1550,7 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
      * output under it (seen live). Only the idle / long-gap case needs the preamble. */
     int recent_play = play_recent();
     if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !recent_play){
-        modes_local_init(0);   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
+        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
     }
     {   /* always rebuild: the player's queue can change under us (Play Through Folders), so no type-0 shortcut */
         int datalen = 8 + (int)strlen(name);          /* f1(4)+f2(4)+name */
@@ -1595,7 +1595,7 @@ int ui_play_playlist(long pid, int pos){
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;                                 /* not a book */
     send_play_mode(cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
-    if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
+    if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);      /* the tapped row in the player's read of the slot */
     if(ppos < 1){ ui_toast("Couldn't find that song"); return 0; }   /* never start a guessed, possibly different song */
@@ -1613,7 +1613,7 @@ int ui_queue_jump(int ord1){
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
     if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !play_recent()){
-        modes_local_init(0);   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
+        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
     }
     ui_note_transport_sent();
     char f[24]; snprintf(f, sizeof f, "0100%04X%04X0000", 16, (ord1 - 1) & 0xFFFF);
@@ -1634,7 +1634,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
         send_play_mode(cfg_get_int("work_mode", 0));
-        if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");
+        if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();
         return ui_play_list_ex(5, "", pos, -1);
     }
     if(plan->list_type != 2 && plan->list_type != 3 && plan->list_type != 7){ ui_toast("Couldn't play that list"); return 0; }
@@ -1784,7 +1784,7 @@ int ui_play_book(const char *path, long resume_ms){
      * play needs; ui_play_list's own preamble is gated to V2.40, but a book must start on V2.09/V2.28 too.
      * Local analog route only (never a BT A2DP path). */
     if(ui_get_source_mode() == 0 && !g_route_mac[0]){
-        ipc_send_cmd("0657000C0008");                      /* LOCALPLAYER work-mode (fixes NO_WORK_MODE). NOT 0666:
+        outseq_assert_workmode();                      /* LOCALPLAYER work-mode (fixes NO_WORK_MODE). NOT 0666:
                                                             * we're already on the local route (gated above), and a
                                                             * redundant out_dev re-init pauses the stream ~1.5s in. */
     }

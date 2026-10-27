@@ -87,13 +87,6 @@ void modes_output_adopt(int route){
     if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
-/* Route-aware local init (frames in outseq.c). with_gadget is the boot timer; 0 is the play preamble, best effort. */
-int modes_local_init(int with_gadget){
-    outseq_route_t r = (outseq_route_t)modes_output_route();
-    if(with_gadget) return outseq_local_boot(r) < 0 ? -1 : 0;
-    outseq_local_preamble(r);
-    return 0;
-}
 static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
     return access(p, F_OK) == 0;

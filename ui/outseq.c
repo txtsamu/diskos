@@ -123,3 +123,8 @@ outseq_rc outseq_bt_sink(const char *codec_frame){
     };
     return run(seq, N(seq));
 }
+
+void outseq_assert_workmode(void){
+    static const step_t seq[] = { { F_WORKMODE_LOCAL, 0, IGNORE, 0 } };
+    (void)run(seq, N(seq));
+}

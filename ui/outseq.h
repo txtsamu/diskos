@@ -43,4 +43,8 @@ outseq_rc outseq_analog(void);
  * nothing. The caller resets its recorded route when the result is not OUTSEQ_REFUSED. */
 outseq_rc outseq_bt_sink(const char *codec_frame);
 
+/* Re-assert the Player work mode LOCALPLAYER (0657 8) alone, best effort: a play from an idle Player needs it, and a
+ * route that is already right must not be re-sent (a redundant 0666 pauses the stream). The result is not observable. */
+void      outseq_assert_workmode(void);
+
 #endif
