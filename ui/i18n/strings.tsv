@@ -310,7 +310,7 @@ Western	西欧	西歐	西欧	서유럽	Occidental	Ocidental	Occidentale	Westeuro
 Cyrillic	西里尔	西里爾	キリル文字	키릴 문자	Cirílico	Cirílico	Cirillico	Kyrillisch	Cyrillique	Кириллица
 Legacy text: guess, Latin-1 or CP1251. Rescan Library to apply.	旧文本：自动猜测、Latin-1 或 CP1251。重新扫描音乐库以应用。	舊文字：自動猜測、Latin-1 或 CP1251。重新掃描音樂庫以套用。	古い文字：自動判定、Latin-1、CP1251。適用には再スキャン。	이전 텍스트: 자동 감지, Latin-1 또는 CP1251. 적용하려면 라이브러리를 다시 검색하세요.	Texto antiguo: Auto, Latin-1 o CP1251. Reescanea la biblioteca para aplicar.	Texto antigo: Auto, Latin-1 ou CP1251. Reanalise a biblioteca para aplicar.	Testo vecchio: Auto, Latin-1 o CP1251. Riesegui la scansione per applicare.	Alter Text: Auto, Latin-1 oder CP1251. Zum Anwenden Bibliothek neu scannen.	Ancien texte : Auto, Latin-1 ou CP1251. Réanalysez la bibliothèque pour appliquer.	Старый текст: Авто, Latin-1 или CP1251. Пересканируйте медиатеку для применения.
 Block FiiO update checks										
-Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics, weather and Last.fm still work. While on, the stock firmware update prompts will not appear.										
+Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics and weather still work. While on, the stock firmware update prompts will not appear.										
 Power off										
 Power off?										
 Closes the card safely, then switches the device off. Press the power key to turn it on again.										

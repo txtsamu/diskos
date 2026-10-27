@@ -870,7 +870,7 @@ static const setting_t TABLE[] = {
     { "System",   "Automatic Time", ST_TOGGLE, "auto_time", 0,1,1, NULL, 0, NULL, apply_auto_time, 1,
       "Set the time and time zone from the internet whenever Wi-Fi connects. A change applies after the next restart.", NULL },
     { "System",   "Block FiiO update checks", ST_TOGGLE, "block_fiio_checks", 0,1,1, NULL, 0, NULL, apply_block_fiio, 0,
-      "Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics, weather and Last.fm still work. While on, the stock firmware update prompts will not appear.", NULL },
+      "Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics and weather still work. While on, the stock firmware update prompts will not appear.", NULL },
     { "System",   "Set Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_datetime, 0,
       "Set the clock by hand. With Automatic Time on, Wi-Fi may correct it later.", NULL },
     { "System",   "Time Zone",   ST_CHOICE, "tz_idx", 0,0,0, TZ_LABEL, TZ_COUNT, NULL, apply_timezone, 0,
