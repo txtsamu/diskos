@@ -4,6 +4,49 @@ All notable changes to diskOS are documented here.
 
 Entries follow the Keep a Changelog format, with Added, Changed, and Fixed categories where applicable.
 
+## [Unreleased] - txtsamu/diskos `dev`
+
+Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running V2.57.
+
+### Added
+
+- **Pet** app on the Apps page: a Tamagotchi-style virtual pet (Agumon line) that lives in real
+  time, with Feed, Play, Clean, Sleep and Heal, mood and sickness, and a Digi-Egg to start over.
+- **Persistent debug** checkbox in Debug Mode: keeps Wi-Fi on and re-enables SSH at every boot.
+- **Persistent clock**: the last good time is kept in `/usr/data/diskos_time` and restored when the
+  clock comes up wrong after the RTC lost power or `hwclock -s` did not apply, with a log line for
+  every decision.
+- USB DAC and USB Audio fixes from the earlier fork builds: the ordered exit with a host attached,
+  the DAC volume set outright after entering the mode, and USB Audio waits for the DAC to appear.
+- Power off in Settings > System (and an opt-in Quick Settings tile), a command guard that refuses
+  destructive player opcodes, and an option to block FiiO update checks.
+
+### Changed
+
+- Terminal theme Home: the banner is gone, the date sits centred under the clock, the layout has
+  more room, the cursor blinks like the title cursors and the prompt reads "$ now playing".
+- Working Mode: USB Audio is listed under Local Playback, and the USB Audio and USB DAC
+  descriptions fit on one line ("Be a DAC for a phone or PC").
+- USB Audio waits up to 20 seconds for the DAC (was 8), which a cold boot needs.
+- The output route, source and Bluetooth sink frames now go through one module (`outseq`) with host
+  tests. The frames and their order are unchanged.
+- Full-screen art closes on any swipe, not only on a tap.
+- Round-glass geometry for the lists and keyboards, and the screen-slide edge hairline is drawn
+  only while a slide is in progress.
+
+### Fixed
+
+- Changing the theme while on USB Audio kept the route but then re-ran the whole USB Audio switch
+  15 seconds later and paused the music. The route is now carried over at startup and the
+  resume-autoplay pause is skipped on a theme relaunch.
+- The Vinyl disc on Now Playing turned square on some themes once the cover loaded.
+- The Pet's Feed and game panel was see-through on the Terminal theme.
+- The Bluetooth info screen showed stack garbage when the Name line had no value.
+
+### Removed
+
+- Last.fm scrobbling.
+
 ## [1.2.1] - 2026-10-14
 
 Adds Ogg Opus support and Windows installation, updates the installer experience and

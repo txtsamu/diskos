@@ -370,6 +370,14 @@ While enabled, the password is stored in plaintext at `/usr/data/sshd/current_pw
 so the UI can display it again after a restart. Disabling Debug Mode removes the file. A reboot can
 leave a stale copy, but the SSH overlay is inactive until Debug Mode is enabled again.
 
+**Persistent debug** (a checkbox on the Debug Mode screen, off by default) brings Wi-Fi and SSH back at
+every boot, so a debugging session survives restarts without re-enabling them by hand. Wi-Fi then stays on
+instead of starting off, and about 6 seconds after the UI starts SSH is enabled again with a fresh random
+password, shown on the Debug Mode screen. It stores no password or key beyond `/usr/data/sshd/current_pw`.
+With it ticked, root SSH over Wi-Fi is available on every boot until you press Disable, so leave it off on a
+network you do not trust. Wi-Fi in the 2.4 GHz band can add a buzzing noise to some headphones or DACs;
+if you hear one, turn Wi-Fi off or untick the option.
+
 Debug Mode uses Dropbear 2022.83, which predates the CVE-2023-48795 Terrapin Strict-KEX mitigation.
 Use it only for short sessions on a trusted network and turn it off when finished.
 

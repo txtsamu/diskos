@@ -341,7 +341,9 @@ Wi-Fi allows up to 75 seconds for a connection. Network details refresh as it co
 
 ### Apps and weather
 
-Swipe left from Home to Apps, then tap Settings or an installed external app. An external app takes over the screen and touch input while it runs; its behavior depends on that app.
+Swipe left from Home to Apps, then tap Pet, Settings or an installed external app. An external app takes over the screen and touch input while it runs; its behavior depends on that app.
+
+**Pet** is a small Tamagotchi-style virtual pet from the Agumon line. A new Digi-Egg hatches after about 3 minutes into Botamon, then grows into Koromon, Agumon and, after roughly 9 hours of care, Numemon, Tyrannomon or Greymon depending on how well you looked after it. Feed it (a meal or a snack), play "Which hand?" with it, clean up after it, put it to sleep, and heal it when it is sick; the meters show Food, Fun and Rest. The pet lives in real time, also while the Pet screen is closed or the Disc is off (time away counts for at most 12 hours), and it can pass away if it is neglected for a long time, after which you can start a new egg. Its state is one small file, `/usr/data/diskos_tama`. The characters are small hand-drawn sprites and the names belong to their owners; this is a personal build.
 
 With Weather on Home enabled, tap the glance to open Weather. "Weather unavailable" is tappable too, so you can set the location before a reading is available. In Weather, choose a location manually or request automatic location. Weather depends on Wi-Fi and the remote service.
 
