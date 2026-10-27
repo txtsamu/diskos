@@ -18,7 +18,7 @@
 #define MAX_APPS 24
 
 LV_FONT_DECLARE(font_icons_28)          /* FontAwesome 28px: play-mode + app-tile glyphs */
-/* Settings/File reuse LV_SYMBOL_SETTINGS (f013) / LV_SYMBOL_FILE (f15b), now in this font */
+/* Settings/File reuse LV_SYMBOL_SETTINGS (f013) / LV_SYMBOL_FILE (f15b), now in this font; Pet uses the heart (f004) */
 
 typedef struct { char name[64]; char exec[256]; } app_t;
 static app_t g_apps[MAX_APPS];
@@ -57,6 +57,7 @@ static void app_row_cb(lv_event_t *e){
     if(i>=0 && i<g_napps) app_launch(g_apps[i].exec);
 }
 static void settings_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_show(SCR_SETTINGS); }
+static void pet_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) tama_open(); }
 
 /* one app tile in the 2-wide grid (g_list is ROW_WRAP): a big glyph over a small caption */
 static void make_tile(const char *icon, const lv_font_t *ifont, const char *name, lv_event_cb_t cb, void *ud){
@@ -87,6 +88,8 @@ void apps_reload(void){
     lv_obj_clean(g_list);
     scan_apps();
     /* Weather is not a tile here anymore - it opens by tapping the home weather glance (glance->detail). */
+    /* built-in: Pet (tama_ui.c) */
+    make_tile("\xEF\x80\x84", TF(ICON_28), "Pet", pet_row_cb, NULL);
     /* homebrew apps from /usr/data/apps */
     for(int i=0;i<g_napps;i++) make_tile(LV_SYMBOL_FILE, TF(ICON_28), g_apps[i].name, app_row_cb, (void*)(uintptr_t)i);
     /* built-in: Settings */
