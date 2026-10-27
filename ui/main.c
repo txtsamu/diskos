@@ -624,8 +624,7 @@ int ui_route_analog(void){
 static _Atomic int g_source_mode = 0;
 int ui_get_source_mode(void){ return g_source_mode; }
 /* Theme re-launch: the player keeps its route and source mode, but this fresh process starts at Local/internal. The old
- * process leaves both in the environment; the first player reconnect of the new one adopts them (see the main loop). */
-static struct { int pending, route, src; } g_reload_adopt;
+ * process leaves both in the environment; the new one adopts them at startup (see DISKOS_RELOAD_ROUTE in main). */
 static unsigned g_adopted_gen = 0xFFFFFFFFu;   /* ipc generation whose route/mode was adopted: no local-init for it */
 
 /* SD operations share an admission gate. It closes before an export is queued and
@@ -3472,7 +3471,8 @@ int main(int argc, char **argv){
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
+    if(!getenv("DISKOS_THEME_RELOAD"))   /* a theme relaunch is not a boot: what is playing must keep playing */
+        lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
      * always spawn - it just sleeps while disabled or while the player is warm. */
@@ -3595,7 +3595,15 @@ int main(int argc, char **argv){
         const char *rr = getenv("DISKOS_RELOAD_ROUTE"), *rs = getenv("DISKOS_RELOAD_SRC");
         int route = rr ? atoi(rr) : 0, src = rs ? atoi(rs) : 0;
         if((route != OUT_INTERNAL || src != 0) && route >= OUT_INTERNAL && route <= OUT_USB && src >= 0 && src <= 2){
-            g_reload_adopt.pending = 1; g_reload_adopt.route = route; g_reload_adopt.src = src;
+            /* Adopt now, not in the "player reconnected" branch below: that only fires when /ui is re-attached after a
+             * player restart, which a plain relaunch never is, so the route was never kept (and the saved-preference
+             * restore then re-ran the whole USB Audio switch, restarting the output and the song). ipc_generation()
+             * only moves on a player restart, so it is stable from here. */
+            g_source_mode = src;
+            modes_output_adopt(route);
+            g_adopted_gen = ipc_generation();
+            g_startup_route_checked = 1;
+            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", route, src, g_adopted_gen); fflush(stderr);
         }
         unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
     }
@@ -3645,14 +3653,6 @@ int main(int argc, char **argv){
             bt_notify_player_restart();
             ui_reapply_audio();           /* re-send managed audio config (DRE/filter/etc.); the v2.40 local-init
                                            * is NOT here - it's sent from the play path when the player is ready. */
-            if(g_reload_adopt.pending){   /* a theme re-launch, not a player restart: it is still on the old route/mode */
-                g_reload_adopt.pending = 0;
-                g_source_mode = g_reload_adopt.src;
-                modes_output_adopt(g_reload_adopt.route);
-                g_adopted_gen = ipc_generation();
-                g_startup_route_checked = 1;
-                fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", g_reload_adopt.route, g_reload_adopt.src, g_adopted_gen); fflush(stderr);
-            }
         }
         if(g_settle_armed) (void)ui_player_settling();   /* service the settle expiry every loop so a dormant armed flag can never wrap (~24.9d) into a false "settling" */
         opus_title_tick();
