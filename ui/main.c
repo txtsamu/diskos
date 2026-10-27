@@ -34,6 +34,7 @@
 #include "screens.h"
 #include "modes.h"
 #include "usbhid.h"
+#include "outseq.h"
 #include "anim.h"
 #include "ipc.h"
 #include "opustitle_worker.h"
@@ -566,20 +567,15 @@ int ui_route_bt(const char *mac){
      * latches g_bt_autorouted; the auto-route poll (which keeps firing) routes on the first tick past the
      * window. Guarding HERE covers every path into routing (poll, connect-completion, and a device tap). */
     if(ui_player_settling()) return -1;
+    char f[48];
+    if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;   /* 06b3 with SBC (VALUE1 0) + MAC payload, as always; built before anything is sent */
     track_state_t st; ipc_get_state(&st);
     int was_playing = g_playing;   /* real play state; raw st.state is unreliable (reports 0 while playing) so
                                     * the old `st.state==1` was false during playback -> pause was SKIPPED */
     if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;     /* stock pre-stop: normalize local output state */
-    ipc_send_cmd("0642000C0000");                       /* reset network/output mode */
-    ipc_send_cmd("0657000C0008");                       /* work-mode 8 (required orchestration, not our work_mode) */
-    ipc_send_cmd("06c1000C0000");                       /* initialize the player's BT subsystem */
-    if(ipc_send_cmd("0666000C0002") < 0) return -1;     /* out_dev = BT source */
-    modes_output_reset();                               /* no longer on SPDIF / USB audio */
-    ipc_send_cmd("0657000C0008");
-    char f[48];
-    if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;   /* 06b3 with SBC (VALUE1 0) + MAC payload, as always */
-    if(ipc_send_cmd(f) < 0) return -1;
+    outseq_rc rc = outseq_bt_sink(f);
+    if(rc != OUTSEQ_REFUSED) modes_output_reset();      /* the route moved: no longer on SPDIF / USB audio */
+    if(rc != OUTSEQ_OK) return -1;
     if(st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", st.volume); ipc_send_cmd(v); }
     /* Safe minimal resume; deterministic load/play remains a future improvement. */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
@@ -600,8 +596,7 @@ static int route_analog(int force){
     if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
     /* the route commands MUST land; if either fails, keep g_route_mac set + return failure so a
      * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;     /* out_dev = analog/local DAC */
-    if(ipc_send_cmd("0657000C0008") < 0) return -1;
+    if(outseq_analog() != OUTSEQ_OK) return -1;         /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     g_route_mac[0] = 0;
@@ -628,6 +623,10 @@ int ui_route_analog(void){
  * load/store well-defined (seq_cst) without a mutex for this single word. */
 static _Atomic int g_source_mode = 0;
 int ui_get_source_mode(void){ return g_source_mode; }
+/* Theme re-launch: the player keeps its route and source mode, but this fresh process starts at Local/internal. The old
+ * process leaves both in the environment; the first player reconnect of the new one adopts them (see the main loop). */
+static struct { int pending, route, src; } g_reload_adopt;
+static unsigned g_adopted_gen = 0xFFFFFFFFu;   /* ipc generation whose route/mode was adopted: no local-init for it */
 
 /* SD operations share an admission gate. It closes before an export is queued and
  * reopens only after that export was observed and its return mount is confirmed. */
@@ -724,25 +723,9 @@ static int storage_player_guarded(void){
     return found > 0 && ok;
 }
 static int source_send(int mode){
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;
-    modes_output_reset();                                /* every source change starts from the internal DAC route */
-    switch(mode){
-        case 0:
-            if(ipc_send_cmd("0642000C0000") < 0) return -1;
-            return ipc_send_cmd("0657000C0008");
-        case 1:                                          /* USB DAC: the player's own USB DAC work mode (1). With 8 (local
-                                                          * playback) the gadget binds and the host plays, but the player
-                                                          * never reads the incoming audio: silent on the latest firmware. */
-            if(ipc_send_cmd("0642000C0002") < 0) return -1;
-            return ipc_send_cmd("0657000C0001");
-        case 2:
-            if(ipc_send_cmd("0818000C0000") < 0 || ipc_send_cmd("0642000C0000") < 0) return -1;
-            return ipc_send_cmd("0657000C0006");
-        case 3:
-            if(ipc_send_cmd("0642000C0001") < 0) return -1;
-            return ipc_send_cmd("0657000C0008");
-    }
-    return -1;
+    outseq_rc rc = outseq_source((outseq_src_t)mode);
+    if(rc != OUTSEQ_REFUSED) modes_output_reset();       /* every source change starts from the internal DAC route */
+    return rc < 0 ? -1 : 0;
 }
 static void storage_unknown(const char *why){
     sd_io_hold(); atomic_store(&g_sd_writable, 0); g_sd_phase = SD_UNKNOWN;
@@ -1472,6 +1455,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(ui_get_source_mode() != 0) return;                     /* only while Local source */
     if(modes_output_busy()) return;                            /* an output switch owns 0666/0642/0657 right now */
     unsigned gen = ipc_generation();
+    if(gen == g_adopted_gen) return;                           /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
     if(age_gen != gen){ age_gen = gen; player_old = !g_startup_route_checked && startup_player_old(); }
     if(!g_startup_route_checked && player_old && !startup_playback_busy(gen)){
         int startup = startup_route_reconcile();
@@ -1512,7 +1496,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * the flashed boot gate). Sent past the settle window so the async mode-control thread can't
      * clobber it. If the send fails, DON'T mark this generation done - retry next tick rather than
      * leave the card exported. */
-    if(modes_local_init(1) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
+    if(outseq_local_boot((outseq_route_t)modes_output_route()) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
     done_gen = gen;   /* only mark this generation initialised once ALL three commands were actually sent */
     fprintf(stderr,"v2.40 workmode: local-init sent once (gen %u)\n", gen); fflush(stderr);
 }
@@ -1672,7 +1656,7 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
      * output under it (seen live). Only the idle / long-gap case needs the preamble. */
     int recent_play = play_recent();
     if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !recent_play){
-        modes_local_init(0);   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
+        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
     }
     {   /* always rebuild: the player's queue can change under us (Play Through Folders), so no type-0 shortcut */
         int datalen = 8 + (int)strlen(name);          /* f1(4)+f2(4)+name */
@@ -1717,7 +1701,7 @@ int ui_play_playlist(long pid, int pos){
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;                                 /* not a book */
     send_play_mode(cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
-    if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
+    if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);      /* the tapped row in the player's read of the slot */
     if(ppos < 1){ ui_toast("Couldn't find that song"); return 0; }   /* never start a guessed, possibly different song */
@@ -1735,7 +1719,7 @@ int ui_queue_jump(int ord1){
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
     if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !play_recent()){
-        modes_local_init(0);   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
+        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
     }
     ui_note_transport_sent();
     char f[24]; snprintf(f, sizeof f, "0100%04X%04X0000", 16, (ord1 - 1) & 0xFFFF);
@@ -1756,7 +1740,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
         send_play_mode(cfg_get_int("work_mode", 0));
-        if(ui_get_source_mode() == 0 && !g_route_mac[0]) ipc_send_cmd("0657000C0008");
+        if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();
         return ui_play_list_ex(5, "", pos, -1);
     }
     if(plan->list_type != 2 && plan->list_type != 3 && plan->list_type != 7){ ui_toast("Couldn't play that list"); return 0; }
@@ -1906,7 +1890,7 @@ int ui_play_book(const char *path, long resume_ms){
      * play needs; ui_play_list's own preamble is gated to V2.40, but a book must start on V2.09/V2.28 too.
      * Local analog route only (never a BT A2DP path). */
     if(ui_get_source_mode() == 0 && !g_route_mac[0]){
-        ipc_send_cmd("0657000C0008");                      /* LOCALPLAYER work-mode (fixes NO_WORK_MODE). NOT 0666:
+        outseq_assert_workmode();                      /* LOCALPLAYER work-mode (fixes NO_WORK_MODE). NOT 0666:
                                                             * we're already on the local route (gated above), and a
                                                             * redundant out_dev re-init pauses the stream ~1.5s in. */
     }
@@ -3251,6 +3235,7 @@ static void boot_select_enforce(const char *path){
  * marked close-on-exec, so this process keeps running and the change applies at the next start. */
 int ui_theme_reload(const char *screen){
     if(scanner_active()){ ui_toast("Library scan running - try again when it finishes"); return -1; }
+    if(modes_output_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }   /* a half-done switch can't cross the exec */
     art_kill_all();
     if(g_bounded_pgid > 0) kill(-(pid_t)g_bounded_pgid, SIGKILL);
     if(g_bounded_pid > 0) kill((pid_t)g_bounded_pid, SIGKILL);
@@ -3258,17 +3243,21 @@ int ui_theme_reload(const char *screen){
     fflush(stderr);
     handoff_signal_reset();
     setenv("DISKOS_THEME_RELOAD", "1", 1);
+    { char v[16];
+      snprintf(v, sizeof v, "%d", modes_output_route()); setenv("DISKOS_RELOAD_ROUTE", v, 1);
+      snprintf(v, sizeof v, "%d", (int)g_source_mode);   setenv("DISKOS_RELOAD_SRC", v, 1); }
     char *ua[3]; ua[0] = "mq_ui"; ua[1] = (char *)(screen ? screen : "home"); ua[2] = NULL;
     /* Re-exec the image that is RUNNING (the launcher's verified private copy, or whichever build fell back), never the
      * mutable /usr/data/mq_ui pathname: that could swap a running fallback for the unverified/trial file. /proc/self/exe
      * still works when the running file was unlinked. The boot markers (/tmp/.diskos_run, .diskos_launched) describe this
      * same build, so they are neither rewritten nor re-checked here. A failed exec keeps us running (no path fallback). */
     execv("/proc/self/exe", ua);
-    unsetenv("DISKOS_THEME_RELOAD");
+    unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
     alarm(0);
     ui_toast("Couldn't apply the theme now - it applies next start");
     return -1;
 }
+static void pdbg_boot_cb(lv_timer_t *t){ (void)t; debug_boot_restore(); }
 int main(int argc, char **argv){
     /* Arm the boot watchdog BEFORE anything else - in particular before the argv dispatch and the
      * stock-UI selection below. Those read /usr/data and /dev/mem, so they can block; until now they
@@ -3415,7 +3404,7 @@ int main(int argc, char **argv){
      * bt_boot_restore() and the Wi-Fi reconcile read the intents. Once per boot (marker on tmpfs), so a UI
      * restart - e.g. a hot-reload over SSH - keeps the radios the user turned on. */
     if(access("/tmp/.diskos_radios_reset", F_OK) != 0){
-        cfg_set_int("wifi_on", 0);
+        cfg_set_int("wifi_on", cfg_get_int("pdbg_wifi", 0) ? 1 : 0);   /* Persistent debug: Wi-Fi comes back (debug_ui.c) */
         cfg_set_int("bt_on", 0);
         int fd = open("/tmp/.diskos_radios_reset", O_WRONLY | O_CREAT, 0600);
         if(fd >= 0) close(fd);
@@ -3432,6 +3421,7 @@ int main(int argc, char **argv){
     clock_tick(NULL);                           /* set immediately */
     g_t_status = lv_timer_create(status_poll_cb, 3000, NULL); /* charging/battery/wifi every 3s (BT every ~12s inside); paused at screen-off */
     status_poll_cb(NULL);                        /* populate immediately */
+    if(cfg_get_int("pdbg_ssh", 0)) lv_timer_set_repeat_count(lv_timer_create(pdbg_boot_cb, 6000, NULL), 1);   /* Persistent debug: SSH, once the UI is up */
     bt_boot_restore();                           /* re-enable BT + arm auto-route if it was on (persist like WiFi) */
     g_t_wx  = lv_timer_create(weather_poll, 1000, NULL);  /* apply weather + retry/refresh */
     if(cfg_get_int("weather_on", 1)) weather_fetch_async();   /* first fetch - only with Weather on (Settings off = no network use) */
@@ -3565,7 +3555,14 @@ int main(int argc, char **argv){
     if(ui_source_switch_pending()) g_sd_deadline = lv_tick_get() + 20000;
     lv_timer_create(storage_tick, 100, NULL);
     { void system_ota_health_init(void); system_ota_health_init(); }   /* system.c: proves a trial OTA build healthy after 15 s */
-    if(getenv("DISKOS_THEME_RELOAD")) unsetenv("DISKOS_THEME_RELOAD");   /* a theme re-launch: no boot splash */
+    if(getenv("DISKOS_THEME_RELOAD")){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
+        const char *rr = getenv("DISKOS_RELOAD_ROUTE"), *rs = getenv("DISKOS_RELOAD_SRC");
+        int route = rr ? atoi(rr) : 0, src = rs ? atoi(rs) : 0;
+        if((route != OUT_INTERNAL || src != 0) && route >= OUT_INTERNAL && route <= OUT_USB && src >= 0 && src <= 2){
+            g_reload_adopt.pending = 1; g_reload_adopt.route = route; g_reload_adopt.src = src;
+        }
+        unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
+    }
     else splash_start();
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes
      * synchronously on this fb), then disarm the boot watchdog - a painted frame, not
@@ -3612,6 +3609,14 @@ int main(int argc, char **argv){
             bt_notify_player_restart();
             ui_reapply_audio();           /* re-send managed audio config (DRE/filter/etc.); the v2.40 local-init
                                            * is NOT here - it's sent from the play path when the player is ready. */
+            if(g_reload_adopt.pending){   /* a theme re-launch, not a player restart: it is still on the old route/mode */
+                g_reload_adopt.pending = 0;
+                g_source_mode = g_reload_adopt.src;
+                modes_output_adopt(g_reload_adopt.route);
+                g_adopted_gen = ipc_generation();
+                g_startup_route_checked = 1;
+                fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", g_reload_adopt.route, g_reload_adopt.src, g_adopted_gen); fflush(stderr);
+            }
         }
         if(g_settle_armed) (void)ui_player_settling();   /* service the settle expiry every loop so a dormant armed flag can never wrap (~24.9d) into a false "settling" */
         opus_title_tick();

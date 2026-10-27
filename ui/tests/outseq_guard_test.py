@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 diskOS contributors
+"""Guard: the Player routing frames (0666 out device, 0642 gadget role, 0657 work mode, 06c1 BT init, 0818 BT-RX prep)
+are written in outseq.c and nowhere else in the UI sources. Run: python3 -I tests/outseq_guard_test.py"""
+from pathlib import Path
+import re
+import unittest
+
+APP = Path(__file__).resolve().parents[1]
+ROUTING = re.compile(r'(0666|0642|0657|06c1|0818)000C', re.IGNORECASE)
+
+
+class OutseqGuard(unittest.TestCase):
+    def test_no_routing_frame_literal_outside_outseq(self):
+        offenders = []
+        for path in sorted(APP.glob('*.c')) + sorted(APP.glob('*.h')):
+            if path.name in ('outseq.c', 'sqlite3.c') or path.name.startswith('font_'):
+                continue
+            for n, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
+                if ROUTING.search(line):
+                    offenders.append(f'{path.name}:{n}: {line.strip()[:100]}')
+        self.assertEqual(offenders, [], 'routing frames must go through outseq.c:\n' + '\n'.join(offenders))
+
+    def test_outseq_still_owns_them(self):
+        # the guard is meaningless if the pattern stopped matching the real frames
+        self.assertTrue(ROUTING.search((APP / 'outseq.c').read_text()))
+
+
+if __name__ == '__main__':
+    unittest.main()

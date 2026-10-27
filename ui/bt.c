@@ -709,7 +709,7 @@ void bt_info_open(void){
     snprintf(cmd, sizeof cmd, "bluetoothctl info %s 2>/dev/null", g_sel_mac);
     run_cap(cmd, buf, sizeof buf);
     char *p = strstr(buf, "Name: ");
-    if(p){ sscanf(p+6, "%95[^\n]", val); info_row("Name", val); }
+    if(p && sscanf(p+6, "%95[^\n]", val) == 1) info_row("Name", val);   /* no match (empty name) leaves val unwritten: skip the row */
     info_row("Address", g_sel_mac);
     { char v[96];   /* line-anchored property reads: a device NAME can't spoof Connected/Icon */
       info_row("Connected", (bt_info_prop(buf,"Connected:",v,sizeof v) && !strcmp(v,"yes")) ? "Yes" : "No");

@@ -25,11 +25,15 @@
  *     password, never anything shipped in the repo). We hash it with crypt() and hand the hash to
  *     /usr/project/diskos-debug.sh, which overlays a private shadow over /etc/shadow.
  *   - a USB serial root shell on /dev/ttyGS0 (local-USB only).
- * State is intentionally NOT persisted across reboots: debug access comes back OFF after a restart. */
+ * Debug access comes back OFF after a restart UNLESS "Persistent debug" is opted into (two checkboxes on this screen,
+ * both off by default): "pdbg_ssh" re-enables SSH with a fresh random password at every boot (read it here), "pdbg_wifi"
+ * keeps Wi-Fi on at boot (main.c; otherwise radios start off). Neither stores a password or key. */
+#define PDBG_SSH  "pdbg_ssh"
+#define PDBG_WIFI "pdbg_wifi"
 
 #define DBG "/usr/project/diskos-debug.sh"
 
-static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl;
+static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl, *g_cb_wifi, *g_cb_ssh;
 static int  g_on = 0;
 static char g_pwtext[16] = "";
 
@@ -127,14 +131,14 @@ static void refresh(void){
     }
 }
 
-static void enable_dbg(void){
+/* The enable itself, without touching any widget (also run at boot for Persistent debug). 0 = went through the steps,
+ * -1 = refused before changing anything (no secure random / hash), with *why set to the reason. */
+static int enable_core(const char **why){
     char pw[16], salt[16], setting[24];
-    if(rnd_alnum(pw, 10) != 0 || rnd_alnum(salt, 8) != 0){
-        lv_label_set_text(g_warn, "No secure random available - NOT enabled."); return;
-    }
+    if(rnd_alnum(pw, 10) != 0 || rnd_alnum(salt, 8) != 0){ *why = "No secure random available - NOT enabled."; return -1; }
     snprintf(setting, sizeof setting, "$6$%s$", salt);
     char *h = crypt(pw, setting);
-    if(!h || h[0] != '$'){ lv_label_set_text(g_warn, "Could not hash password - NOT enabled."); return; }
+    if(!h || h[0] != '$'){ *why = "Could not hash password - NOT enabled."; return -1; }
     strncpy(g_pwtext, pw, sizeof g_pwtext - 1); g_pwtext[sizeof g_pwtext - 1] = 0;
     char *a1[] = { DBG, "ssh-on", h, NULL };     ui_run_bounded(a1, 12000);
     char *a2[] = { DBG, "serial-on", NULL };     ui_run_bounded(a2, 5000);
@@ -146,6 +150,11 @@ static void enable_dbg(void){
     if(ssh_running()){ pw_store(); g_on = 1; }
     else if(overlay_mounted()){ memset(g_pwtext, 0, sizeof g_pwtext); g_on = 1; }
     else { memset(g_pwtext, 0, sizeof g_pwtext); g_on = 0; }
+    return 0;
+}
+static void enable_dbg(void){
+    const char *why = NULL;
+    if(enable_core(&why) < 0){ lv_label_set_text(g_warn, why); return; }
     refresh();
     if(g_on && !g_pwtext[0])
         lv_label_set_text(g_warn, "SSH did not start cleanly - press Disable to reset, then try again.");
@@ -170,6 +179,22 @@ static void disable_dbg(void){
 
 static void btn_cb(lv_event_t *e){ (void)e; if(g_on) disable_dbg(); else enable_dbg(); }
 
+static void pdbg_cb(lv_event_t *e){
+    lv_obj_t *cb = lv_event_get_target_obj(e);
+    cfg_set_int(cb == g_cb_ssh ? PDBG_SSH : PDBG_WIFI, lv_obj_has_state(cb, LV_STATE_CHECKED) ? 1 : 0);
+}
+
+/* Persistent debug, at boot (a one-shot timer a few seconds in, main.c): bring SSH back if it was asked for. Skips when
+ * SSH is already up (a UI restart / hot-reload must not rotate the password). No widget is touched: Debug Mode reads
+ * the real state and the password file when it is opened. */
+void debug_boot_restore(void){
+    if(!cfg_get_int(PDBG_SSH, 0)) return;
+    if(ssh_running() || overlay_mounted()) return;
+    const char *why = NULL;
+    if(enable_core(&why) < 0){ fprintf(stderr, "persistent debug: %s\n", why); fflush(stderr); return; }
+    fprintf(stderr, "persistent debug: SSH %s at boot\n", g_on ? "enabled" : "did not start"); fflush(stderr);
+}
+
 /* On open, reflect the REAL state (dropbear running?) + reload the persisted password, so a restart
  * or a re-open never offers "Enable" while SSH is live (which would rotate the password needlessly). */
 int debug_ssh_on(void){ return ssh_running(); }   /* Quick Settings Debug tile: lit while Debug SSH runs */
@@ -182,6 +207,26 @@ void debug_open(void){
     screen_show(SCR_DEBUG);
 }
 
+static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, const char *key, int y){
+    lv_obj_t *cb = lv_checkbox_create(root);
+    lv_checkbox_set_text(cb, text);
+    lv_obj_set_style_text_font(cb, TF(UI_16), 0);
+    lv_obj_set_style_text_color(cb, TC(TEXT_PRIMARY), 0);
+    lv_obj_set_style_pad_column(cb, 10, 0);
+    lv_color_t acc = ui_current_accent();
+    lv_obj_set_style_bg_color(cb, acc, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_opa(cb, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(cb, theme_on_color(acc), LV_PART_INDICATOR | LV_STATE_CHECKED);   /* the tick */
+    lv_obj_set_style_border_color(cb, TC(TEXT_MUTED), LV_PART_INDICATOR);
+    lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(cb, LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_set_style_shadow_width(cb, 0, LV_PART_INDICATOR);
+    if(cfg_get_int(key, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
+    lv_obj_align(cb, LV_ALIGN_TOP_MID, 0, y);
+    ui_on(cb, pdbg_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.pdbg.value", UI_CORE);
+    return cb;
+}
+
 void debug_create(lv_obj_t *root){
     ui_header(root, "Debug Mode");   /* shared header: gives Debug Mode the standard back chevron so it
                                       * isn't a dead-end for users who don't know the edge-swipe gesture */
@@ -191,29 +236,38 @@ void debug_create(lv_obj_t *root){
     g_ssh = lv_label_create(root);
     lv_obj_set_width(g_ssh, 320); lv_obj_set_style_text_align(g_ssh, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(g_ssh, TC(TEXT_PRIMARY), 0);
-    lv_obj_align(g_ssh, LV_ALIGN_TOP_MID, 0, 94);
+    lv_obj_align(g_ssh, LV_ALIGN_TOP_MID, 0, 88);
 
     g_pw = lv_label_create(root);
     lv_obj_set_width(g_pw, 320); lv_obj_set_style_text_align(g_pw, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_pw, TF(UI_24), 0);
     lv_obj_set_style_text_color(g_pw, ui_current_accent(), 0);
-    lv_obj_align(g_pw, LV_ALIGN_TOP_MID, 0, 122);
+    lv_obj_align(g_pw, LV_ALIGN_TOP_MID, 0, 112);
 
     g_serial = lv_label_create(root);
     lv_obj_set_width(g_serial, 300); lv_obj_set_style_text_align(g_serial, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(g_serial, TC(TEXT_MUTED), 0);
-    lv_obj_align(g_serial, LV_ALIGN_TOP_MID, 0, 158);
+    lv_obj_align(g_serial, LV_ALIGN_TOP_MID, 0, 144);
 
     g_warn = lv_label_create(root);
     lv_obj_set_width(g_warn, 280); lv_label_set_long_mode(g_warn, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(g_warn, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(g_warn, TC(STATUS_WARNING), 0);
-    lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 190);
+    lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 164);
+
+    /* Persistent debug: two opt-in checkboxes (off by default), kept above the button */
+    lv_obj_t *cap = lv_label_create(root);
+    lv_label_set_text(cap, "Persistent debug");
+    lv_obj_set_style_text_font(cap, TF(UI_14), 0);
+    lv_obj_set_style_text_color(cap, TC(TEXT_MUTED), 0);
+    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 204);
+    g_cb_wifi = pdbg_checkbox(root, "Auto-connect Wi-Fi at boot", PDBG_WIFI, 224);
+    g_cb_ssh  = pdbg_checkbox(root, "Enable Debug at boot", PDBG_SSH, 248);
 
     lv_obj_t *btn = lv_button_create(root);
-    lv_obj_set_size(btn, 190, 50);
+    lv_obj_set_size(btn, 190, 44);
     lv_obj_set_style_shadow_width(btn, 0, 0);   /* no LVGL default-theme drop shadow: every other button is flat */
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -46);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -40);
     ui_on(btn, btn_cb, LV_EVENT_CLICKED, NULL, "debug_ui.btn", UI_CORE);
     /* the accent action, like Date & Time's Set: LVGL's default button blue and an inherited text colour read poorly
      * (green on green, grey on orange) under the themes */

@@ -15,6 +15,9 @@ config_test: ../config.c config_test.c ../config.h
 playstate_test: ../playstate.c playstate_test.c ../playstate.h
 	$(CC) $(CFLAGS) -I.. ../playstate.c playstate_test.c -o $@
 
+outseq_test: ../outseq.c outseq_test.c ../outseq.h
+	$(CC) $(CFLAGS) -I.. ../outseq.c outseq_test.c -o $@
+
 ipc_guard_test: ipc_guard_test.c
 	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
 	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
@@ -22,11 +25,14 @@ ipc_guard_test: ipc_guard_test.c
 	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test
+run: config_test playstate_test ipc_guard_test outseq_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
 	./ipc_guard_test
+	@echo "--- outseq ---"
+	./outseq_test
+	python3 -I outseq_guard_test.py
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test
+	rm -f config_test playstate_test ipc_guard_test outseq_test
