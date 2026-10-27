@@ -62,6 +62,7 @@ static int r_src_local(void){ return outseq_source(OUTSEQ_SRC_LOCAL); }
 static int r_src_usbdac(void){ return outseq_source(OUTSEQ_SRC_USB_DAC); }
 static int r_src_btrx(void){ return outseq_source(OUTSEQ_SRC_BT_RECEIVING); }
 static int r_src_storage(void){ return outseq_source(OUTSEQ_SRC_USB_STORAGE); }
+static int r_gadget_none(void){ return outseq_gadget_none(); }
 static int r_analog(void){ return outseq_analog(); }
 static int r_pre_int(void){ outseq_local_preamble(OUTSEQ_INTERNAL); return 0; }
 static int r_pre_spdif(void){ outseq_local_preamble(OUTSEQ_SPDIF); return 0; }
@@ -83,6 +84,7 @@ static const golden_t G[] = {
     { "source USB DAC",      r_src_usbdac,  { R6, G2, W1 },    3, 3,         0,    -1  },
     { "source BT receiving", r_src_btrx,    { R6, P0, G0, W6 }, 4, 4,        0,    -1  },
     { "source USB storage",  r_src_storage, { R6, G1, W8 },    3, 3,         0,    -1  },
+    { "gadget none (DAC exit)", r_gadget_none, { G0 },          1, 1,        -1,    -1  },
     { "analog (leave BT)",   r_analog,      { R6, W8 },        2, 2,        -1,    -1  },
     { "preamble INTERNAL",   r_pre_int,     { R6, W8 },        2, 0,        -1,    -1  },
     { "preamble SPDIF",      r_pre_spdif,   { R4, W8 },        2, 0,        -1,    -1  },

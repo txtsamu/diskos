@@ -803,7 +803,7 @@ static void dac_exit_tick(lv_timer_t *t){
 }
 static int dac_exit_begin(int mode){
     if(g_dacx.tm){ ui_toast("Switching..."); return -1; }
-    if(ipc_send_cmd("0642000C0000") < 0){ ui_toast("Player is busy - try again"); return -1; }
+    if(outseq_gadget_none() != OUTSEQ_OK){ ui_toast("Player is busy - try again"); return -1; }
     g_dacx.mode = mode; g_dacx.t0 = lv_tick_get(); g_dacx.gone_at = 0;
     g_dacx.tm = lv_timer_create(dac_exit_tick, 100, NULL);
     fprintf(stderr, "usb dac: leaving with a host attached: 0642 0 first, then mode %d\n", mode); fflush(stderr);

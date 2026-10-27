@@ -128,3 +128,8 @@ void outseq_assert_workmode(void){
     static const step_t seq[] = { { F_WORKMODE_LOCAL, 0, IGNORE, 0 } };
     (void)run(seq, N(seq));
 }
+
+outseq_rc outseq_gadget_none(void){
+    static const step_t seq[] = { { F_GADGET_NONE, 0, MUST, 0 } };
+    return run(seq, N(seq));
+}

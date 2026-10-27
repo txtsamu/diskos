@@ -47,4 +47,8 @@ outseq_rc outseq_bt_sink(const char *codec_frame);
  * route that is already right must not be re-sent (a redundant 0666 pauses the stream). The result is not observable. */
 void      outseq_assert_workmode(void);
 
+/* Drop the USB gadget role alone (0642 0). The USB DAC ordered exit sends it first, while a host is still attached, and
+ * waits for the gadget to disappear before the rest of the switch. Must land: REFUSED when it did not. */
+outseq_rc outseq_gadget_none(void);
+
 #endif
