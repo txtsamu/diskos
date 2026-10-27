@@ -32,6 +32,7 @@
 #include "controls.h"
 #include "screens.h"
 #include "modes.h"
+#include "outseq.h"
 #include "anim.h"
 #include "ipc.h"
 #include "opustitle_worker.h"
@@ -725,25 +726,9 @@ static int storage_player_guarded(void){
     return found > 0 && ok;
 }
 static int source_send(int mode){
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;
-    modes_output_reset();                                /* every source change starts from the internal DAC route */
-    switch(mode){
-        case 0:
-            if(ipc_send_cmd("0642000C0000") < 0) return -1;
-            return ipc_send_cmd("0657000C0008");
-        case 1:                                          /* USB DAC: the player's own USB DAC work mode (1). With 8 (local
-                                                          * playback) the gadget binds and the host plays, but the player
-                                                          * never reads the incoming audio: silent on the latest firmware. */
-            if(ipc_send_cmd("0642000C0002") < 0) return -1;
-            return ipc_send_cmd("0657000C0001");
-        case 2:
-            if(ipc_send_cmd("0818000C0000") < 0 || ipc_send_cmd("0642000C0000") < 0) return -1;
-            return ipc_send_cmd("0657000C0006");
-        case 3:
-            if(ipc_send_cmd("0642000C0001") < 0) return -1;
-            return ipc_send_cmd("0657000C0008");
-    }
-    return -1;
+    outseq_rc rc = outseq_source((outseq_src_t)mode);
+    if(rc != OUTSEQ_REFUSED) modes_output_reset();       /* every source change starts from the internal DAC route */
+    return rc < 0 ? -1 : 0;
 }
 static void storage_unknown(const char *why){
     sd_io_hold(); atomic_store(&g_sd_writable, 0); g_sd_phase = SD_UNKNOWN;

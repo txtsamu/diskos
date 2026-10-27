@@ -12,6 +12,11 @@
 #define F_ROUTE_USB      "0666000C0003"
 #define F_GADGET_NONE    "0642000C0000"
 #define F_GADGET_HOST    "0642000C0005"
+#define F_GADGET_USBDAC  "0642000C0002"
+#define F_GADGET_STORAGE "0642000C0001"
+#define F_BT_RX_PREP     "0818000C0000"
+#define F_WORKMODE_USBDAC "0657000C0001"
+#define F_WORKMODE_BTRX  "0657000C0006"
 #define F_WORKMODE_LOCAL "0657000C0008"
 
 /* MUST: a failure stops the sequence. SOFT: a failure is remembered (the result is not OK) and the sequence goes on. */
@@ -57,12 +62,20 @@ static outseq_rc run(const step_t *s, int n){
     return soft_failed ? (moved ? OUTSEQ_MOVED : OUTSEQ_REFUSED) : OUTSEQ_OK;
 }
 
+/* source modes: every one starts from the internal route; a failed 0818 skips the gadget frame */
+static const step_t SRC_LOCAL[]   = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_GADGET_NONE, 0, MUST, 0 }, { F_WORKMODE_LOCAL, 0, MUST, 0 } };
+static const step_t SRC_USB_DAC[] = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_GADGET_USBDAC, 0, MUST, 0 }, { F_WORKMODE_USBDAC, 0, MUST, 0 } };   /* work mode 1, not 8: with 8 the host plays but the Player never reads it */
+static const step_t SRC_BT_RX[]   = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_BT_RX_PREP, 0, MUST, 0 }, { F_GADGET_NONE, 0, MUST, 0 }, { F_WORKMODE_BTRX, 0, MUST, 0 } };
+static const step_t SRC_STORAGE[] = { { F_ROUTE_INTERNAL, 0, MUST, 1 }, { F_GADGET_STORAGE, 0, MUST, 0 }, { F_WORKMODE_LOCAL, 0, MUST, 0 } };
+
 typedef struct { const step_t *s; int n; } seq_t;
 #define SEQ(a) { (a), N(a) }
 static const seq_t FULL[3]  = { SEQ(FULL_INTERNAL),  SEQ(FULL_SPDIF),  SEQ(FULL_USB) };
 static const seq_t QUICK[3] = { SEQ(QUICK_INTERNAL), SEQ(QUICK_SPDIF), SEQ(QUICK_USB) };
 static const seq_t BOOT[3]  = { SEQ(BOOT_INTERNAL),  SEQ(BOOT_SPDIF),  SEQ(BOOT_USB) };
 static const seq_t PRE[3]   = { SEQ(PRE_INTERNAL),   SEQ(PRE_SPDIF),   SEQ(PRE_USB) };
+
+static const seq_t SRC[4] = { SEQ(SRC_LOCAL), SEQ(SRC_USB_DAC), SEQ(SRC_BT_RX), SEQ(SRC_STORAGE) };
 
 static int valid(outseq_route_t r){ return r >= OUTSEQ_INTERNAL && r <= OUTSEQ_USB; }
 static outseq_rc run_seq(const seq_t *q){ return run(q->s, q->n); }
@@ -78,4 +91,9 @@ outseq_rc outseq_local_boot(outseq_route_t current){
 
 void outseq_local_preamble(outseq_route_t current){
     (void)run_seq(&PRE[valid(current) ? current : OUTSEQ_INTERNAL]);
+}
+
+outseq_rc outseq_source(outseq_src_t mode){
+    if(mode < OUTSEQ_SRC_LOCAL || mode > OUTSEQ_SRC_USB_STORAGE) return OUTSEQ_REFUSED;
+    return run_seq(&SRC[mode]);
 }

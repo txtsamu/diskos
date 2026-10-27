@@ -34,11 +34,16 @@ static void expect_frames(const char *what, const char *const *want, int n){
 #define G0 "0642000C0000"
 #define G5 "0642000C0005"
 #define W8 "0657000C0008"
+#define G2 "0642000C0002"
+#define G1 "0642000C0001"
+#define P0 "0818000C0000"
+#define W1 "0657000C0001"
+#define W6 "0657000C0006"
 
 typedef struct {
     const char *name;
     int (*run)(void);                  /* returns the outseq_rc as int */
-    const char *frames[4]; int n;      /* the golden list */
+    const char *frames[5]; int n;      /* the golden list */
     int soft_from;                     /* frames at index >= soft_from are SOFT (n if none) */
     int moved_idx;                     /* index of the route-moved frame, -1 if none */
     int settle_after;                  /* index of the frame followed by a 65 ms settle, -1 if none */
@@ -53,6 +58,10 @@ static int r_quick_usb(void){ return outseq_route(OUTSEQ_USB, OUTSEQ_QUICK); }
 static int r_boot_int(void){ return outseq_local_boot(OUTSEQ_INTERNAL); }
 static int r_boot_spdif(void){ return outseq_local_boot(OUTSEQ_SPDIF); }
 static int r_boot_usb(void){ return outseq_local_boot(OUTSEQ_USB); }
+static int r_src_local(void){ return outseq_source(OUTSEQ_SRC_LOCAL); }
+static int r_src_usbdac(void){ return outseq_source(OUTSEQ_SRC_USB_DAC); }
+static int r_src_btrx(void){ return outseq_source(OUTSEQ_SRC_BT_RECEIVING); }
+static int r_src_storage(void){ return outseq_source(OUTSEQ_SRC_USB_STORAGE); }
 static int r_pre_int(void){ outseq_local_preamble(OUTSEQ_INTERNAL); return 0; }
 static int r_pre_spdif(void){ outseq_local_preamble(OUTSEQ_SPDIF); return 0; }
 static int r_pre_usb(void){ outseq_local_preamble(OUTSEQ_USB); return 0; }
@@ -69,6 +78,10 @@ static const golden_t G[] = {
     { "boot INTERNAL",       r_boot_int,    { G0, R6, W8 },    3, 2,        -1,    -1  },
     { "boot SPDIF",          r_boot_spdif,  { G0, R4, W8 },    3, 2,        -1,    -1  },
     { "boot USB",            r_boot_usb,    { R3, G5, W8 },    3, 1,        -1,    -1  },
+    { "source LOCAL",        r_src_local,   { R6, G0, W8 },    3, 3,         0,    -1  },
+    { "source USB DAC",      r_src_usbdac,  { R6, G2, W1 },    3, 3,         0,    -1  },
+    { "source BT receiving", r_src_btrx,    { R6, P0, G0, W6 }, 4, 4,        0,    -1  },
+    { "source USB storage",  r_src_storage, { R6, G1, W8 },    3, 3,         0,    -1  },
     { "preamble INTERNAL",   r_pre_int,     { R6, W8 },        2, 0,        -1,    -1  },
     { "preamble SPDIF",      r_pre_spdif,   { R4, W8 },        2, 0,        -1,    -1  },
     { "preamble USB",        r_pre_usb,     { R3, G5, W8 },    3, 0,        -1,    -1  },
@@ -111,6 +124,8 @@ int main(void){
     reset(-1);
     assert(outseq_route((outseq_route_t)3, OUTSEQ_FULL) == OUTSEQ_REFUSED && g_n == 0);
     assert(outseq_route((outseq_route_t)-1, OUTSEQ_QUICK) == OUTSEQ_REFUSED && g_n == 0);
+    assert(outseq_source((outseq_src_t)4) == OUTSEQ_REFUSED && g_n == 0);
+    assert(outseq_source((outseq_src_t)-1) == OUTSEQ_REFUSED && g_n == 0);
     printf("outseq_test: %d sequences ok\n", NG);
     return 0;
 }
