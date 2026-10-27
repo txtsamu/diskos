@@ -3891,7 +3891,10 @@ int main(int argc, char **argv){
                     }
                     int vert = ady > adx*2, horiz = adx > ady*2;
                     if(lvgl_owned || ui_np_fsart_active()){
-                        /* swallow - LVGL handled (or will handle) the open/close */
+                        /* swallow - LVGL handled (or will handle) the open/close. LVGL only closes the overlay on a
+                         * TAP, so a slide (the usual back swipe) did nothing and the art looked stuck: any slide that
+                         * began on the overlay closes it too. Closing is idempotent, so no race with LVGL's click. */
+                        if(fsart_touch && (adx >= 20 || ady >= 20)) ui_np_fsart_close();
                     } else if(!seek_consumed){
                     if(cur==SCR_QUICK && vert && dy<0 && ady>=g_swipe_thresh && dt<700){
                         screen_back();                       /* swipe up closes quick settings */
