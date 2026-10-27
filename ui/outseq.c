@@ -18,9 +18,12 @@
 #define F_WORKMODE_USBDAC "0657000C0001"
 #define F_WORKMODE_BTRX  "0657000C0006"
 #define F_WORKMODE_LOCAL "0657000C0008"
+#define F_ROUTE_BT       "0666000C0002"
+#define F_BT_INIT        "06c1000C0000"
 
-/* MUST: a failure stops the sequence. SOFT: a failure is remembered (the result is not OK) and the sequence goes on. */
-typedef enum { MUST, SOFT } policy_t;
+/* MUST: a failure stops the sequence. SOFT: a failure is remembered (the result is not OK) and the sequence goes on.
+ * IGNORE: a failure does not matter to the result. */
+typedef enum { MUST, SOFT, IGNORE } policy_t;
 typedef struct {
     const char *frame;
     unsigned    settle_us;   /* usleep after this frame landed */
@@ -53,7 +56,7 @@ static outseq_rc run(const step_t *s, int n){
     for(int i = 0; i < n; i++){
         if(ipc_send_cmd(s[i].frame) < 0){
             if(s[i].policy == MUST) return moved ? OUTSEQ_MOVED : OUTSEQ_REFUSED;
-            soft_failed = 1;
+            if(s[i].policy == SOFT) soft_failed = 1;
             continue;
         }
         if(s[i].route_moved) moved = 1;
@@ -103,4 +106,20 @@ outseq_rc outseq_source(outseq_src_t mode){
 
 outseq_rc outseq_analog(void){
     return run(ANALOG, N(ANALOG));
+}
+
+/* Local playback to a Bluetooth sink: stock pre-stop, normalise gadget and work mode, start the Player's BT subsystem,
+ * move to the BT sink, re-assert the work mode, then the 06b3 codec frame (the last step, supplied by the caller). */
+outseq_rc outseq_bt_sink(const char *codec_frame){
+    if(!codec_frame || !codec_frame[0]) return OUTSEQ_REFUSED;
+    const step_t seq[] = {
+        { F_ROUTE_INTERNAL, 0, MUST,   0 },
+        { F_GADGET_NONE,    0, IGNORE, 0 },
+        { F_WORKMODE_LOCAL, 0, IGNORE, 0 },
+        { F_BT_INIT,        0, IGNORE, 0 },
+        { F_ROUTE_BT,       0, MUST,   1 },
+        { F_WORKMODE_LOCAL, 0, IGNORE, 0 },
+        { codec_frame,      0, MUST,   0 },
+    };
+    return run(seq, N(seq));
 }

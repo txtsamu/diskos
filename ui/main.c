@@ -564,20 +564,15 @@ int ui_route_bt(const char *mac){
      * latches g_bt_autorouted; the auto-route poll (which keeps firing) routes on the first tick past the
      * window. Guarding HERE covers every path into routing (poll, connect-completion, and a device tap). */
     if(ui_player_settling()) return -1;
+    char f[48];
+    if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;   /* 06b3 with SBC (VALUE1 0) + MAC payload, as always; built before anything is sent */
     track_state_t st; ipc_get_state(&st);
     int was_playing = g_playing;   /* real play state; raw st.state is unreliable (reports 0 while playing) so
                                     * the old `st.state==1` was false during playback -> pause was SKIPPED */
     if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
-    if(ipc_send_cmd("0666000C0006") < 0) return -1;     /* stock pre-stop: normalize local output state */
-    ipc_send_cmd("0642000C0000");                       /* reset network/output mode */
-    ipc_send_cmd("0657000C0008");                       /* work-mode 8 (required orchestration, not our work_mode) */
-    ipc_send_cmd("06c1000C0000");                       /* initialize the player's BT subsystem */
-    if(ipc_send_cmd("0666000C0002") < 0) return -1;     /* out_dev = BT source */
-    modes_output_reset();                               /* no longer on SPDIF / USB audio */
-    ipc_send_cmd("0657000C0008");
-    char f[48];
-    if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;   /* 06b3 with SBC (VALUE1 0) + MAC payload, as always */
-    if(ipc_send_cmd(f) < 0) return -1;
+    outseq_rc rc = outseq_bt_sink(f);
+    if(rc != OUTSEQ_REFUSED) modes_output_reset();      /* the route moved: no longer on SPDIF / USB audio */
+    if(rc != OUTSEQ_OK) return -1;
     if(st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", st.volume); ipc_send_cmd(v); }
     /* Safe minimal resume; deterministic load/play remains a future improvement. */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */

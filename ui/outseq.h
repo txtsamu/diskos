@@ -37,4 +37,10 @@ outseq_rc outseq_source(outseq_src_t mode);
  * failure is OUTSEQ_REFUSED and the caller keeps its recorded Bluetooth route (a retry re-runs it). */
 outseq_rc outseq_analog(void);
 
+/* Route Local playback to a Bluetooth sink (the caller pauses first and builds the 06b3 codec frame, with the MAC,
+ * before calling, so nothing can fail on it after the route has moved). Only the two route frames and the codec frame
+ * must land; the others are sent best effort. The route moves with the 0666 2 frame. A NULL or empty frame sends
+ * nothing. The caller resets its recorded route when the result is not OUTSEQ_REFUSED. */
+outseq_rc outseq_bt_sink(const char *codec_frame);
+
 #endif

@@ -9,7 +9,7 @@
 #include <time.h>
 
 #define MAXF 16
-static struct { char frame[16]; double t; } g_log[MAXF];
+static struct { char frame[48]; double t; } g_log[MAXF];
 static int g_n, g_fail_at = -1;   /* g_fail_at: index of the call that returns -1 */
 
 static double now(void){ struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
@@ -120,7 +120,33 @@ static void check_fail_each(const golden_t *g){
     }
 }
 
+/* Bluetooth sink: only 0666 6, 0666 2 and the codec frame must land; 0666 2 is the route-moved step (index 4) */
+static void check_bt_sink(void){
+    const char *codec = "06b3001D0000AA:BB:CC:DD:EE:FF";
+    const char *want[] = { R6, G0, W8, "06c1000C0000", "0666000C0002", W8, codec };
+    reset(-1);
+    assert(outseq_bt_sink(codec) == OUTSEQ_OK);
+    expect_frames("bt sink", want, 7);
+    static const struct { int sent, rc; } F[7] = {
+        { 1, OUTSEQ_REFUSED },   /* 0666 6: nothing moved */
+        { 7, OUTSEQ_OK }, { 7, OUTSEQ_OK }, { 7, OUTSEQ_OK },   /* 0642, 0657, 06c1: ignored */
+        { 5, OUTSEQ_REFUSED },   /* 0666 2 itself refused: still not moved */
+        { 7, OUTSEQ_OK },        /* the second 0657: ignored */
+        { 7, OUTSEQ_MOVED },     /* codec frame: the route already moved */
+    };
+    for(int k = 0; k < 7; k++){
+        reset(k);
+        int rc = outseq_bt_sink(codec);
+        if(rc != F[k].rc){ fprintf(stderr, "bt sink: fail at %d gives %d, want %d\n", k, rc, F[k].rc); assert(0); }
+        expect_frames("bt sink fail", want, F[k].sent);
+    }
+    reset(-1);
+    assert(outseq_bt_sink(NULL) == OUTSEQ_REFUSED && g_n == 0);
+    assert(outseq_bt_sink("") == OUTSEQ_REFUSED && g_n == 0);
+}
+
 int main(void){
+    check_bt_sink();
     for(int i = 0; i < NG; i++){ check_golden(&G[i]); check_fail_each(&G[i]); }
     /* an out-of-range route sends nothing */
     reset(-1);
@@ -128,6 +154,6 @@ int main(void){
     assert(outseq_route((outseq_route_t)-1, OUTSEQ_QUICK) == OUTSEQ_REFUSED && g_n == 0);
     assert(outseq_source((outseq_src_t)4) == OUTSEQ_REFUSED && g_n == 0);
     assert(outseq_source((outseq_src_t)-1) == OUTSEQ_REFUSED && g_n == 0);
-    printf("outseq_test: %d sequences ok\n", NG);
+    printf("outseq_test: %d sequences + bt sink ok\n", NG);
     return 0;
 }
