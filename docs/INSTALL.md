@@ -273,6 +273,42 @@ An older UI can be incompatible with a newer stock base.
 Reinstalling a diskOS version from before the playlist ID fix can remove stock playlist members
 when a new playlist is created. Keep a copy of important playlists before downgrading.
 
+## Getting the `diskos_*.bin` image
+
+There is nothing to download. `diskos_public.bin` and `diskos_dev.bin` are built on your own
+computer from your official FiiO firmware, because the image contains FiiO's root filesystem. They
+are never published, and you should not upload or share them (see the warning in the
+[README](../README.md#license-and-support)). To get one:
+
+1. **Get the official firmware ZIP** for your Disc from FiiO / Snowsky (the file is named like
+   `SNOWSKY_DISC_update_<date>_v<version>.zip`). The installer accepts V2.09, V2.28, V2.40, and
+   V2.57 and checks the file before using it.
+2. **Build the image** with the installer. Answer `n` at the flash confirmation and do **not** pass
+   `-y`, which flashes the Disc immediately:
+
+   ```bash
+   ./diskos-installer install --firmware ~/Downloads/SNOWSKY_DISC_update_*.zip --variant public
+   ```
+
+   Add `--variant dev` for the dev image, and `--ui ./my_mq_ui` to put your own UI build in it
+   (with `--no-ota` or `--ota-key PATH`, see above). The image is written before the Disc is
+   checked, so it is also left behind when the command stops at E110 because no Disc is in
+   mask-ROM mode.
+3. **Find it.** The image is `diskos_<variant>.bin` in the installer's `build` folder:
+
+   | Host | Folder |
+   |---|---|
+   | Linux | `~/.local/share/diskos-installer/build/` (or `$XDG_DATA_HOME/diskos-installer/build/`) |
+   | macOS | `~/Library/Application Support/diskos-installer/build/` |
+   | Windows | `%LOCALAPPDATA%\diskos-installer\build\` |
+
+   `DISKOS_INSTALLER_HOME`, if set, replaces the part before `build`. The file is exactly 96 MiB
+   and a squashfs, so `file diskos_public.bin` should say `Squashfs filesystem`. The next build
+   overwrites it; copy it elsewhere if you want to keep that exact image.
+
+Flash it with the installer (`install` again, or the graphical installer), not by writing the file
+to the Disc yourself: the installer checks that the Disc runs the matching FiiO base first.
+
 ## Host support
 
 - **Linux x86-64:** supported.
