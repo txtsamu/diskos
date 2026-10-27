@@ -81,8 +81,6 @@ typedef enum {
     THEME_CLR_DANGER_PANEL_SURFACE,
     /* fixed identities: never themed, identical in every palette (theme.c refuses a palette that changes them);
      * here so they are not raw literals in screen code */
-    THEME_CLR_FIXED_LASTFM,           /* Last.fm brand red */
-    THEME_CLR_FIXED_ON_LASTFM,        /* text on the Last.fm red */
     THEME_CLR_FIXED_QR_DARK,          /* a QR code must stay black on white to scan */
     THEME_CLR_FIXED_QR_LIGHT,
     THEME_CLR_FIXED_DEBUG_TOUCH,      /* developer touch-debug dot */

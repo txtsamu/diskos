@@ -18,7 +18,6 @@
 #define MAX_APPS 24
 
 LV_FONT_DECLARE(font_icons_28)          /* FontAwesome 28px: play-mode + app-tile glyphs */
-#define LFM_ICON "\xEF\x88\x82"         /* f202 lastfm    -> Last.fm */
 /* Settings/File reuse LV_SYMBOL_SETTINGS (f013) / LV_SYMBOL_FILE (f15b), now in this font */
 
 typedef struct { char name[64]; char exec[256]; } app_t;
@@ -57,7 +56,6 @@ static void app_row_cb(lv_event_t *e){
     int i = (int)(uintptr_t)lv_event_get_user_data(e);
     if(i>=0 && i<g_napps) app_launch(g_apps[i].exec);
 }
-static void lastfm_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) lastfm_open(); }
 static void settings_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_show(SCR_SETTINGS); }
 
 /* one app tile in the 2-wide grid (g_list is ROW_WRAP): a big glyph over a small caption */
@@ -89,8 +87,6 @@ void apps_reload(void){
     lv_obj_clean(g_list);
     scan_apps();
     /* Weather is not a tile here anymore - it opens by tapping the home weather glance (glance->detail). */
-    /* built-in: Last.fm scrobbling (the FA lastfm brand glyph) */
-    make_tile(LFM_ICON, TF(ICON_28), "Last.fm", lastfm_row_cb, NULL);
     /* homebrew apps from /usr/data/apps */
     for(int i=0;i<g_napps;i++) make_tile(LV_SYMBOL_FILE, TF(ICON_28), g_apps[i].name, app_row_cb, (void*)(uintptr_t)i);
     /* built-in: Settings */

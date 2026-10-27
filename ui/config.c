@@ -42,16 +42,16 @@ static int g_dirty = 1;      /* the in-memory set differs from the on-disk file:
                               * shortcut and rewrite()'s clean skip so a failed persist is retried instead of
                               * masked by "value already equals v". */
 
-/* Atomic multi-key batch (e.g. Last.fm credentials): cfg_begin() snapshots the whole store, deferred
+/* Atomic multi-key batch (e.g. a set of related keys): cfg_begin() snapshots the whole store, deferred
  * sets mutate it, cfg_commit() rewrites ONLY if every set succeeded, else it rolls the store back to
- * the snapshot and reports failure - so a partial credentials write is impossible even if the store
+ * the snapshot and reports failure - so a partial multi-key write is impossible even if the store
  * fills or a value is rejected mid-batch. */
 static cfg_entry_t g_snap[CFG_MAX];
 static int g_snap_n = 0, g_snap_dirty = 0, g_txn = 0, g_txn_err = 0;
 static int g_load_failed = 0;   /* cfg_load hit a transient open/read error (NOT genuine first-run):
                                  * the in-memory set is empty/partial, so rewrite() must REFUSE to run -
                                  * else a single boot-time read glitch would overwrite a good diskos.conf
-                                 * (all EQ/wifi/lastfm/UI settings) with an empty one. */
+                                 * (all EQ/wifi/UI settings) with an empty one. */
 
 static cfg_entry_t *find(const char *key){
     for(int i=0;i<g_n;i++) if(!strcmp(g_cfg[i].k,key)) return &g_cfg[i];
@@ -231,9 +231,8 @@ int cfg_set_str(const char *key, const char *v){
     if(put(key, v) < 0){ g_save_err = 1; return -1; }
     return rewrite();
 }
-/* in-memory only; follow a run with cfg_flush() so multi-key writes (e.g. Last.fm api_key + secret
- * + session key) persist in ONE atomic rewrite - a partial credentials write on a mid-run failure
- * is then impossible. */
+/* in-memory only; follow a run with cfg_flush() so multi-key writes persist in ONE atomic
+ * rewrite - a partial multi-key write on a mid-run failure is then impossible. */
 int cfg_set_str_deferred(const char *key, const char *v){
     if(g_load_failed){ g_save_err = 1; return -1; }
     if(put(key, v) < 0){ g_save_err = 1; return -1; }

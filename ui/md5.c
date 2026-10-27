@@ -1,6 +1,6 @@
 /*
  * MD5 (RFC 1321) - compact implementation written by Alexander Peslyak (2001),
- * placed in the PUBLIC DOMAIN. Endian-neutral; used here only for Last.fm api_sig.
+ * placed in the PUBLIC DOMAIN. Endian-neutral; used for art-cache keys and the build id.
  */
 #include "md5.h"
 #include <string.h>

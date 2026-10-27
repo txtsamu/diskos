@@ -45,7 +45,6 @@
 #include "lvgl/src/drivers/evdev/lv_evdev.h"
 #include "config.h"
 #include "phonehome.h"
-#include "lastfm.h"
 #include "scanner.h"
 #include "playstate.h"
 #include "sdio.h"
@@ -1568,7 +1567,7 @@ static unsigned g_play_last_gen = 0xFFFFFFFFu; static uint32_t g_play_last_tick 
 static int play_recent(void){ return g_play_pending || (g_play_last_gen == ipc_generation() && lv_tick_elaps(g_play_last_tick) < 10000); }
 static void play_note_sent(void){ g_play_last_gen = ipc_generation(); g_play_last_tick = lv_tick_get(); }
 /* Authoritative play state (the main loop normalizes the unreliable raw st.state into g_playing:
- * 1=playing while position advances, else 0). Exposed so lastfm/route logic share ONE source of
+ * 1=playing while position advances, else 0). Exposed so route logic shares ONE source of
  * truth instead of re-deriving play/pause from position deltas. */
 int ui_is_playing(void){ return g_playing; }
 /* Admission for an output-route switch (modes.c): NULL = go, else the toast reason. 0666 re-inits the output, so never
@@ -2634,13 +2633,6 @@ static int rim_release(void){
     rim_state=RIM_IDLE; rim_scroller=NULL; rim_cover=0; return owned;
 }
 
-/* Last.fm: every 1s, feed the current play-state to the watcher (now-playing + scrobble
- * eligibility) and pump the network worker / offline queue. All on the LVGL thread. */
-static void lastfm_tick(lv_timer_t *t){
-    (void)t; track_state_t st; ipc_get_state(&st);
-    lastfm_watch(&st); lastfm_poll();
-}
-
 static int launch_status_get(void);   /* player-launcher verdict; defined with the launch gate below */
 /* ---- microSD coldplug worker (native thread) -------------------------------
  * mq_player mounts the card by listening for the DISK 'add' uevent on
@@ -3472,8 +3464,6 @@ int main(int argc, char **argv){
     g_t_wx  = lv_timer_create(weather_poll, 1000, NULL);  /* apply weather + retry/refresh */
     if(cfg_get_int("weather_on", 1)) weather_fetch_async();   /* first fetch - only with Weather on (Settings off = no network use) */
     g_t_lyr = lv_timer_create(lyrics_poll, 500, NULL);    /* apply finished lyrics fetch */
-    lastfm_init();                                        /* load Last.fm config + offline queue */
-    lv_timer_create(lastfm_tick, 1000, NULL);            /* watch play-state + drive scrobbles */
     lv_timer_create(scanner_poll, 500, NULL);            /* apply a finished library rescan */
     if(!books_ensure_migrated())                         /* move any .m4b left in SONG out to BOOKS (upgrade / no-rescan devices) so books never sit in the music queue */
         lv_timer_create(migrate_books_retry_cb, 3000, NULL);   /* failed (transient reader lock) -> retry off the main loop until it succeeds */

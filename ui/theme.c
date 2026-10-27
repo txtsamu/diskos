@@ -97,8 +97,6 @@ static const uint32_t DEFAULT_DARK[THEME_CLR_COUNT] = {
     [THEME_CLR_DANGER_SURFACE_PRESSED] = 0x3A1C1E,
     [THEME_CLR_DANGER_BUTTON_SURFACE]  = 0x3A1416,
     [THEME_CLR_DANGER_PANEL_SURFACE]   = 0x3A1417,
-    [THEME_CLR_FIXED_LASTFM]           = 0xD51007,
-    [THEME_CLR_FIXED_ON_LASTFM]        = 0xFFFFFF,
     [THEME_CLR_FIXED_QR_DARK]          = 0x000000,
     [THEME_CLR_FIXED_QR_LIGHT]         = 0xFFFFFF,
     [THEME_CLR_FIXED_DEBUG_TOUCH]      = 0x00FF66,
@@ -186,8 +184,6 @@ static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
     [THEME_CLR_DANGER_SURFACE_PRESSED] = 0xFADCDF,
     [THEME_CLR_DANGER_BUTTON_SURFACE]  = 0xFAD9DC,
     [THEME_CLR_DANGER_PANEL_SURFACE]   = 0xFDE8EA,
-    [THEME_CLR_FIXED_LASTFM]           = 0xD51007,
-    [THEME_CLR_FIXED_ON_LASTFM]        = 0xFFFFFF,
     [THEME_CLR_FIXED_QR_DARK]          = 0x000000,
     [THEME_CLR_FIXED_QR_LIGHT]         = 0xFFFFFF,
     [THEME_CLR_FIXED_DEBUG_TOUCH]      = 0x00FF66,
@@ -321,7 +317,7 @@ void theme_init(void){
     }
     /* fixed identities (brand, QR, splash, debug) are the same in every palette; a palette that changes one is
      * refused as a whole rather than half-applied */
-    for(int r = THEME_CLR_FIXED_LASTFM; r <= THEME_CLR_FIXED_SPLASH_3; r++)
+    for(int r = THEME_CLR_FIXED_QR_DARK; r <= THEME_CLR_FIXED_SPLASH_3; r++)
         if(g_pal[r] != DEFAULT_DARK[r]){ fprintf(stderr, "theme: palette changes fixed role %d, using dark\n", r);
                                          g_pal = DEFAULT_DARK; g_variant = 0; g_preset = 0; g_custom_on = 0; g_def = NULL; break; }
     g_traits = g_def ? g_def->traits : 0;

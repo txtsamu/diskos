@@ -258,9 +258,9 @@ int sys_fetch_latest(char *tag, size_t n){
 /* ---------------------------------------------------------------- reset diskOS settings */
 /* Only the diskOS UI's own look-and-behaviour keys. Deliberately NOT here: keys that mirror the stock player's state
  * (audio_*, eq_*, eqN_*, work_mode, volume, max_vol, balance, replay_gain, gapless, folder_jump, artist_class,
- * charge_protect, auto_time, tz_idx, memory_play, language), radio intents (wifi_on, bt_on), Last.fm accounts
- * (lastfm_*) and stock_power_save (the user's stock idle value that diskOS parked). Resetting those would change the
- * config without changing the player, or drop an account. Wi-Fi/Bluetooth pairings and the SD card are outside
+ * charge_protect, auto_time, tz_idx, memory_play, language), radio intents (wifi_on, bt_on) and
+ * stock_power_save (the user's stock idle value that diskOS parked). Resetting those would change the
+ * config without changing the player. Wi-Fi/Bluetooth pairings and the SD card are outside
  * diskos.conf entirely. */
 static const char *const RESET_KEYS[] = {
     "brightness", "swipe_thresh", "saver_idx", "saver_style", "screenoff_idx",
@@ -588,7 +588,7 @@ static void cb_reset_go(lv_event_t *e){
 void system_reset_open(int v){
     (void)v;
     lv_obj_t *c = modal_card("Reset diskOS settings?", 250);
-    modal_text(c, "Look and behaviour settings go back to defaults, then diskOS restarts. Music, Wi-Fi, Bluetooth, Last.fm, EQ and audio settings are kept.", 46, THEME_CLR_TEXT_MUTED);
+    modal_text(c, "Look and behaviour settings go back to defaults, then diskOS restarts. Music, Wi-Fi, Bluetooth, EQ and audio settings are kept.", 46, THEME_CLR_TEXT_MUTED);
     modal_pill(c, -58, "Cancel", THEME_CLR_TEXT_SECONDARY, cb_close, "system.reset_cancel");
     modal_pill(c,  58, "Reset", THEME_CLR_STATUS_DANGER, cb_reset_go, "system.reset_go");
 }

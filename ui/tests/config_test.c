@@ -104,7 +104,7 @@ static void c_new_empty_key_dirty(void){
 }
 
 /* an atomic batch that overflows the store mid-run must roll the WHOLE batch back, not persist a
- * partial set (the Last.fm credentials all-or-nothing guarantee). */
+ * partial set (the all-or-nothing guarantee for related keys). */
 static void c_txn_rollback(void){
     char k[16];
     for(int i = 0; i < 255; i++){ snprintf(k, sizeof k, "f%d", i); CHECK(cfg_set_int_deferred(k, i) == 0, "fill to 255"); }

@@ -283,7 +283,7 @@ Restart the device. Boots your default UI; hold Vol-Up for the other one.
 Model, stock firmware, diskOS build, MAC addresses, storage and battery.										
 Look for a file on the SD card named like a stock update and show how it is used. Information only: diskOS never runs it.										
 Look up the newest diskOS release on GitHub (needs Wi-Fi). If it carries a signed update, download and verify it, then restart to finish. Nothing changes until you confirm.										
-Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, Last.fm, EQ and audio settings are kept.										
+Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, EQ and audio settings are kept.										
 Enable temporary SSH over Wi-Fi (fresh random password) for debugging. Off by default.										
 Battery/board temperature from the fuel gauge (this SoC exposes no core sensor).										
 diskOS - a custom music player UI. The code in brackets identifies this exact build.										

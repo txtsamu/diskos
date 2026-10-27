@@ -892,7 +892,7 @@ static const setting_t TABLE[] = {
     { "System",   "Update diskOS", ST_ACTION, NULL, 0,0,0, NULL,0, "Check", system_check_update_open, 0,
       "Look up the newest diskOS release on GitHub (needs Wi-Fi). If it carries a signed update, download and verify it, then restart to finish. Nothing changes until you confirm.", NULL },
     { "System",   "Reset diskOS Settings", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", system_reset_open, 0,
-      "Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, Last.fm, EQ and audio settings are kept.", NULL },
+      "Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, EQ and audio settings are kept.", NULL },
     { "System",   "Debug Mode",  ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_debug_mode, 0,
       "Enable temporary SSH over Wi-Fi (fresh random password) for debugging. Off by default.", NULL },
     { "System",   "Temperature", ST_READONLY, NULL, 0,0,0, NULL,0, "@temp", NULL, 0,

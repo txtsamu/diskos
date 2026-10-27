@@ -5,7 +5,7 @@
 #include "lvgl/lvgl.h"
 #include "ipc.h"
 #include <stdbool.h>
-enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_LASTFM, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_COUNT };
+enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_COUNT };
 void screens_init(void);
 void screen_show(int which);
 void screen_back(void);
@@ -92,11 +92,9 @@ void plview_refresh(void);   /* rebuild the song list from the DB (called on eve
 void wifi_create(lv_obj_t *root);
 void wifi_open(void);
 int  wifi_toggle(void);        /* Quick Settings tile short-press: flip radio + persist, returns new state */
-void lastfm_open(void);                   /* Settings -> Last.fm (SCR_LASTFM) */
 void debug_open(void);                     /* Settings -> System -> Debug Mode (SCR_DEBUG) */
 int  debug_ssh_on(void);                   /* 1 while Debug Mode SSH runs (Quick Settings Debug tile) */
 void debug_create(lv_obj_t *root);
-void lastfm_create(lv_obj_t *parent);
 #define CFG_PDBG "pdbg"   /* Persistent debug (Debug Mode checkbox): Wi-Fi stays on and SSH is re-enabled at boot */
 void ui_timekeep_save_now(void);   /* persist the current time to the last-good-time file (main.c, timekeep.c) */
 void debug_boot_restore(void);   /* Persistent debug: re-enable SSH at boot when CFG_PDBG is set (debug_ui.c) */

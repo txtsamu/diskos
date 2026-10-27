@@ -6,7 +6,7 @@
 /* Pure play/pause inference from the player's position samples. The raw A2 'state' field is
  * unreliable (reports 0 while playing), so play/pause is derived from whether the reported
  * position is advancing. Kept pure + dependency-free so it is unit-tested off-device and used as
- * ONE source of truth (the main-loop transport glyph + g_playing for routing/lastfm). */
+ * ONE source of truth (the main-loop transport glyph + g_playing for routing). */
 typedef struct {
     long     last_pos_ms;   /* last observed position; -1 = no observation yet */
     unsigned change_tick;   /* monotonic tick at the last position ADVANCE */

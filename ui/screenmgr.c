@@ -48,7 +48,7 @@ static const unsigned char s_figure[SCR_COUNT] = {
     [SCR_SETTING_DETAIL] = 22, [SCR_SETLIST] = 23, [SCR_QUICK] = 24,
     [SCR_QSCONFIG] = 25, [SCR_COLORPICK] = 26, [SCR_DATETIME] = 27,
     [SCR_WIFI] = 28, [SCR_WIFI_INFO] = 29, [SCR_BT] = 30,
-    [SCR_BT_INFO] = 31, [SCR_WORKMODE] = 32, [SCR_LASTFM] = 33,
+    [SCR_BT_INFO] = 31, [SCR_WORKMODE] = 32,   /* 33 was Last.fm (removed): never reuse */
     [SCR_DEBUG] = 34,
 };
 int screen_figure_number(int which){
@@ -324,7 +324,6 @@ void screens_init(void)
     s_roots[SCR_WEATHER] = screen_make_root(parent);
     s_roots[SCR_LYRICS] = screen_make_root(parent);
     s_roots[SCR_COLORPICK] = screen_make_root(parent);
-    s_roots[SCR_LASTFM] = screen_make_root(parent);
     s_roots[SCR_WORKMODE] = screen_make_root(parent);
     s_roots[SCR_DEBUG] = screen_make_root(parent);
     s_roots[SCR_FOLDER] = screen_make_root(parent);
@@ -383,7 +382,6 @@ void screens_init(void)
     wifi_info_create(s_roots[SCR_WIFI_INFO]);
     bt_create(s_roots[SCR_BT]);
     bt_info_create(s_roots[SCR_BT_INFO]);
-    lastfm_create(s_roots[SCR_LASTFM]);
 
     screen_show(SCR_HOME);
 }
