@@ -268,7 +268,8 @@ int modes_output_switch(int target){ return out_switch(target, 0); }
 int modes_output_mode_switch(int target){ return out_switch(target, 1); }
 /* OUTPUT-ROUTE-END */
 
-/* Picker rows 0..3 are source modes; row 4 (USB Audio) shows selected while Local runs with the USB route. */
+/* Row ids 0..3 are source modes; id 4 (USB Audio) shows selected while Local runs with the USB route. It is displayed
+ * second, under Local Playback (modes_create), but keeps id 4. */
 static int shown_mode(int src){ return (src == 0 && N_MODES > ROW_USB_AUDIO && modes_output_route() == OUT_USB) ? ROW_USB_AUDIO : src; }
 
 static void mark_selected_mode(int cur){
@@ -464,5 +465,8 @@ void modes_create(lv_obj_t *root){
         lv_obj_set_style_text_color(g_check[i], ui_current_accent(), 0);
         lv_obj_set_style_text_font(g_check[i], TF(UI_18), 0);
     }
+    /* USB Audio is an output route of Local playback, so it sits right under Local Playback. Only the display order
+     * changes: rows keep their ids (the row index is the mode id everywhere above), so nothing else moves. */
+    if(N_MODES > ROW_USB_AUDIO) lv_obj_move_to_index(g_row[ROW_USB_AUDIO], 1);
     mark_selected();
 }
