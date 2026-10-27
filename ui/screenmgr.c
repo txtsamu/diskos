@@ -49,7 +49,7 @@ static const unsigned char s_figure[SCR_COUNT] = {
     [SCR_QSCONFIG] = 25, [SCR_COLORPICK] = 26, [SCR_DATETIME] = 27,
     [SCR_WIFI] = 28, [SCR_WIFI_INFO] = 29, [SCR_BT] = 30,
     [SCR_BT_INFO] = 31, [SCR_WORKMODE] = 32,   /* 33 was Last.fm (removed): never reuse */
-    [SCR_DEBUG] = 34,
+    [SCR_DEBUG] = 34, [SCR_TAMA] = 35,
 };
 int screen_figure_number(int which){
     return which >= 0 && which < SCR_COUNT ? s_figure[which] : 0;
@@ -173,6 +173,10 @@ static void transition(int from, int to, int dir)
     else if (to == SCR_PLVIEW) plview_refresh();   /* fresh song list every entry (no stale tap positions) */
     else if (to == SCR_LIBRARY) library_enter(); /* pick up playlists created (NP New Playlist) or imported
                                                     * (Settings) elsewhere, without needing a restart */
+
+    /* Pet runs one timer, and only while it is on show (the screensaver and every other screen stop it) */
+    if (from == SCR_TAMA && to != SCR_TAMA) tama_visible(0);
+    if (to == SCR_TAMA && from != SCR_TAMA) tama_visible(1);
 
     kit_pass(nw);   /* the active theme styles anything new on the incoming screen (no-op for Default) */
     mclock_sync(ui_screen_backlight_on()); /* set the incoming colon before its root becomes visible */
@@ -334,6 +338,7 @@ void screens_init(void)
     s_roots[SCR_ALBUMWALL] = screen_make_root(parent);
     s_roots[SCR_UPNEXT] = screen_make_root(parent);
     s_roots[SCR_DATETIME] = screen_make_root(parent);
+    s_roots[SCR_TAMA] = screen_make_root(parent);
 
     /* depth scrim: a full-screen translucent-black overlay, created LAST so it sits above the
      * roots in sibling order; re-parented in z during a transition to dim the screen beneath the
@@ -374,6 +379,7 @@ void screens_init(void)
     chapters_create(s_roots[SCR_CHAPTERS]);
     upnext_create(s_roots[SCR_UPNEXT]);
     datetime_create(s_roots[SCR_DATETIME]);
+    tama_create(s_roots[SCR_TAMA]);
     apps_create(s_roots[SCR_APPS]);
     nphub_create(s_roots[SCR_NPHUB]);
     plpick_create(s_roots[SCR_PLPICK]);
