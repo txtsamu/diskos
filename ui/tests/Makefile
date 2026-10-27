@@ -21,6 +21,9 @@ outseq_test: ../outseq.c outseq_test.c ../outseq.h
 timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 	$(CC) $(CFLAGS) -I.. ../timekeep.c timekeep_test.c -o $@
 
+tama_test: ../tama.c tama_test.c ../tama.h
+	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
+
 ipc_guard_test: ipc_guard_test.c
 	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
 	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
@@ -28,7 +31,7 @@ ipc_guard_test: ipc_guard_test.c
 	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test outseq_test timekeep_test
+run: config_test playstate_test ipc_guard_test outseq_test timekeep_test tama_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -38,6 +41,8 @@ run: config_test playstate_test ipc_guard_test outseq_test timekeep_test
 	python3 -I outseq_guard_test.py
 	@echo "--- timekeep ---"
 	./timekeep_test
+	@echo "--- tama ---"
+	./tama_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test outseq_test timekeep_test
+	rm -f config_test playstate_test ipc_guard_test outseq_test timekeep_test tama_test
