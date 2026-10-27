@@ -12,7 +12,8 @@ int  modes_output_route(void);          /* the route diskOS last set THIS player
 int  modes_output_switch(int target);   /* Settings SPDIF toggle: pause -> silent -> 0666 -> 0657 8 -> resume; 0 = started, -1 = refused */
 int  modes_output_mode_switch(int target); /* Working Mode entry (adds 0642 + stock's 65 ms) */
 void modes_output_reset(void);          /* another path (source change, BT route) put the player back on the internal DAC */
-int  modes_output_busy(void);           /* 1 while a switch waits for silence or recovers: play/next/source/BT must refuse */
+void modes_output_adopt(int route);     /* theme re-launch: the player is still on this route, take it over (and watch a USB DAC) */
+int  modes_output_busy(void);          /* 1 while a switch waits for silence or recovers: play/next/source/BT must refuse */
 int  modes_local_init(int with_gadget); /* route-aware local init: 0642/0666/0657 for the current route; -1 if a send failed */
 void modes_output_boot_restore(void);   /* at startup: re-select USB Audio ~15 s in if it was the active output */
 int  modes_via_local_then(int mode);    /* go to Local (leave USB Audio / USB DAC) first, then ui_set_source_mode(mode); 0 = started */

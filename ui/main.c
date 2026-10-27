@@ -625,6 +625,10 @@ int ui_route_analog(void){
  * load/store well-defined (seq_cst) without a mutex for this single word. */
 static _Atomic int g_source_mode = 0;
 int ui_get_source_mode(void){ return g_source_mode; }
+/* Theme re-launch: the player keeps its route and source mode, but this fresh process starts at Local/internal. The old
+ * process leaves both in the environment; the first player reconnect of the new one adopts them (see the main loop). */
+static struct { int pending, route, src; } g_reload_adopt;
+static unsigned g_adopted_gen = 0xFFFFFFFFu;   /* ipc generation whose route/mode was adopted: no local-init for it */
 
 /* SD operations share an admission gate. It closes before an export is queued and
  * reopens only after that export was observed and its return mount is confirmed. */
@@ -1367,6 +1371,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(ui_get_source_mode() != 0) return;                     /* only while Local source */
     if(modes_output_busy()) return;                            /* an output switch owns 0666/0642/0657 right now */
     unsigned gen = ipc_generation();
+    if(gen == g_adopted_gen) return;                           /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
     if(age_gen != gen){ age_gen = gen; player_old = !g_startup_route_checked && startup_player_old(); }
     if(!g_startup_route_checked && player_old && !startup_playback_busy(gen)){
         int startup = startup_route_reconcile();
@@ -3163,6 +3168,7 @@ static void boot_select_enforce(const char *path){
  * marked close-on-exec, so this process keeps running and the change applies at the next start. */
 int ui_theme_reload(const char *screen){
     if(scanner_active()){ ui_toast("Library scan running - try again when it finishes"); return -1; }
+    if(modes_output_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }   /* a half-done switch can't cross the exec */
     art_kill_all();
     if(g_bounded_pgid > 0) kill(-(pid_t)g_bounded_pgid, SIGKILL);
     if(g_bounded_pid > 0) kill((pid_t)g_bounded_pid, SIGKILL);
@@ -3170,13 +3176,16 @@ int ui_theme_reload(const char *screen){
     fflush(stderr);
     handoff_signal_reset();
     setenv("DISKOS_THEME_RELOAD", "1", 1);
+    { char v[16];
+      snprintf(v, sizeof v, "%d", modes_output_route()); setenv("DISKOS_RELOAD_ROUTE", v, 1);
+      snprintf(v, sizeof v, "%d", (int)g_source_mode);   setenv("DISKOS_RELOAD_SRC", v, 1); }
     char *ua[3]; ua[0] = "mq_ui"; ua[1] = (char *)(screen ? screen : "home"); ua[2] = NULL;
     /* Re-exec the image that is RUNNING (the launcher's verified private copy, or whichever build fell back), never the
      * mutable /usr/data/mq_ui pathname: that could swap a running fallback for the unverified/trial file. /proc/self/exe
      * still works when the running file was unlinked. The boot markers (/tmp/.diskos_run, .diskos_launched) describe this
      * same build, so they are neither rewritten nor re-checked here. A failed exec keeps us running (no path fallback). */
     execv("/proc/self/exe", ua);
-    unsetenv("DISKOS_THEME_RELOAD");
+    unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
     alarm(0);
     ui_toast("Couldn't apply the theme now - it applies next start");
     return -1;
@@ -3476,7 +3485,14 @@ int main(int argc, char **argv){
     if(ui_source_switch_pending()) g_sd_deadline = lv_tick_get() + 20000;
     lv_timer_create(storage_tick, 100, NULL);
     { void system_ota_health_init(void); system_ota_health_init(); }   /* system.c: proves a trial OTA build healthy after 15 s */
-    if(getenv("DISKOS_THEME_RELOAD")) unsetenv("DISKOS_THEME_RELOAD");   /* a theme re-launch: no boot splash */
+    if(getenv("DISKOS_THEME_RELOAD")){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
+        const char *rr = getenv("DISKOS_RELOAD_ROUTE"), *rs = getenv("DISKOS_RELOAD_SRC");
+        int route = rr ? atoi(rr) : 0, src = rs ? atoi(rs) : 0;
+        if((route != OUT_INTERNAL || src != 0) && route >= OUT_INTERNAL && route <= OUT_USB && src >= 0 && src <= 2){
+            g_reload_adopt.pending = 1; g_reload_adopt.route = route; g_reload_adopt.src = src;
+        }
+        unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
+    }
     else splash_start();
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes
      * synchronously on this fb), then disarm the boot watchdog - a painted frame, not
@@ -3523,6 +3539,14 @@ int main(int argc, char **argv){
             bt_notify_player_restart();
             ui_reapply_audio();           /* re-send managed audio config (DRE/filter/etc.); the v2.40 local-init
                                            * is NOT here - it's sent from the play path when the player is ready. */
+            if(g_reload_adopt.pending){   /* a theme re-launch, not a player restart: it is still on the old route/mode */
+                g_reload_adopt.pending = 0;
+                g_source_mode = g_reload_adopt.src;
+                modes_output_adopt(g_reload_adopt.route);
+                g_adopted_gen = ipc_generation();
+                g_startup_route_checked = 1;
+                fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", g_reload_adopt.route, g_reload_adopt.src, g_adopted_gen); fflush(stderr);
+            }
         }
         if(g_settle_armed) (void)ui_player_settling();   /* service the settle expiry every loop so a dormant armed flag can never wrap (~24.9d) into a false "settling" */
         opus_title_tick();

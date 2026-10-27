@@ -82,6 +82,14 @@ int modes_output_route(void){
     return g_out_route;
 }
 void modes_output_reset(void){ out_set_state(OUT_INTERNAL); }
+/* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. */
+static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
+static void usbgone_tick(lv_timer_t *t);
+void modes_output_adopt(int route){
+    if(route < OUT_INTERNAL || route > OUT_USB) return;
+    out_set_state(route);
+    if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
+}
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 /* Route-aware local init. with_gadget (the boot timer): internal/SPDIF send 0642 0 first; USB always pairs 0666 3 with 0642 5. */
 int modes_local_init(int with_gadget){
@@ -144,7 +152,6 @@ static int out_switch(int target, int via_mode);
  * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
  * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
  * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. */
-static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
 static void usbgone_tick(lv_timer_t *t){
     (void)t;
     if(modes_output_route() != OUT_USB){ lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL; return; }
