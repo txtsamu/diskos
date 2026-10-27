@@ -60,6 +60,7 @@ static void set_cb(lv_event_t *e){
     struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
     if(t == (time_t)-1 || settimeofday(&tv, NULL) != 0){ ui_toast("Couldn't set the time"); return; }
     ui_rtc_save_now();                                 /* keep it across power-off (hwclock -w, off the UI thread) */
+    ui_timekeep_save_now();                            /* and in the last-good-time file, which a wrong RTC cannot overwrite */
     ui_clock_refresh();
     ui_toast(cfg_get_int("auto_time", 1) ? "Time set - Wi-Fi may correct it" : "Time set");
     screen_back();

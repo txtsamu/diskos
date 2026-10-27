@@ -98,6 +98,7 @@ int  debug_ssh_on(void);                   /* 1 while Debug Mode SSH runs (Quick
 void debug_create(lv_obj_t *root);
 void lastfm_create(lv_obj_t *parent);
 #define CFG_PDBG "pdbg"   /* Persistent debug (Debug Mode checkbox): Wi-Fi stays on and SSH is re-enabled at boot */
+void ui_timekeep_save_now(void);   /* persist the current time to the last-good-time file (main.c, timekeep.c) */
 void debug_boot_restore(void);   /* Persistent debug: re-enable SSH at boot when CFG_PDBG is set (debug_ui.c) */
 void wifi_init_intent(void);   /* seed wifi_on intent from stock WIFI_STATUS (first run only) */
 void wifi_supervise(void);     /* keepalive: (re)start supplicant if Wi-Fi should be on but isn't */

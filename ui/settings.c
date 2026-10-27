@@ -520,6 +520,7 @@ static void restart_begin(void){
     art_kill_all();
     /* Save the (NTP-corrected) clock to the RTC alongside - the periodic save runs only every 5 min and the stock
      * player saves the RTC only on ITS power-off path. Best effort, its own process group, never waited on. */
+    ui_timekeep_save_now();
     g_rst_clock = spawn_detached("hwclock -w 2>/dev/null");
     if(g_rst_clock < 0) g_rst_clock = 0;
     g_rst_phase = 0; g_rst_t0 = lv_tick_get();

@@ -35,6 +35,7 @@
 #include "modes.h"
 #include "usbhid.h"
 #include "outseq.h"
+#include "timekeep.h"
 #include "anim.h"
 #include "ipc.h"
 #include "opustitle_worker.h"
@@ -2455,6 +2456,50 @@ static void hwclock_save_tick(lv_timer_t *t){
 
 void ui_rtc_save_now(void){ hwclock_save_tick(NULL); }   /* Date & Time: persist a hand-set clock right away */
 
+/* ---- Persistent clock (timekeep.c) -------------------------------------------------------------------------------
+ * The RTC can come up wrong (it lost power; the boot init then defaults to 2026-01-01; or the kernel reads the
+ * local-time RTC as UTC and `hwclock -s` did not fix it) and the 5-minute `hwclock -w` then makes the wrong time stick.
+ * So the last good time is also kept in a small file: saved every 10 minutes, at once when the clock is stepped
+ * (NTP, a hand-set time) and before a restart or shutdown; at startup a clock clearly behind it is put back. */
+#define TIME_FILE        "/usr/data/diskos_time"
+#define RTC_DEV          "/dev/rtc0"
+#define TK_TICK_MS       30000
+#define TK_SAVE_EVERY_S  600
+#define TK_STEP_S        5
+static time_t g_tk_wall; static long g_tk_mono, g_tk_save_mono = -1;
+static long mono_s(void){ struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return (long)ts.tv_sec; }
+void ui_timekeep_save_now(void){
+    if(timekeep_save(TIME_FILE, time(NULL)) == 0) g_tk_save_mono = mono_s();   /* an unset clock is refused, the old value stays */
+}
+static void timekeep_tick(lv_timer_t *t){
+    (void)t;
+    time_t now = time(NULL); long m = mono_s();
+    long step = (long)(now - g_tk_wall) - (m - g_tk_mono);   /* wall-clock change that the monotonic clock does not explain */
+    g_tk_wall = now; g_tk_mono = m;
+    int stepped = step > TK_STEP_S || step < -TK_STEP_S;
+    if(stepped){ fprintf(stderr, "clock: stepped by %ld s (now %ld)\n", step, (long)now); fflush(stderr); }
+    if(stepped || g_tk_save_mono < 0 || m - g_tk_save_mono >= TK_SAVE_EVERY_S) ui_timekeep_save_now();
+}
+static void timekeep_boot(void){
+    time_t now = time(NULL), rtc = timekeep_rtc_epoch(RTC_DEV);
+    if(rtc && (rtc > now ? rtc - now : now - rtc) > TIMEKEEP_TOL_S){   /* `hwclock -s` did not take: follow the RTC */
+        struct timeval tv = { .tv_sec = rtc, .tv_usec = 0 };
+        fprintf(stderr, "clock: system %ld vs RTC %ld, following the RTC\n", (long)now, (long)rtc); fflush(stderr);
+        if(settimeofday(&tv, NULL) == 0) now = rtc;
+    }
+    time_t saved = timekeep_load(TIME_FILE), fix = timekeep_pick(now, saved);
+    if(fix){
+        struct timeval tv = { .tv_sec = fix, .tv_usec = 0 };
+        fprintf(stderr, "clock: %ld is behind the saved %ld, restoring the saved time\n", (long)now, (long)saved); fflush(stderr);
+        if(settimeofday(&tv, NULL) == 0) ui_rtc_save_now();               /* and put it back in the RTC too */
+    } else {
+        fprintf(stderr, "clock: %ld ok (saved %ld)\n", (long)now, (long)saved); fflush(stderr);
+    }
+    g_tk_wall = time(NULL); g_tk_mono = mono_s();
+    lv_timer_create(timekeep_tick, TK_TICK_MS, NULL);
+    ui_timekeep_save_now();
+}
+
 /* Bounded external command, exposed so saver.c can decode the vinyl cover without an unbounded popen. */
 int ui_run_bounded(char *const argv[], int timeout_ms){ return run_bounded(argv, timeout_ms); }
 
@@ -3415,6 +3460,7 @@ int main(int argc, char **argv){
     search_set_song_click_cb(on_search_play);   /* search result -> play in all-songs scope (no stale drill ctx) */
     { char *a[] = { "hwclock", "-s", NULL };
       run_bounded(a, 6000); }                    /* load system clock from RTC; bounded so a busy I2C/RTC can't wedge boot */
+    timekeep_boot();                            /* verify it, and put the saved time back when the clock came up wrong */
     lv_timer_create(hwclock_save_tick, 300000, NULL); /* write system time back to the RTC every 5 min */
     lv_timer_create(clock_tick, 10000, NULL);   /* refresh wall clock every 10s */
     lv_timer_create(book_tick, 400, NULL);   /* drive the audiobook session: confirm load, resume, checkpoint */

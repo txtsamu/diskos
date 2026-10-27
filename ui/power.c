@@ -248,6 +248,7 @@ static void real_toast(void *c, const char *m){ (void)c; ui_toast(m); }
 int power_shutdown_request(void){
     if(!power_supported()){ ui_toast("Not available on this firmware"); return -1; }
     if(power_shutdown_phase() == PW_PROTECTED){ ui_toast("Shutdown didn't complete - restart the Disc to use the card"); return -1; }
+    ui_timekeep_save_now();
     power_ops_t o = { real_quiesce_begin, real_drained, real_quiesce_end, real_sync_start, real_sync_poll, real_sync_kill,
                       real_send, real_now, real_toast, NULL };
     return power_shutdown_begin(&o);
