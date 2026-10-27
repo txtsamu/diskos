@@ -3541,6 +3541,7 @@ int main(int argc, char **argv){
         else if(!strcmp(argv[1],"hub")) start = SCR_NPHUB;
         else if(!strcmp(argv[1],"upnext")) start = SCR_UPNEXT;
         else if(!strcmp(argv[1],"datetime")) start = SCR_DATETIME;
+        else if(!strcmp(argv[1],"pet")) start = SCR_TAMA;
     }
     screen_show(start);
     /* Force ONE full-screen repaint at startup. The framebuffer may still hold the stock

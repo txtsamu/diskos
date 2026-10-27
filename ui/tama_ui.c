@@ -242,7 +242,7 @@ static const char *const O_POOP[]  = { "..#..", ".###.", ".###.", "#####", NULL 
 #define CELL    4
 #define BOX_X   8             /* the 24x24 sprite box inside the scene */
 #define BOX_Y   3
-#define STATS_W 270
+#define STATS_W 300   /* three groups of label + 5 pips, 100 px apart (x 30..330 inside the glass at this height) */
 #define STATS_H 14
 
 enum { B_FEED, B_PLAY, B_CLEAN, B_SLEEP, B_HEAL, B_NEW, B_COUNT };
@@ -363,7 +363,7 @@ static void draw_stats(void){
         int pips = (v[g] + 19) / 20;
         if(pips > 5) pips = 5;
         for(int i = 0; i < 5; i++)
-            fill_rect(s_stats_buf, g * 90 + 38 + i * 10, 2, 8, 10, i < pips ? (pips <= 1 ? warn : on) : off);
+            fill_rect(s_stats_buf, g * 100 + 40 + i * 10, 2, 8, 10, i < pips ? (pips <= 1 ? warn : on) : off);
     }
     lv_obj_invalidate(s_stats);
 }
@@ -622,14 +622,14 @@ void tama_create(lv_obj_t *root){
 
     s_scene = mk_canvas(root, &s_scene_buf, SCENE_W * CELL, SCENE_H * CELL, 100, 98);
 
-    s_stats = mk_canvas(root, &s_stats_buf, STATS_W, STATS_H, 45, 212);
+    s_stats = mk_canvas(root, &s_stats_buf, STATS_W, STATS_H, 30, 212);
     static const char *const names[3] = { "Food", "Fun", "Rest" };
     for(int i = 0; i < 3; i++){
         s_lab[i] = lv_label_create(root);
         lv_label_set_text(s_lab[i], names[i]);
         lv_obj_set_style_text_font(s_lab[i], TF(UI_12), 0);
         lv_obj_set_style_text_color(s_lab[i], TC(TEXT_SECONDARY), 0);
-        lv_obj_set_pos(s_lab[i], 45 + i * 90, 212);
+        lv_obj_set_pos(s_lab[i], 30 + i * 100, 212);
     }
 
     /* action row: up to 5 buttons of 50x44 (Heal only while sick), inside the glass at y 232..276 */
