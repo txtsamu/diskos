@@ -763,6 +763,7 @@ static void term_home(const home_parts_t *p){
     lv_obj_set_pos(p->clock, 0, 70);
     lv_obj_t *cur = lv_obj_create(p->root);                  /* the block cursor after the time */
     lv_obj_remove_style_all(cur);
+    lv_obj_set_user_data(cur, (void *)&term_cursor_tag);     /* the same blink as the title cursors (kit_cursor_sync) */
     lv_obj_clear_flag(cur, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_size(cur, 12, 52);
     g_term_clock = p->clock; g_term_cur = cur;
