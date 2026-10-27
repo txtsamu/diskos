@@ -919,6 +919,10 @@ static void set_cover_fallback(bool show, bool loading)
         if(cover_note) lv_obj_add_flag(cover_note, LV_OBJ_FLAG_HIDDEN);
     }
     theme_kit()->np_cover_state(cover, cover_note, show, loading);
+    /* the kit's cover state sets its own corner radius (default 16, Hi-Fi 2, Null 0), which squared the Vinyl disc on
+     * the first art after the style was applied; the disc is a circle in every kit */
+    if(g_np_vinyl && strcmp(theme_kit()->id, "bauhaus"))
+        lv_obj_set_style_radius(cover, COVER_D/2, LV_PART_MAIN);
 }
 
 #ifdef DISKOS_HOST
