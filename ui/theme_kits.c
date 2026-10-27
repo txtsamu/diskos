@@ -745,22 +745,30 @@ static void term_key(lv_obj_t *o){            /* a bracketed key: square box, 1 
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, LV_STATE_PRESSED);
 }
 static lv_obj_t *g_term_clock, *g_term_cur, *g_term_mer;
+/* Terminal Home, top to bottom (y of each top edge). Airy on purpose: the round glass keeps the corners dark, so the
+ * stack is kept in the middle and the keys at the bottom stay inside the safe radius (~166 px from the centre). */
+#define TH_STATUS    34   /* wifi + battery */
+#define TH_CLOCK     62   /* the big time */
+#define TH_CURSOR_DY 14   /* the cursor sits this far below the clock label's top (it hangs a little under the digits) */
+#define TH_DATE     128   /* centred, right under the time */
+#define TH_WEATHER  148   /* centred, under the date */
+#define TH_NOW      194   /* "$ now" prompt */
+#define TH_NP       210   /* now-playing line + its play key (44 high) */
+#define TH_KEYS     272   /* [ library ] [ find ] (32 high, ends at 304) */
 static void term_clock(const char *t){
     if(!g_term_clock) return;
     char hm[16], mer[8]; clock_parts(t, hm, sizeof hm, mer, sizeof mer);
     lv_label_set_text(g_term_clock, hm);
     char low[8]; lv_label_set_text(g_term_mer, theme_lower(low, sizeof low, mer));
     lv_point_t tw; lv_text_get_size(&tw, hm, TF(CLOCK), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_obj_align(g_term_cur, LV_ALIGN_TOP_MID, tw.x / 2 + 14, 84);             /* the cursor right after the time */
+    lv_obj_align(g_term_cur, LV_ALIGN_TOP_MID, tw.x / 2 + 14, TH_CLOCK + TH_CURSOR_DY);             /* the cursor right after the time */
     lv_obj_align_to(g_term_mer, g_term_cur, LV_ALIGN_OUT_RIGHT_BOTTOM, 6, 0);
 }
 static void term_home(const home_parts_t *p){
     own_backgrounds();
-    lv_obj_t *banner = term_text(p->root, "diskOS 1.2 | tty0", TC(TEXT_MUTED), 0, 30);
-    lv_obj_set_width(banner, 360); lv_obj_set_style_text_align(banner, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(p->status, 0, 50);
+    lv_obj_set_pos(p->status, 0, TH_STATUS);
     lv_obj_set_style_text_color(p->status, TC(TEXT_MUTED), 0);
-    lv_obj_set_pos(p->clock, 0, 70);
+    lv_obj_set_pos(p->clock, 0, TH_CLOCK);
     lv_obj_t *cur = lv_obj_create(p->root);                  /* the block cursor after the time */
     lv_obj_remove_style_all(cur);
     lv_obj_set_user_data(cur, (void *)&term_cursor_tag);     /* the same blink as the title cursors (kit_cursor_sync) */
@@ -771,15 +779,14 @@ static void term_home(const home_parts_t *p){
     term_clock(lv_label_get_text(p->clock));
     lv_obj_set_style_bg_color(cur, TC(ACCENT_PRIMARY), 0);
     lv_obj_set_style_bg_opa(cur, LV_OPA_COVER, 0);
-    term_text(p->root, "$ date", TC(TEXT_MUTED), 62, 148);
-    lv_obj_set_style_text_align(p->date, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_pos(p->date, 62, 164); lv_obj_set_width(p->date, 240);
+    lv_obj_set_style_text_align(p->date, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(p->date, 0, TH_DATE); lv_obj_set_width(p->date, 360);
     lv_obj_set_style_text_color(p->date, TC(TEXT_PRIMARY), 0);
-    lv_obj_set_style_text_align(p->weather, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_pos(p->weather, 62, 182); lv_obj_set_width(p->weather, 240);
-    term_text(p->root, "$ now", TC(TEXT_MUTED), 62, 196);
+    lv_obj_set_style_text_align(p->weather, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(p->weather, 30, TH_WEATHER); lv_obj_set_width(p->weather, 300);
+    term_text(p->root, "$ now", TC(TEXT_MUTED), 62, TH_NOW);
     /* $ now: the now-playing line, with its play key. Everything hangs from x 62 and ends at 298 (mirrored) */
-    lv_obj_set_pos(p->np, 54, 212); lv_obj_set_size(p->np, 252, 44);
+    lv_obj_set_pos(p->np, 54, TH_NP); lv_obj_set_size(p->np, 252, 44);
     kit_keep(p->np);
     lv_obj_set_style_radius(p->np, 0, 0);
     lv_obj_set_style_bg_opa(p->np, LV_OPA_TRANSP, 0);
@@ -799,13 +806,13 @@ static void term_home(const home_parts_t *p){
     lv_obj_set_pos(p->pp, 200, 4); lv_obj_set_size(p->pp, 44, 38);
     term_key(p->pp);
     /* [ library ] [ find ] */
-    lv_obj_set_pos(p->library, 66, 262); lv_obj_set_size(p->library, 132, 34);   /* bottom corners at r~164 (was 178: on the bezel) */
+    lv_obj_set_pos(p->library, 74, TH_KEYS); lv_obj_set_size(p->library, 120, 32);   /* bottom corners at r~156, inside the glass */
     term_key(p->library);
     lv_obj_t *ll = NULL; for(uint32_t i = 0; i < lv_obj_get_child_count(p->library); i++){
         lv_obj_t *c = lv_obj_get_child(p->library, (int32_t)i);
         if(lv_obj_check_type(c, &lv_label_class)){ if(!ll && strlen(lv_label_get_text(c)) == 3) lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN); else ll = c; } }
     if(ll){ lv_label_set_text(ll, "library"); lv_obj_center(ll); }
-    lv_obj_set_pos(p->search, 208, 262); lv_obj_set_size(p->search, 86, 34);
+    lv_obj_set_pos(p->search, 206, TH_KEYS); lv_obj_set_size(p->search, 80, 32);
     term_key(p->search);
     for(uint32_t i = 0; i < lv_obj_get_child_count(p->search); i++) lv_obj_add_flag(lv_obj_get_child(p->search, (int32_t)i), LV_OBJ_FLAG_HIDDEN);
     lv_obj_t *fl = lv_label_create(p->search);
