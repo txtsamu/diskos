@@ -5,6 +5,7 @@
 #include "theme_kit.h"
 #include "modes.h"
 #include "config.h"
+#include "outseq.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -58,14 +59,9 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
  * first, then wait for the card; resume only once it is up, and fall back to the internal DAC if it never comes. */
 #define OUT_USB_WAIT_MS   8000
 #define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
-#define OUT_WORKMODE "0657000C0008"
 #define OUT_PAUSE    "0201000C0000"
-typedef struct { const char *route, *gadget; unsigned settle_us; } out_seq_t;
-static const out_seq_t OUT_SEQ[3] = {
-    { "0666000C0006", "0642000C0000", 65000 },   /* OUT_INTERNAL */
-    { "0666000C0004", "0642000C0000", 65000 },   /* OUT_SPDIF */
-    { "0666000C0003", "0642000C0005", 0 },       /* OUT_USB */
-};
+/* The route frames themselves live in outseq.c; its route enum must stay the same numbers as OUT_* */
+_Static_assert((int)OUTSEQ_INTERNAL == OUT_INTERNAL && (int)OUTSEQ_SPDIF == OUT_SPDIF && (int)OUTSEQ_USB == OUT_USB, "outseq route numbers differ from modes.h");
 static void modes_ui_refresh(void);
 static int g_out_route = OUT_INTERNAL;
 static unsigned g_out_gen = 0;
@@ -91,16 +87,12 @@ void modes_output_adopt(int route){
     if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
-/* Route-aware local init. with_gadget (the boot timer): internal/SPDIF send 0642 0 first; USB always pairs 0666 3 with 0642 5. */
+/* Route-aware local init (frames in outseq.c). with_gadget is the boot timer; 0 is the play preamble, best effort. */
 int modes_local_init(int with_gadget){
-    int r = modes_output_route();
-    if(r != OUT_USB && with_gadget && ipc_send_cmd(OUT_SEQ[r].gadget) < 0) return -1;
-    int rc = ipc_send_cmd(OUT_SEQ[r].route) < 0 ? -1 : 0;
-    if(rc < 0 && with_gadget) return -1;   /* the boot timer retries the whole init next tick */
-    /* the play preamble (with_gadget 0) is best effort like the old inline pair: 0657 8 is attempted whatever 0666 returned */
-    if(r == OUT_USB && ipc_send_cmd(OUT_SEQ[r].gadget) < 0) rc = -1;
-    if(ipc_send_cmd(OUT_WORKMODE) < 0) rc = -1;
-    return rc;
+    outseq_route_t r = (outseq_route_t)modes_output_route();
+    if(with_gadget) return outseq_local_boot(r) < 0 ? -1 : 0;
+    outseq_local_preamble(r);
+    return 0;
 }
 static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
@@ -112,23 +104,13 @@ static int out_usb_any_card(void){
     if(glob("/proc/asound/card*/usbid", 0, NULL, &g) == 0){ n = (int)g.gl_pathc; globfree(&g); }
     return n > 0;
 }
-/* 0 = whole sequence sent; -1 = the 0666 was refused (nothing changed); -2 = the route moved but the tail failed */
-static int out_seq_send(int t, int full){
-    if(ipc_send_cmd(OUT_SEQ[t].route) < 0) return -1;
-    if(full){
-        if(OUT_SEQ[t].settle_us) usleep(OUT_SEQ[t].settle_us);
-        if(ipc_send_cmd(OUT_SEQ[t].gadget) < 0) return -2;
-    }
-    if(ipc_send_cmd(OUT_WORKMODE) < 0) return -2;
-    return 0;
-}
 /* recovery-pending: retry the full internal sequence until it lands on the same live player connection */
 static void out_rec_clear(void){ if(g_rec_tm){ lv_timer_del(g_rec_tm); g_rec_tm = NULL; } g_rec = 0; }
 static void out_recover_tick(lv_timer_t *t){
     (void)t;
     if(ipc_generation() != g_rec_gen){ out_rec_clear(); out_set_state(OUT_INTERNAL); modes_ui_refresh(); return; }   /* a new player initialises itself */
     if(!ipc_is_ready()) return;
-    if(out_seq_send(OUT_INTERNAL, 1) == 0){
+    if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         out_rec_clear(); out_set_state(OUT_INTERNAL);
         ui_toast("Internal DAC restored"); modes_ui_refresh();
     }
@@ -213,7 +195,7 @@ static void usbw_tick(lv_timer_t *t){
     }
     if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
     usbw_end();   /* never leave the player on the silent USB_HOST_NULL sink */
-    if(out_seq_send(OUT_INTERNAL, 1) == 0){
+    if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         out_set_state(OUT_INTERNAL);
         ui_toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
         out_resume(1);
@@ -230,12 +212,12 @@ static void usbw_start(void){
 }
 static int out_run(void){
     int target = g_osw.target;
-    int rc = out_seq_send(target, g_osw.full);
-    if(rc == -1){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
-    if(rc == 0 && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
-    if(rc == 0){ out_set_state(target); out_resume(1); cfg_set_int(OUT_USB_PREF, 0); modes_ui_refresh(); return 0; }
+    outseq_rc rc = outseq_route((outseq_route_t)target, g_osw.full ? OUTSEQ_FULL : OUTSEQ_QUICK);
+    if(rc == OUTSEQ_REFUSED){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
+    if(rc == OUTSEQ_OK && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
+    if(rc == OUTSEQ_OK){ out_set_state(target); out_resume(1); cfg_set_int(OUT_USB_PREF, 0); modes_ui_refresh(); return 0; }
     /* the route moved but the tail failed: back to the internal DAC; never end without 0657 8 landing */
-    if(out_seq_send(OUT_INTERNAL, 1) == 0){
+    if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         out_set_state(OUT_INTERNAL);
         ui_toast("Output switch failed - internal DAC restored");
         out_resume(1); modes_ui_refresh();

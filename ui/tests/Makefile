@@ -15,11 +15,16 @@ config_test: ../config.c config_test.c ../config.h
 playstate_test: ../playstate.c playstate_test.c ../playstate.h
 	$(CC) $(CFLAGS) -I.. ../playstate.c playstate_test.c -o $@
 
+outseq_test: ../outseq.c outseq_test.c ../outseq.h
+	$(CC) $(CFLAGS) -I.. ../outseq.c outseq_test.c -o $@
+
 .PHONY: run clean
-run: config_test playstate_test
+run: config_test playstate_test outseq_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
+	@echo "--- outseq ---"
+	./outseq_test
 
 clean:
-	rm -f config_test playstate_test
+	rm -f config_test playstate_test outseq_test
