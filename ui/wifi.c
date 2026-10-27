@@ -331,7 +331,7 @@ static void wifi_reconcile_poll(void){
      * check that started just inside it can never adopt once it has closed */
     if(lv_tick_get() - g_reco_first_rx_at >= RECO_WINDOW_MS){ g_reco_hold = 0; return; }
     if(g_intent_epoch != g_reco_epoch0){ g_reco_hold = 0; return; }        /* the user chose while we probed */
-    if(!cfg_get_int("pdbg_wifi", 0) && wifi_reco_decide(dbw, dbb, effw, effb, cfg_get_int("wifi_on", 1), 0)){   /* Persistent debug keeps Wi-Fi on whatever stock arbitrated */
+    if(!cfg_get_int(CFG_PDBG, 0) && wifi_reco_decide(dbw, dbb, effw, effb, cfg_get_int("wifi_on", 1), 0)){   /* Persistent debug keeps Wi-Fi on whatever stock arbitrated */
         cfg_set_int("wifi_on", 0);
         ui_toast("Wi-Fi off: Bluetooth was on");
         fprintf(stderr, "radio reconcile (gen %u): accepted stock's Bluetooth-priority boot, wifi_on=0\n", gen);

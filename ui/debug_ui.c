@@ -25,15 +25,13 @@
  *     password, never anything shipped in the repo). We hash it with crypt() and hand the hash to
  *     /usr/project/diskos-debug.sh, which overlays a private shadow over /etc/shadow.
  *   - a USB serial root shell on /dev/ttyGS0 (local-USB only).
- * Debug access comes back OFF after a restart UNLESS "Persistent debug" is opted into (two checkboxes on this screen,
- * both off by default): "pdbg_ssh" re-enables SSH with a fresh random password at every boot (read it here), "pdbg_wifi"
- * keeps Wi-Fi on at boot (main.c; otherwise radios start off). Neither stores a password or key. */
-#define PDBG_SSH  "pdbg_ssh"
-#define PDBG_WIFI "pdbg_wifi"
+ * Debug access comes back OFF after a restart UNLESS "Persistent debug" is opted into (one checkbox on this screen, off
+ * by default, cfg CFG_PDBG): at every boot Wi-Fi stays on (main.c; otherwise radios start off) and SSH is re-enabled with a
+ * fresh random password (read it here). Nothing is stored but the existing password file, never a key. */
 
 #define DBG "/usr/project/diskos-debug.sh"
 
-static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl, *g_cb_wifi, *g_cb_ssh;
+static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl;
 static int  g_on = 0;
 static char g_pwtext[16] = "";
 
@@ -180,15 +178,14 @@ static void disable_dbg(void){
 static void btn_cb(lv_event_t *e){ (void)e; if(g_on) disable_dbg(); else enable_dbg(); }
 
 static void pdbg_cb(lv_event_t *e){
-    lv_obj_t *cb = lv_event_get_target_obj(e);
-    cfg_set_int(cb == g_cb_ssh ? PDBG_SSH : PDBG_WIFI, lv_obj_has_state(cb, LV_STATE_CHECKED) ? 1 : 0);
+    cfg_set_int(CFG_PDBG, lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED) ? 1 : 0);
 }
 
 /* Persistent debug, at boot (a one-shot timer a few seconds in, main.c): bring SSH back if it was asked for. Skips when
  * SSH is already up (a UI restart / hot-reload must not rotate the password). No widget is touched: Debug Mode reads
  * the real state and the password file when it is opened. */
 void debug_boot_restore(void){
-    if(!cfg_get_int(PDBG_SSH, 0)) return;
+    if(!cfg_get_int(CFG_PDBG, 0)) return;
     if(ssh_running() || overlay_mounted()) return;
     const char *why = NULL;
     if(enable_core(&why) < 0){ fprintf(stderr, "persistent debug: %s\n", why); fflush(stderr); return; }
@@ -207,7 +204,7 @@ void debug_open(void){
     screen_show(SCR_DEBUG);
 }
 
-static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, const char *key, int y){
+static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, int y){
     lv_obj_t *cb = lv_checkbox_create(root);
     lv_checkbox_set_text(cb, text);
     lv_obj_set_style_text_font(cb, TF(UI_16), 0);
@@ -221,7 +218,7 @@ static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, const char *key
     lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(cb, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_set_style_shadow_width(cb, 0, LV_PART_INDICATOR);
-    if(cfg_get_int(key, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
+    if(cfg_get_int(CFG_PDBG, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
     lv_obj_align(cb, LV_ALIGN_TOP_MID, 0, y);
     ui_on(cb, pdbg_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.pdbg.value", UI_CORE);
     return cb;
@@ -255,14 +252,13 @@ void debug_create(lv_obj_t *root){
     lv_obj_set_style_text_color(g_warn, TC(STATUS_WARNING), 0);
     lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 164);
 
-    /* Persistent debug: two opt-in checkboxes (off by default), kept above the button */
-    lv_obj_t *cap = lv_label_create(root);
-    lv_label_set_text(cap, "Persistent debug");
-    lv_obj_set_style_text_font(cap, TF(UI_14), 0);
-    lv_obj_set_style_text_color(cap, TC(TEXT_MUTED), 0);
-    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 204);
-    g_cb_wifi = pdbg_checkbox(root, "Auto-connect Wi-Fi at boot", PDBG_WIFI, 224);
-    g_cb_ssh  = pdbg_checkbox(root, "Enable Debug at boot", PDBG_SSH, 248);
+    /* Persistent debug: one opt-in checkbox (off by default) above the button; Wi-Fi and SSH both come back at boot */
+    pdbg_checkbox(root, "Persistent debug", 216);
+    lv_obj_t *sub = lv_label_create(root);
+    lv_label_set_text(sub, "Wi-Fi and SSH on at every boot");
+    lv_obj_set_style_text_font(sub, TF(UI_12), 0);
+    lv_obj_set_style_text_color(sub, TC(TEXT_MUTED), 0);
+    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 244);
 
     lv_obj_t *btn = lv_button_create(root);
     lv_obj_set_size(btn, 190, 44);
