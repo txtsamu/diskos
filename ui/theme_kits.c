@@ -752,7 +752,7 @@ static lv_obj_t *g_term_clock, *g_term_cur, *g_term_mer;
 #define TH_CURSOR_DY 14   /* the cursor sits this far below the clock label's top (it hangs a little under the digits) */
 #define TH_DATE     128   /* centred, right under the time */
 #define TH_WEATHER  148   /* centred, under the date */
-#define TH_NOW      194   /* "$ now" prompt */
+#define TH_NOW      194   /* "$ now playing" prompt */
 #define TH_NP       210   /* now-playing line + its play key (44 high) */
 #define TH_KEYS     272   /* [ library ] [ find ] (32 high, ends at 304) */
 static void term_clock(const char *t){
@@ -784,8 +784,8 @@ static void term_home(const home_parts_t *p){
     lv_obj_set_style_text_color(p->date, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(p->weather, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_pos(p->weather, 30, TH_WEATHER); lv_obj_set_width(p->weather, 300);
-    term_text(p->root, "$ now", TC(TEXT_MUTED), 62, TH_NOW);
-    /* $ now: the now-playing line, with its play key. Everything hangs from x 62 and ends at 298 (mirrored) */
+    term_text(p->root, "$ now playing", TC(TEXT_MUTED), 62, TH_NOW);
+    /* $ now playing: the now-playing line, with its play key. Everything hangs from x 62 and ends at 298 (mirrored) */
     lv_obj_set_pos(p->np, 54, TH_NP); lv_obj_set_size(p->np, 252, 44);
     kit_keep(p->np);
     lv_obj_set_style_radius(p->np, 0, 0);
