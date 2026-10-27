@@ -649,9 +649,11 @@ void tama_create(lv_obj_t *root){
     /* feed / game panel, hidden until opened */
     s_panel = lv_obj_create(root);
     lv_obj_remove_style_all(s_panel);
+    kit_keep(s_panel);   /* a popup over the pet must stay solid: flat-list themes (Terminal) turn plain cards transparent, which put
+                          * Meal / Snack / Cancel on top of the sprite and the action row */
     lv_obj_set_size(s_panel, 250, 172);
     lv_obj_set_pos(s_panel, 55, 96);
-    lv_obj_set_style_radius(s_panel, 20, 0);
+    lv_obj_set_style_radius(s_panel, !strcmp(theme_kit()->id, "terminal") ? 0 : 20, 0);   /* square corners in the terminal's boxed style */
     lv_obj_set_style_bg_color(s_panel, TC(SURFACE_RAISED), 0);
     lv_obj_set_style_bg_opa(s_panel, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(s_panel, TC(BORDER_STRONG), 0);
@@ -670,7 +672,7 @@ void tama_create(lv_obj_t *root){
     lv_obj_set_style_text_align(s_pinfo, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(s_pinfo, TF(UI_12), 0);
     lv_obj_set_style_text_color(s_pinfo, TC(TEXT_SECONDARY), 0);
-    lv_obj_align(s_pinfo, LV_ALIGN_TOP_MID, 0, 104);
+    lv_obj_align(s_pinfo, LV_ALIGN_TOP_MID, 0, 98);   /* two lines (result + round) must clear Cancel at y 130 */
     lv_obj_t *x = mk_btn(s_panel, "Cancel", 110, 38, panel_close_cb, NULL, "tama.panel.close", NULL);
     lv_obj_set_pos(x, 70, 130);
     lv_obj_set_ext_click_area(x, 4);
