@@ -25,6 +25,7 @@ run: config_test playstate_test outseq_test
 	./playstate_test
 	@echo "--- outseq ---"
 	./outseq_test
+	python3 -I outseq_guard_test.py
 
 clean:
 	rm -f config_test playstate_test outseq_test
