@@ -40,9 +40,11 @@ void session_handoff_export(void);
 void session_handoff_cancel(void);
 
 /* ---- what may a startup restore still do ---- */
-/* a relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay unless Resume
- * Playback (cfg memory_play: 0 Off, 1 Position, 2 Song; unset reads Off like the Settings row) is on: with it off, anything
- * playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must not be paused. */
+/* a relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay when Resume
+ * Playback was explicitly set Off (cfg memory_play 0, which the UI sends to the Player at startup): then the Player starts
+ * nothing, and anything playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must
+ * not be paused. Pass cfg_get_int("memory_play", -1): UNSET (-1) is NOT Off. The UI never sent 0684 then, so the Player keeps
+ * its own Resume Playback setting, which autoplays at boot on the development Disc, and the pause must stay. */
 int  session_autoplay_pause_allowed(int resume_playback);
 /* The charging screen belongs to the power-on a charger triggers. A relaunch is the user mid-session (a theme change):
  * showing it there, with a charger plugged in, would power the Disc off if the charger is then pulled. A cold boot

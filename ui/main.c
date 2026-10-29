@@ -3472,7 +3472,7 @@ int main(int argc, char **argv){
     session_init();                                       /* cold boot or relaunch: before any timer below asks what a startup restore may still do */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    if(session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)))   /* a theme relaunch is not a boot: what is playing must keep playing; Resume Playback off: the Player starts nothing, so nothing to pause */
+    if(session_autoplay_pause_allowed(cfg_get_int("memory_play", -1)))   /* a theme relaunch is not a boot: what is playing must keep playing; Resume Playback explicitly Off: the Player starts nothing, so nothing to pause (unset = the Player keeps its own setting, so it may autoplay) */
         lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to

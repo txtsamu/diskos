@@ -155,10 +155,14 @@ static void cold_boot_allows_autoplay_pause(void){
 static void cold_boot_with_resume_off_never_pauses(void){
     clear_env();
     session_init();
-    assert(!session_autoplay_pause_allowed(0));       /* the Player starts nothing: a headset's play or a key press is the user's */
-    assert(!session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));   /* unset reads Off, as the Settings row does */
+    assert(!session_autoplay_pause_allowed(0));       /* explicitly Off: the Player starts nothing, a headset's play or a key press is the user's */
+    /* UNSET is not Off: the UI never sent 0684, so the Player keeps its own setting. On the development Disc that autoplays at
+     * boot (the boot log shows the pause firing with memory_play absent from diskos.conf), so the pause must stay. */
+    assert(session_autoplay_pause_allowed(cfg_get_int("memory_play", -1)));
+    cfg_set_int("memory_play", 0);
+    assert(!session_autoplay_pause_allowed(cfg_get_int("memory_play", -1)));
     cfg_set_int("memory_play", 2);
-    assert(session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));
+    assert(session_autoplay_pause_allowed(cfg_get_int("memory_play", -1)));
 }
 static void relaunch_does_not_rerun_autoplay_pause(void){
     old_process_exports(OUT_USB, 0);
