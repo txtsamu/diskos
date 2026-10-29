@@ -80,7 +80,7 @@ static void player_restart_reruns_local_init(void){
 static void cold_boot_entry(void){
     clear_env();
     assert(!new_process_starts());
-    assert(session_entry() == SESSION_COLD_BOOT && session_autoplay_pause_allowed());
+    assert(session_entry() == SESSION_COLD_BOOT && session_autoplay_pause_allowed(1));
     assert(session_startup_route_pending());
     assert(session_local_init_allowed(g_gen));
 }
@@ -132,7 +132,7 @@ static void relaunch_adopts_env(void){
 static void relaunch_ignores_default_and_bad_state(void){
     setenv("DISKOS_THEME_RELOAD", "1", 1); setenv("DISKOS_RELOAD_ROUTE", "0", 1); setenv("DISKOS_RELOAD_SRC", "0", 1);
     assert(!new_process_starts());                    /* nothing to keep */
-    assert(session_entry() == SESSION_RELAUNCH && !session_autoplay_pause_allowed());
+    assert(session_entry() == SESSION_RELAUNCH && !session_autoplay_pause_allowed(1));
     assert(session_startup_route_pending() && session_local_init_allowed(g_gen));
     assert(getenv("DISKOS_THEME_RELOAD") == NULL);
 }
@@ -149,12 +149,21 @@ static void failed_exec_cancels_handoff(void){
 static void cold_boot_allows_autoplay_pause(void){
     clear_env();
     session_init();
-    assert(session_autoplay_pause_allowed());         /* a boot: Resume Playback starts the song, the pause keeps it quiet */
+    assert(session_autoplay_pause_allowed(1));        /* a boot: Resume Playback starts the song, the pause keeps it quiet */
+    assert(session_autoplay_pause_allowed(2));
+}
+static void cold_boot_with_resume_off_never_pauses(void){
+    clear_env();
+    session_init();
+    assert(!session_autoplay_pause_allowed(0));       /* the Player starts nothing: a headset's play or a key press is the user's */
+    assert(!session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));   /* unset reads Off, as the Settings row does */
+    cfg_set_int("memory_play", 2);
+    assert(session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));
 }
 static void relaunch_does_not_rerun_autoplay_pause(void){
     old_process_exports(OUT_USB, 0);
     assert(new_process_starts() == 1);
-    assert(!session_autoplay_pause_allowed());
+    assert(!session_autoplay_pause_allowed(1));       /* even with Resume Playback on */
 }
 static void cold_boot_allows_chargemode_boot(void){
     clear_env();
@@ -190,6 +199,77 @@ static void cold_boot_restores_source_once(void){
     assert(session_restore_poll(15000, 1, 0, &src) == SESSION_RESTORE_WAIT);
     assert(session_restore_poll(15000, 0, 1, &src) == SESSION_RESTORE_SOURCE && src == 1);   /* blocked only holds back USB Audio */
     assert(session_restore_poll(16000, 0, 0, &src) == SESSION_RESTORE_NONE);
+}
+/* a hot-load / UI restart while the Disc is already a USB DAC: the cold-boot entry, but the Player is on the saved mode */
+static void start_while_in_usb_dac_sends_no_frames(void){
+    clear_env();
+    cfg_set_int("src_mode", 1);
+    assert(!new_process_starts());                    /* no handoff: a cold-boot entry */
+    assert(session_source_mode() == 0);               /* the fresh process believes Local ... */
+    assert(session_adopt_detected(ipc_generation(), 1) == 1);   /* ... until the gadget state says otherwise */
+    assert(session_source_mode() == 1);
+    assert(!session_local_init_allowed(g_gen));       /* its 0642 0 would close the gadget */
+    assert(session_local_init_send(g_gen) == 1);
+    session_restore_arm(0);
+    int src = -1;
+    for(uint32_t t = 0; t <= 130000; t += 1000){
+        session_restore_t r = session_restore_poll(t, 0, 0, &src);
+        assert(r == SESSION_RESTORE_WAIT || r == SESSION_RESTORE_NONE);   /* never SOURCE: no 0666 6 / 0642 2 / 0657 1 */
+    }
+    assert(g_n == 0);                                 /* the stream is not touched */
+    assert(cfg_get_int("src_mode", 0) == 1);          /* and the saved pick stays */
+}
+static void cold_boot_with_player_still_local_restores_once(void){
+    clear_env();
+    cfg_set_int("src_mode", 1);
+    assert(!new_process_starts());
+    assert(session_adopt_detected(ipc_generation(), 0) == 0);   /* gadget not bound: the Player has not switched */
+    assert(session_source_mode() == 0 && session_local_init_allowed(g_gen));
+    session_restore_arm(0);
+    int src = -1;
+    assert(session_restore_poll(14999, 0, 0, &src) == SESSION_RESTORE_WAIT);
+    assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_SOURCE && src == 1);
+    assert(session_restore_poll(16000, 0, 0, &src) == SESSION_RESTORE_NONE);   /* once */
+}
+static void adopt_detected_only_what_was_saved(void){
+    clear_env();
+    cfg_set_int("src_mode", 2);                       /* BT Receiving is gadget-invisible: never adopted */
+    assert(!new_process_starts());
+    assert(session_adopt_detected(g_gen, 1) == 0 && session_adopt_detected(g_gen, 0) == 0);
+    cfg_set_int("src_mode", 0);                       /* the gadget is up but Local is the pick: not ours to claim */
+    assert(session_adopt_detected(g_gen, 1) == 0);
+    cfg_set_int("src_mode", 1);
+    assert(session_adopt_detected(g_gen, 3) == 0);    /* USB Storage is another path (the SD marker) */
+    assert(session_source_mode() == 0 && session_local_init_allowed(g_gen));
+}
+static void adopt_detected_leaves_a_relaunch_alone(void){
+    cfg_set_int("src_mode", 1);
+    old_process_exports(OUT_INTERNAL, 0);
+    assert(!new_process_starts());                    /* default pair: relaunch, nothing adopted from the handoff */
+    assert(session_adopt_detected(g_gen, 1) == 0);    /* the relaunch handoff is the only authority there */
+    session_set_source_mode(2);
+    assert(session_adopt_detected(g_gen, 1) == 0 && session_source_mode() == 2);
+}
+/* leaving USB Storage restarts the Disc: the pick made there must be what the next boot restores, not the one before it */
+static void leaving_storage_for_local_cancels_old_restore(void){
+    clear_env();
+    session_save_source(2);                           /* was in BT Receiving, then opened Storage */
+    session_save_source(3);                           /* Storage itself is never remembered */
+    assert(session_saved_source() == 2);
+    session_save_source(0);                           /* picked Local to leave: saved before the restart */
+    assert(!new_process_starts());                    /* the restarted UI */
+    session_restore_arm(0);
+    int src = -1;
+    assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_NONE && g_n == 0);   /* no switch back into BT */
+}
+static void leaving_storage_for_usb_dac_restores_it(void){
+    clear_env();
+    session_save_source(0);                           /* Local before Storage; USB DAC picked to leave it */
+    session_save_source(1);
+    assert(!new_process_starts());
+    session_restore_arm(0);
+    int src = -1;
+    assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_SOURCE && src == 1);
 }
 static void restore_gives_up(void){
     clear_env();
@@ -242,11 +322,18 @@ int main(void){
     RUN(relaunch_rejects_out_of_range);
     RUN(failed_exec_cancels_handoff);
     RUN(cold_boot_allows_autoplay_pause);
+    RUN(cold_boot_with_resume_off_never_pauses);
     RUN(relaunch_does_not_rerun_autoplay_pause);
     RUN(cold_boot_allows_chargemode_boot);
     RUN(relaunch_does_not_show_chargemode);
     RUN(cold_boot_restores_usb_audio_once);
     RUN(cold_boot_restores_source_once);
+    RUN(start_while_in_usb_dac_sends_no_frames);
+    RUN(cold_boot_with_player_still_local_restores_once);
+    RUN(adopt_detected_only_what_was_saved);
+    RUN(adopt_detected_leaves_a_relaunch_alone);
+    RUN(leaving_storage_for_local_cancels_old_restore);
+    RUN(leaving_storage_for_usb_dac_restores_it);
     RUN(restore_gives_up);
     RUN(restore_stands_down_when_already_moved);
     RUN(startup_route_checked_once);

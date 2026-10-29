@@ -886,6 +886,7 @@ static void storage_resume_local(void){
     if(unlink(SD_EXPORT_MARKER) != 0 && errno != ENOENT){ storage_unknown("cannot clear handoff state"); return; }
     if(!sd_io_resume()){ storage_unknown("local mount changed during return"); return; }
     atomic_store(&g_sd_writable, 1); g_sd_phase = SD_LOCAL; session_set_source_mode(g_sd_return_mode);
+    session_save_source(g_sd_return_mode);   /* the pick that left Storage: the restart below would otherwise replay the stale pick from before it */
     g_sd_reissue = 0;
     albumwall_prewarm_seed();
     fprintf(stderr, "storage: local mount confirmed; SD readers and artwork cache resumed\n"); fflush(stderr);
@@ -3471,7 +3472,7 @@ int main(int argc, char **argv){
     session_init();                                       /* cold boot or relaunch: before any timer below asks what a startup restore may still do */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    if(session_autoplay_pause_allowed())   /* a theme relaunch is not a boot: what is playing must keep playing */
+    if(session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)))   /* a theme relaunch is not a boot: what is playing must keep playing; Resume Playback off: the Player starts nothing, so nothing to pause */
         lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
@@ -3603,6 +3604,12 @@ int main(int argc, char **argv){
         }
     }
     else splash_start();
+    /* A hot-load or UI restart while the Disc is already a USB DAC: the Player is on the saved mode, so adopt it instead of
+     * letting the boot restore switch it again (that drops the computer's stream for seconds). A real cold boot reads Local. */
+    if(session_adopt_detected(ipc_generation(), ui_detect_source_mode())){
+        modes_output_adopt();
+        fprintf(stderr, "startup: Player already in USB DAC mode - adopted, no restore (gen %u)\n", ipc_generation()); fflush(stderr);
+    }
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes
      * synchronously on this fb), then disarm the boot watchdog - a painted frame, not
      * merely "lv_timer_handler returned", is what proves we're alive. Log BEFORE

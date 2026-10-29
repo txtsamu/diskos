@@ -63,6 +63,14 @@ int session_adopt(unsigned gen){
     return 1;
 }
 
+int session_adopt_detected(unsigned gen, int detected){
+    if(g_entry != SESSION_COLD_BOOT || session_source_mode() != 0) return 0;
+    if(detected != 1 || session_saved_source() != 1) return 0;   /* the Player is on what the restore would switch it to */
+    session_set_source_mode(1);
+    g_adopted_gen = gen;   /* the Local init's 0642 0 would close the gadget it is on */
+    return 1;
+}
+
 void session_handoff_export(void){
     char v[16];
     setenv(ENV_RELOAD, "1", 1);
@@ -72,14 +80,14 @@ void session_handoff_export(void){
 void session_handoff_cancel(void){ unsetenv(ENV_RELOAD); unsetenv(ENV_ROUTE); unsetenv(ENV_SRC); }
 
 /* ---- what may a startup restore still do ---- */
-int session_autoplay_pause_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
+int session_autoplay_pause_allowed(int resume_playback){ return g_entry == SESSION_COLD_BOOT && resume_playback > 0; }
 int session_chargemode_boot_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
 
 #define PREF_SRC "src_mode"
 #define PREF_USB "usb_audio_on"
 int  session_saved_source(void){ return cfg_get_int(PREF_SRC, 0); }
 int  session_saved_usb_audio(void){ return cfg_get_int(PREF_USB, 0) == 1; }
-void session_save_source(int mode){ cfg_set_int(PREF_SRC, mode); cfg_set_int(PREF_USB, 0); }
+void session_save_source(int mode){ if(mode < 0 || mode > 2) return; cfg_set_int(PREF_SRC, mode); cfg_set_int(PREF_USB, 0); }   /* USB Storage (3) is never remembered */
 void session_save_usb_audio(int on){ cfg_set_int(PREF_USB, on ? 1 : 0); }
 
 static struct { int armed; uint32_t t0; } g_restore;

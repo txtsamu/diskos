@@ -29,12 +29,21 @@ session_entry_t session_entry(void);
 /* A relaunch whose Player was off the default (internal DAC, Local) takes that state over for `gen`, the current Player
  * generation. 1 = adopted; the caller then refreshes whatever shows the route. */
 int  session_adopt(unsigned gen);
+/* A cold-boot-entry process (no handoff: a hot-load, a crash restart) may find the Player already on the saved Source
+ * mode. `detected` is the Source mode read from the real USB gadget state (ui_detect_source_mode), `gen` the current
+ * Player generation. Only USB DAC is gadget-visible, so only USB DAC is adopted (BT Receiving cannot be told from Local).
+ * 1 = adopted (source mode set, no Local init for `gen`, the startup restore stands down); 0 = not: a real cold boot, where
+ * the Player has not switched yet, reads Local and the restore must still run. The caller then refreshes whatever shows it. */
+int  session_adopt_detected(unsigned gen, int detected);
 /* Before exec of the new image: export route and source mode. cancel() undoes it when the exec failed. */
 void session_handoff_export(void);
 void session_handoff_cancel(void);
 
 /* ---- what may a startup restore still do ---- */
-int  session_autoplay_pause_allowed(void); /* a relaunch is not a boot: what is playing must keep playing */
+/* a relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay unless Resume
+ * Playback (cfg memory_play: 0 Off, 1 Position, 2 Song; unset reads Off like the Settings row) is on: with it off, anything
+ * playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must not be paused. */
+int  session_autoplay_pause_allowed(int resume_playback);
 /* The charging screen belongs to the power-on a charger triggers. A relaunch is the user mid-session (a theme change):
  * showing it there, with a charger plugged in, would power the Disc off if the charger is then pulled. A cold boot
  * cannot tell a power-on from a crash restart or a hot-load, which also carry no handoff: those keep the screen. */
@@ -43,7 +52,7 @@ int  session_chargemode_boot_allowed(void);
 /* Saved Working Mode (cfg src_mode: 0 Local, 1 USB DAC, 2 BT Receiving; usb_audio_on: the output route was USB Audio). */
 int  session_saved_source(void);
 int  session_saved_usb_audio(void);
-void session_save_source(int mode);        /* a user pick: also ends a remembered USB Audio output */
+void session_save_source(int mode);        /* a user pick (also the one that leaves USB Storage): ends a remembered USB Audio output; 3 (Storage) is ignored */
 void session_save_usb_audio(int on);
 
 /* Boot restore of the saved Working Mode, once the Player has settled (~15 s). poll() returns WAIT while it is too early
