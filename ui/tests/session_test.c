@@ -241,6 +241,27 @@ static void adopt_detected_leaves_a_relaunch_alone(void){
     session_set_source_mode(2);
     assert(session_adopt_detected(g_gen, 1) == 0 && session_source_mode() == 2);
 }
+/* leaving USB Storage restarts the Disc: the pick made there must be what the next boot restores, not the one before it */
+static void leaving_storage_for_local_cancels_old_restore(void){
+    clear_env();
+    session_save_source(2);                           /* was in BT Receiving, then opened Storage */
+    session_save_source(3);                           /* Storage itself is never remembered */
+    assert(session_saved_source() == 2);
+    session_save_source(0);                           /* picked Local to leave: saved before the restart */
+    assert(!new_process_starts());                    /* the restarted UI */
+    session_restore_arm(0);
+    int src = -1;
+    assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_NONE && g_n == 0);   /* no switch back into BT */
+}
+static void leaving_storage_for_usb_dac_restores_it(void){
+    clear_env();
+    session_save_source(0);                           /* Local before Storage; USB DAC picked to leave it */
+    session_save_source(1);
+    assert(!new_process_starts());
+    session_restore_arm(0);
+    int src = -1;
+    assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_SOURCE && src == 1);
+}
 static void restore_gives_up(void){
     clear_env();
     session_save_source(2); session_restore_arm(0);
@@ -301,6 +322,8 @@ int main(void){
     RUN(cold_boot_with_player_still_local_restores_once);
     RUN(adopt_detected_only_what_was_saved);
     RUN(adopt_detected_leaves_a_relaunch_alone);
+    RUN(leaving_storage_for_local_cancels_old_restore);
+    RUN(leaving_storage_for_usb_dac_restores_it);
     RUN(restore_gives_up);
     RUN(restore_stands_down_when_already_moved);
     RUN(startup_route_checked_once);

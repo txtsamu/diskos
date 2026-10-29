@@ -87,7 +87,7 @@ int session_chargemode_boot_allowed(void){ return g_entry == SESSION_COLD_BOOT; 
 #define PREF_USB "usb_audio_on"
 int  session_saved_source(void){ return cfg_get_int(PREF_SRC, 0); }
 int  session_saved_usb_audio(void){ return cfg_get_int(PREF_USB, 0) == 1; }
-void session_save_source(int mode){ cfg_set_int(PREF_SRC, mode); cfg_set_int(PREF_USB, 0); }
+void session_save_source(int mode){ if(mode < 0 || mode > 2) return; cfg_set_int(PREF_SRC, mode); cfg_set_int(PREF_USB, 0); }   /* USB Storage (3) is never remembered */
 void session_save_usb_audio(int on){ cfg_set_int(PREF_USB, on ? 1 : 0); }
 
 static struct { int armed; uint32_t t0; } g_restore;

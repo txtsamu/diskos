@@ -49,7 +49,7 @@ int  session_chargemode_boot_allowed(void);
 /* Saved Working Mode (cfg src_mode: 0 Local, 1 USB DAC, 2 BT Receiving; usb_audio_on: the output route was USB Audio). */
 int  session_saved_source(void);
 int  session_saved_usb_audio(void);
-void session_save_source(int mode);        /* a user pick: also ends a remembered USB Audio output */
+void session_save_source(int mode);        /* a user pick (also the one that leaves USB Storage): ends a remembered USB Audio output; 3 (Storage) is ignored */
 void session_save_usb_audio(int on);
 
 /* Boot restore of the saved Working Mode, once the Player has settled (~15 s). poll() returns WAIT while it is too early
