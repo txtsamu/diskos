@@ -13,6 +13,10 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 - **Pet** app on the Apps page: a Tamagotchi-style virtual pet (Agumon line) that lives in real
   time, with Feed, Play, Clean, Sleep and Heal, mood and sickness, and a Digi-Egg to start over.
 - **Persistent debug** checkbox in Debug Mode: keeps Wi-Fi on and re-enables SSH at every boot.
+- Debug Mode now shows the key-only SSH on port 2222 (the development login that starts at boot
+  while an `authorized_keys` file is installed), whether Debug access is on or off, with a
+  checkbox to stop and start it. Disable does not touch it. Stopping it also releases the `/root`
+  bind mount (`diskos-debug.sh key-off`); it is runtime only, so it starts again at the next boot.
 - **Persistent clock**: the last good time is kept in `/usr/data/diskos_time` and restored when the
   clock comes up wrong after the RTC lost power or `hwclock -s` did not apply, with a log line for
   every decision.

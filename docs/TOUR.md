@@ -381,7 +381,7 @@ System covers language, power, library maintenance, time, updates, recovery, and
 | Allow diskOS Updates | On by default when the installed image includes an update key; Off blocks download and staging, but a release check remains possible. |
 | Update diskOS | Check for a later signed diskOS app update over Wi-Fi, then confirm download and restart. |
 | Reset diskOS Settings | Confirm reset of diskOS appearance and behavior choices; music, radios, EQ, and audio settings remain. |
-| Debug Mode | Off by default; enable temporary SSH over Wi-Fi with a new shown password. |
+| Debug Mode | Off by default; enable temporary SSH over Wi-Fi with a new shown password. Also shows whether the key-only SSH on port 2222 is running (installed keys start it at boot) and can stop or start it. |
 | Temperature; About | Read battery temperature and the exact diskOS build identifier. |
 
 <table>

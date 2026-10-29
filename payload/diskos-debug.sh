@@ -12,7 +12,9 @@
 #   diskos-debug.sh ssh-off                      # stop dropbear + drop the shadow overlay
 #   diskos-debug.sh serial-on                    # bind ONE root shell to /dev/ttyGS0
 #   diskos-debug.sh serial-off                   # stop the serial shell
-#   diskos-debug.sh status                       # print: SSH=on/off SERIAL=on/off
+#   diskos-debug.sh status                       # print: SSH=on/off SERIAL=on/off KEYSSH=on/off
+#   diskos-debug.sh key-on                       # key-only SSH on :2222 (needs authorized_keys; also run at boot)
+#   diskos-debug.sh key-off                      # stop it + release /root (ssh-off does NOT touch it)
 
 SELF=/usr/data/sshd
 DB="$SELF/dropbearmulti"
@@ -162,7 +164,7 @@ serial_off() {
 status() {
     s=off; pgrep -f "dropbearmulti dropbear" >/dev/null 2>&1 && s=on
     r=off; serial_alive && r=on
-    k=off; pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 && k=on
+    k=off; key_up && k=on
     echo "SSH=$s SERIAL=$r KEYSSH=$k"
 }
 
@@ -172,6 +174,21 @@ status() {
 # Started through a "dropbear" symlink so Debug Mode's `pgrep -f "dropbearmulti dropbear"` never
 # matches (and so never kills) this daemon; the two coexist on ports 22 and 2222.
 KEYHOME="$SELF/root_home"
+KEYPAT="$SELF/dropbear -s"   # the key daemon's command line (daemon and its per-connection children)
+
+# Is the key daemon really up? Truth = something LISTENs on 2222 (0x08AE, state 0A) in /proc/net/tcp or
+# tcp6, not just a matching process. Only if neither file is readable do we fall back to the process.
+key_up() {
+    _any=0
+    for _t in /proc/net/tcp /proc/net/tcp6; do
+        [ -r "$_t" ] || continue
+        _any=1
+        awk '$2 ~ /:08AE$/ && $4 == "0A" {f=1} END{exit f?0:1}' "$_t" 2>/dev/null && return 0
+    done
+    [ "$_any" -eq 1 ] && return 1
+    pgrep -f "$KEYPAT" >/dev/null 2>&1
+}
+
 key_on() {
     [ -s "$KEYHOME/.ssh/authorized_keys" ] || { echo "no authorized_keys"; return 1; }
     ensure_db || { echo "err: no dropbear binary"; return 1; }
@@ -179,10 +196,30 @@ key_on() {
     grep -q ' /root ' /proc/mounts 2>/dev/null || mount -o bind "$KEYHOME" /root 2>/dev/null \
         || { echo "err: cannot bind $KEYHOME over /root"; return 1; }
     ln -sf dropbearmulti "$SELF/dropbear" 2>/dev/null
-    pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 || \
+    pgrep -f "$KEYPAT" >/dev/null 2>&1 || \
         "$SELF/dropbear" -s -p 2222 -r "$KEYS/ed25519_host_key" -r "$KEYS/rsa_host_key" >/dev/null 2>&1
-    pgrep -f "$SELF/dropbear -s" >/dev/null 2>&1 || { echo "err: key dropbear did not start"; return 1; }
+    key_up || { sleep 1; key_up; } || { echo "err: key dropbear did not start"; return 1; }
     echo on
+}
+
+# Runtime stop of the key-only SSH, key_on undone in reverse: the daemon first (and CONFIRMED gone), then
+# the /root bind mount. Idempotent: with nothing running or mounted it just prints off. authorized_keys is
+# never touched, so S98diskos_sshkey brings the daemon back at the next boot while a key is installed.
+# Kills by the daemon's own command line, so it can never hit the password dropbear (dropbearmulti dropbear).
+# Whole path stays under ~5s (the UI's bounded call is 8s).
+key_off() {
+    for p in $(pgrep -f "$KEYPAT" 2>/dev/null); do kill "$p" 2>/dev/null; done
+    i=0; while pgrep -f "$KEYPAT" >/dev/null 2>&1 && [ "$i" -lt 2 ]; do sleep 1; i=$((i+1)); done
+    for p in $(pgrep -f "$KEYPAT" 2>/dev/null); do kill -9 "$p" 2>/dev/null; done
+    sleep 1
+    # Only release /root once the daemon is CONFIRMED gone (a survivor keeps its keys; report instead).
+    if pgrep -f "$KEYPAT" >/dev/null 2>&1; then echo "err: key dropbear still running"; return 1; fi
+    if grep -q ' /root ' /proc/mounts 2>/dev/null; then
+        umount /root 2>/dev/null || umount -l /root 2>/dev/null   # lazy: a leftover shell may still hold the cwd
+        grep -q ' /root ' /proc/mounts 2>/dev/null && { echo "err: /root still bound"; return 1; }
+    fi
+    key_up && { echo "err: still listening on 2222"; return 1; }
+    echo off
 }
 
 case "$1" in
@@ -192,5 +229,6 @@ case "$1" in
     serial-off) serial_off ;;
     status)     status ;;
     key-on)     key_on ;;
-    *) echo "usage: $0 {ssh-on <hash>|ssh-off|serial-on|serial-off|key-on|status}"; exit 1 ;;
+    key-off)    key_off ;;
+    *) echo "usage: $0 {ssh-on <hash>|ssh-off|serial-on|serial-off|key-on|key-off|status}"; exit 1 ;;
 esac
