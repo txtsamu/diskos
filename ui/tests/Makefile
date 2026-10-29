@@ -33,6 +33,9 @@ timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 tama_test: ../tama.c tama_test.c ../tama.h
 	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
 
+radio_test: ../radio.c radio_test.c ../radio.h
+	$(CC) $(CFLAGS) -I.. ../radio.c radio_test.c -o $@
+
 ipc_guard_test: ipc_guard_test.c
 	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
 	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
@@ -45,7 +48,7 @@ ipc_tx_test: ipc_tx_test.c ../ipc.c
 	rm -f ipc_tx_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test
+run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test radio_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -64,6 +67,8 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	./timekeep_test
 	@echo "--- tama ---"
 	./tama_test
+	@echo "--- radio ---"
+	./radio_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test
+	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test radio_test
