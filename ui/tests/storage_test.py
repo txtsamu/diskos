@@ -53,7 +53,9 @@ static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan;
 static int test_sends, test_fail, test_export_sends, test_seed;
 static int g_playing;
-static _Atomic int g_source_mode;
+static _Atomic int g_source_mode;   /* stands in for session.c's source mode */
+static int session_source_mode(void){ return g_source_mode; }
+static void session_set_source_mode(int m){ g_source_mode = m; }
 static uint32_t lv_tick_get(void){ return test_clock; }
 static void ui_toast(const char *s){ (void)s; }
 static void art_cancel(void){}

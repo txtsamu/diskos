@@ -7,6 +7,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"       /* cfg_get_int/cfg_set_int: persist the BT on/off intent */
+#include "session.h"      /* the saved Working Mode (BT Receiving needs the radio at boot) */
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -1043,7 +1044,7 @@ static void bootoff_poll_cb(lv_timer_t *t){
     (void)t;
     static uint32_t last_off;   /* bt_disable() is a background teardown: give it time before trying again */
     /* also stand down when Bluetooth Receiving is the remembered Working Mode: its boot restore needs the radio */
-    int done = cfg_get_int("bt_on", 0) == 1 || cfg_get_int("src_mode", 0) == 2 || lv_tick_elaps(g_bootoff_start) > 30000;
+    int done = cfg_get_int("bt_on", 0) == 1 || session_saved_source() == 2 || lv_tick_elaps(g_bootoff_start) > 30000;
     if(!done && bt_radio_on() && (!last_off || lv_tick_elaps(last_off) >= 6000)){
         fprintf(stderr, "bt: radio came up with intent off at boot - powering it down\n"); fflush(stderr);
         last_off = lv_tick_get() ? lv_tick_get() : 1;

@@ -35,6 +35,7 @@
 #include "modes.h"
 #include "usbhid.h"
 #include "outseq.h"
+#include "session.h"
 #include "timekeep.h"
 #include "anim.h"
 #include "ipc.h"
@@ -417,7 +418,6 @@ void ui_set_balance(int v){ if(v < -10 || v > 10) return;   /* enforce UI range;
  * frame shape matches stock. Pause/seek/play resumes the current track after routing.
  * g_route_mac = the MAC we've routed to ("" = local/analog; kept for validation + dedup). */
 static char g_route_mac[20] = "";
-static int g_startup_route_checked = 0;
 static void route_uppercase(const char *in, char *out, int cap);
 #ifndef ROUTE_STATE_PATH
 #define ROUTE_STATE_PATH "/tmp/.diskos-ui/route"
@@ -582,7 +582,7 @@ int ui_route_bt(const char *mac){
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
     route_state_save(norm);
-    g_startup_route_checked = 1;                       /* an intentional BT route supersedes startup recovery */
+    session_startup_route_settled();                   /* an intentional BT route supersedes startup recovery */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
     fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, was_playing, st.position_ms); fflush(stderr);
     return 0;
@@ -618,14 +618,9 @@ int ui_route_analog(void){
 /* Best-effort mirror of the current source mode. diskOS boots the player forced to LOCALPLAYER, so
  * 0 is correct at startup; it is NOT authoritative after a bare mq_ui restart mid-mode, so it is used
  * ONLY to show the picker checkmark, never to block a switch (Local must always be re-issuable). */
-/* _Atomic: WRITTEN on the UI thread (ui_set_source_mode) and READ on the coldplug worker thread
- * (coldplug_should_run / coldplug_thread). A plain int here is a C11 data race; the atomic makes the
- * load/store well-defined (seq_cst) without a mutex for this single word. */
-static _Atomic int g_source_mode = 0;
-int ui_get_source_mode(void){ return g_source_mode; }
-/* Theme re-launch: the player keeps its route and source mode, but this fresh process starts at Local/internal. The old
- * process leaves both in the environment; the new one adopts them at startup (see DISKOS_RELOAD_ROUTE in main). */
-static unsigned g_adopted_gen = 0xFFFFFFFFu;   /* ipc generation whose route/mode was adopted: no local-init for it */
+/* The mode itself lives in session.c (an _Atomic there: WRITTEN on the UI thread by ui_set_source_mode, READ on the
+ * coldplug worker thread by coldplug_should_run / coldplug_thread). */
+int ui_get_source_mode(void){ return session_source_mode(); }
 
 /* SD operations share an admission gate. It closes before an export is queued and
  * reopens only after that export was observed and its return mount is confirmed. */
@@ -813,7 +808,7 @@ static int g_dac_carry_vol = -1;
 static uint32_t g_dac_enter_t;   /* when the switch into USB DAC was sent (volume frames before it settles are not the user's) */
 static void dac_volume_cb(lv_timer_t *t){
     lv_timer_del(t);
-    if(g_source_mode != 1 || cfg_get_int("dac_match_volume", 1) == 0) return;
+    if(session_source_mode() != 1 || cfg_get_int("dac_match_volume", 1) == 0) return;
     /* The player sends no a714 volume frame when the mode (and with it the active volume slot) changes, so the volume we
      * hold is still Local's: never compare against it - set the level outright. The level is what the user last chose
      * while in USB DAC (cfg dac_volume), else the Local volume carried over. 0715 is not clamped by the player's MAX_VOL. */
@@ -832,7 +827,7 @@ int ui_set_source_mode(int mode){
      * idle host; an unplug then fires reopen_capture_dev (0x461644), which overwrites 2 with 3, the reopen at rate 0
      * fails into state 5 and the join never returns - on the player's only command thread. Unplugged first, the
      * thread already sits in state 5 polling every 100 ms, so the close completes. */
-    if(g_source_mode == 1 && mode != 1 && !g_dac_exit_ok && usb_host_attached()){
+    if(session_source_mode() == 1 && mode != 1 && !g_dac_exit_ok && usb_host_attached()){
         if(cfg_get_int("dac_safe_exit", 1) == 0){ ui_toast("Unplug the USB cable first"); return -1; }
         return dac_exit_begin(mode);                      /* the ordered exit (see above); returns 0 = started */
     }
@@ -846,7 +841,7 @@ int ui_set_source_mode(int mode){
      * was never seen by the computer and SD access stayed held until a restart. Leave it through the internal-DAC
      * switch first; modes.c re-enters here with the same mode once that landed (0 = the leave started). USB DAC ->
      * Storage likewise passes through Local so 0642 0 closes the UAC gadget before 0642 1 opens storage. */
-    if(mode != 0 && (modes_output_route() == OUT_USB || (g_source_mode == 1 && mode == 3))) return modes_via_local_then(mode);
+    if(mode != 0 && (modes_output_route() == OUT_USB || (session_source_mode() == 1 && mode == 3))) return modes_via_local_then(mode);
     if(mode == 3){
         if(g_sd_phase == SD_HOST) return 0;
         if(scanner_active()){ ui_toast("Let the library scan finish first"); return -1; }
@@ -856,7 +851,7 @@ int ui_set_source_mode(int mode){
         ts.tv_nsec += 200000000L; if(ts.tv_nsec >= 1000000000L){ ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
         if(pthread_mutex_timedlock(&g_sd_mode_mu, &ts) != 0){ ui_toast("SD card is busy - try again"); return -1; }
         if(!storage_mark('D', 3)){ pthread_mutex_unlock(&g_sd_mode_mu); ui_toast("Couldn't prepare USB storage"); return -1; }
-        sd_io_hold(); atomic_store(&g_sd_writable, 0); g_source_mode = 3;
+        sd_io_hold(); atomic_store(&g_sd_writable, 0); session_set_source_mode(3);
         g_sd_phase = SD_DRAIN; g_sd_deadline = lv_tick_get() + 20000;
         art_cancel();
         pthread_mutex_unlock(&g_sd_mode_mu);
@@ -871,23 +866,22 @@ int ui_set_source_mode(int mode){
     }
     int was_playing = g_playing;
     if(was_playing && ipc_send_cmd("0201000C0000") < 0){ ui_toast("Player is busy - try again"); return -1; }
-    if(g_source_mode == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }   /* the Local volume, before the player swaps volumes */
+    if(session_source_mode() == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }   /* the Local volume, before the player swaps volumes */
     if(source_send(mode) < 0){ ui_toast("Couldn't switch mode"); return -1; }
-    g_source_mode = mode;
+    session_set_source_mode(mode);
     if(mode == 1){ g_dac_enter_t = lv_tick_get(); lv_timer_create(dac_volume_cb, 4500, NULL); }   /* after the gadget and the player's own per-mode volume have settled */
     if(mode == 0 && was_playing) ipc_send_cmd("0201000C0000");
     /* Remember the picked Working Mode for the next boot (modes_output_boot_restore). Only the picker calls this,
      * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
      * (mode 3) returns above and is never remembered. */
-    cfg_set_int("src_mode", mode);
-    cfg_set_int("usb_audio_on", 0);
+    session_save_source(mode);
     return 0;
 }
 void settings_restart_now(void);   /* settings.c */
 static void storage_resume_local(void){
     if(unlink(SD_EXPORT_MARKER) != 0 && errno != ENOENT){ storage_unknown("cannot clear handoff state"); return; }
     if(!sd_io_resume()){ storage_unknown("local mount changed during return"); return; }
-    atomic_store(&g_sd_writable, 1); g_sd_phase = SD_LOCAL; g_source_mode = g_sd_return_mode;
+    atomic_store(&g_sd_writable, 1); g_sd_phase = SD_LOCAL; session_set_source_mode(g_sd_return_mode);
     g_sd_reissue = 0;
     albumwall_prewarm_seed();
     fprintf(stderr, "storage: local mount confirmed; SD readers and artwork cache resumed\n"); fflush(stderr);
@@ -950,12 +944,12 @@ static void storage_init(void){
         int n = fscanf(f, "%c %d", &phase, &mode); fclose(f);
         atomic_store(&g_sd_writable, 0);
         if(n == 2 && (phase == 'H' || phase == 'E') && storage_host_confirmed() && !coldplug_mounted()){
-            g_sd_phase = storage_mark('H', 3) ? SD_HOST : SD_UNKNOWN; g_source_mode = 3;
+            g_sd_phase = storage_mark('H', 3) ? SD_HOST : SD_UNKNOWN; session_set_source_mode(3);
         } else if(n == 2 && phase == 'E' && mode == 3){
-            g_sd_phase = SD_WAIT_HOST; g_source_mode = 3; g_sd_reissue = 1;
+            g_sd_phase = SD_WAIT_HOST; session_set_source_mode(3); g_sd_reissue = 1;
             g_sd_deadline = lv_tick_get() + 20000;
         } else if(n == 2 && phase == 'R' && mode >= 0 && mode < 3){
-            g_sd_phase = SD_WAIT_LOCAL; g_sd_return_mode = mode; g_source_mode = 3; g_sd_reissue = 1;
+            g_sd_phase = SD_WAIT_LOCAL; g_sd_return_mode = mode; session_set_source_mode(3); g_sd_reissue = 1;
             g_sd_deadline = lv_tick_get() + 20000;
         } else if(n == 2 && phase == 'D' && !sd_exported_to_host()){
             /* D is always replaced by E before any export command is sent. */
@@ -1409,22 +1403,22 @@ static int startup_connected_sink(const char *mac){
 static int startup_route_reconcile(void){
     static unsigned sink_retry_gen = 0xFFFFFFFFu;
     static uint32_t sink_retry_at = 0;
-    if(g_startup_route_checked) return 0;
+    if(!session_startup_route_pending()) return 0;
     unsigned gen = ipc_generation();
     if(modes_output_route() != OUT_INTERNAL || cfg_get_int("spdif", 0)){
-        g_startup_route_checked = 1; return 0;
+        session_startup_route_settled(); return 0;
     }
     if(sink_retry_gen == gen && lv_tick_elaps(sink_retry_at) < 5000) return -1;
     /* A route from this live player is newer than its bulk-saved OUT_DEV. */
     if(!g_route_mac[0]){
         int saved_bt = startup_saved_bt_route();
-        if(saved_bt <= 0){ g_startup_route_checked = 1; return 0; }
+        if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
     }
     int sink = startup_connected_sink(g_route_mac);
     if(sink < 0){ sink_retry_gen = gen; sink_retry_at = lv_tick_get(); return -1; }
-    if(sink){ g_startup_route_checked = 1; return 1; }   /* the auto-route poll owns this speaker */
+    if(sink){ session_startup_route_settled(); return 1; }   /* the auto-route poll owns this speaker */
     if(route_analog(1) < 0) return -1;
-    g_startup_route_checked = 1;
+    session_startup_route_settled();
     return 1;   /* route_analog logs the single recovery line */
 }
 /* Resume Playback (0684 Position/Song) restores the last song at boot, but the player also starts PLAYING it
@@ -1444,7 +1438,6 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
      * (the timer retries), it is never a reason to go ahead. */
     if(!ui_local_playback_allowed()) return;
-    static unsigned done_gen = 0xFFFFFFFFu;   /* generation whose one-shot we've already sent */
     static unsigned wait_gen = 0xFFFFFFFFu;   /* generation whose settle timer is running */
     static uint32_t wait_start = 0;
     static unsigned rx_gen  = 0xFFFFFFFFu;    /* generation the rx_base snapshot belongs to */
@@ -1454,31 +1447,31 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(ui_get_source_mode() != 0) return;                     /* only while Local source */
     if(modes_output_busy()) return;                            /* an output switch owns 0666/0642/0657 right now */
     unsigned gen = ipc_generation();
-    if(gen == g_adopted_gen) return;                           /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
-    if(age_gen != gen){ age_gen = gen; player_old = !g_startup_route_checked && startup_player_old(); }
-    if(!g_startup_route_checked && player_old && !startup_playback_busy(gen)){
+    if(!session_local_init_allowed(gen)) return;               /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
+    if(age_gen != gen){ age_gen = gen; player_old = session_startup_route_pending() && startup_player_old(); }
+    if(session_startup_route_pending() && player_old && !startup_playback_busy(gen)){
         int startup = startup_route_reconcile();
-        if(startup > 0) done_gen = gen;
+        if(startup > 0) session_local_init_mark(gen);
         if(startup > 0 && !fw_needs_localplayer_init()){
             lv_timer_del(t); return;
         }
     }
     if(g_play_pending || book_session_active()) return;
-    if(gen == done_gen) return;
+    if(session_local_init_done(gen)) return;
     unsigned rx  = ipc_rx_frames();           /* CUMULATIVE across generations -> anchor per-generation via rx_base */
     if(rx_gen != gen){ rx_gen = gen; rx_base = rx; }           /* new generation -> snapshot the count */
     if(rx == rx_base){ ipc_send_probe("02020008"); return; }   /* SOLICIT: THIS generation's player hasn't answered yet (idle player is silent) */
     uint32_t now = lv_tick_get();
     if(wait_gen != gen){ wait_gen = gen; wait_start = now; return; }   /* first response this gen -> start settle */
     if(now - wait_start < 9000) return;                        /* settle past the ~7s mode-control-thread window */
-    if(!g_startup_route_checked && startup_playback_busy(gen)) return;
+    if(session_startup_route_pending() && startup_playback_busy(gen)) return;
     int startup = startup_route_reconcile();
     if(startup < 0) return;
-    if(g_route_mac[0]){ done_gen = gen; if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
+    if(g_route_mac[0]){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
     if(!fw_needs_localplayer_init()){ lv_timer_del(t); return; }
-    if(startup > 0){ done_gen = gen; return; }
+    if(startup > 0){ session_local_init_mark(gen); return; }
     if(g_play_sent_gen == gen){                                /* a play was started this generation (the play path sends its own preamble while stopped): g_playing is only inferred, so never risk 0666 mid-stream */
-        done_gen = gen;
+        session_local_init_mark(gen);
         fprintf(stderr,"v2.40 workmode: local-init skipped, play already sent (gen %u)\n", gen); fflush(stderr);
         return;
     }
@@ -1486,7 +1479,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * route and work-mode and the card isn't exported - exactly the state this one-shot exists to establish - and
      * 0666 would close the stream mid-song (seen live on V2.57). Count this generation as initialised. */
     if(g_playing){
-        done_gen = gen;
+        session_local_init_mark(gen);
         fprintf(stderr,"v2.40 workmode: local-init skipped, already playing (gen %u)\n", gen); fflush(stderr);
         return;
     }
@@ -1495,8 +1488,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * the flashed boot gate). Sent past the settle window so the async mode-control thread can't
      * clobber it. If the send fails, DON'T mark this generation done - retry next tick rather than
      * leave the card exported. */
-    if(outseq_local_boot((outseq_route_t)modes_output_route()) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
-    done_gen = gen;   /* only mark this generation initialised once ALL three commands were actually sent */
+    if(session_local_init_send(gen) != 0) return;   /* outseq_local_boot on the current route: 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE); marks this generation initialised only once ALL three were actually sent */
     fprintf(stderr,"v2.40 workmode: local-init sent once (gen %u)\n", gen); fflush(stderr);
 }
 void ui_rescan_library(void){
@@ -2668,7 +2660,7 @@ static void coldplug_log(const char *msg){
     if(f){ fprintf(f, "%ld %s\n", (long)time(NULL), msg); fclose(f); }
 }
 /* Is the mass-storage gadget exporting the card to a USB host (so the host owns /dev/mmcblk0 and a
- * device-side mount would dual-access-corrupt exFAT)? Reads the REAL gadget state, not our g_source_mode
+ * device-side mount would dual-access-corrupt exFAT)? Reads the REAL gadget state, not our session_source_mode
  * mirror - the player can enter a USB mode without going through ui_set_source_mode(). storage_demo is
  * NOT configured at boot (S99usbserial only builds the serial gadget); it appears only when a storage
  * session starts. The stock storage_config.sh sets the LUN backing file BEFORE binding the UDC and blanks
@@ -3278,17 +3270,14 @@ int ui_theme_reload(const char *screen){
     for(int fd = 3; fd < 1024; fd++){ int fl = fcntl(fd, F_GETFD); if(fl >= 0) fcntl(fd, F_SETFD, fl | FD_CLOEXEC); }
     fflush(stderr);
     handoff_signal_reset();
-    setenv("DISKOS_THEME_RELOAD", "1", 1);
-    { char v[16];
-      snprintf(v, sizeof v, "%d", modes_output_route()); setenv("DISKOS_RELOAD_ROUTE", v, 1);
-      snprintf(v, sizeof v, "%d", (int)g_source_mode);   setenv("DISKOS_RELOAD_SRC", v, 1); }
+    session_handoff_export();   /* the new process adopts the Player's route and source mode (session_adopt) */
     char *ua[3]; ua[0] = "mq_ui"; ua[1] = (char *)(screen ? screen : "home"); ua[2] = NULL;
     /* Re-exec the image that is RUNNING (the launcher's verified private copy, or whichever build fell back), never the
      * mutable /usr/data/mq_ui pathname: that could swap a running fallback for the unverified/trial file. /proc/self/exe
      * still works when the running file was unlinked. The boot markers (/tmp/.diskos_run, .diskos_launched) describe this
      * same build, so they are neither rewritten nor re-checked here. A failed exec keeps us running (no path fallback). */
     execv("/proc/self/exe", ua);
-    unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
+    session_handoff_cancel();
     alarm(0);
     ui_toast("Couldn't apply the theme now - it applies next start");
     return -1;
@@ -3469,9 +3458,10 @@ int main(int argc, char **argv){
     lv_timer_create(playlist_port_cb, 5000, NULL);       /* bring pre-1.2.0 / stock-migrated playlists into agreement (see playlist_port_cb) */
     lv_timer_create(sd_features_gate_cb, 500, NULL);     /* start SD-backed features only on a positive launcher verdict */
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
+    session_init();                                       /* cold boot or relaunch: before any timer below asks what a startup restore may still do */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    if(!getenv("DISKOS_THEME_RELOAD"))   /* a theme relaunch is not a boot: what is playing must keep playing */
+    if(session_autoplay_pause_allowed())   /* a theme relaunch is not a boot: what is playing must keep playing */
         lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
@@ -3592,21 +3582,14 @@ int main(int argc, char **argv){
     if(ui_source_switch_pending()) g_sd_deadline = lv_tick_get() + 20000;
     lv_timer_create(storage_tick, 100, NULL);
     { void system_ota_health_init(void); system_ota_health_init(); }   /* system.c: proves a trial OTA build healthy after 15 s */
-    if(getenv("DISKOS_THEME_RELOAD")){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
-        const char *rr = getenv("DISKOS_RELOAD_ROUTE"), *rs = getenv("DISKOS_RELOAD_SRC");
-        int route = rr ? atoi(rr) : 0, src = rs ? atoi(rs) : 0;
-        if((route != OUT_INTERNAL || src != 0) && route >= OUT_INTERNAL && route <= OUT_USB && src >= 0 && src <= 2){
-            /* Adopt now, not in the "player reconnected" branch below: that only fires when /ui is re-attached after a
-             * player restart, which a plain relaunch never is, so the route was never kept (and the saved-preference
-             * restore then re-ran the whole USB Audio switch, restarting the output and the song). ipc_generation()
-             * only moves on a player restart, so it is stable from here. */
-            g_source_mode = src;
-            modes_output_adopt(route);
-            g_adopted_gen = ipc_generation();
-            g_startup_route_checked = 1;
-            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", route, src, g_adopted_gen); fflush(stderr);
+    if(session_entry() == SESSION_RELAUNCH){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
+        /* Adopt now, not in the "player reconnected" branch below: that only fires when /ui is re-attached after a
+         * player restart, which a plain relaunch never is, so the route was never kept (and the saved-preference
+         * restore then re-ran the whole USB Audio switch, restarting the output and the song). */
+        if(session_adopt(ipc_generation())){
+            modes_output_adopt();
+            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", session_route(), session_source_mode(), ipc_generation()); fflush(stderr);
         }
-        unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
     }
     else splash_start();
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes
@@ -3683,7 +3666,7 @@ int main(int argc, char **argv){
         if(st.volume_seq != last_vol_seq){
             last_vol_seq = st.volume_seq;
             power_note_input();   /* a volume key press counts as input for idle power-off (last_activity only moves when the panel is off) */
-            if(g_source_mode == 1 && lv_tick_elaps(g_dac_enter_t) > 8000 && st.volume > 0) cfg_set_int("dac_volume", st.volume);   /* remember the USB DAC level the user picked */
+            if(session_source_mode() == 1 && lv_tick_elaps(g_dac_enter_t) > 8000 && st.volume > 0) cfg_set_int("dac_volume", st.volume);   /* remember the USB DAC level the user picked */
             if(bl_state == 0){
                 last_activity = lv_tick_get();
                 if(screen_current()==SCR_SAVER) screen_back();

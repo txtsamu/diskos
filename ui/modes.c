@@ -6,6 +6,7 @@
 #include "modes.h"
 #include "config.h"
 #include "outseq.h"
+#include "session.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -64,29 +65,20 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
 /* The route frames themselves live in outseq.c; its route enum must stay the same numbers as OUT_* */
 _Static_assert((int)OUTSEQ_INTERNAL == OUT_INTERNAL && (int)OUTSEQ_SPDIF == OUT_SPDIF && (int)OUTSEQ_USB == OUT_USB, "outseq route numbers differ from modes.h");
 static void modes_ui_refresh(void);
-static int g_out_route = OUT_INTERNAL;
-static unsigned g_out_gen = 0;
+/* The route the UI believes the Player is on lives in session.c (session_route / session_set_route). */
 static struct { int target, was_playing, full; unsigned gen; char path[256]; long pos; uint32_t t0, quiet0; lv_timer_t *tm; } g_osw;
 static int g_rec = 0; static unsigned g_rec_gen = 0; static lv_timer_t *g_rec_tm = NULL;
 static struct { lv_timer_t *tm; uint32_t t0, seen; } g_usbw;   /* waiting for the USB DAC to enumerate after 0642 5 */
 
-static void out_set_state(int r){
-    g_out_route = r; g_out_gen = ipc_generation();
-    if(cfg_get_int("spdif", 0) != (r == OUT_SPDIF)) cfg_set_int("spdif", r == OUT_SPDIF);   /* the Settings toggle mirrors the real route, never a wish */
-}
-int modes_output_route(void){
-    if(g_out_route != OUT_INTERNAL && g_out_gen != ipc_generation()){ out_set_state(OUT_INTERNAL); }   /* a restarted player is back on the internal DAC */
-    return g_out_route;
-}
-void modes_output_reset(void){ out_set_state(OUT_INTERNAL); }
-/* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. */
+int modes_output_route(void){ return session_route(); }
+void modes_output_reset(void){ session_set_route(OUT_INTERNAL); }
+/* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. session_adopt()
+ * already took the route over; this is the part that needs the UI. */
 static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
 static void usbgone_tick(lv_timer_t *t);
-void modes_output_adopt(int route){
-    if(route < OUT_INTERNAL || route > OUT_USB) return;
-    out_set_state(route);
+void modes_output_adopt(void){
     modes_ui_refresh();   /* the picker and Settings may already be on screen with the old (internal) mark */
-    if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
+    if(session_route() == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 static int out_usb_card_ok(void){
@@ -103,15 +95,15 @@ static int out_usb_any_card(void){
 static void out_rec_clear(void){ if(g_rec_tm){ lv_timer_del(g_rec_tm); g_rec_tm = NULL; } g_rec = 0; }
 static void out_recover_tick(lv_timer_t *t){
     (void)t;
-    if(ipc_generation() != g_rec_gen){ out_rec_clear(); out_set_state(OUT_INTERNAL); modes_ui_refresh(); return; }   /* a new player initialises itself */
+    if(ipc_generation() != g_rec_gen){ out_rec_clear(); session_set_route(OUT_INTERNAL); modes_ui_refresh(); return; }   /* a new player initialises itself */
     if(!ipc_is_ready()) return;
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
-        out_rec_clear(); out_set_state(OUT_INTERNAL);
+        out_rec_clear(); session_set_route(OUT_INTERNAL);
         ui_toast("Internal DAC restored"); modes_ui_refresh();
     }
 }
 static void out_rec_enter(void){
-    out_set_state(OUT_INTERNAL);
+    session_set_route(OUT_INTERNAL);
     if(g_rec) return;
     g_rec = 1; g_rec_gen = ipc_generation();
     g_rec_tm = lv_timer_create(out_recover_tick, 500, NULL);
@@ -143,34 +135,29 @@ static void usbgone_tick(lv_timer_t *t){
         ui_toast("USB DAC disconnected - internal DAC");
     }
 }
-/* The last picked Working Mode survives a restart. "src_mode" (main.c ui_set_source_mode: 0 Local, 1 USB DAC,
- * 2 BT Receiving; USB Storage is never saved) and "usb_audio_on" (set once a USB DAC is confirmed connected,
- * cleared when a switch away from USB completes - a user choice or the unplug fallback) are replayed ~15 s after
- * boot, past the player's settle. A USB Audio restore that finds no DAC falls back via the usbw timeout and keeps
- * the preference for the next boot. */
-#define OUT_USB_PREF "usb_audio_on"
-static lv_timer_t *g_bootusb_tm; static uint32_t g_bootusb_t0;
+/* The last picked Working Mode survives a restart. The saved "src_mode" (0 Local, 1 USB DAC, 2 BT Receiving; USB Storage
+ * is never saved) and "usb_audio_on" (set once a USB DAC is confirmed connected, cleared when a switch away from USB
+ * completes - a user choice or the unplug fallback) are replayed ~15 s after boot, past the player's settle. A USB Audio
+ * restore that finds no DAC falls back via the usbw timeout and keeps the preference for the next boot. Whether a restore
+ * is still wanted (a relaunch that kept the Player's state, the user already moved on) is decided in session.c; this
+ * timer only polls it and runs the switch it names. */
+static lv_timer_t *g_bootusb_tm;
 static void bootusb_end(void){ if(g_bootusb_tm){ lv_timer_del(g_bootusb_tm); g_bootusb_tm = NULL; } }
 static void bootusb_tick(lv_timer_t *t){
     (void)t;
-    int src = cfg_get_int("src_mode", 0), usb = cfg_get_int(OUT_USB_PREF, 0) == 1;
-    if((src != 1 && src != 2 && !usb) || lv_tick_elaps(g_bootusb_t0) > 120000){ bootusb_end(); return; }
-    if(lv_tick_elaps(g_bootusb_t0) < 15000) return;   /* past the player's ~9 s settle and the boot local-init */
-    if(ui_get_source_mode() != 0){ bootusb_end(); return; }   /* already left Local (the user, or a restore) */
-    if(src == 1 || src == 2){
-        if(modes_output_busy()) return;
-        bootusb_end();
+    int src = 0;
+    session_restore_t r = session_restore_poll(lv_tick_get(), modes_output_busy(), ui_output_blocked() != NULL, &src);
+    if(r == SESSION_RESTORE_WAIT) return;
+    bootusb_end();
+    if(r == SESSION_RESTORE_SOURCE){
         if(ui_set_source_mode(src) == 0) ui_toast(src == 1 ? "Restoring USB DAC mode..." : "Restoring Bluetooth Receiving...");
         modes_ui_refresh();
-        return;
+    } else if(r == SESSION_RESTORE_USB_AUDIO){
+        if(out_switch(OUT_USB, 1) == 0) ui_toast("Restoring USB Audio...");
     }
-    if(modes_output_route() == OUT_USB){ bootusb_end(); return; }
-    if(modes_output_busy() || ui_output_blocked()) return;
-    bootusb_end();
-    if(out_switch(OUT_USB, 1) == 0) ui_toast("Restoring USB Audio...");
 }
 void modes_output_boot_restore(void){
-    g_bootusb_t0 = lv_tick_get();
+    session_restore_arm(lv_tick_get());
     if(!g_bootusb_tm) g_bootusb_tm = lv_timer_create(bootusb_tick, 1000, NULL);
 }
 static void usbgone_start(void){
@@ -180,18 +167,18 @@ static void usbgone_start(void){
 static void usbw_end(void){ if(g_usbw.tm){ lv_timer_del(g_usbw.tm); g_usbw.tm = NULL; } }
 static void usbw_tick(lv_timer_t *t){
     (void)t;
-    if(ipc_generation() != g_osw.gen){ usbw_end(); out_set_state(OUT_INTERNAL); ui_toast("Player restarted - try again"); modes_ui_refresh(); return; }
+    if(ipc_generation() != g_osw.gen){ usbw_end(); session_set_route(OUT_INTERNAL); ui_toast("Player restarted - try again"); modes_ui_refresh(); return; }
     if(out_usb_card_ok()){
         if(!g_usbw.seen) g_usbw.seen = lv_tick_get() ? lv_tick_get() : 1;
         if(lv_tick_elaps(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
         usbw_end(); ui_toast("USB DAC connected"); out_resume(1); usbgone_start(); modes_ui_refresh();
-        cfg_set_int(OUT_USB_PREF, 1);
+        session_save_usb_audio(1);
         return;
     }
     if(lv_tick_elaps(g_usbw.t0) < OUT_USB_WAIT_MS) return;
     usbw_end();   /* never leave the player on the silent USB_HOST_NULL sink */
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
-        out_set_state(OUT_INTERNAL);
+        session_set_route(OUT_INTERNAL);
         ui_toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
         out_resume(1);
     } else {
@@ -208,12 +195,12 @@ static void usbw_start(void){
 static int out_run(void){
     int target = g_osw.target;
     outseq_rc rc = outseq_route((outseq_route_t)target, g_osw.full ? OUTSEQ_FULL : OUTSEQ_QUICK);
-    if(rc == OUTSEQ_REFUSED){ out_set_state(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
-    if(rc == OUTSEQ_OK && target == OUT_USB){ out_set_state(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
-    if(rc == OUTSEQ_OK){ out_set_state(target); out_resume(1); cfg_set_int(OUT_USB_PREF, 0); modes_ui_refresh(); return 0; }
+    if(rc == OUTSEQ_REFUSED){ session_set_route(modes_output_route()); ui_toast("Couldn't switch output"); out_resume(0); modes_ui_refresh(); return -1; }
+    if(rc == OUTSEQ_OK && target == OUT_USB){ session_set_route(target); usbw_start(); modes_ui_refresh(); return 0; }   /* resume once the DAC is up, not into USB_HOST_NULL */
+    if(rc == OUTSEQ_OK){ session_set_route(target); out_resume(1); session_save_usb_audio(0); modes_ui_refresh(); return 0; }
     /* the route moved but the tail failed: back to the internal DAC; never end without 0657 8 landing */
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
-        out_set_state(OUT_INTERNAL);
+        session_set_route(OUT_INTERNAL);
         ui_toast("Output switch failed - internal DAC restored");
         out_resume(1); modes_ui_refresh();
         return -1;
@@ -225,7 +212,7 @@ static int out_run(void){
 }
 static void osw_stop(const char *why, int resume){
     lv_timer_del(g_osw.tm); g_osw.tm = NULL;
-    out_set_state(modes_output_route());
+    session_set_route(modes_output_route());
     ui_toast(why);
     if(resume) out_resume(0);
     modes_ui_refresh();
@@ -253,7 +240,7 @@ static int out_switch(int target, int via_mode){
     if(target < OUT_INTERNAL || target > OUT_USB) return -1;
     if(modes_output_busy()){ ui_toast("Switching..."); return -1; }
     const char *why = ui_output_blocked();
-    if(why){ out_set_state(modes_output_route()); ui_toast(why); return -1; }
+    if(why){ session_set_route(modes_output_route()); ui_toast(why); return -1; }
     int was_playing = ui_is_playing();
     track_state_t st; ipc_get_state(&st);
     memset(&g_osw, 0, sizeof g_osw);
@@ -261,7 +248,7 @@ static int out_switch(int target, int via_mode){
     g_osw.full = via_mode || target == OUT_USB || modes_output_route() == OUT_USB;   /* Settings toggle = stock's 2-frame form, except to/from USB */
     g_osw.gen = ipc_generation(); g_osw.pos = st.have_track ? st.position_ms : 0;
     snprintf(g_osw.path, sizeof g_osw.path, "%s", st.have_track ? st.path : "");
-    if(was_playing && ipc_send_cmd(OUT_PAUSE) < 0){ out_set_state(modes_output_route()); ui_toast("Player is busy - try again"); return -1; }
+    if(was_playing && ipc_send_cmd(OUT_PAUSE) < 0){ session_set_route(modes_output_route()); ui_toast("Player is busy - try again"); return -1; }
     g_osw.t0 = lv_tick_get();
     g_osw.tm = lv_timer_create(osw_tick, 100, NULL);
     return 0;
@@ -325,7 +312,7 @@ static void settle_cb(lv_timer_t *t){
     int intended = g_pending_mode; g_pending_mode = -1;
     if(ui_source_switch_failed()){ mark_selected_mode(-1); return; }
     /* M17: DISPLAY the ACTUAL gadget state (read-only) instead of a blind timer assumption. Do NOT
-     * mutate the intent mirror (g_source_mode) - it also guards coldplug, and a transient mid-transition
+     * mutate the intent mirror (session_source_mode) - it also guards coldplug, and a transient mid-transition
      * sample must not flip that guard. */
     int show = (intended >= 0) ? intended : ui_get_source_mode();
     if(intended == 0 || intended == 1 || intended == 3){   /* USB gadget modes are readback-confirmable */
@@ -366,7 +353,7 @@ static void leave_tick(lv_timer_t *t){
     if(modes_output_route() != OUT_INTERNAL || ui_get_source_mode() != 0){ leave_end("Still not on Local - mode not changed"); return; }   /* refused or stopped */
     int m = g_leave.mode;
     lv_timer_del(g_leave.tm); g_leave.tm = NULL;
-    cfg_set_int(OUT_USB_PREF, 0);   /* a deliberate leave, also when out_run only got here through its fallback */
+    session_save_usb_audio(0);   /* a deliberate leave, also when out_run only got here through its fallback */
     g_last_switch = lv_tick_get();  /* the settle window runs from the real source switch */
     if(ui_set_source_mode(m) != 0){ leave_end(NULL); return; }   /* it toasted why; the picker shows Local */
     ui_toast(SWITCH_MSG[m]);
