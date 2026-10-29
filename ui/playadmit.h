@@ -15,7 +15,13 @@ typedef struct {
     int source_mode;           /* 0 = Local; any other source owns the Player (g_source_mode numbering) */
     int bt_route;              /* a Bluetooth sink route is active: never touch 0666 under it */
     int output_route;          /* outseq_route_t: the route Local playback currently uses */
-    int playing;               /* playstate's inference: position advancing. NOT playing covers both paused and stopped */
+    int playing;               /* playstate's inference: position advancing. NOT playing covers both paused and stopped:
+                                * a LIST play while PAUSED therefore still gets the preamble (re-inits the USB output, restarts
+                                * the song). Skipping it needs a signal playstate lacks: have_track stays 1 for a Player that is
+                                * idle after boot (ipc_seed_state) or stopped by a frame ipc.c does not recognise as a stop,
+                                * and the idle Player is exactly the one whose route/work mode have drifted. A true "paused on
+                                * this route" input (e.g. the Player's own state, once a stop/pause frame is captured) would go
+                                * here as a third value; until then paused == stopped on purpose. */
     int play_recent;           /* a previous play is still starting (it lags the stream by seconds) */
 } playadmit_situation_t;
 
