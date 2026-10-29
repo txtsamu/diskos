@@ -7,6 +7,7 @@
 #include "config.h"
 #include "fwcaps.h"
 #include "ipc.h"
+#include "radio.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -1259,20 +1260,32 @@ static void start_scan(void){
 /* ---- radio toggle ------------------------------------------------------- */
 /* wifi_up.sh runs async, so wpa_supplicant isn't up the instant the switch flips.
  * Show "Turning on Wi-Fi..." and poll until the radio is actually up before
- * scanning (otherwise start_scan() would immediately report "Wi-Fi is off"). */
+ * scanning (otherwise start_scan() would immediately report "Wi-Fi is off").
+ * The intent / bring-up watch / off teardown lifecycle is radio.c's; this is its Wi-Fi adapter. A timeout here only
+ * reports (rollback 0): the intent stays on and the keepalive retries, unlike Bluetooth. */
 static lv_timer_t *g_radio_timer;
-static uint32_t    g_radio_start;
-static void radio_on_poll_cb(lv_timer_t *t){
+static void radio_poll_cb(lv_timer_t *t);
+static void wifi_watch_arm(unsigned ms){ g_radio_timer = lv_timer_create(radio_poll_cb, ms, NULL); }
+static void wifi_watch_disarm(void){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
+static void wifi_set_intent(int on){ cfg_set_int("wifi_on", on); }   /* OFF is set before the down, so the keepalive won't resurrect it */
+static void wifi_radio_start(void){
+    system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
+    g_wifi_last_start = lv_tick_get();       /* let the keepalive back off (no duplicate launch) */
+    g_sanitize_pending = 1;                  /* sanitize this instance once it's up */
+}
+static void wifi_radio_cleanup(void){
+    if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }  /* cancel a pending scan, else scan_fill overwrites "Wi-Fi is off" with stale networks */
+    if(g_conn_timer){ lv_timer_del(g_conn_timer); g_conn_timer = NULL; }
+    wifi_lease_step();
+}
+static void wifi_radio_down(void){ system("/usr/bin/wifi_down.sh >/dev/null 2>&1"); }
+static struct radio_watch g_wifi_watch = { 700, 8000, wifi_radio_on, wifi_watch_arm, wifi_watch_disarm, 0, 0 };
+static struct radio g_wifi_radio = { &g_wifi_watch, wifi_set_intent, wifi_radio_start, wifi_radio_cleanup, wifi_radio_down, 0 };
+static void radio_poll_cb(lv_timer_t *t){
     (void)t;
-    if(wifi_radio_on()){
-        lv_timer_del(g_radio_timer); g_radio_timer = NULL;
-        start_scan();
-        return;
-    }
-    if(lv_tick_elaps(g_radio_start) > 8000){
-        lv_timer_del(g_radio_timer); g_radio_timer = NULL;
-        list_msg("Couldn't turn on Wi-Fi");
-    }
+    int v = radio_tick(&g_wifi_radio, lv_tick_get());
+    if(v == RADIO_UP) start_scan();
+    else if(v == RADIO_TIMEOUT) list_msg("Couldn't turn on Wi-Fi");
 }
 static void sw_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_VALUE_CHANGED) return;
@@ -1280,21 +1293,10 @@ static void sw_cb(lv_event_t *e){
     int on = lv_obj_has_state(g_sw, LV_STATE_CHECKED);
     g_intent_epoch++;                            /* an explicit choice: ends any radio reconciliation hold */
     if(on){
-        cfg_set_int("wifi_on", 1);               /* persist intent -> keepalive keeps it up */
-        system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
-        g_wifi_last_start = lv_tick_get();       /* let the keepalive back off (no duplicate launch) */
-        g_sanitize_pending = 1;                  /* sanitize this instance once it's up */
+        radio_on(&g_wifi_radio, lv_tick_get(), 1);   /* persist intent -> keepalive keeps it up */
         list_msg("Turning on Wi-Fi...");
-        g_radio_start = lv_tick_get();
-        if(g_radio_timer) lv_timer_del(g_radio_timer);
-        g_radio_timer = lv_timer_create(radio_on_poll_cb, 700, NULL);
     } else {
-        cfg_set_int("wifi_on", 0);               /* set OFF before down so keepalive won't resurrect */
-        if(g_radio_timer){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
-        if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }  /* cancel a pending scan, else scan_fill overwrites "Wi-Fi is off" with stale networks */
-        if(g_conn_timer){ lv_timer_del(g_conn_timer); g_conn_timer = NULL; }
-        wifi_lease_step();
-        system("/usr/bin/wifi_down.sh >/dev/null 2>&1");
+        radio_off(&g_wifi_radio);
         list_msg("Wi-Fi is off");
     }
 }
@@ -1304,18 +1306,8 @@ static void sw_cb(lv_event_t *e){
 int wifi_toggle(void){
     g_intent_epoch++;                        /* an explicit choice: ends any radio reconciliation hold */
     int on = !cfg_get_int("wifi_on", 1);
-    cfg_set_int("wifi_on", on);
-    if(on){
-        system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
-        g_wifi_last_start = lv_tick_get();   /* let the keepalive back off (no duplicate launch) */
-        g_sanitize_pending = 1;              /* sanitize this instance once it's up */
-    } else {
-        if(g_radio_timer){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
-        if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }  /* cancel any pending radio/scan work on the open Wi-Fi screen */
-        if(g_conn_timer){ lv_timer_del(g_conn_timer); g_conn_timer = NULL; }
-        wifi_lease_step();
-        system("/usr/bin/wifi_down.sh >/dev/null 2>&1");
-    }
+    if(on) radio_on(&g_wifi_radio, lv_tick_get(), 0);
+    else   radio_off(&g_wifi_radio);         /* also cancels any pending radio/scan work on the open Wi-Fi screen */
     /* keep the Wi-Fi screen's switch in sync so it reflects reality when opened later */
     if(g_sw){ if(on) lv_obj_add_state(g_sw, LV_STATE_CHECKED); else lv_obj_clear_state(g_sw, LV_STATE_CHECKED); }
     return on;
