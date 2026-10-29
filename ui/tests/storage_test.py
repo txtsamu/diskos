@@ -13,9 +13,30 @@ import tempfile
 
 app = Path(__file__).resolve().parents[1]
 source = (app / "main.c").read_text()
-source = source[source.index("/* SD operations share"):source.index("static int book_session_active(void);")]
-a = source.index("static int storage_player_guarded(void){")
-b = source.index("static int source_send(", a)
+
+
+def anchor(text, needle, start=0):
+    """Index of a stable function signature in main.c; a clear failure when main.c no longer has it."""
+    i = text.find(needle, start)
+    if i < 0:
+        raise SystemExit(f"storage_test: anchor not found in main.c: {needle!r} "
+                         "(the storage code moved or was renamed; update the anchors at the top of storage_test.py)")
+    return i
+
+
+def function_end(text, signature, start=0):
+    """End of the function whose definition begins with `signature` (its closing brace at column 0)."""
+    i = anchor(text, signature, start)
+    j = anchor(text, "\n}\n", i)
+    return j + 3
+
+
+# The slice runs from the SD admission forward declarations through storage_init(), anchored on function
+# signatures rather than line positions or neighbouring comments.
+a = anchor(source, "static int sd_exported_to_host(void);")
+source = source[a:function_end(source, "static void storage_init(void){", a)]
+a = anchor(source, "static int storage_player_guarded(void){")
+b = anchor(source, "static int source_send(", a)
 source = source[:a] + "static int storage_player_guarded(void){ return test_guarded; }\n" + source[b:]
 source = source.replace("static int rmguard_dir_ok(const char *dir);", "")
 
@@ -47,7 +68,13 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include <pthread.h>
 #include <stdatomic.h>
 #include <assert.h>
+#include <glob.h>
+#include <dirent.h>
 #include "sdio.h"
+#include "outseq.h"
+#include "modes.h"   /* OUT_USB, modes_output_route(), modes_via_local_then() declarations */
+#include "ipc.h"     /* track_state_t, ipc_get_state(), ipc_send_cmd() */
+#include "config.h"  /* cfg_get_int() */
 typedef void lv_timer_t;
 static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan;
@@ -58,15 +85,28 @@ static int session_source_mode(void){ return g_source_mode; }
 static void session_set_source_mode(int m){ g_source_mode = m; }
 static uint32_t lv_tick_get(void){ return test_clock; }
 static void ui_toast(const char *s){ (void)s; }
+/* USB-DAC ordered-exit and volume-carry code in the sliced ui_set_source_mode: timers, volume and config are not under test. */
+int ui_set_source_mode(int mode);   /* defined by the sliced main.c; dac_exit_tick() calls it before its definition */
+static uint32_t lv_tick_elaps(uint32_t t0){ return test_clock - t0; }
+static lv_timer_t *lv_timer_create(void (*cb)(lv_timer_t *), uint32_t period, void *ud){ static int t; (void)cb; (void)period; (void)ud; return (lv_timer_t *)&t; }
+static void lv_timer_del(lv_timer_t *t){ (void)t; }
+int cfg_get_int(const char *key, int def){ (void)key; return def; }
+void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); }
+static void ui_set_volume(int v){ (void)v; }
+static void session_save_source(int mode){ (void)mode; }
+void settings_restart_now(void){}   /* the device restart after a USB Storage return; declared in the sliced main.c */
+int modes_output_route(void){ return OUT_INTERNAL; }   /* the internal DAC: no leave-USB detour */
+int modes_via_local_then(int mode){ (void)mode; return -1; }
 static void art_cancel(void){}
-static void modes_output_reset(void){}   /* output routing is not under test here */
-static int modes_output_busy(void){ return 0; }
+void modes_output_reset(void){}   /* output routing is not under test here */
+int modes_output_busy(void){ return 0; }
 static int scanner_active(void){ return test_scan; }
 static int scanner_start(void){ return 0; }
 static int mdb_total_song_count(void){ return 1; }
 static int mdb_load_failed(void){ return 0; }
 static void albumwall_prewarm_seed(void){ test_seed++; }
-static int ipc_send_cmd(const char *s){
+/* The seam outseq.c (linked below, the real module) sends every frame through; external so it can link. */
+int ipc_send_cmd(const char *s){
     test_sends++;
     if(test_fail) return -1;
     if(!strcmp(s,"0642000C0001")){
@@ -202,8 +242,9 @@ int main(void){
     c.write_text(headers + source + tests)
     exe = root / "test"
     subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",
+                    "-Wno-unused-function",   # the slice carries main.c helpers (usb_host_configured...) this harness never calls
                     "-fsanitize=address,undefined", "-g", "-pthread", '-DSD_IO_FAULT_MARKER="' + str(root / "fault") + '"', "-I", str(app),
-                    str(c), str(app / "sdio.c"), "-o", str(exe)], check=True)
+                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
 print('COMPLETE storage_test.py')   # last line: the runner requires it, so an early clean exit cannot pass
