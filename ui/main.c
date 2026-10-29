@@ -3273,6 +3273,7 @@ static void boot_select_enforce(const char *path){
 int ui_theme_reload(const char *screen){
     if(scanner_active()){ ui_toast("Library scan running - try again when it finishes"); return -1; }
     if(modes_output_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }   /* a half-done switch can't cross the exec */
+    if(modes_source_switch_busy()){ ui_toast("Mode is switching - try again in a moment"); return -1; }   /* nor can a source switch: its continuation lives in this process */
     art_kill_all();
     if(g_bounded_pgid > 0) kill(-(pid_t)g_bounded_pgid, SIGKILL);
     if(g_bounded_pid > 0) kill((pid_t)g_bounded_pid, SIGKILL);
