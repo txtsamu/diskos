@@ -80,7 +80,7 @@ void session_handoff_export(void){
 void session_handoff_cancel(void){ unsetenv(ENV_RELOAD); unsetenv(ENV_ROUTE); unsetenv(ENV_SRC); }
 
 /* ---- what may a startup restore still do ---- */
-int session_autoplay_pause_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
+int session_autoplay_pause_allowed(int resume_playback){ return g_entry == SESSION_COLD_BOOT && resume_playback > 0; }
 int session_chargemode_boot_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
 
 #define PREF_SRC "src_mode"

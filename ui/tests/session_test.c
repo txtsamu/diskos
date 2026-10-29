@@ -80,7 +80,7 @@ static void player_restart_reruns_local_init(void){
 static void cold_boot_entry(void){
     clear_env();
     assert(!new_process_starts());
-    assert(session_entry() == SESSION_COLD_BOOT && session_autoplay_pause_allowed());
+    assert(session_entry() == SESSION_COLD_BOOT && session_autoplay_pause_allowed(1));
     assert(session_startup_route_pending());
     assert(session_local_init_allowed(g_gen));
 }
@@ -132,7 +132,7 @@ static void relaunch_adopts_env(void){
 static void relaunch_ignores_default_and_bad_state(void){
     setenv("DISKOS_THEME_RELOAD", "1", 1); setenv("DISKOS_RELOAD_ROUTE", "0", 1); setenv("DISKOS_RELOAD_SRC", "0", 1);
     assert(!new_process_starts());                    /* nothing to keep */
-    assert(session_entry() == SESSION_RELAUNCH && !session_autoplay_pause_allowed());
+    assert(session_entry() == SESSION_RELAUNCH && !session_autoplay_pause_allowed(1));
     assert(session_startup_route_pending() && session_local_init_allowed(g_gen));
     assert(getenv("DISKOS_THEME_RELOAD") == NULL);
 }
@@ -149,12 +149,21 @@ static void failed_exec_cancels_handoff(void){
 static void cold_boot_allows_autoplay_pause(void){
     clear_env();
     session_init();
-    assert(session_autoplay_pause_allowed());         /* a boot: Resume Playback starts the song, the pause keeps it quiet */
+    assert(session_autoplay_pause_allowed(1));        /* a boot: Resume Playback starts the song, the pause keeps it quiet */
+    assert(session_autoplay_pause_allowed(2));
+}
+static void cold_boot_with_resume_off_never_pauses(void){
+    clear_env();
+    session_init();
+    assert(!session_autoplay_pause_allowed(0));       /* the Player starts nothing: a headset's play or a key press is the user's */
+    assert(!session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));   /* unset reads Off, as the Settings row does */
+    cfg_set_int("memory_play", 2);
+    assert(session_autoplay_pause_allowed(cfg_get_int("memory_play", 0)));
 }
 static void relaunch_does_not_rerun_autoplay_pause(void){
     old_process_exports(OUT_USB, 0);
     assert(new_process_starts() == 1);
-    assert(!session_autoplay_pause_allowed());
+    assert(!session_autoplay_pause_allowed(1));       /* even with Resume Playback on */
 }
 static void cold_boot_allows_chargemode_boot(void){
     clear_env();
@@ -313,6 +322,7 @@ int main(void){
     RUN(relaunch_rejects_out_of_range);
     RUN(failed_exec_cancels_handoff);
     RUN(cold_boot_allows_autoplay_pause);
+    RUN(cold_boot_with_resume_off_never_pauses);
     RUN(relaunch_does_not_rerun_autoplay_pause);
     RUN(cold_boot_allows_chargemode_boot);
     RUN(relaunch_does_not_show_chargemode);

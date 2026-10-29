@@ -40,7 +40,10 @@ void session_handoff_export(void);
 void session_handoff_cancel(void);
 
 /* ---- what may a startup restore still do ---- */
-int  session_autoplay_pause_allowed(void); /* a relaunch is not a boot: what is playing must keep playing */
+/* a relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay unless Resume
+ * Playback (cfg memory_play: 0 Off, 1 Position, 2 Song; unset reads Off like the Settings row) is on: with it off, anything
+ * playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must not be paused. */
+int  session_autoplay_pause_allowed(int resume_playback);
 /* The charging screen belongs to the power-on a charger triggers. A relaunch is the user mid-session (a theme change):
  * showing it there, with a charger plugged in, would power the Disc off if the charger is then pulled. A cold boot
  * cannot tell a power-on from a crash restart or a hot-load, which also carry no handoff: those keep the screen. */
