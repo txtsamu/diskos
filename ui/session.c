@@ -63,6 +63,14 @@ int session_adopt(unsigned gen){
     return 1;
 }
 
+int session_adopt_detected(unsigned gen, int detected){
+    if(g_entry != SESSION_COLD_BOOT || session_source_mode() != 0) return 0;
+    if(detected != 1 || session_saved_source() != 1) return 0;   /* the Player is on what the restore would switch it to */
+    session_set_source_mode(1);
+    g_adopted_gen = gen;   /* the Local init's 0642 0 would close the gadget it is on */
+    return 1;
+}
+
 void session_handoff_export(void){
     char v[16];
     setenv(ENV_RELOAD, "1", 1);

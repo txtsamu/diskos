@@ -3599,6 +3599,12 @@ int main(int argc, char **argv){
         }
     }
     else splash_start();
+    /* A hot-load or UI restart while the Disc is already a USB DAC: the Player is on the saved mode, so adopt it instead of
+     * letting the boot restore switch it again (that drops the computer's stream for seconds). A real cold boot reads Local. */
+    if(session_adopt_detected(ipc_generation(), ui_detect_source_mode())){
+        modes_output_adopt();
+        fprintf(stderr, "startup: Player already in USB DAC mode - adopted, no restore (gen %u)\n", ipc_generation()); fflush(stderr);
+    }
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes
      * synchronously on this fb), then disarm the boot watchdog - a painted frame, not
      * merely "lv_timer_handler returned", is what proves we're alive. Log BEFORE

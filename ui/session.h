@@ -29,6 +29,12 @@ session_entry_t session_entry(void);
 /* A relaunch whose Player was off the default (internal DAC, Local) takes that state over for `gen`, the current Player
  * generation. 1 = adopted; the caller then refreshes whatever shows the route. */
 int  session_adopt(unsigned gen);
+/* A cold-boot-entry process (no handoff: a hot-load, a crash restart) may find the Player already on the saved Source
+ * mode. `detected` is the Source mode read from the real USB gadget state (ui_detect_source_mode), `gen` the current
+ * Player generation. Only USB DAC is gadget-visible, so only USB DAC is adopted (BT Receiving cannot be told from Local).
+ * 1 = adopted (source mode set, no Local init for `gen`, the startup restore stands down); 0 = not: a real cold boot, where
+ * the Player has not switched yet, reads Local and the restore must still run. The caller then refreshes whatever shows it. */
+int  session_adopt_detected(unsigned gen, int detected);
 /* Before exec of the new image: export route and source mode. cancel() undoes it when the exec failed. */
 void session_handoff_export(void);
 void session_handoff_cancel(void);
