@@ -73,6 +73,7 @@ void chargemode_boot(void);          /* charger at boot (never with USB Audio/DA
 void chargemode_tick(void);          /* main loop: refresh it; unplug while it shows = power off */
 int  chargemode_active(void);        /* 1 while the charging screen is up */
 int  ui_source_switch_pending(void);
+int  ui_dac_exit_pending(void);       /* 1 while the ordered USB DAC exit waits for the gadget to go (main.c) */
 int  ui_source_switch_failed(void);
 int ui_local_playback_allowed(void);
 int  ui_detect_source_mode(void);          /* M17: the ACTUAL mode from the USB gadget state (0/1/3; BT reads as 0) */

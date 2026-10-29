@@ -786,6 +786,7 @@ static void dac_exit_tick(lv_timer_t *t){
         lv_timer_del(g_dacx.tm); g_dacx.tm = NULL;
         fprintf(stderr, "usb dac: exit timed out waiting for the gadget to go away\n"); fflush(stderr);
         ui_toast("Couldn't leave USB DAC - unplug the cable first");
+        modes_dac_exit_done(0);   /* an open Working Mode picker stops showing "switching" */
         return;
     }
     if(access("/sys/kernel/config/usb_gadget/uac_demo", F_OK) == 0){ g_dacx.gone_at = 0; return; }   /* gadget still there */
@@ -794,8 +795,10 @@ static void dac_exit_tick(lv_timer_t *t){
     int m = g_dacx.mode;
     lv_timer_del(g_dacx.tm); g_dacx.tm = NULL;
     fprintf(stderr, "usb dac: gadget gone, continuing the switch to mode %d\n", m); fflush(stderr);
-    g_dac_exit_ok = 1; (void)ui_set_source_mode(m); g_dac_exit_ok = 0;
+    g_dac_exit_ok = 1; int rc = ui_set_source_mode(m); g_dac_exit_ok = 0;
+    modes_dac_exit_done(rc == 0);
 }
+int ui_dac_exit_pending(void){ return g_dacx.tm != NULL; }   /* the ordered exit is waiting for the gadget (part of modes_source_switch_busy) */
 static int dac_exit_begin(int mode){
     if(g_dacx.tm){ ui_toast("Switching..."); return -1; }
     if(outseq_gadget_none() != OUTSEQ_OK){ ui_toast("Player is busy - try again"); return -1; }
@@ -3270,6 +3273,7 @@ static void boot_select_enforce(const char *path){
 int ui_theme_reload(const char *screen){
     if(scanner_active()){ ui_toast("Library scan running - try again when it finishes"); return -1; }
     if(modes_output_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }   /* a half-done switch can't cross the exec */
+    if(modes_source_switch_busy()){ ui_toast("Mode is switching - try again in a moment"); return -1; }   /* nor can a source switch: its continuation lives in this process */
     art_kill_all();
     if(g_bounded_pgid > 0) kill(-(pid_t)g_bounded_pgid, SIGKILL);
     if(g_bounded_pid > 0) kill((pid_t)g_bounded_pid, SIGKILL);

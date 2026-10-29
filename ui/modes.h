@@ -16,6 +16,8 @@ void modes_output_adopt(void);          /* theme re-launch, after session_adopt(
 int  modes_output_busy(void);          /* 1 while a switch waits for silence or recovers: play/next/source/BT must refuse */
 void modes_output_boot_restore(void);   /* at startup: re-select USB Audio ~15 s in if it was the active output */
 int  modes_via_local_then(int mode);    /* go to Local (leave USB Audio / USB DAC) first, then ui_set_source_mode(mode); 0 = started */
+int  modes_source_switch_busy(void);    /* 1 while a source switch has work left in this process (pause, pass through Local, USB DAC exit, SD hand-over): a re-launch would drop it */
+void modes_dac_exit_done(int started);  /* main.c: the ordered USB DAC exit finished (1 = the switch was started, 0 = gave up or refused): settle the picker */
 
 /* main.c: NULL when an output switch may run now, else a short reason for the toast */
 const char *ui_output_blocked(void);
