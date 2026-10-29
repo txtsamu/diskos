@@ -671,22 +671,48 @@ static void title_fit(lv_obj_t *t, const char *text, const lv_font_t *f, int cy,
 }
 static const lv_font_t *dot_smaller(const lv_font_t *f){ return f == TF(HEADER) ? TF(DATE) : NULL; }
 lv_obj_t *ui_header_cb(lv_obj_t *root, const char *title, lv_event_cb_t back_cb){ return theme_kit()->header(root, tr(title), back_cb); }
-lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t back_cb)
+/* The Back button every screen shares: pressed face, hold = Home, the named "nav.back" action (screen_back() when
+ * back_cb is NULL) and its glyph. The caller places it. edge_glyph: the edge themes' arrow (or their text key) instead
+ * of Default's chevron. */
+static lv_obj_t *header_back(lv_obj_t *root, lv_event_cb_t back_cb, int edge_glyph)
 {
     lv_obj_t *back = lv_button_create(root);
     lv_obj_remove_style_all(back);
-    lv_obj_set_pos(back, 72, 24); lv_obj_set_size(back, 44, 40);   /* inset from the clipped corner */
-    lv_obj_set_ext_click_area(back, 10);                            /* easier near the round bezel */
     lv_obj_set_style_radius(back, 20, 0);
     lv_obj_set_style_bg_color(back, TC(LIST_PRESSED), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(back, LV_OPA_70, LV_STATE_PRESSED);
     back_hold_home(back);
     ui_on(back, back_cb ? back_cb : ui_header_back_cb, LV_EVENT_CLICKED, NULL, "nav.back", UI_CORE);
     lv_obj_t *ic = lv_label_create(back);
-    lv_label_set_text(ic, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(ic, TF(UI_20), 0);
-    lv_obj_set_style_text_color(ic, TC(TEXT_SECONDARY), 0);
+    if(edge_glyph) ui_back_glyph(ic);
+    else {
+        lv_label_set_text(ic, LV_SYMBOL_LEFT);
+        lv_obj_set_style_text_font(ic, TF(UI_20), 0);
+        lv_obj_set_style_text_color(ic, TC(TEXT_SECONDARY), 0);
+    }
     lv_obj_align(ic, LV_ALIGN_CENTER, 0, -2);
+    if(edge_glyph && theme_trait(THEME_TRAIT_DOT_TITLES) && theme_trait(THEME_TRAIT_MATRIX_CLOCK)) kit_some_dot_arrow(ic, 1);
+    return back;
+}
+/* On the round screen's left edge, mid-height: 30 px wide with no extra reach, so it stops where the screen's rows and
+ * sliders start (x 31) and a tap on a row's left edge never goes Back; 80 px tall keeps the target easy to hit along
+ * the rim. Raised above the body the screen builds after the header. */
+static void header_back_edge(lv_obj_t *back)
+{
+    lv_obj_set_pos(back, 0, 140); lv_obj_set_size(back, 30, 80);
+    lv_obj_set_ext_click_area(back, 0);
+    lv_async_call(header_back_raise, back);
+    lv_obj_add_event_cb(back, header_back_deleted, LV_EVENT_DELETE, NULL);
+}
+lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t back_cb)
+{
+    int dots = theme_trait(THEME_TRAIT_DOT_TITLES);
+    lv_obj_t *back = header_back(root, back_cb, dots);
+    if(dots) header_back_edge(back);                                /* the round screen's left edge, mid-height */
+    else {
+        lv_obj_set_pos(back, 72, 24); lv_obj_set_size(back, 44, 40);   /* inset from the clipped corner */
+        lv_obj_set_ext_click_area(back, 10);                            /* easier near the round bezel */
+    }
 
     lv_obj_t *t = lv_label_create(root);
     if(theme_trait(THEME_TRAIT_DOT_TITLES)){
@@ -696,14 +722,6 @@ lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t ba
         char up[160];
         title_fit(t, theme_upper(up, sizeof up, title), TF(HEADER), 46, 6, dot_smaller);
         theme_title_text(t, title);
-        lv_obj_set_pos(back, 0, 140); lv_obj_set_size(back, 30, 80);   /* the round screen's left edge, mid-height */
-        lv_obj_set_ext_click_area(back, 0);                            /* stops where rows start: no stray Back */
-        lv_async_call(header_back_raise, back);          /* above the body the screen builds after this header */
-        lv_obj_add_event_cb(back, header_back_deleted, LV_EVENT_DELETE, NULL);
-        lv_label_set_text(ic, "\xEF\x81\xA0");                /* f060 arrow-left */
-        lv_obj_set_style_text_font(ic, TF(ICON_20), 0);
-        lv_obj_set_style_text_color(ic, TC(TEXT_PRIMARY), 0);
-        if(theme_trait(THEME_TRAIT_MATRIX_CLOCK)) kit_some_dot_arrow(ic, 1);
     } else {
     theme_title_text(t, title);                     /* the theme's title case (Default: as given) */
     /* Screen-centred (label centre = 104+76 = 180) but bounded to a zone that clears the back chevron on
@@ -728,25 +746,26 @@ void ui_back_glyph(lv_obj_t *label){   /* the edge Back's face: the theme's text
 int ui_edge_nav(void){   /* 1 = this theme puts Back on the screen's left edge (screens with their own headers follow) */
     return theme_kit()->header != theme_kit_default.header || theme_trait(THEME_TRAIT_DOT_TITLES);
 }
+/* Back on Now Playing, which is not built on the header: the same button, in the same place where the layout allows.
+ * A theme that hides the seek ring (terminal, bauhaus, zine) leaves the left edge free, so there it sits on the edge
+ * like on every other screen (reach +8 px, to a 38 px target; the shuffle key starts at x 40). Where the ring runs
+ * round the rim the edge is the ring itself, so Back takes the top-left corner inside it: 40 x 40 at 66,58, clear of
+ * the cover (from x 106), of the shuffle key (from y 126) and of the top pull-down zone (y < 40), its glyph within
+ * r 151 of the centre (the thickest ring, stone's, starts at r 154). Created after the theme's layout and before the
+ * full-screen art overlay: above the controls, below the overlays. A swipe that starts on it does not also tap it
+ * (ui_on drops a click that travelled), and the main loop's back swipe is unchanged. */
+static lv_obj_t *ui_back_button(lv_obj_t *root, int ring_shown)
+{
+    lv_obj_t *back = header_back(root, NULL, ui_edge_nav());
+    if(ring_shown){ lv_obj_set_pos(back, 66, 58); lv_obj_set_size(back, 40, 40); }
+    else { lv_obj_set_pos(back, 0, 140); lv_obj_set_size(back, 30, 80); lv_obj_set_ext_click_area(back, 8); }
+    return back;
+}
 /* The edge header (themes): the title across the top in the theme's header face and case, Back as an arrow on the
  * round screen's left edge at mid-height, raised above the body the screen builds after this call. */
 lv_obj_t *kit_edge_header(lv_obj_t *root, const char *title, lv_event_cb_t back_cb)
 {
-    lv_obj_t *back = lv_button_create(root);
-    lv_obj_remove_style_all(back);
-    /* 30 px wide with no extra reach: it stops where the screen's rows and sliders start (x 31), so a tap on a row's
-     * left edge never goes Back; 80 px tall keeps the target easy to hit along the rim */
-    lv_obj_set_pos(back, 0, 140); lv_obj_set_size(back, 30, 80);
-    lv_obj_set_style_radius(back, 20, 0);
-    lv_obj_set_style_bg_color(back, TC(LIST_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(back, LV_OPA_70, LV_STATE_PRESSED);
-    back_hold_home(back);
-    ui_on(back, back_cb ? back_cb : ui_header_back_cb, LV_EVENT_CLICKED, NULL, "nav.back", UI_CORE);
-    lv_async_call(header_back_raise, back);
-    lv_obj_add_event_cb(back, header_back_deleted, LV_EVENT_DELETE, NULL);
-    lv_obj_t *ic = lv_label_create(back);
-    ui_back_glyph(ic);
-    lv_obj_align(ic, LV_ALIGN_CENTER, 0, -2);
+    header_back_edge(header_back(root, back_cb, 1));
     lv_obj_t *t = lv_label_create(root);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
@@ -2330,6 +2349,8 @@ void ui_create(lv_obj_t *root)
                           t_sep, t_remain, { dots[0], dots[1] }, album_pos };
         theme_kit()->nowplaying(&np);
     }
+
+    ui_back_button(scr, !lv_obj_has_flag(ring, LV_OBJ_FLAG_HIDDEN));
 
     /* ---- full-screen album-art overlay (hidden until the cover is tapped) ---- */
     fsart = lv_obj_create(scr);
