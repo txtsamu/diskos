@@ -310,7 +310,7 @@ static lv_timer_t *g_settle = NULL;
 static int g_pending_mode = -1;   /* the mode a switch is settling to (so reopening the screen keeps showing "switching") */
 static struct { lv_timer_t *tm; int mode; uint32_t t0; } g_leave;   /* passing through Local before a source switch (see leave_tick) */
 /* A source switch still has work left in THIS process: an output switch waiting for the pause, the pass through Local
- * (g_leave), main.c's ordered USB DAC exit (up to ~30 s, its continuation re-enters ui_set_source_mode) or the SD
+ * (g_leave), srcswitch.c's ordered USB DAC exit (up to ~30 s, its continuation re-enters ui_set_source_mode) or the SD
  * hand-over. The picker's settle waits on it, and so does a theme re-launch, which would exec the continuation away.
  * Not modes_output_busy(): that one is also the guard these continuations themselves pass through. */
 int modes_source_switch_busy(void){
@@ -348,7 +348,7 @@ static const char *const SWITCH_MSG[N_MODES] = {
     "",
 #endif
 };
-/* Via Local (main.c ui_set_source_mode, see its transition table): USB Audio -> USB DAC / BT / Storage and
+/* Via Local (srcswitch.c ui_set_source_mode, see its transition table): USB Audio -> USB DAC / BT / Storage and
  * USB DAC -> Storage first go to plain Local - USB Audio through the internal-DAC output switch (pause -> quiet ->
  * 0666 6, 0642 0, 0657 8), USB DAC through ui_set_source_mode(0) - and only once that landed and the player had
  * the picker's 3 s to apply it, re-enter ui_set_source_mode with the picked mode so all its guards (and the SD
@@ -360,7 +360,7 @@ static void leave_end(const char *why){
     if(why) ui_toast(why);
     modes_ui_refresh();
 }
-/* main.c's ordered USB DAC exit ended. started: it re-entered ui_set_source_mode and that began the real switch, so the
+/* srcswitch.c's ordered USB DAC exit ended. started: it re-entered ui_set_source_mode and that began the real switch, so the
  * settle window restarts from here (as leave_tick does). Otherwise it gave up or was refused (it toasted why): nothing
  * is switching any more, so drop the picker's "switching" mark and show the real selection. */
 void modes_dac_exit_done(int started){
