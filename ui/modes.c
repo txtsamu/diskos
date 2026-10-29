@@ -74,11 +74,11 @@ int modes_output_route(void){ return session_route(); }
 void modes_output_reset(void){ session_set_route(OUT_INTERNAL); }
 /* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. session_adopt()
  * already took the route over; this is the part that needs the UI. */
-static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
+static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss, g_usbgone_tries;
 static void usbgone_tick(lv_timer_t *t);
 void modes_output_adopt(void){
     modes_ui_refresh();   /* the picker and Settings may already be on screen with the old (internal) mark */
-    if(session_route() == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
+    if(session_route() == OUT_USB){ g_usbgone_miss = 0; g_usbgone_tries = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 static int out_usb_card_ok(void){
@@ -120,19 +120,27 @@ static int out_switch(int target, int via_mode);
 /* USB DAC unplugged while routed to it: the player falls back to a silent USB_HOST_NULL sink and nothing in the
  * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
  * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
- * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. */
+ * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. An ACCEPTED switch is only a timer
+ * (osw_tick): it can still abort (3 s deadline, track change, ui_output_blocked) and leave the route on USB, so the
+ * watcher stays until the route reads internal, and starts another attempt (no second toast) - at most USBGONE_TRIES
+ * accepted ones, then it gives up and says so rather than retry forever. */
+#define USBGONE_TRIES 3
 static void usbgone_tick(lv_timer_t *t){
     (void)t;
     if(modes_output_route() != OUT_USB){ lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL; return; }
     if(modes_output_busy()) return;
-    if(out_usb_card_ok()){ g_usbgone_miss = 0; return; }
+    if(out_usb_card_ok()){ g_usbgone_miss = 0; g_usbgone_tries = 0; return; }   /* the DAC is back: nothing to undo */
     if(++g_usbgone_miss < 2) return;
     g_usbgone_miss = 0;
+    if(g_usbgone_tries >= USBGONE_TRIES){
+        lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL;
+        ui_toast("Couldn't leave the USB DAC - pick the internal DAC in Settings");
+        return;
+    }
     fprintf(stderr, "usb audio: DAC gone - back to the internal DAC (paused)\n"); fflush(stderr);
     if(out_switch(OUT_INTERNAL, 1) == 0){
         g_osw.was_playing = 0;   /* out_switch already paused it; never resume into the jack */
-        lv_timer_del(g_usbgone_tm); g_usbgone_tm = NULL;
-        ui_toast("USB DAC disconnected - internal DAC");
+        if(!g_usbgone_tries++) ui_toast("USB DAC disconnected - internal DAC");
     }
 }
 /* The last picked Working Mode survives a restart. The saved "src_mode" (0 Local, 1 USB DAC, 2 BT Receiving; USB Storage
@@ -161,7 +169,7 @@ void modes_output_boot_restore(void){
     if(!g_bootusb_tm) g_bootusb_tm = lv_timer_create(bootusb_tick, 1000, NULL);
 }
 static void usbgone_start(void){
-    g_usbgone_miss = 0;
+    g_usbgone_miss = 0; g_usbgone_tries = 0;
     if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL);
 }
 static void usbw_end(void){ if(g_usbw.tm){ lv_timer_del(g_usbw.tm); g_usbw.tm = NULL; } }
