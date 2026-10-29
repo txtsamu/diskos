@@ -1,0 +1,65 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 diskOS contributors */
+#ifndef DISKOS_SESSION_H
+#define DISKOS_SESSION_H
+
+#include <stdint.h>
+#include "modes.h"   /* OUT_INTERNAL / OUT_SPDIF / OUT_USB */
+
+/* Session module (GLOSSARY.md): what the Player is currently on, as the UI believes it (Output route + Source mode),
+ * how this UI process came to be (cold boot, or a relaunch such as a theme change under a Player that kept running),
+ * and what a startup restore may therefore still do. Before this module the answer was spread over a modes.c static,
+ * main.c flags and the DISKOS_RELOAD_* environment, and every startup timer re-derived it, so each bug got another guard.
+ * No LVGL. Seams: ipc_send_cmd() (through outseq), ipc_generation() and cfg_*(); time is passed in, never read.
+ * The BT route (ui_route_mac) and the SD/DAC state machines stay in main.c. */
+
+typedef enum { SESSION_COLD_BOOT = 0, SESSION_RELAUNCH = 1 } session_entry_t;
+
+/* ---- what the Player is on ---- */
+/* A route is tied to the Player generation it was set in: a restarted Player is back on the internal DAC, so a stale
+ * route reads OUT_INTERNAL. Setting it mirrors the cfg "spdif" key (the Settings toggle shows the real route). */
+int  session_route(void);
+void session_set_route(int route);
+int  session_source_mode(void);            /* best-effort, atomic: the coldplug thread reads it */
+void session_set_source_mode(int mode);
+
+/* ---- how this process was entered ---- */
+void            session_init(void);        /* once at startup: read and consume the relaunch handoff (the DISKOS_* env) */
+session_entry_t session_entry(void);
+/* A relaunch whose Player was off the default (internal DAC, Local) takes that state over for `gen`, the current Player
+ * generation. 1 = adopted; the caller then refreshes whatever shows the route. */
+int  session_adopt(unsigned gen);
+/* Before exec of the new image: export route and source mode. cancel() undoes it when the exec failed. */
+void session_handoff_export(void);
+void session_handoff_cancel(void);
+
+/* ---- what may a startup restore still do ---- */
+int  session_autoplay_pause_allowed(void); /* a relaunch is not a boot: what is playing must keep playing */
+
+/* Saved Working Mode (cfg src_mode: 0 Local, 1 USB DAC, 2 BT Receiving; usb_audio_on: the output route was USB Audio). */
+int  session_saved_source(void);
+int  session_saved_usb_audio(void);
+void session_save_source(int mode);        /* a user pick: also ends a remembered USB Audio output */
+void session_save_usb_audio(int on);
+
+/* Boot restore of the saved Working Mode, once the Player has settled (~15 s). poll() returns WAIT while it is too early
+ * or the caller reports `busy` / `blocked` (an output switch is running / may not start), NONE when there is nothing
+ * (or nothing left) to restore, else SOURCE (with *src) or USB_AUDIO: each is returned once, then the restore is spent. */
+typedef enum { SESSION_RESTORE_WAIT, SESSION_RESTORE_NONE, SESSION_RESTORE_SOURCE, SESSION_RESTORE_USB_AUDIO } session_restore_t;
+void              session_restore_arm(uint32_t now_ms);
+session_restore_t session_restore_poll(uint32_t now_ms, int busy, int blocked, int *src);
+
+/* Startup route recovery (Bluetooth sink left by a previous UI): looked at once per process. */
+int  session_startup_route_pending(void);
+void session_startup_route_settled(void);
+
+/* The Local init (outseq_local_boot) runs once per Player generation, and never for the generation a relaunch adopted
+ * (its 0642/0666/0657 would pull the Player off a USB DAC). allowed() is false for the adopted generation; done()/mark()
+ * track the one-shot; send() sends it on the current route and marks it. send(): 0 sent, 1 nothing to do, -1 a frame was
+ * refused (not marked: the caller retries on its next tick). */
+int  session_local_init_allowed(unsigned gen);
+int  session_local_init_done(unsigned gen);
+void session_local_init_mark(unsigned gen);
+int  session_local_init_send(unsigned gen);
+
+#endif
