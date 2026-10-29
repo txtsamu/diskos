@@ -8,6 +8,7 @@
 #include "theme_kit.h"
 #include "config.h"       /* cfg_get_int/cfg_set_int: persist the BT on/off intent */
 #include "session.h"      /* the saved Working Mode (BT Receiving needs the radio at boot) */
+#include "radio.h"        /* the on/off intent, bring-up watch and teardown Wi-Fi shares */
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -40,8 +41,6 @@
 
 static lv_obj_t *g_sw, *g_list, *g_info_list;
 static lv_timer_t *g_scan_timer;
-static lv_timer_t *g_scanwait_timer;   /* bt_open's non-destructive "wait for adapter then scan" poll */
-static uint32_t    g_scanwait_start;
 static lv_timer_t *g_bt_autoroute_timer;
 static char g_sel_mac[20];     /* device selected for the details screen */
 static char g_bt_autorouted[20];
@@ -912,13 +911,35 @@ static void scan_timer_cb(lv_timer_t *t){
     if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }
     scan_kick();   /* enumerate off-thread; scanpoll_cb renders when done (no main-thread freeze) */
 }
+/* Non-destructive "wait for the adapter, then scan" poll used when the BT screen is opened while the
+ * radio is on/coming up (from a QS toggle, or brought up externally). Unlike the radio poll it NEVER
+ * powers BT off on a timeout (it is a watch with no radio behind it, so there is nothing to roll back) - it just
+ * stops trying, so a flaky bt_on() probe can't kill a live radio. */
+static lv_timer_t *g_scanwait_timer;
+static void scanwait_poll_cb(lv_timer_t *t);
+static void scanwait_arm(unsigned ms){ g_scanwait_timer = lv_timer_create(scanwait_poll_cb, ms, NULL); }
+static void scanwait_disarm(void){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }
+static struct radio_watch g_scanwait_watch = { 1000, 28000, bt_on, scanwait_arm, scanwait_disarm, 0, 0 };   /* 28 s: gave up waiting */
+static void scanwait_poll_cb(lv_timer_t *t){
+    (void)t;
+    if(screen_current() != SCR_BT){                 /* user left the BT screen -> stop waiting */
+        radio_watch_cancel(&g_scanwait_watch); return;
+    }
+    int v = radio_watch_tick(&g_scanwait_watch, lv_tick_get());
+    if(v == RADIO_UP){
+        bt_ensure_services(); bt_autoroute_start(); start_scan();
+    } else if(v == RADIO_TIMEOUT){                  /* do NOT tear the radio down */
+        list_msg(bt_radio_on() ? "Bluetooth is starting up" : "Bluetooth is off");
+    }
+}
+
 /* Cancel every pending scan artifact and abandon any in-flight worker (bump gen so its
  * late result is dropped). Used when Bluetooth is turned off so a delayed scan can't
  * render device rows over the "Bluetooth is off" message. */
 static void scan_abort(void){
     if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }
     if(g_scanpoll_timer){ lv_timer_del(g_scanpoll_timer); g_scanpoll_timer = NULL; }
-    if(g_scanwait_timer){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }  /* cancel the bt_open observer too */
+    radio_watch_cancel(&g_scanwait_watch);  /* cancel the bt_open observer too */
     pthread_mutex_lock(&g_scan_mu);
     g_scan_gen++; g_scan_running = 0; g_scan_n = 0; g_scan_done = 0;
     pthread_mutex_unlock(&g_scan_mu);
@@ -938,27 +959,37 @@ static void start_scan(void){
 /* bt_enable() is slow (rfkill cycle + patchram firmware download + hci0 bring-up,
  * several seconds). A fixed settle timer would either fire too early ("No audio
  * devices found" before the radio is up) or never actively scan. Poll bt_on()
- * until the adapter is Powered, then run a real scan. */
+ * until the adapter is Powered, then run a real scan.
+ * The intent / bring-up watch / off teardown lifecycle is radio.c's; this is its Bluetooth adapter. A timeout here
+ * rolls back (rollback 1): the intent is dropped and the stack powered down, unlike Wi-Fi. */
 static lv_timer_t *g_radio_timer;
-static uint32_t    g_radio_start;
-static void radio_on_poll_cb(lv_timer_t *t){
+static void radio_poll_cb(lv_timer_t *t);
+static void bt_watch_arm(unsigned ms){ g_radio_timer = lv_timer_create(radio_poll_cb, ms, NULL); }
+static void bt_watch_disarm(void){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
+static void bt_set_intent(int on){ cfg_set_int("bt_on", on); }   /* persisted so boot restores it (mirror WiFi); OFF before teardown so boot-restore won't resurrect it */
+static void bt_radio_start(void){
+    bt_enable();
+    radio_watch_cancel(&g_scanwait_watch);   /* radio poll owns bring-up now - keep the two mutually exclusive */
+}
+static void bt_radio_cleanup(void){
+    if(g_bt_conn_timer){ lv_timer_del(g_bt_conn_timer); g_bt_conn_timer = NULL; }  /* else its 25s timeout scan_kick()s while BT is off */
+    scan_abort();          /* cancel any pending/active scan so it can't render over "off" */
+    ui_route_analog();     /* return audio to the DAC before killing the BT stack */
+}
+static struct radio_watch g_bt_watch = { 1000, 28000, bt_on, bt_watch_arm, bt_watch_disarm, 0, 0 };   /* 28 s: 2s rfkill + ~20s up-loop + daemon/power settle */
+static struct radio g_bt_radio = { &g_bt_watch, bt_set_intent, bt_radio_start, bt_radio_cleanup, bt_disable, 1 };
+static void radio_poll_cb(lv_timer_t *t){
     (void)t;
-    if(bt_on()){
-        lv_timer_del(g_radio_timer); g_radio_timer = NULL;
+    int v = radio_tick(&g_bt_radio, lv_tick_get());
+    if(v == RADIO_UP){
         bt_ensure_services();
         bt_autoroute_start();
         start_scan();
-        return;
-    }
-    if(lv_tick_elaps(g_radio_start) > 28000){   /* 2s rfkill + ~20s up-loop + daemon/power settle */
-        lv_timer_del(g_radio_timer); g_radio_timer = NULL;
-        /* bring-up failed: drop the persisted intent so the QS tile + boot-restore don't keep
-         * showing/enforcing "on" for a radio that never came up. Tear the stack down so the cleared
-         * intent matches a real off state (a late/half-started enable can't linger powered), and
-         * sync the screen switch. */
-        cfg_set_int("bt_on", 0);
+    } else if(v == RADIO_TIMEOUT){
+        /* bring-up failed: radio_tick dropped the persisted intent (so the QS tile + boot-restore don't keep
+         * showing/enforcing "on" for a radio that never came up) and tore the stack down (so a late/half-started
+         * enable can't linger powered). Sync the screen switch. */
         if(g_sw) lv_obj_clear_state(g_sw, LV_STATE_CHECKED);
-        bt_disable();
         list_msg("Couldn't turn on Bluetooth");
     }
 }
@@ -966,20 +997,10 @@ static void sw_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_VALUE_CHANGED) return;
     int on = lv_obj_has_state(g_sw, LV_STATE_CHECKED);
     if(on){
-        cfg_set_int("bt_on", 1);   /* persist intent so boot restores it (mirror WiFi) */
-        bt_enable();
+        radio_on(&g_bt_radio, lv_tick_get(), 1);
         list_msg("Turning on " LV_SYMBOL_BLUETOOTH);
-        g_radio_start = lv_tick_get();
-        if(g_scanwait_timer){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }  /* radio poll owns bring-up now - keep the two mutually exclusive */
-        if(g_radio_timer) lv_timer_del(g_radio_timer);
-        g_radio_timer = lv_timer_create(radio_on_poll_cb, 1000, NULL);
     } else {
-        cfg_set_int("bt_on", 0);   /* OFF before teardown so boot-restore won't resurrect it */
-        if(g_radio_timer){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
-        if(g_bt_conn_timer){ lv_timer_del(g_bt_conn_timer); g_bt_conn_timer = NULL; }  /* else its 25s timeout scan_kick()s while BT is off */
-        scan_abort();          /* cancel any pending/active scan so it can't render over "off" */
-        ui_route_analog();     /* return audio to the DAC before killing the BT stack */
-        bt_disable();
+        radio_off(&g_bt_radio);
         list_msg("Bluetooth is off");
     }
 }
@@ -988,20 +1009,8 @@ static void sw_cb(lv_event_t *e){
  * Mirrors sw_cb's actions (bt_boot_restore/keepalive enforce the intent). Returns new state. */
 int bt_toggle(void){
     int on = !bt_radio_on();   /* flip the ACTUAL radio state, not the (possibly stale) persisted intent */
-    cfg_set_int("bt_on", on);
-    if(on){
-        bt_enable();
-        g_radio_start = lv_tick_get();
-        if(g_scanwait_timer){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }
-        if(g_radio_timer) lv_timer_del(g_radio_timer);
-        g_radio_timer = lv_timer_create(radio_on_poll_cb, 1000, NULL);
-    } else {
-        if(g_radio_timer){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }        /* cancel the bring-up poll too */
-        if(g_bt_conn_timer){ lv_timer_del(g_bt_conn_timer); g_bt_conn_timer = NULL; }  /* don't let it scan_kick() after BT off */
-        scan_abort();          /* cancel any pending/active scan */
-        ui_route_analog();     /* return audio to the DAC before killing the BT stack */
-        bt_disable();
-    }
+    if(on) radio_on(&g_bt_radio, lv_tick_get(), 1);
+    else   radio_off(&g_bt_radio);
     /* keep the BT screen's switch in sync so it reflects reality when opened later */
     if(g_sw){ if(on) lv_obj_add_state(g_sw, LV_STATE_CHECKED); else lv_obj_clear_state(g_sw, LV_STATE_CHECKED); }
     ui_status_refresh();   /* update the home BT icon immediately (don't wait for the next status poll) */
@@ -1022,17 +1031,15 @@ void bt_init_intent(void){
     cfg_set_int("bt_on", 0);
 }
 static lv_timer_t *g_bootrestore_timer;
-static uint32_t    g_bootrestore_start;
+static void bootrestore_poll_cb(lv_timer_t *t);
+static void bootrestore_arm(unsigned ms){ g_bootrestore_timer = lv_timer_create(bootrestore_poll_cb, ms, NULL); }
+static void bootrestore_disarm(void){ lv_timer_del(g_bootrestore_timer); g_bootrestore_timer = NULL; }
+static struct radio_watch g_bootrestore_watch = { 1000, 28000, bt_on, bootrestore_arm, bootrestore_disarm, 0, 0 };   /* 28 s: patchram + power-on settle; a timeout just stops */
 static void bootrestore_poll_cb(lv_timer_t *t){
     (void)t;
-    if(bt_on()){
-        lv_timer_del(g_bootrestore_timer); g_bootrestore_timer = NULL;
+    if(radio_watch_tick(&g_bootrestore_watch, lv_tick_get()) == RADIO_UP){
         bt_ensure_services();
         bt_autoroute_start();          /* speaker auto-reconnects -> auto-route routes it */
-        return;
-    }
-    if(lv_tick_elaps(g_bootrestore_start) > 28000){       /* patchram + power-on settle */
-        lv_timer_del(g_bootrestore_timer); g_bootrestore_timer = NULL;
     }
 }
 /* Intent off at boot: the stock side can still bring the radio up during/after the UI start (seen after a cold
@@ -1063,9 +1070,7 @@ void bt_boot_restore(void){
     }
     if(bt_on()){ bt_ensure_services(); bt_autoroute_start(); return; }   /* already up (UI restart) */
     bt_enable();
-    g_bootrestore_start = lv_tick_get();
-    if(g_bootrestore_timer) lv_timer_del(g_bootrestore_timer);
-    g_bootrestore_timer = lv_timer_create(bootrestore_poll_cb, 1000, NULL);
+    radio_watch_begin(&g_bootrestore_watch, lv_tick_get());
 }
 
 static void rescan_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) start_scan(); }
@@ -1135,25 +1140,6 @@ void bt_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
 }
 
-/* Non-destructive "wait for the adapter, then scan" poll used when the BT screen is opened while the
- * radio is on/coming up (from a QS toggle, or brought up externally). Unlike radio_on_poll_cb it NEVER
- * powers BT off on a timeout - it just stops trying, so a flaky bt_on() probe can't kill a live radio. */
-static void scanwait_poll_cb(lv_timer_t *t){
-    (void)t;
-    if(screen_current() != SCR_BT){                 /* user left the BT screen -> stop waiting */
-        lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; return;
-    }
-    if(bt_on()){
-        lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL;
-        bt_ensure_services(); bt_autoroute_start(); start_scan();
-        return;
-    }
-    if(lv_tick_elaps(g_scanwait_start) > 28000){    /* gave up waiting - do NOT tear the radio down */
-        lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL;
-        list_msg(bt_radio_on() ? "Bluetooth is starting up" : "Bluetooth is off");
-    }
-}
-
 void bt_open(void){
     /* "should BT be on" = the intent OR the live radio. Intent is the reliable signal right after a QS
      * toggle, because bt_enable() rfkill-blocks-then-unblocks, so bt_radio_on() reads 0 for a moment. */
@@ -1167,8 +1153,8 @@ void bt_open(void){
      * poll or a prior scanwait) BEFORE deciding a path, so none of the branches below can race a pending
      * timer into a second start_scan() (e.g. reopen after the radio powered up but before g_radio_timer
      * fired would otherwise scan here AND on the next poll tick). */
-    if(g_radio_timer){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
-    if(g_scanwait_timer){ lv_timer_del(g_scanwait_timer); g_scanwait_timer = NULL; }
+    radio_watch_cancel(&g_bt_watch);
+    radio_watch_cancel(&g_scanwait_watch);
     if(bt_on()){                                   /* fully up -> scan immediately */
         bt_ensure_services(); bt_autoroute_start(); start_scan();
     } else if(want){                                /* on/coming up (e.g. just toggled from Quick Settings)
@@ -1177,9 +1163,7 @@ void bt_open(void){
                                                      * timeout, so observing an externally-enabled radio (or a
                                                      * flaky bt_on() probe) can't kill a working controller. */
         list_msg_scanning();
-        g_scanwait_start = lv_tick_get();
-        if(g_scanwait_timer) lv_timer_del(g_scanwait_timer);
-        g_scanwait_timer = lv_timer_create(scanwait_poll_cb, 1000, NULL);
+        radio_watch_begin(&g_scanwait_watch, lv_tick_get());
     } else {
         list_msg("Bluetooth is off");
     }
