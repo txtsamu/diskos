@@ -1439,7 +1439,6 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
      * (the timer retries), it is never a reason to go ahead. */
     if(!ui_local_playback_allowed()) return;
-    static unsigned done_gen = 0xFFFFFFFFu;   /* generation whose one-shot we've already sent */
     static unsigned wait_gen = 0xFFFFFFFFu;   /* generation whose settle timer is running */
     static uint32_t wait_start = 0;
     static unsigned rx_gen  = 0xFFFFFFFFu;    /* generation the rx_base snapshot belongs to */
@@ -1453,13 +1452,13 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(age_gen != gen){ age_gen = gen; player_old = session_startup_route_pending() && startup_player_old(); }
     if(session_startup_route_pending() && player_old && !startup_playback_busy(gen)){
         int startup = startup_route_reconcile();
-        if(startup > 0) done_gen = gen;
+        if(startup > 0) session_local_init_mark(gen);
         if(startup > 0 && !fw_needs_localplayer_init()){
             lv_timer_del(t); return;
         }
     }
     if(g_play_pending || book_session_active()) return;
-    if(gen == done_gen) return;
+    if(session_local_init_done(gen)) return;
     unsigned rx  = ipc_rx_frames();           /* CUMULATIVE across generations -> anchor per-generation via rx_base */
     if(rx_gen != gen){ rx_gen = gen; rx_base = rx; }           /* new generation -> snapshot the count */
     if(rx == rx_base){ ipc_send_probe("02020008"); return; }   /* SOLICIT: THIS generation's player hasn't answered yet (idle player is silent) */
@@ -1469,11 +1468,11 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(session_startup_route_pending() && startup_playback_busy(gen)) return;
     int startup = startup_route_reconcile();
     if(startup < 0) return;
-    if(g_route_mac[0]){ done_gen = gen; if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
+    if(g_route_mac[0]){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
     if(!fw_needs_localplayer_init()){ lv_timer_del(t); return; }
-    if(startup > 0){ done_gen = gen; return; }
+    if(startup > 0){ session_local_init_mark(gen); return; }
     if(g_play_sent_gen == gen){                                /* a play was started this generation (the play path sends its own preamble while stopped): g_playing is only inferred, so never risk 0666 mid-stream */
-        done_gen = gen;
+        session_local_init_mark(gen);
         fprintf(stderr,"v2.40 workmode: local-init skipped, play already sent (gen %u)\n", gen); fflush(stderr);
         return;
     }
@@ -1481,7 +1480,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * route and work-mode and the card isn't exported - exactly the state this one-shot exists to establish - and
      * 0666 would close the stream mid-song (seen live on V2.57). Count this generation as initialised. */
     if(g_playing){
-        done_gen = gen;
+        session_local_init_mark(gen);
         fprintf(stderr,"v2.40 workmode: local-init skipped, already playing (gen %u)\n", gen); fflush(stderr);
         return;
     }
@@ -1490,8 +1489,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
      * the flashed boot gate). Sent past the settle window so the async mode-control thread can't
      * clobber it. If the send fails, DON'T mark this generation done - retry next tick rather than
      * leave the card exported. */
-    if(outseq_local_boot((outseq_route_t)modes_output_route()) < 0) return;   /* 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE) */
-    done_gen = gen;   /* only mark this generation initialised once ALL three commands were actually sent */
+    if(session_local_init_send(gen) != 0) return;   /* outseq_local_boot on the current route: 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE); marks this generation initialised only once ALL three were actually sent */
     fprintf(stderr,"v2.40 workmode: local-init sent once (gen %u)\n", gen); fflush(stderr);
 }
 void ui_rescan_library(void){
