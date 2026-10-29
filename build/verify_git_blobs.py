@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deterministic_zip import checked_stat
 
 PAYLOAD = (
-    'mq_ui', 'S96diskos_select', 'S97diskos_install', 'S99usbserial',
-    'diskos-debug.sh', 'dropbearmulti', 'diskos-rmguard', 'diskos-selected',
+    'mq_ui', 'S96diskos_select', 'S97diskos_install', 'S98diskos_sshkey',
+    'S99usbserial', 'diskos-debug.sh', 'dropbearmulti', 'diskos-rmguard', 'diskos-selected',
     'diskos-bootprobe', 'diskos-artdec', 'diskos-launch', 'diskos-verify.sh',
     'diskos-root.pub.pem',
 )
