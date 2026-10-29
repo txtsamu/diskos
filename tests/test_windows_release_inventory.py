@@ -19,8 +19,8 @@ FETCH = ROOT / 'build/fetch-windows-sources.sh'
 SOURCE = 'msys2-runtime-3.6.10-6.src.tar.zst'
 NATIVE = {'mksquashfs.exe', 'unsquashfs.exe', 'usbboot.exe',
           'bind_winusb.exe', 'msys-2.0.dll'}
-PAYLOAD = {'mq_ui', 'S96diskos_select', 'S97diskos_install', 'S99usbserial',
-           'diskos-debug.sh', 'dropbearmulti', 'diskos-rmguard', 'diskos-selected',
+PAYLOAD = {'mq_ui', 'S96diskos_select', 'S97diskos_install', 'S98diskos_sshkey',
+           'S99usbserial', 'diskos-debug.sh', 'dropbearmulti', 'diskos-rmguard', 'diskos-selected',
            'diskos-bootprobe', 'diskos-artdec', 'diskos-launch', 'diskos-verify.sh',
            'diskos-root.pub.pem'}
 VERSIONS = {'zlib': '1.3.2-1', 'gcc-libs': '15.3.0-1', 'gcc': '15.3.0-1',

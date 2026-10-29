@@ -157,7 +157,7 @@ def cmd_doctor(args):
         except Exception as e:
             ui.err(f"  squashfs LZO pack/extract check: FAILED - {e}")
             all_ok = False
-    for name in ("mq_ui", "S97diskos_install", "S99usbserial", "diskos-debug.sh", "dropbearmulti"):
+    for name in ("mq_ui", "S97diskos_install", "S98diskos_sshkey", "S99usbserial", "diskos-debug.sh", "dropbearmulti"):
         p = bundle.data(name, required=False)
         (ui.ok if p else ui.err)(f"  {name}: {p or 'MISSING'}")
         all_ok = all_ok and bool(p)   # payload files are required to build a flashable image
