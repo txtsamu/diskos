@@ -301,12 +301,18 @@ static void mark_pending(int m){
 static lv_timer_t *g_settle = NULL;
 static int g_pending_mode = -1;   /* the mode a switch is settling to (so reopening the screen keeps showing "switching") */
 static struct { lv_timer_t *tm; int mode; uint32_t t0; } g_leave;   /* passing through Local before a source switch (see leave_tick) */
+/* A source switch still has work left in THIS process: an output switch waiting for the pause, the pass through Local
+ * (g_leave), main.c's ordered USB DAC exit (up to ~30 s, its continuation re-enters ui_set_source_mode) or the SD
+ * hand-over. The picker's settle waits on it, and so does a theme re-launch, which would exec the continuation away.
+ * Not modes_output_busy(): that one is also the guard these continuations themselves pass through. */
+int modes_source_switch_busy(void){
+    return g_osw.tm != NULL || g_leave.tm != NULL || ui_dac_exit_pending() || ui_source_switch_pending();
+}
 /* M17: after the switch window, settle to the CONFIRMED mode read from the real USB gadget state,
  * not a blind assumption. If the gadget shows the switch didn't take, reflect reality + say so. */
 static void settle_cb(lv_timer_t *t){
     (void)t;
-    if(g_osw.tm || g_leave.tm) return;   /* an output switch is still waiting for the pause, or the source switch behind it */
-    if(ui_source_switch_pending()) return;
+    if(modes_source_switch_busy()) return;   /* the pause, the pass through Local, the USB DAC exit or the SD hand-over is still running */
     if(lv_tick_elaps(g_last_switch) < 3200) return;
     lv_timer_del(g_settle); g_settle = NULL;
     int intended = g_pending_mode; g_pending_mode = -1;
@@ -345,6 +351,13 @@ static void leave_end(const char *why){
     g_pending_mode = -1;
     if(why) ui_toast(why);
     modes_ui_refresh();
+}
+/* main.c's ordered USB DAC exit ended. started: it re-entered ui_set_source_mode and that began the real switch, so the
+ * settle window restarts from here (as leave_tick does). Otherwise it gave up or was refused (it toasted why): nothing
+ * is switching any more, so drop the picker's "switching" mark and show the real selection. */
+void modes_dac_exit_done(int started){
+    if(started){ g_last_switch = lv_tick_get(); return; }
+    leave_end(NULL);
 }
 static void leave_tick(lv_timer_t *t){
     (void)t;
