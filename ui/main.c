@@ -36,6 +36,7 @@
 #include "usbhid.h"
 #include "outseq.h"
 #include "session.h"
+#include "playadmit.h"
 #include "timekeep.h"
 #include "anim.h"
 #include "ipc.h"
@@ -1557,6 +1558,19 @@ static unsigned g_play_last_gen = 0xFFFFFFFFu; static uint32_t g_play_last_tick 
 /* Is a previous play still starting? g_playing lags the stream by seconds and 0666 under it releases the local output. */
 static int play_recent(void){ return g_play_pending || (g_play_last_gen == ipc_generation() && lv_tick_elaps(g_play_last_tick) < 10000); }
 static void play_note_sent(void){ g_play_last_gen = ipc_generation(); g_play_last_tick = lv_tick_get(); }
+/* The situation a play start is admitted in (playadmit.c decides; this only reads the accessors). */
+static playadmit_situation_t play_situation(void){
+    playadmit_situation_t s = {
+        .fw_needs_local_init = fw_needs_localplayer_init(),
+        .source_mode         = ui_get_source_mode(),
+        .bt_route            = g_route_mac[0] != 0,
+        .output_route        = modes_output_route(),
+        .playing             = g_playing,
+        .play_recent         = play_recent(),
+    };
+    return s;
+}
+static playadmit_sent_t play_admit(playadmit_kind_t kind){ playadmit_situation_t s = play_situation(); return playadmit_start(kind, &s); }
 /* Authoritative play state (the main loop normalizes the unreliable raw st.state into g_playing:
  * 1=playing while position advances, else 0). Exposed so route logic shares ONE source of
  * truth instead of re-deriving play/pause from position deltas. */
@@ -1644,11 +1658,8 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
      * Local source + analog output only (never a BT A2DP route); and only while STOPPED (an active
      * track-jump already has the route+mode correct, and 0666 would gap the audio). */
     /* Not while a previous play is still starting (g_playing lags the stream by seconds): 0666 releases the local
-     * output under it (seen live). Only the idle / long-gap case needs the preamble. */
-    int recent_play = play_recent();
-    if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !recent_play){
-        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
-    }
+     * output under it (seen live). Only the idle / long-gap case needs the preamble. The gate is playadmit.c's. */
+    play_admit(PLAYADMIT_LIST);
     {   /* always rebuild: the player's queue can change under us (Play Through Folders), so no type-0 shortcut */
         int datalen = 8 + (int)strlen(name);          /* f1(4)+f2(4)+name */
         snprintf(f, sizeof f, "0100%04X%04X%04X%s",
@@ -1692,7 +1703,7 @@ int ui_play_playlist(long pid, int pos){
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;                                 /* not a book */
     send_play_mode(cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
-    if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
+    play_admit(PLAYADMIT_RESERVED_SLOT);  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);      /* the tapped row in the player's read of the slot */
     if(ppos < 1){ ui_toast("Couldn't find that song"); return 0; }   /* never start a guessed, possibly different song */
@@ -1709,9 +1720,7 @@ int ui_queue_jump(int ord1){
     if(ord1 < 1 || ord1 > 0xFFFF) return -1;
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
-    if(fw_needs_localplayer_init() && ui_get_source_mode() == 0 && !g_route_mac[0] && !g_playing && !play_recent()){
-        outseq_local_preamble((outseq_route_t)modes_output_route());   /* 0666 local route (6 internal, 4 SPDIF, 3 + 0642 5 USB audio), then 0657 8 LOCALPLAYER work-mode */
-    }
+    play_admit(PLAYADMIT_LIST);
     ui_note_transport_sent();
     char f[24]; snprintf(f, sizeof f, "0100%04X%04X0000", 16, (ord1 - 1) & 0xFFFF);
     int rc = ipc_send_cmd(f);
@@ -1731,7 +1740,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
         send_play_mode(cfg_get_int("work_mode", 0));
-        if(ui_get_source_mode() == 0 && !g_route_mac[0]) outseq_assert_workmode();
+        play_admit(PLAYADMIT_RESERVED_SLOT);
         return ui_play_list_ex(5, "", pos, -1);
     }
     if(plan->list_type != 2 && plan->list_type != 3 && plan->list_type != 7){ ui_toast("Couldn't play that list"); return 0; }
@@ -1880,11 +1889,8 @@ int ui_play_book(const char *path, long resume_ms){
      * starts). Re-assert the local-play route + work-mode first - device-verified this is what a book
      * play needs; ui_play_list's own preamble is gated to V2.40, but a book must start on V2.09/V2.28 too.
      * Local analog route only (never a BT A2DP path). */
-    if(ui_get_source_mode() == 0 && !g_route_mac[0]){
-        outseq_assert_workmode();                      /* LOCALPLAYER work-mode (fixes NO_WORK_MODE). NOT 0666:
-                                                            * we're already on the local route (gated above), and a
-                                                            * redundant out_dev re-init pauses the stream ~1.5s in. */
-    }
+    play_admit(PLAYADMIT_RESERVED_SLOT);   /* LOCALPLAYER work-mode only (fixes NO_WORK_MODE). NOT 0666: we're already on
+                                            * the local route, and a redundant out_dev re-init pauses the stream ~1.5s in. */
     if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }   /* Single play-mode is REQUIRED for clean EOF isolation; if it can't be set, don't start the book unguarded */
     g_book_single_mode = 1;                                 /* remember to restore the music mode on the next music play */
     if(!ui_play_list(5, "", 1)) return 0;                   /* frame 0100001000000005 -> reserved slot (seq 0): an isolated 1-item queue; not sent -> no session */

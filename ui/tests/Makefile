@@ -21,6 +21,9 @@ outseq_test: ../outseq.c outseq_test.c ../outseq.h
 session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
 
+playadmit_test: ../playadmit.c ../outseq.c playadmit_test.c ../playadmit.h ../outseq.h
+	$(CC) $(CFLAGS) -I.. ../playadmit.c ../outseq.c playadmit_test.c -o $@
+
 timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 	$(CC) $(CFLAGS) -I.. ../timekeep.c timekeep_test.c -o $@
 
@@ -34,7 +37,7 @@ ipc_guard_test: ipc_guard_test.c
 	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test outseq_test session_test timekeep_test tama_test
+run: config_test playstate_test ipc_guard_test outseq_test session_test playadmit_test timekeep_test tama_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -44,10 +47,12 @@ run: config_test playstate_test ipc_guard_test outseq_test session_test timekeep
 	python3 -I outseq_guard_test.py
 	@echo "--- session ---"
 	./session_test
+	@echo "--- playadmit ---"
+	./playadmit_test
 	@echo "--- timekeep ---"
 	./timekeep_test
 	@echo "--- tama ---"
 	./tama_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test outseq_test session_test timekeep_test tama_test
+	rm -f config_test playstate_test ipc_guard_test outseq_test session_test playadmit_test timekeep_test tama_test

@@ -22,6 +22,20 @@ class OutseqGuard(unittest.TestCase):
                     offenders.append(f'{path.name}:{n}: {line.strip()[:100]}')
         self.assertEqual(offenders, [], 'routing frames must go through outseq.c:\n' + '\n'.join(offenders))
 
+    def test_play_preamble_only_sent_by_playadmit(self):
+        # the "should this play re-assert the route / work mode?" gate lives in playadmit.c; a caller that sends the
+        # preamble itself has copied the gate again
+        call = re.compile(r'\boutseq_(local_preamble|assert_workmode)\s*\(')
+        offenders = []
+        for path in sorted(APP.glob('*.c')):
+            if path.name in ('outseq.c', 'playadmit.c', 'sqlite3.c') or path.name.startswith('font_'):
+                continue
+            for n, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
+                if call.search(line):
+                    offenders.append(f'{path.name}:{n}: {line.strip()[:100]}')
+        self.assertEqual(offenders, [], 'play-start frames must go through playadmit_start():\n' + '\n'.join(offenders))
+        self.assertTrue(call.search((APP / 'playadmit.c').read_text()))
+
     def test_outseq_still_owns_them(self):
         # the guard is meaningless if the pattern stopped matching the real frames
         self.assertTrue(ROUTING.search((APP / 'outseq.c').read_text()))
