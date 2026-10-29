@@ -156,6 +156,16 @@ static void relaunch_does_not_rerun_autoplay_pause(void){
     assert(new_process_starts() == 1);
     assert(!session_autoplay_pause_allowed());
 }
+static void cold_boot_allows_chargemode_boot(void){
+    clear_env();
+    session_init();
+    assert(session_chargemode_boot_allowed());        /* a charger woke the Disc: the charging screen may show */
+}
+static void relaunch_does_not_show_chargemode(void){
+    old_process_exports(OUT_INTERNAL, 0);
+    assert(!new_process_starts());                    /* even the default pair: the relaunch itself is what counts */
+    assert(session_entry() == SESSION_RELAUNCH && !session_chargemode_boot_allowed());
+}
 static void cold_boot_restores_usb_audio_once(void){
     clear_env();
     cfg_set_int("usb_audio_on", 1);
@@ -233,6 +243,8 @@ int main(void){
     RUN(failed_exec_cancels_handoff);
     RUN(cold_boot_allows_autoplay_pause);
     RUN(relaunch_does_not_rerun_autoplay_pause);
+    RUN(cold_boot_allows_chargemode_boot);
+    RUN(relaunch_does_not_show_chargemode);
     RUN(cold_boot_restores_usb_audio_once);
     RUN(cold_boot_restores_source_once);
     RUN(restore_gives_up);

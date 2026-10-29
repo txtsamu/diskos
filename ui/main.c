@@ -4074,7 +4074,7 @@ int main(int argc, char **argv){
         }
         if(kbinput_active()) last_activity = lv_tick_get();
         if(usbhid_poll(bl_state == 0) && bl_state == 0) last_activity = lv_tick_get();   /* USB IEM buttons: activity, never a wake */
-        { static int cm_boot; if(!cm_boot){ cm_boot = 1; chargemode_boot(); } chargemode_tick(); }
+        { static int cm_boot; if(!cm_boot){ cm_boot = 1; if(session_chargemode_boot_allowed()) chargemode_boot(); } chargemode_tick(); }   /* a theme re-launch is mid-session, not a power-on: no charging screen (tick only acts on a showing one) */
         power_tick(chargemode_active() ? lv_tick_get() : last_activity, playing);   /* the charging screen may dim/blank but never idle-powers-off */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
         int in_saver = (screen_current()==SCR_SAVER);
         /* a manual Sleep request ends the moment the panel is woken (we leave SCR_SAVER) */
