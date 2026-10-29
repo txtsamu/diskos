@@ -60,28 +60,46 @@ static void settings_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CL
 static void pet_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) tama_open(); }
 static void dac_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) dac_open(); }
 
-/* one app tile in the 2-wide grid (g_list is ROW_WRAP): a big glyph over a small caption */
+/* one app tile in the 2-wide grid (g_list is ROW_WRAP): a round icon chip over a small caption. The panel is round, so the
+ * icon is a circle too. The cell is transparent and both it and the chip are kit_keep'd: a theme kit would otherwise turn the
+ * glyph-holding button into its own boxed button (Terminal draws a square outline) and square the chip off. */
+#define TILE_W 128
+#define TILE_H 118
+#define CHIP_D 84
 static void make_tile(const char *icon, const lv_font_t *ifont, const char *name, lv_event_cb_t cb, void *ud){
     lv_obj_t *r = lv_button_create(g_list);
     lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, 128, 108);
-    lv_obj_set_style_radius(r, 18, 0);
-    lv_obj_set_style_bg_color(r, TC(SURFACE), 0);
-    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(r, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_size(r, TILE_W, TILE_H);
+    lv_obj_set_style_bg_opa(r, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_transform_pivot_x(r, TILE_W / 2, 0);
+    lv_obj_set_style_transform_pivot_y(r, TILE_H / 2, 0);
+    lv_obj_set_style_transform_scale(r, 240, LV_STATE_PRESSED);   /* 256 = 100%: the whole tile dips a little under the finger */
     lv_obj_set_ext_click_area(r, 4);
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
     ui_on(r, cb, LV_EVENT_CLICKED, ud, "apps.cb", UI_CORE);
-    lv_obj_t *ic = lv_label_create(r);
+    kit_keep(r);
+    lv_obj_t *chip = lv_obj_create(r);
+    lv_obj_remove_style_all(chip);
+    lv_obj_set_size(chip, CHIP_D, CHIP_D);
+    lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(chip, TC(SURFACE_RAISED), 0);
+    lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(chip, 2, 0);
+    lv_obj_set_style_border_color(chip, TC(BORDER_STRONG), 0);
+    lv_obj_clear_flag(chip, LV_OBJ_FLAG_CLICKABLE);   /* the touch goes to the cell */
+    lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(chip, LV_ALIGN_TOP_MID, 0, 2);
+    kit_keep(chip);
+    lv_obj_t *ic = lv_label_create(chip);
     lv_label_set_text(ic, icon);
     lv_obj_set_style_text_font(ic, ifont, 0);
     lv_obj_set_style_text_color(ic, TC(TEXT_PRIMARY), 0);
-    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 22);
+    lv_obj_center(ic);
     lv_obj_t *l = lv_label_create(r);
     lv_label_set_text(l, name);
     lv_obj_set_style_text_font(l, TF(UI_14), 0);
     lv_obj_set_style_text_color(l, TC(TEXT_SECONDARY), 0);
-    lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -14);
+    lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -2);
 }
 
 void apps_reload(void){
@@ -113,7 +131,9 @@ void apps_create(lv_obj_t *root){
     lv_obj_set_style_pad_row(g_list, 10, 0);
     lv_obj_set_style_pad_column(g_list, 10, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_ROW_WRAP);   /* 2-wide tile grid (128px tiles + 10 gap) */
-    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    /* rows start at the top (track START): with CENTER the content, taller than the viewport once the bottom pad is added,
+     * overflowed equally at both ends and the first row's top was cut off. Tiles stay centred within their row. */
+    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_scroll_dir(g_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(g_list, LV_SCROLLBAR_MODE_OFF);
 
