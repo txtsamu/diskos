@@ -442,6 +442,7 @@ static pid_t spawn_detached(const char *cmd){      /* own process group; posix_s
 static void stop_child(pid_t *p){ kill_and_reap(*p); *p = 0; }
 static void restart_fail(const char *why){
     g_rst_flash = 0;               /* a failed attempt never leaves a later plain restart armed for flash mode */
+    fprintf(stderr, "restart: not done: %s\n", why); fflush(stderr);
     stop_child(&g_rst_sync); stop_child(&g_rst_clock);
     if(g_rst_timer){ lv_timer_delete(g_rst_timer); g_rst_timer = NULL; }
     ui_sd_quiesce_end();           /* reopen card access (readers + writers) if the card is still local */
@@ -496,6 +497,7 @@ static void restart_tick(lv_timer_t *t){
 #ifdef DISKOS_SWB_FLASHMODE
         if(g_rst_flash && swb_arm() != 0){ g_rst_flash = 0; restart_fail("Couldn't set flash mode - not restarted"); return; }
 #endif
+        fprintf(stderr, "restart: card drained and synced, rebooting the Disc now\n"); fflush(stderr);   /* the last line a UI-requested reboot leaves */
         reboot(RB_AUTOBOOT);        /* direct syscall: no shell, no PATH, no binary on disk */
         bounded_detached("reboot", 5000);   /* only reached if the syscall was refused */
         restart_fail("Couldn't restart - try again");
@@ -524,6 +526,7 @@ static void restart_begin(void){
     g_rst_clock = spawn_detached("hwclock -w 2>/dev/null");
     if(g_rst_clock < 0) g_rst_clock = 0;
     g_rst_phase = 0; g_rst_t0 = lv_tick_get();
+    fprintf(stderr, "restart: requested (flash mode %d), draining the card\n", g_rst_flash); fflush(stderr);   /* a reboot with no such line did not come from the UI */
     g_rst_timer = lv_timer_create(restart_tick, 100, NULL);
     if(!g_rst_timer){ restart_fail("Couldn't restart - try again"); return; }
     ui_toast("Restarting...");

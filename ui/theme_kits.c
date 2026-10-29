@@ -897,37 +897,24 @@ static void term_qs(const qs_parts_t *p){
     lv_obj_t *prompt = term_text(p->root, "$ quick", TC(TEXT_SECONDARY), 0, 26);
     lv_obj_set_width(prompt, 360); lv_obj_set_style_text_align(prompt, LV_TEXT_ALIGN_CENTER, 0);
     if(p->grab) lv_obj_add_flag(p->grab, LV_OBJ_FLAG_HIDDEN);       /* the prompt is the handle */
-    /* the tiles become a checklist: "[x] wi-fi", one per line */
-    lv_obj_update_layout(p->root);
-    int y = p->bright ? lv_obj_get_y(p->bright) + 44 : 90;
-    if(p->pp) y = lv_obj_get_y(p->pp) + 60;
-    for(int i = 0; i < p->n; i++){
-        lv_obj_set_size(p->tile[i], 210, 30);
-        lv_obj_align(p->tile[i], LV_ALIGN_TOP_MID, 0, y + i * 32);
-        lv_obj_t *g = lv_obj_get_child(p->tile[i], 0);
-        if(g) lv_obj_align(g, LV_ALIGN_LEFT_MID, 8, 0);
-        if(p->cap[i]){
-            lv_obj_set_parent(p->cap[i], p->tile[i]);
-            lv_obj_align(p->cap[i], LV_ALIGN_LEFT_MID, 56, 0);
-            lv_obj_set_style_text_font(p->cap[i], TF(UI_16), 0);
-        }
-    }
+    /* the tiles keep the drawer's round icon grid (quicksettings.c places them); term_qs_tile draws each as a ring */
     if(p->bright){ lv_obj_set_style_radius(p->bright, 0, 0); lv_obj_set_style_radius(p->bright, 0, LV_PART_INDICATOR); }
 }
 static void term_qs_tile(lv_obj_t *c, lv_obj_t *g, lv_obj_t *cap, int on, int toggle){
-    lv_obj_set_style_radius(c, 0, 0);
-    lv_obj_set_style_bg_opa(c, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(c, 0, 0);
+    (void)toggle;
+    /* a round key drawn as a phosphor ring: lit = accent ring with a faint accent fill, off = a thin dim ring */
+    lv_obj_set_style_radius(c, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(c, TC(ACCENT_PRIMARY), 0);
+    lv_obj_set_style_bg_opa(c, on ? LV_OPA_20 : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(c, on ? 2 : 1, 0);
+    lv_obj_set_style_border_color(c, on ? TC(ACCENT_PRIMARY) : TC(TEXT_SECONDARY), 0);
+    lv_obj_set_style_border_opa(c, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(c, TC(SURFACE_SELECTED), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, LV_STATE_PRESSED);
-    if(g){
-        lv_label_set_text(g, toggle ? (on ? "[x]" : "[ ]") : " > ");
-        lv_obj_set_style_text_font(g, TF(UI_16), 0);
-        lv_obj_set_style_text_color(g, on ? TC(ACCENT_PRIMARY) : TC(TEXT_SECONDARY), 0);
-    }
+    if(g) lv_obj_set_style_text_color(g, on ? TC(ACCENT_PRIMARY) : TC(TEXT_PRIMARY), 0);
     if(cap){
         char low[32]; lv_label_set_text(cap, theme_lower(low, sizeof low, lv_label_get_text(cap)));
-        lv_obj_set_style_text_color(cap, on ? TC(ACCENT_PRIMARY) : TC(TEXT_PRIMARY), 0);
+        lv_obj_set_style_text_color(cap, on ? TC(ACCENT_PRIMARY) : TC(TEXT_SECONDARY), 0);
     }
 }
 static void term_saver(const saver_parts_t *p){
