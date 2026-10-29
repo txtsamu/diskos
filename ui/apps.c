@@ -79,6 +79,10 @@ static void make_tile_ex(const char *icon, const lv_font_t *ifont, tile_icon_fn 
     lv_obj_set_style_transform_scale(r, 240, LV_STATE_PRESSED);   /* 256 = 100%: the whole tile dips a little under the finger */
     lv_obj_set_ext_click_area(r, 4);
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    /* A button scrolls itself into view when touched (LVGL sends FOCUSED on every press, group or not). "In view" means inside
+     * the list's content area, which excludes the bottom pad, so touching the last row (Settings) made the whole page jump up
+     * by the pad's overflow. A tile that is already visible never needs that. */
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     ui_on(r, cb, LV_EVENT_CLICKED, ud, "apps.cb", UI_CORE);
     kit_keep(r);
     lv_obj_t *chip = lv_obj_create(r);
