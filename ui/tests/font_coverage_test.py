@@ -8,7 +8,7 @@ app = Path(__file__).resolve().parents[1]
 # vendored beside the sources (public ui/ tree) or one level up (dev tree)
 lvgl = next(c for c in (app/'lvgl', app.parent/'lvgl') if (c/'src/font/lv_font.c').exists())
 source = (app/'ui.c').read_text()
-a=source.index('static lv_font_t s_cjk;'); b=source.index('/* Shared CJK-capable',a)
+a=source.index('static lv_font_t s_cjk;'); b=source.index('void ui_create(lv_obj_t *root)',a)   # through ui_font_cjk, which now follows ui_text_font
 chain=source[a:b]
 points=sorted(set(map(ord,'世界贈予我的妖精帝國曼衍珠汝華Nada Upasana PundarikaLudwig GöranssonZeus’s Law‘’ЛенинградΑθήνα'))- {32})
 header=r'''
@@ -17,6 +17,7 @@ header=r'''
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+const lv_font_t *ui_font_cjk(int size);   /* ui_text_font (in the slice) calls it before its definition; real decl is in screens.h */
 /* Host A8 target. Glyph lookup and unpacking use the real vendored LVGL code. */
 uint32_t lv_draw_buf_width_to_stride(uint32_t w, lv_color_format_t cf){
     assert(cf == LV_COLOR_FORMAT_A8);
@@ -28,7 +29,18 @@ uint32_t lv_draw_buf_width_to_stride(uint32_t w, lv_color_format_t cf){
 #define lv_font_montserrat_UI_16_font lv_font_montserrat_16
 #define lv_font_montserrat_UI_18_font lv_font_montserrat_18
 #define lv_font_montserrat_UI_20_font lv_font_montserrat_20
-#define theme_font_base(px) (&lv_font_montserrat_##px)   /* the chain base: always Montserrat n */
+/* ui_font_cjk(size) takes a runtime size, so the chain base is a function. Only the sizes this harness links
+ * (14/16/18/20) are mapped; like the real theme_font_base, anything else falls back to Montserrat 16. */
+static const lv_font_t *theme_font_base(int px){
+    switch(px){
+    case 14: return &lv_font_montserrat_14;
+    case 18: return &lv_font_montserrat_18;
+    case 20: return &lv_font_montserrat_20;
+    default: return &lv_font_montserrat_16;
+    }
+}
+/* No stock TTC on the host: the FreeType layer is disabled, exactly as fontft_font() behaves without the font file. */
+static const lv_font_t *fontft_font(int px){ (void)px; return NULL; }
 '''
 test=r'''
 int main(void){
