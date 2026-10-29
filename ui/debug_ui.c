@@ -27,11 +27,18 @@
  *   - a USB serial root shell on /dev/ttyGS0 (local-USB only).
  * Debug access comes back OFF after a restart UNLESS "Persistent debug" is opted into (one checkbox on this screen, off
  * by default, cfg CFG_PDBG): at every boot Wi-Fi stays on (main.c; otherwise radios start off) and SSH is re-enabled with a
- * fresh random password (read it here). Nothing is stored but the existing password file, never a key. */
+ * fresh random password (read it here). Nothing is stored but the existing password file, never a key.
+ *
+ * Key SSH is a second, separate door: a key-only dropbear on port 2222 that S98diskos_sshkey starts at every boot while
+ * /usr/data/sshd/root_home/.ssh/authorized_keys is non-empty. It is a root login too, and Enable/Disable above never
+ * touch it, so this screen shows it in both states and has its own checkbox to stop/start it (runtime only: the keys are
+ * not deleted, it returns at the next boot). */
 
 #define DBG "/usr/project/diskos-debug.sh"
+#define KEYSSH_PORT 2222
+#define KEYSSH_KEYS "/usr/data/sshd/root_home/.ssh/authorized_keys"
 
-static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl;
+static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl, *g_keycb, *g_keysub;
 static int  g_on = 0;
 static char g_pwtext[16] = "";
 
@@ -81,6 +88,34 @@ static int ssh_running(void){
     return found;
 }
 
+/* Is something LISTENing on TCP `port` in this /proc/net/tcp or tcp6 table? Lines look like
+ * "  0: 00000000:08AE 00000000:0000 0A ..." (hex local port, state 0A = LISTEN). Pure parsing: host-tested. */
+static int tcp_listen_in(FILE *f, int port){
+    char line[256];
+    if(!fgets(line, sizeof line, f)) return 0;                       /* header */
+    while(fgets(line, sizeof line, f)){
+        unsigned lport, st;
+        if(sscanf(line, " %*d: %*[0-9A-Fa-f]:%x %*[0-9A-Fa-f]:%*x %x", &lport, &st) == 2 && st == 0x0A && (int)lport == port)
+            return 1;
+    }
+    return 0;
+}
+
+/* Is the key-only SSH really up? A listener on 2222 (the same truth `diskos-debug.sh status` reports as KEYSSH), not a
+ * pid file or a cached flag. */
+static int keyssh_up(void){
+    static const char *const tabs[] = { "/proc/net/tcp", "/proc/net/tcp6" };
+    for(int i = 0; i < 2; i++){
+        FILE *f = fopen(tabs[i], "r"); if(!f) continue;
+        int up = tcp_listen_in(f, KEYSSH_PORT);
+        fclose(f);
+        if(up) return 1;
+    }
+    return 0;
+}
+
+static int keyssh_has_keys(void){ struct stat st; return stat(KEYSSH_KEYS, &st) == 0 && st.st_size > 0; }
+
 /* Is our private shadow overlay currently bind-mounted over /etc/shadow? SSH is only truly OFF when
  * BOTH dropbear is gone AND this overlay is dropped - otherwise a blocked/killed ssh-off could leave
  * the overlay mounted, and reporting OFF would be a lie (and re-enable logic could misbehave). */
@@ -103,6 +138,8 @@ static void pw_store(void){
     FILE *f = fopen(PWFILE, "w");
     if(f){ fchmod(fileno(f), 0600); fprintf(f, "%s\n", g_pwtext); fclose(f); }
 }
+
+static void refresh_key(const char *note);   /* below */
 
 static void refresh(void){
     char b[96];
@@ -127,6 +164,21 @@ static void refresh(void){
         lv_label_set_text(g_warn, "Enables SSH over Wi-Fi with a fresh random password.");
         lv_label_set_text(g_btnlbl, "Enable Debug");
     }
+    refresh_key(NULL);
+}
+
+/* The Key SSH rows, from the REAL state every time (screen shown, after each toggle, after Enable/Disable). The checkbox
+ * itself is the state line. `note` (or NULL) replaces the muted sub-label after a toggle that did not take. */
+static void refresh_key(const char *note){
+    int up = keyssh_up(), keys = keyssh_has_keys();
+    lv_checkbox_set_text(g_keycb, up ? "Key SSH :2222  ON (keys only)" : "Key SSH :2222  OFF");
+    if(up) lv_obj_add_state(g_keycb, LV_STATE_CHECKED); else lv_obj_remove_state(g_keycb, LV_STATE_CHECKED);
+    if(!up && !keys) lv_obj_add_state(g_keycb, LV_STATE_DISABLED); else lv_obj_remove_state(g_keycb, LV_STATE_DISABLED);
+    lv_obj_set_style_text_color(g_keycb, up ? TC(STATUS_WARNING) : TC(TEXT_PRIMARY), 0);
+    lv_label_set_text(g_keysub, note ? note
+                      : up    ? "Disable does not stop it. Back at boot."
+                      : keys  ? "Starts again at boot while a key is installed"
+                              : "No key installed, so it stays off");
 }
 
 /* The enable itself, without touching any widget (also run at boot for Persistent debug). 0 = went through the steps,
@@ -177,6 +229,17 @@ static void disable_dbg(void){
 
 static void btn_cb(lv_event_t *e){ (void)e; if(g_on) disable_dbg(); else enable_dbg(); }
 
+/* Key SSH checkbox: stop/start only the key daemon (key-off also releases the /root bind mount). Bounded like the other
+ * calls; the result is read back from the listener, never assumed. Stopping it from inside a key-SSH session just ends
+ * that session (the script runs from here, not from the session). */
+static void key_cb(lv_event_t *e){
+    int want = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
+    char *a[] = { DBG, want ? "key-on" : "key-off", NULL };
+    ui_run_bounded(a, 8000);
+    int up = keyssh_up();
+    refresh_key(up == want ? NULL : want ? "Could not start Key SSH (see key-on.log)" : "Key SSH did not stop - try again");
+}
+
 static void pdbg_cb(lv_event_t *e){
     cfg_set_int(CFG_PDBG, lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED) ? 1 : 0);
 }
@@ -204,7 +267,7 @@ void debug_open(void){
     screen_show(SCR_DEBUG);
 }
 
-static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, int y){
+static lv_obj_t *dbg_checkbox(lv_obj_t *root, const char *text, int y){
     lv_obj_t *cb = lv_checkbox_create(root);
     lv_checkbox_set_text(cb, text);
     lv_obj_set_style_text_font(cb, TF(UI_16), 0);
@@ -218,8 +281,12 @@ static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, int y){
     lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(cb, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_set_style_shadow_width(cb, 0, LV_PART_INDICATOR);
-    if(cfg_get_int(CFG_PDBG, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
     lv_obj_align(cb, LV_ALIGN_TOP_MID, 0, y);
+    return cb;
+}
+static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, int y){
+    lv_obj_t *cb = dbg_checkbox(root, text, y);
+    if(cfg_get_int(CFG_PDBG, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
     ui_on(cb, pdbg_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.pdbg.value", UI_CORE);
     return cb;
 }
@@ -239,31 +306,41 @@ void debug_create(lv_obj_t *root){
     lv_obj_set_width(g_pw, 320); lv_obj_set_style_text_align(g_pw, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_pw, TF(UI_24), 0);
     lv_obj_set_style_text_color(g_pw, ui_current_accent(), 0);
-    lv_obj_align(g_pw, LV_ALIGN_TOP_MID, 0, 112);
+    lv_obj_align(g_pw, LV_ALIGN_TOP_MID, 0, 108);
 
     g_serial = lv_label_create(root);
     lv_obj_set_width(g_serial, 300); lv_obj_set_style_text_align(g_serial, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(g_serial, TC(TEXT_MUTED), 0);
-    lv_obj_align(g_serial, LV_ALIGN_TOP_MID, 0, 144);
+    lv_obj_align(g_serial, LV_ALIGN_TOP_MID, 0, 136);
 
     g_warn = lv_label_create(root);
     lv_obj_set_width(g_warn, 280); lv_label_set_long_mode(g_warn, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(g_warn, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(g_warn, TC(STATUS_WARNING), 0);
-    lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 164);
+    lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 156);
 
     /* Persistent debug: one opt-in checkbox (off by default) above the button; Wi-Fi and SSH both come back at boot */
-    pdbg_checkbox(root, "Persistent debug", 216);
+    pdbg_checkbox(root, "Persistent debug", 198);
     lv_obj_t *sub = lv_label_create(root);
     lv_label_set_text(sub, "Wi-Fi and SSH on at every boot");
     lv_obj_set_style_text_font(sub, TF(UI_12), 0);
     lv_obj_set_style_text_color(sub, TC(TEXT_MUTED), 0);
-    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 244);
+    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 222);
+
+    /* Key SSH (port 2222, keys only): its own state line + checkbox, shown whether or not Debug access is on */
+    g_keycb = dbg_checkbox(root, "Key SSH :2222  OFF", 240);
+    ui_on(g_keycb, key_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.key.value", UI_CORE);
+    g_keysub = lv_label_create(root);
+    lv_obj_set_width(g_keysub, 300); lv_label_set_long_mode(g_keysub, LV_LABEL_LONG_DOT);   /* one line: the button is just below */
+    lv_obj_set_style_text_align(g_keysub, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(g_keysub, TF(UI_12), 0);
+    lv_obj_set_style_text_color(g_keysub, TC(TEXT_MUTED), 0);
+    lv_obj_align(g_keysub, LV_ALIGN_TOP_MID, 0, 264);
 
     lv_obj_t *btn = lv_button_create(root);
-    lv_obj_set_size(btn, 190, 44);
+    lv_obj_set_size(btn, 190, 40);
     lv_obj_set_style_shadow_width(btn, 0, 0);   /* no LVGL default-theme drop shadow: every other button is flat */
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -40);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -38);
     ui_on(btn, btn_cb, LV_EVENT_CLICKED, NULL, "debug_ui.btn", UI_CORE);
     /* the accent action, like Date & Time's Set: LVGL's default button blue and an inherited text colour read poorly
      * (green on green, grey on orange) under the themes */
