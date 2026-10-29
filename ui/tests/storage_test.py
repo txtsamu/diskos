@@ -97,6 +97,7 @@ static void session_save_source(int mode){ (void)mode; }
 void settings_restart_now(void){}   /* the device restart after a USB Storage return; declared in the sliced main.c */
 int modes_output_route(void){ return OUT_INTERNAL; }   /* the internal DAC: no leave-USB detour */
 int modes_via_local_then(int mode){ (void)mode; return -1; }
+void modes_dac_exit_done(int started){ (void)started; }   /* modes.c: the ordered USB DAC exit ended (called from the sliced dac_exit_tick) */
 static void art_cancel(void){}
 void modes_output_reset(void){}   /* output routing is not under test here */
 int modes_output_busy(void){ return 0; }
