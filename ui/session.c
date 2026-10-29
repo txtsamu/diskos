@@ -73,6 +73,7 @@ void session_handoff_cancel(void){ unsetenv(ENV_RELOAD); unsetenv(ENV_ROUTE); un
 
 /* ---- what may a startup restore still do ---- */
 int session_autoplay_pause_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
+int session_chargemode_boot_allowed(void){ return g_entry == SESSION_COLD_BOOT; }
 
 #define PREF_SRC "src_mode"
 #define PREF_USB "usb_audio_on"
