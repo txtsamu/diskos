@@ -418,7 +418,6 @@ void ui_set_balance(int v){ if(v < -10 || v > 10) return;   /* enforce UI range;
  * frame shape matches stock. Pause/seek/play resumes the current track after routing.
  * g_route_mac = the MAC we've routed to ("" = local/analog; kept for validation + dedup). */
 static char g_route_mac[20] = "";
-static int g_startup_route_checked = 0;
 static void route_uppercase(const char *in, char *out, int cap);
 #ifndef ROUTE_STATE_PATH
 #define ROUTE_STATE_PATH "/tmp/.diskos-ui/route"
@@ -583,7 +582,7 @@ int ui_route_bt(const char *mac){
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
     snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
     route_state_save(norm);
-    g_startup_route_checked = 1;                       /* an intentional BT route supersedes startup recovery */
+    session_startup_route_settled();                   /* an intentional BT route supersedes startup recovery */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
     fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, was_playing, st.position_ms); fflush(stderr);
     return 0;
@@ -622,9 +621,6 @@ int ui_route_analog(void){
 /* The mode itself lives in session.c (an _Atomic there: WRITTEN on the UI thread by ui_set_source_mode, READ on the
  * coldplug worker thread by coldplug_should_run / coldplug_thread). */
 int ui_get_source_mode(void){ return session_source_mode(); }
-/* Theme re-launch: the player keeps its route and source mode, but this fresh process starts at Local/internal. The old
- * process leaves both in the environment; the new one adopts them at startup (see DISKOS_RELOAD_ROUTE in main). */
-static unsigned g_adopted_gen = 0xFFFFFFFFu;   /* ipc generation whose route/mode was adopted: no local-init for it */
 
 /* SD operations share an admission gate. It closes before an export is queued and
  * reopens only after that export was observed and its return mount is confirmed. */
@@ -1408,22 +1404,22 @@ static int startup_connected_sink(const char *mac){
 static int startup_route_reconcile(void){
     static unsigned sink_retry_gen = 0xFFFFFFFFu;
     static uint32_t sink_retry_at = 0;
-    if(g_startup_route_checked) return 0;
+    if(!session_startup_route_pending()) return 0;
     unsigned gen = ipc_generation();
     if(modes_output_route() != OUT_INTERNAL || cfg_get_int("spdif", 0)){
-        g_startup_route_checked = 1; return 0;
+        session_startup_route_settled(); return 0;
     }
     if(sink_retry_gen == gen && lv_tick_elaps(sink_retry_at) < 5000) return -1;
     /* A route from this live player is newer than its bulk-saved OUT_DEV. */
     if(!g_route_mac[0]){
         int saved_bt = startup_saved_bt_route();
-        if(saved_bt <= 0){ g_startup_route_checked = 1; return 0; }
+        if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
     }
     int sink = startup_connected_sink(g_route_mac);
     if(sink < 0){ sink_retry_gen = gen; sink_retry_at = lv_tick_get(); return -1; }
-    if(sink){ g_startup_route_checked = 1; return 1; }   /* the auto-route poll owns this speaker */
+    if(sink){ session_startup_route_settled(); return 1; }   /* the auto-route poll owns this speaker */
     if(route_analog(1) < 0) return -1;
-    g_startup_route_checked = 1;
+    session_startup_route_settled();
     return 1;   /* route_analog logs the single recovery line */
 }
 /* Resume Playback (0684 Position/Song) restores the last song at boot, but the player also starts PLAYING it
@@ -1453,9 +1449,9 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(ui_get_source_mode() != 0) return;                     /* only while Local source */
     if(modes_output_busy()) return;                            /* an output switch owns 0666/0642/0657 right now */
     unsigned gen = ipc_generation();
-    if(gen == g_adopted_gen) return;                           /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
-    if(age_gen != gen){ age_gen = gen; player_old = !g_startup_route_checked && startup_player_old(); }
-    if(!g_startup_route_checked && player_old && !startup_playback_busy(gen)){
+    if(!session_local_init_allowed(gen)) return;               /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
+    if(age_gen != gen){ age_gen = gen; player_old = session_startup_route_pending() && startup_player_old(); }
+    if(session_startup_route_pending() && player_old && !startup_playback_busy(gen)){
         int startup = startup_route_reconcile();
         if(startup > 0) done_gen = gen;
         if(startup > 0 && !fw_needs_localplayer_init()){
@@ -1470,7 +1466,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     uint32_t now = lv_tick_get();
     if(wait_gen != gen){ wait_gen = gen; wait_start = now; return; }   /* first response this gen -> start settle */
     if(now - wait_start < 9000) return;                        /* settle past the ~7s mode-control-thread window */
-    if(!g_startup_route_checked && startup_playback_busy(gen)) return;
+    if(session_startup_route_pending() && startup_playback_busy(gen)) return;
     int startup = startup_route_reconcile();
     if(startup < 0) return;
     if(g_route_mac[0]){ done_gen = gen; if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
@@ -3277,17 +3273,14 @@ int ui_theme_reload(const char *screen){
     for(int fd = 3; fd < 1024; fd++){ int fl = fcntl(fd, F_GETFD); if(fl >= 0) fcntl(fd, F_SETFD, fl | FD_CLOEXEC); }
     fflush(stderr);
     handoff_signal_reset();
-    setenv("DISKOS_THEME_RELOAD", "1", 1);
-    { char v[16];
-      snprintf(v, sizeof v, "%d", modes_output_route()); setenv("DISKOS_RELOAD_ROUTE", v, 1);
-      snprintf(v, sizeof v, "%d", (int)session_source_mode());   setenv("DISKOS_RELOAD_SRC", v, 1); }
+    session_handoff_export();   /* the new process adopts the Player's route and source mode (session_adopt) */
     char *ua[3]; ua[0] = "mq_ui"; ua[1] = (char *)(screen ? screen : "home"); ua[2] = NULL;
     /* Re-exec the image that is RUNNING (the launcher's verified private copy, or whichever build fell back), never the
      * mutable /usr/data/mq_ui pathname: that could swap a running fallback for the unverified/trial file. /proc/self/exe
      * still works when the running file was unlinked. The boot markers (/tmp/.diskos_run, .diskos_launched) describe this
      * same build, so they are neither rewritten nor re-checked here. A failed exec keeps us running (no path fallback). */
     execv("/proc/self/exe", ua);
-    unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
+    session_handoff_cancel();
     alarm(0);
     ui_toast("Couldn't apply the theme now - it applies next start");
     return -1;
@@ -3468,9 +3461,10 @@ int main(int argc, char **argv){
     lv_timer_create(playlist_port_cb, 5000, NULL);       /* bring pre-1.2.0 / stock-migrated playlists into agreement (see playlist_port_cb) */
     lv_timer_create(sd_features_gate_cb, 500, NULL);     /* start SD-backed features only on a positive launcher verdict */
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
+    session_init();                                       /* cold boot or relaunch: before any timer below asks what a startup restore may still do */
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    if(!getenv("DISKOS_THEME_RELOAD"))   /* a theme relaunch is not a boot: what is playing must keep playing */
+    if(session_autoplay_pause_allowed())   /* a theme relaunch is not a boot: what is playing must keep playing */
         lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
@@ -3591,21 +3585,14 @@ int main(int argc, char **argv){
     if(ui_source_switch_pending()) g_sd_deadline = lv_tick_get() + 20000;
     lv_timer_create(storage_tick, 100, NULL);
     { void system_ota_health_init(void); system_ota_health_init(); }   /* system.c: proves a trial OTA build healthy after 15 s */
-    if(getenv("DISKOS_THEME_RELOAD")){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
-        const char *rr = getenv("DISKOS_RELOAD_ROUTE"), *rs = getenv("DISKOS_RELOAD_SRC");
-        int route = rr ? atoi(rr) : 0, src = rs ? atoi(rs) : 0;
-        if((route != OUT_INTERNAL || src != 0) && route >= OUT_INTERNAL && route <= OUT_USB && src >= 0 && src <= 2){
-            /* Adopt now, not in the "player reconnected" branch below: that only fires when /ui is re-attached after a
-             * player restart, which a plain relaunch never is, so the route was never kept (and the saved-preference
-             * restore then re-ran the whole USB Audio switch, restarting the output and the song). ipc_generation()
-             * only moves on a player restart, so it is stable from here. */
-            session_set_source_mode(src);
-            modes_output_adopt(route);
-            g_adopted_gen = ipc_generation();
-            g_startup_route_checked = 1;
-            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", route, src, g_adopted_gen); fflush(stderr);
+    if(session_entry() == SESSION_RELAUNCH){   /* a theme re-launch: no boot splash, and keep the player's route/mode */
+        /* Adopt now, not in the "player reconnected" branch below: that only fires when /ui is re-attached after a
+         * player restart, which a plain relaunch never is, so the route was never kept (and the saved-preference
+         * restore then re-ran the whole USB Audio switch, restarting the output and the song). */
+        if(session_adopt(ipc_generation())){
+            modes_output_adopt();
+            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", session_route(), session_source_mode(), ipc_generation()); fflush(stderr);
         }
-        unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC");
     }
     else splash_start();
     /* Init is complete. Force the FIRST FRAME to actually paint (lv_refr_now flushes

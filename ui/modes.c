@@ -72,14 +72,13 @@ static struct { lv_timer_t *tm; uint32_t t0, seen; } g_usbw;   /* waiting for th
 
 int modes_output_route(void){ return session_route(); }
 void modes_output_reset(void){ session_set_route(OUT_INTERNAL); }
-/* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. */
+/* A theme re-launch (same player, new UI process) carries the live route over: the player is still on it. session_adopt()
+ * already took the route over; this is the part that needs the UI. */
 static lv_timer_t *g_usbgone_tm; static int g_usbgone_miss;
 static void usbgone_tick(lv_timer_t *t);
-void modes_output_adopt(int route){
-    if(route < OUT_INTERNAL || route > OUT_USB) return;
-    session_set_route(route);
+void modes_output_adopt(void){
     modes_ui_refresh();   /* the picker and Settings may already be on screen with the old (internal) mark */
-    if(route == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
+    if(session_route() == OUT_USB){ g_usbgone_miss = 0; if(!g_usbgone_tm) g_usbgone_tm = lv_timer_create(usbgone_tick, 1000, NULL); }
 }
 int modes_output_busy(void){ return g_osw.tm != NULL || g_rec || g_usbw.tm != NULL; }
 static int out_usb_card_ok(void){
