@@ -39,12 +39,18 @@ ipc_guard_test: ipc_guard_test.c
 	$(CC) $(CFLAGS) ipc_guard_test.c ipc_guard_fn.c -o $@
 	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
 
+ipc_tx_test: ipc_tx_test.c ../ipc.c
+	sed -n '/^static volatile int g_send_err/,/^\/\* ---- safety guard/p' ../ipc.c | sed '$$d' > ipc_tx_fn.c
+	$(CC) $(CFLAGS) -I.. ipc_tx_test.c -o $@
+	rm -f ipc_tx_fn.c
+
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test
+run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
 	./ipc_guard_test
+	./ipc_tx_test
 	@echo "--- outseq ---"
 	./outseq_test
 	python3 -I outseq_guard_test.py
@@ -60,4 +66,4 @@ run: config_test playstate_test ipc_guard_test outseq_test session_test playadmi
 	./tama_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test
+	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test

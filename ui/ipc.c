@@ -725,7 +725,14 @@ static long tx_depth(void){
 /* At cold boot there is no /player mailbox yet (ENOENT): "not yet", not "gone" - such a frame waits too. */
 static int tx_not_yet(int err){ return err == ENOENT; }
 static uint32_t tx_hold(void){ return ipc_rx_frames() ? TX_HOLD_MS : TX_HOLD_BOOT_MS; }
-typedef struct { char f[448]; uint32_t t0; int quiet; } txe_t;   /* a play frame is up to ~420 */
+/* A restarted player unlinks and recreates /player, orphaning g_tx: nothing reads the old queue, so it fills (EAGAIN) and
+ * stays full - indistinguishable from a busy player. The health check only notices after up to 30 s, so a head frame
+ * stuck on EAGAIN this long drops g_tx and reopens the CURRENT /player (a healthy queue is the same object: nothing is
+ * lost, the stuck frame was never sent). Well past the ~6 ms brief wait and a normal drain, well inside TX_HOLD_MS so the
+ * frame still gets its retry on the new queue. The frame's stall clock restarts at each reopen, so a busy player is not hammered. */
+#define TX_REOPEN_MS 2000
+static int tx_stall_reopen(uint32_t now, uint32_t stall0){ return (uint32_t)(now - stall0) >= TX_REOPEN_MS; }
+typedef struct { char f[448]; uint32_t t0, s0; int quiet; } txe_t;   /* a play frame is up to ~420; t0 queued at, s0 stall clock */
 static txe_t g_txq[TX_MAX];
 static int g_txh, g_txn;
 static pthread_mutex_t g_txmu = PTHREAD_MUTEX_INITIALIZER;
@@ -738,6 +745,12 @@ static void tx_drain_locked(void){
     while(g_txn > 0){
         txe_t *e = &g_txq[g_txh]; int err = 0;
         int r = tx_try(e->f, &err);
+        if(r == 1 && tx_stall_reopen(tx_ms(), e->s0)){                     /* stuck on a full queue: maybe an orphan */
+            e->s0 = tx_ms();
+            if(g_tx != (mqd_t)-1){ mq_close(g_tx); g_tx = (mqd_t)-1; }
+            fprintf(stderr,"ipc: /player full for %ums, reopening\n", (unsigned)(e->s0 - e->t0));
+            r = tx_try(e->f, &err);                                        /* same frame, same place in line, new queue */
+        }
         if(r == 1 || (r < 0 && tx_not_yet(err))){                         /* still full, or no player yet */
             if(tx_ms() - e->t0 < tx_hold()) return;
             r = -1; if(!err) err = EAGAIN;
@@ -791,7 +804,7 @@ static int ipc_send_raw(const char*frame, int quiet){
     if(g_txn >= TX_MAX){ txe_t e; snprintf(e.f, sizeof e.f, "%s", frame); e.quiet = quiet; tx_fail(&e, EAGAIN); rc = -1; }
     else {
         txe_t *e = &g_txq[(g_txh + g_txn) % TX_MAX];
-        snprintf(e->f, sizeof e->f, "%s", frame); e->t0 = tx_ms(); e->quiet = quiet; g_txn++;
+        snprintf(e->f, sizeof e->f, "%s", frame); e->t0 = e->s0 = tx_ms(); e->quiet = quiet; g_txn++;
         fprintf(stderr,"ipc: player busy, '%.12s' waits (%d in line)\n", frame, g_txn);
     }
     pthread_mutex_unlock(&g_txmu);
