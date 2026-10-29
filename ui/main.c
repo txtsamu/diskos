@@ -874,8 +874,7 @@ int ui_set_source_mode(int mode){
     /* Remember the picked Working Mode for the next boot (modes_output_boot_restore). Only the picker calls this,
      * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
      * (mode 3) returns above and is never remembered. */
-    cfg_set_int("src_mode", mode);
-    cfg_set_int("usb_audio_on", 0);
+    session_save_source(mode);
     return 0;
 }
 void settings_restart_now(void);   /* settings.c */
