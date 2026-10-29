@@ -378,6 +378,13 @@ With it ticked, root SSH over Wi-Fi is available on every boot until you press D
 network you do not trust. Wi-Fi in the 2.4 GHz band can add a buzzing noise to some headphones or DACs;
 if you hear one, turn Wi-Fi off or untick the option.
 
+**Key SSH :2222** (a line and checkbox on the Debug Mode screen, shown whether Debug access is on or off) is
+a second, separate root login: a key-only Dropbear on port 2222 that starts about 3 seconds after every boot
+while `/usr/data/sshd/root_home/.ssh/authorized_keys` is non-empty (`S98diskos_sshkey`). It has no password, so
+it is not shown with the Debug Mode password and **Disable Debug does not stop it**. Untick the checkbox to stop
+it and release the `/root` bind mount it uses, or tick it to start it again (it needs a key to be installed).
+This only stops it until the next boot; it never deletes the key, so remove `authorized_keys` to keep it off.
+
 Debug Mode uses Dropbear 2022.83, which predates the CVE-2023-48795 Terrapin Strict-KEX mitigation.
 Use it only for short sessions on a trusted network and turn it off when finished.
 

@@ -116,7 +116,8 @@ USB access is checked before flashing. Select **Install diskOS...**, then tick
 **I understand and will keep the USB cable connected until it finishes.** on the confirmation
 screen and select **Begin flash (~20 min)**. Keep the computer awake and
 wait for verification before power-cycling the Disc. The Public variant has no always-on root shell;
-Debug Mode can enable temporary SSH on the Disc.
+Debug Mode can enable temporary SSH on the Disc, and shows (and can stop) the key-only SSH on port 2222 that
+starts at boot when a key is installed.
 
 For the command line, the equivalent install is:
 
