@@ -15,7 +15,7 @@ typedef enum { OUTSEQ_INTERNAL = 0, OUTSEQ_SPDIF = 1, OUTSEQ_USB = 2 } outseq_ro
  * OUTSEQ_MOVED:   the route moved but a later frame failed: the Player may be on a route the UI does not know. */
 typedef enum { OUTSEQ_OK = 0, OUTSEQ_REFUSED = -1, OUTSEQ_MOVED = -2 } outseq_rc;   /* rc < 0 is still a failure */
 
-/* Source modes, numbered as g_source_mode in main.c. */
+/* Source modes, numbered as session_source_mode() in session.c. */
 typedef enum { OUTSEQ_SRC_LOCAL = 0, OUTSEQ_SRC_USB_DAC = 1, OUTSEQ_SRC_BT_RECEIVING = 2, OUTSEQ_SRC_USB_STORAGE = 3 } outseq_src_t;
 
 /* QUICK is the Settings SPDIF toggle: route frame + work mode, no settle, no gadget frame. */

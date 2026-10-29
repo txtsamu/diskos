@@ -318,7 +318,7 @@ static void settle_cb(lv_timer_t *t){
     int intended = g_pending_mode; g_pending_mode = -1;
     if(ui_source_switch_failed()){ mark_selected_mode(-1); return; }
     /* M17: DISPLAY the ACTUAL gadget state (read-only) instead of a blind timer assumption. Do NOT
-     * mutate the intent mirror (g_source_mode) - it also guards coldplug, and a transient mid-transition
+     * mutate the intent mirror (session_source_mode) - it also guards coldplug, and a transient mid-transition
      * sample must not flip that guard. */
     int show = (intended >= 0) ? intended : ui_get_source_mode();
     if(intended == 0 || intended == 1 || intended == 3){   /* USB gadget modes are readback-confirmable */
