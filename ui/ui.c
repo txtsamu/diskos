@@ -1986,57 +1986,6 @@ const char *ui_current_backdrop_src(void)
     return backdrop_valid ? backdrop_src : NULL;
 }
 
-/* Montserrat covers Latin + Latin-Extended only; it has no Cyrillic/Greek (issue #3:
- * "Cyrillic metadata" rendered as boxes) and no CJK ("CJK metadata"). Build a per-size fallback chain:
- *   Montserrat(size) -> font_intl(size) [Cyrillic/Greek/Latin-ext, Noto, uncompressed]
- *                    -> stock TTC [CJK, matched size] -> Source Han 16 -> supplement.
- * The intl fonts are generated at matched ascent/descent (base_line 4/5/6 == Montserrat's)
- * so fallback glyphs sit on the same baseline; LVGL uses the PRIMARY font's line-height, and
- * each intl line-height (20/23/28) fits within Montserrat's (20/24/28) so nothing clips.
- * We keep mutable copies because .fallback must be set on non-const fonts. */
-static lv_font_t s_cjk; /* existing subset plus the small music-metadata supplement */
-static lv_font_t s_ft[41], s_font[41], s_intl[41];
-static const lv_font_t *ui_intl_font(int px)
-{
-    switch(px) {
-    case 14: return &font_intl_14;
-    case 16: return &font_intl_16;
-    case 18: return &font_intl_18;
-    case 20: return &font_intl_20;
-    default: return NULL;
-    }
-}
-static void ui_fonts_init(void)
-{
-    if(s_cjk.get_glyph_dsc) return;
-    s_cjk = lv_font_source_han_16_cjk; s_cjk.fallback = &font_cjk_extra_16;
-}
-
-/* Public accessor for the fallback-chained text font (Montserrat -> intl -> CJK) so other screens
- * render user text (track/album/artist names) with full glyph coverage. */
-const lv_font_t *ui_text_font(int px){
-    return ui_font_cjk(px);
-}
-
-/* Shared CJK-capable chain at each available Montserrat role size. */
-const lv_font_t *ui_font_cjk(int size)
-{
-    ui_fonts_init();
-    if(size != 10 && size != 12 && size != 14 && size != 16 && size != 18 && size != 20 &&
-       size != 22 && size != 24 && size != 28 && size != 32 && size != 36 && size != 40) size = 16;
-    const lv_font_t *base = theme_font_base(size);
-    if(!s_font[size].get_glyph_dsc) {
-        const lv_font_t *intl = ui_intl_font(size);
-        const lv_font_t *ft = fontft_font(size);
-        const lv_font_t *next = &s_cjk;
-        if(ft) { s_ft[size] = *ft; s_ft[size].fallback = next; next = &s_ft[size]; }
-        if(intl) { s_intl[size] = *intl; s_intl[size].fallback = next; next = &s_intl[size]; }
-        s_font[size] = *base;
-        s_font[size].fallback = next;
-    }
-    return &s_font[size];
-}
-
 void ui_create(lv_obj_t *root)
 {
     lv_obj_t *scr = root;
