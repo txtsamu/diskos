@@ -1261,13 +1261,12 @@ static void start_scan(void){
 /* wifi_up.sh runs async, so wpa_supplicant isn't up the instant the switch flips.
  * Show "Turning on Wi-Fi..." and poll until the radio is actually up before
  * scanning (otherwise start_scan() would immediately report "Wi-Fi is off").
- * The intent / bring-up watch / off teardown lifecycle is radio.c's; this is its Wi-Fi adapter. A timeout here only
- * reports (rollback 0): the intent stays on and the keepalive retries, unlike Bluetooth. */
-static lv_timer_t *g_radio_timer;
-static void radio_poll_cb(lv_timer_t *t);
-static void wifi_watch_arm(unsigned ms){ g_radio_timer = lv_timer_create(radio_poll_cb, ms, NULL); }
-static void wifi_watch_disarm(void){ lv_timer_del(g_radio_timer); g_radio_timer = NULL; }
+ * The intent / bring-up watch / off teardown / toggle lifecycle is radio.c's; this is its Wi-Fi adapter, facts only.
+ * Where it differs from Bluetooth: a timeout only reports (RADIO_REPORT_ONLY: the intent stays on and the keepalive
+ * retries); the Quick Settings tile flips the persisted intent (that is what the tile shows); and a tile toggle does
+ * not watch the bring-up (no Wi-Fi screen is waiting, and the keepalive enforces the intent). */
 static void wifi_set_intent(int on){ cfg_set_int("wifi_on", on); }   /* OFF is set before the down, so the keepalive won't resurrect it */
+static int  wifi_intent_on(void){ return cfg_get_int("wifi_on", 1); }
 static void wifi_radio_start(void){
     system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
     g_wifi_last_start = lv_tick_get();       /* let the keepalive back off (no duplicate launch) */
@@ -1279,21 +1278,21 @@ static void wifi_radio_cleanup(void){
     wifi_lease_step();
 }
 static void wifi_radio_down(void){ system("/usr/bin/wifi_down.sh >/dev/null 2>&1"); }
-static struct radio_watch g_wifi_watch = { 700, 8000, wifi_radio_on, wifi_watch_arm, wifi_watch_disarm, 0, 0 };
-static struct radio g_wifi_radio = { &g_wifi_watch, wifi_set_intent, wifi_radio_start, wifi_radio_cleanup, wifi_radio_down, 0 };
-static void radio_poll_cb(lv_timer_t *t){
-    (void)t;
-    int v = radio_tick(&g_wifi_radio, lv_tick_get());
-    if(v == RADIO_UP) start_scan();
-    else if(v == RADIO_TIMEOUT) list_msg("Couldn't turn on Wi-Fi");
-}
+static void wifi_radio_up_cb(void){ start_scan(); }
+static void wifi_radio_timeout_cb(void){ list_msg("Couldn't turn on Wi-Fi"); }
+static struct radio g_wifi_radio = {
+    .watch = { .env = &radio_lv_env, .interval_ms = 700, .timeout_ms = 8000, .is_up = wifi_radio_on,
+               .on_up = wifi_radio_up_cb, .on_timeout = wifi_radio_timeout_cb },
+    .set_intent = wifi_set_intent, .start = wifi_radio_start, .cleanup = wifi_radio_cleanup, .power_down = wifi_radio_down,
+    .is_on = wifi_intent_on, .timeout = RADIO_REPORT_ONLY, .toggle_observes = 0,
+};
 static void sw_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_VALUE_CHANGED) return;
     wifi_lease_retry_reset();
     int on = lv_obj_has_state(g_sw, LV_STATE_CHECKED);
     g_intent_epoch++;                            /* an explicit choice: ends any radio reconciliation hold */
     if(on){
-        radio_on(&g_wifi_radio, lv_tick_get(), 1);   /* persist intent -> keepalive keeps it up */
+        radio_on(&g_wifi_radio, 1);   /* persist intent -> keepalive keeps it up */
         list_msg("Turning on Wi-Fi...");
     } else {
         radio_off(&g_wifi_radio);
@@ -1305,9 +1304,7 @@ static void sw_cb(lv_event_t *e){
  * Mirrors sw_cb's radio actions (keepalive enforces the intent). Returns the new state. */
 int wifi_toggle(void){
     g_intent_epoch++;                        /* an explicit choice: ends any radio reconciliation hold */
-    int on = !cfg_get_int("wifi_on", 1);
-    if(on) radio_on(&g_wifi_radio, lv_tick_get(), 0);
-    else   radio_off(&g_wifi_radio);         /* also cancels any pending radio/scan work on the open Wi-Fi screen */
+    int on = radio_toggle(&g_wifi_radio);    /* off also cancels any pending radio/scan work on the open Wi-Fi screen */
     /* keep the Wi-Fi screen's switch in sync so it reflects reality when opened later */
     if(g_sw){ if(on) lv_obj_add_state(g_sw, LV_STATE_CHECKED); else lv_obj_clear_state(g_sw, LV_STATE_CHECKED); }
     return on;
