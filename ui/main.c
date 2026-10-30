@@ -39,6 +39,8 @@
 #include "srcswitch.h"
 #include "admit.h"
 #include "timekeep.h"
+#include "bootsel.h"
+#include "handoff.h"
 #include "anim.h"
 #include "ipc.h"
 #include "opustitle_worker.h"
@@ -2785,21 +2787,6 @@ static int player_local_mode_confirmed(void){
     if(run_bounded(a, 8000) != 0) return 0;
     return !sd_exported_to_host();
 }
-/* Normalise signal state before ANY exec. Three separate problems, all of which outlive the exec:
- *  - a pending alarm is INHERITED, so our watchdog could fire inside the program we hand off to;
- *  - alarm(0) does not discard a signal that has ALREADY been generated, so we set SIG_IGN and unblock,
- *    which discards it, before restoring the default;
- *  - SIG_IGN itself is inherited across exec, so the disposition must end at SIG_DFL, and the blocked
- *    mask must be cleared (a handler runs with its own signal blocked, so exec'ing from inside one
- *    would otherwise hand the stock binary a blocked SIGALRM).
- * Every call here is async-signal-safe, so this is valid from a handler as well as the normal path. */
-static void handoff_signal_reset(void){
-    alarm(0);
-    signal(SIGALRM, SIG_IGN);
-    sigset_t s; sigemptyset(&s); sigaddset(&s, SIGALRM);
-    sigprocmask(SIG_UNBLOCK, &s, NULL);   /* discards an already-generated SIGALRM */
-    signal(SIGALRM, SIG_DFL);             /* SIG_IGN would survive the exec */
-}
 /* The ONE place that hands off to the stock player. Kills any preparation child first: a shell or
  * sqlite left running would otherwise keep mutating state after stock has started. */
 static void exec_stock_player(void){
@@ -2894,38 +2881,6 @@ static void sd_features_gate_cb(lv_timer_t *t){
     lv_timer_create(sd_degraded_notice_cb, 300000, NULL);   /* recurring, not a single toast */
     lv_timer_del(t);
 }
-
-/* ---- boot select record (tests slice between these markers - keep them) ----
- * S96diskos_select writes exactly "diskos\n" or "stock\n". Returns 1 only for a regular, non-symlink file
- * holding exactly those 7 bytes "diskos\n" - the same rule as payload/diskos-selected, the shell reader
- * used by S97 and the boot hook, so the three consumers cannot disagree about one record. (The shell side
- * needs the exact-size rule because BusyBox ash `read` drops NUL bytes.) Missing, unreadable, FIFO/device,
- * wrong size, NUL-containing or any other content is 0 = stock. Non-blocking open so a FIFO planted at the
- * path cannot stall us. */
-static int boot_select_is_diskos(const char *path){
-    char rec[8] = {0};
-    ssize_t n = -1;
-    int fd = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
-    if(fd < 0) return 0;
-    struct stat st;
-    if(fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_size == 7)
-        n = read(fd, rec, sizeof rec);
-    close(fd);
-    return n == 7 && memcmp(rec, "diskos\n", 7) == 0;
-}
-
-/* Enforce the record. Anything but a positive diskOS record hands this process to the stock UI, and that
- * is TERMINAL: if the stock exec fails we exit rather than run diskOS against the boot's decision.
- * fiio_init's watchdog then sees no mq_ui and respawns the stock UI by its bare name. */
-static void boot_select_enforce(const char *path){
-    if(boot_select_is_diskos(path)) return;
-    handoff_signal_reset();                  /* exec KEEPS a pending timer AND a blocked mask -
-                                              * neither may cross into the stock UI */
-    char *sa[2]; sa[0]="mq_ui"; sa[1]=NULL;
-    execv("/usr/bin/mq_ui", sa);
-    _exit(127);                              /* never fall through into diskOS */
-}
-/* ---- end boot select record ---- */
 
 /* Apply a theme change: re-launch the UI (same PID, same argv[0]="mq_ui", so the boot watchdog never sees a gap), at
  * `screen` (a deep-link name). The player is a separate process and keeps playing. Refused while a library scan is
