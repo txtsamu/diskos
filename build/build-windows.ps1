@@ -1,12 +1,7 @@
-# Default-off onedir build. Run with native Windows Python on Windows x64.
-# Populate vendor/windows-x86_64 using build/build-windows-tools.sh first.
-# Use -Wheelhouse <directory> for a fully offline, hash-locked install.
-# Supply the official VS2022/MS64 DLL with -LibusbDll; no system search or download.
 param([switch]$EnableWindowsFlash, [ValidateNotNullOrEmpty()][string]$Wheelhouse,
       [Parameter(Mandatory=$true)][ValidateNotNullOrEmpty()][string]$LibusbDll,
       [ValidatePattern('^[0-9a-fA-F]{64}$')][string]$NativeManifestSha256)
 $ErrorActionPreference = 'Stop'
-# Resolve caller-relative paths before changing to installer/.
 $libusbPath = (Resolve-Path -LiteralPath $LibusbDll).ProviderPath
 if (-not (Test-Path -LiteralPath $libusbPath -PathType Leaf)) {
     throw 'LibusbDll must be an existing file'
@@ -127,8 +122,6 @@ for name in ('my_write6_dram.bin', 'disc_spl_lpddr3.bin'):
         }
     }
     & $verifyRuntimeSources 'corresponding-source/windows'
-    # Never reuse an environment, freeze output, stage or ZIP from a prior run.
-    # Retain failed runs for inspection; no automatic deletion.
     $run = Join-Path 'build/dist/windows' ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $run | Out-Null
     $venv = Join-Path $run 'venv'
@@ -147,7 +140,6 @@ for name in ('my_write6_dram.bin', 'disc_spl_lpddr3.bin'):
                 [Environment]::SetEnvironmentVariable($entry.Key, $null, 'Process')
             }
         }
-        # NUL disables all pip config files on Windows, including global/site config.
         [Environment]::SetEnvironmentVariable('PIP_CONFIG_FILE', 'NUL', 'Process')
         & $buildPython -I -m pip --isolated --disable-pip-version-check install --no-cache-dir @installArgs
         if ($LASTEXITCODE -ne 0) { throw 'Could not install build requirements' }
@@ -164,7 +156,6 @@ for name in ('my_write6_dram.bin', 'disc_spl_lpddr3.bin'):
     Copy-Item -LiteralPath $libusbPath -Destination (Join-Path $libusbInput 'libusb-1.0.dll')
     & $buildPython -I -m PyInstaller --clean --noconfirm --distpath $dist --workpath $work build/diskos-installer.spec @capabilityArgs
     if ($LASTEXITCODE -ne 0) { throw 'Onedir build failed' }
-    # Stage both entry points and their shared dependency collection together.
     $onedir = Join-Path $dist 'diskos-installer'
     & $buildPython -I -c $nativeCode $sourceRoot (Join-Path $onedir '_internal/vendor/windows-x86_64') $nativeHash
     if ($LASTEXITCODE -ne 0) { throw 'Frozen Windows native verification failed' }
@@ -241,7 +232,6 @@ inventory = ''.join(digest + '  ' + name + '\n' for name, digest in sorted(recor
     if ($LASTEXITCODE -ne 0) { throw 'Could not stage onedir and SHA256 inventory' }
     & $buildPython -I build/verify_git_blobs.py $sourceRoot (Join-Path $stage '_internal') windows-x86_64 --ref $guardRevision --frozen
     if ($LASTEXITCODE -ne 0) { throw 'Staged device inputs differ from committed blobs' }
-    # Two archives of the same immutable stage establish ZIP determinism only.
     $zip = Join-Path $run 'diskos-installer-windows-x86_64.zip'
     $checkZip = Join-Path $run 'diskos-installer-windows-x86_64.check.zip'
     & $buildPython -I build/deterministic_zip.py $stage $zip

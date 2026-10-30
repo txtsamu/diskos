@@ -103,7 +103,7 @@ class WindowsUSBTests(unittest.TestCase):
             return usb.diagnostic('usbboot', runner, require_identity=required)
         self.assertEqual(check(good), good)
         legacy = {k: v for k, v in good.items() if k != 'instance_id'}
-        self.assertEqual(check(legacy, False), legacy)  # Linux schema 1 remains usable.
+        self.assertEqual(check(legacy, False), legacy)
         with self.assertRaises(ValueError): check(legacy)
         for value in (None, '', True, 1, [], {}, 'USB', 'USB\\VID_A108&PID_EAEF\\',
                       r'USB\VID_A108&PID_EAEF&MI_00\DISC', r'USB\VID_A108&PID_EAE0\DISC',
@@ -133,7 +133,6 @@ class NativeDiagnosticTests(unittest.TestCase):
         if not shutil.which('gcc'):
             self.skipTest('gcc required for Windows API mocks')
         source = (Path(__file__).resolve().parents[1] / 'src/usbboot/usbboot.c').read_text()
-        # Compile the actual Windows implementation with API mocks, never USB.
         implementation = source.split('#define DIAG_CAP 4096', 1)[1].split(
             '#endif\n\n/* Standalone raw diagnostic', 1)[0]
         prelude = r'''
@@ -330,15 +329,15 @@ int main(int argc, char **argv) {
                      (12, 'raw', '1 1 1 1 1 3 1'), (13, 'raw', '1 1 1 1 1 3 1'),
                      (14, 'raw', '1 1 1 1 1 4 1'), (15, 'identity', '0 0 0 0 1 3 0'),
                      (16, 'control', '1 1 1 1 1 3 0'), (17, 'control', '1 1 1 1 1 3 1'),
-                     (18, 'raw', '1 1 1 1 1 2 1'),  # Both registry GUID values absent.
-                     (19, 'raw', '1 1 1 1 0 2 1'),  # Registry key absent.
-                     (20, 'raw', '1 1 1 1 1 2 1'),  # Invalid optional value type.
-                     (21, 'raw', '1 1 1 1 1 2 1'),  # Registry access denied.
-                     (22, 'identity', '0 0 0 0 1 2 0'),  # No interface in any class.
-                     (23, 'identity', '0 0 0 0 1 2 0'),  # Standard path disagrees.
-                     (24, 'identity', '0 0 0 0 1 2 0'),  # Standard metadata disagrees.
+                     (18, 'raw', '1 1 1 1 1 2 1'),
+                     (19, 'raw', '1 1 1 1 0 2 1'),
+                     (20, 'raw', '1 1 1 1 1 2 1'),
+                     (21, 'raw', '1 1 1 1 1 2 1'),
+                     (22, 'identity', '0 0 0 0 1 2 0'),
+                     (23, 'identity', '0 0 0 0 1 2 0'),
+                     (24, 'identity', '0 0 0 0 1 2 0'),
                      (25, 'enumerate', '0 0 0 0 0 0 0'),
-                     (27, 'raw', '1 1 1 1 1 2 1')]  # Standard precedes registry extras.
+                     (27, 'raw', '1 1 1 1 1 2 1')]
             errors = {1: 126, 4: 5, 5: 6, 7: 121, 16: 87, 25: 5}
             for scenario, status, cleanup in cases:
                 with self.subTest(scenario=scenario):
@@ -355,8 +354,6 @@ int main(int argc, char **argv) {
                         self.assertEqual(data['length'], 8 if scenario == 8 else 5)
                     elif scenario not in (5, 7, 16, 17):
                         self.assertIsNone(data['instance_id'])
-            # Fail every DLL load and every symbol resolution. Cleanup overwrites
-            # GetLastError, so the reported loader error must already be saved.
             symbols = ('SetupDiGetClassDevsW', 'SetupDiEnumDeviceInfo', 'SetupDiGetDeviceInstanceIdW',
                        'SetupDiOpenDevRegKey', 'SetupDiEnumDeviceInterfaces', 'SetupDiGetDeviceInterfaceDetailW',
                        'SetupDiDestroyDeviceInfoList', 'RegQueryValueExW', 'RegCloseKey',

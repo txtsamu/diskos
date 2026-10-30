@@ -37,7 +37,6 @@ class StartupFailureRegressionTests(unittest.TestCase):
             with self.subTest(stage=stage), ExitStack() as stack:
                 self.file.seek(0)
                 self.file.truncate()
-                # main closes its log; each startup needs a fresh stream.
                 self.log = entry._DiagnosticLog(mock.Mock(), {entry.LOG_NAMES[0]: self.file}, 0)
                 stack.enter_context(mock.patch.object(entry, '_open_log',
                                                       return_value=(self.log, 'bounded/gui-0.log')))
@@ -91,8 +90,6 @@ class StartupFailureRegressionTests(unittest.TestCase):
                 self.log = entry._DiagnosticLog(mock.Mock(), {entry.LOG_NAMES[0]: io.BytesIO()}, 0)
                 stack.enter_context(mock.patch.object(entry, '_open_log',
                                                       return_value=(self.log, 'bounded/gui-0.log')))
-                # Fail the initial write or a later result/failure event, then
-                # fail every attempt to report that failure as on a full disk.
                 writes = itertools.chain([] if stage == 'startup' else [None],
                                          itertools.repeat(OSError('disk full')))
                 stack.enter_context(mock.patch.object(self.log.file, 'write', side_effect=writes))
@@ -141,8 +138,6 @@ class CleanupRegressionTests(unittest.TestCase):
 
 
 def fixture_mounts(stack, home):
-    # The sandbox mounts both writable roots. Trust that fixture anchor while
-    # retaining real mount checks on the profile itself and all descendants.
     real = entry._mountpoint
     stack.enter_context(mock.patch.object(entry, '_mountpoint', side_effect=lambda path, *args:
                         real(path, *args) if path == str(home) or path.startswith(str(home) + os.sep) else False))
@@ -382,7 +377,6 @@ class LogLifecycleTests(LogFixture, unittest.TestCase):
         (self.folder / entry.LOG_NAMES[0]).symlink_to(external)
         with self.assertRaises(OSError):
             entry._open_log()
-        # A separate profile exercises hard links without changing the symlink.
         profile = self.home / 'hardlinks'
         profile.mkdir()
         folder = profile / entry.LOG_FOLDER
@@ -408,8 +402,6 @@ class LogLifecycleTests(LogFixture, unittest.TestCase):
             if name == path.name:
                 os.replace(replacement, path)
             return real_open(name, flags, *args, **kwargs)
-        # Test the open primitive directly: the foreign name would otherwise
-        # correctly prevent adoption before reaching this race boundary.
         directory = entry._LogDirectory()
         self.addCleanup(directory.close)
         with mock.patch.object(entry.os, 'open', side_effect=swapped):
@@ -606,8 +598,6 @@ class WindowsLogBoundaryTests(unittest.TestCase):
         return 1
 
     def test_junction_symlink_and_volume_mount_reparse_handles_refused(self):
-        # Each Windows redirection kind carries FILE_ATTRIBUTE_REPARSE_POINT,
-        # including junctions and volume mounts with IO_REPARSE_TAG_MOUNT_POINT.
         for attrs in (0x400, 0x410):
             with self.subTest(attrs=attrs):
                 self.attrs = attrs
@@ -619,13 +609,13 @@ class WindowsLogBoundaryTests(unittest.TestCase):
         self.attrs = 0x10
         self.win.open(r'C:\profile', directory=True, expected=types.SimpleNamespace(st_ino=123))
         args = self.api.CreateFileW.call_args.args
-        self.assertEqual(args[2], 3)  # READ | WRITE, never DELETE sharing
-        self.assertEqual(args[5], 0x02200000)  # OPEN_REPARSE_POINT | BACKUP_SEMANTICS
+        self.assertEqual(args[2], 3)
+        self.assertEqual(args[5], 0x02200000)
         self.attrs = 0
         self.win.open(r'C:\profile\gui-0.log', create=True)
         args = self.api.CreateFileW.call_args.args
-        self.assertEqual(args[2], 1)  # READ only, excludes writers and deletion
-        self.assertEqual(args[4], 1)  # CREATE_NEW, no destructive open
+        self.assertEqual(args[2], 1)
+        self.assertEqual(args[4], 1)
 
     def test_second_gui_sharing_violation_shows_calm_refusal(self):
         error = OSError('raw sharing violation')
@@ -892,7 +882,7 @@ class ChildStreamTests(unittest.TestCase):
             self.crt.open_osfhandle.assert_called_once_with(duplicate, os.O_RDONLY | 0x8000)
         with self.assertRaises(OSError):
             os.fstat(duplicate)
-        os.fstat(self.read)  # inherited original still belongs to Windows
+        os.fstat(self.read)
 
     def test_output_is_line_buffered_and_uses_binary_descriptor(self):
         self.win.GetStdHandle.return_value = self.write

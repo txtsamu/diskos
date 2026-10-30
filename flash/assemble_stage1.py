@@ -12,12 +12,9 @@ import struct, sys, hashlib
 
 def main(spl_path, ginfo_path, out_path):
     g = open(ginfo_path, 'rb').read()
-    # BDIF (board-info) record verbatim: [magic][size=184][184B payload] = 0xc0 bytes
     bdif = g[0x000:0x0c0]
     if struct.unpack_from('<I', bdif, 0)[0] != 0x42444946:
         raise SystemExit("BDIF magic missing in ginfo")
-    # DDR record payload = the 35 register words (old ABI: no name[32] header), i.e. vendor
-    # DDR payload bytes [+0x2c .. +0xb8] which map 1:1 onto struct ddr_registers (with ddr_mr11).
     ddr_payload = g[0xc8 + 0x2c : 0xc8 + 0x2c + 35 * 4]
     if len(ddr_payload) != 140:
         raise SystemExit("unexpected DDR payload length")

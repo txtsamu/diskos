@@ -44,7 +44,7 @@ class GuiLeftovers(unittest.TestCase):
                    mock.patch.object(platform_probe, "maskrom_count", return_value=0),
                    mock.patch.object(gui.state, "stock_image_exists", return_value=False)]
         rd = getattr(gui, "readiness", None)
-        if rd is not None:                       # the checklist (slice 2b) must not touch real USB here
+        if rd is not None:
             patches.append(mock.patch.object(rd, "probe", return_value={
                 "os": "linux", "count": 0, "access": None, "inv": None, "inv_error": None, "missing_tools": []}))
         for p in patches:
@@ -76,24 +76,22 @@ class GuiLeftovers(unittest.TestCase):
         st = app.ttk.Style(app.root)
         for style in ("TCheckbutton", "Panel.TCheckbutton"):
             self.assertIn(style.replace(".", "_") + ".indicator", str(st.layout(style)))
-        imgs = app.root._diskos_check_imgs          # Panel/BG sets: off, on, ...; first set is TCheckbutton
+        imgs = app.root._diskos_check_imgs
         off, on = imgs[0], imgs[1]
         fill, dark = gui_theme._hex(gui_theme.ACCENT), gui_theme._hex(gui_theme.ON_ACCENT)
 
         def close(px, want):
             return all(abs(a - b) < 40 for a, b in zip(px, want))
-        # tick: dark marks low-left (short stroke) and up to the right; an X would also mark the top-left
-        n = gui_theme.indicator_size(app.root)          # 16 px at 100%, scaled with the display
+        n = gui_theme.indicator_size(app.root)
 
         def at(fx, fy):
             return int(fx * n), int(fy * n)
-        self.assertTrue(close(on.get(*at(0.45, 0.68)), dark))      # the tick's corner
-        self.assertTrue(close(on.get(*at(0.68, 0.42)), dark))      # its long stroke, up to the right
-        self.assertTrue(close(on.get(*at(0.22, 0.22)), fill))      # an X would mark the top-left
-        self.assertTrue(close(on.get(*at(0.78, 0.78)), fill))      # nor the bottom-right of an X
+        self.assertTrue(close(on.get(*at(0.45, 0.68)), dark))
+        self.assertTrue(close(on.get(*at(0.68, 0.42)), dark))
+        self.assertTrue(close(on.get(*at(0.22, 0.22)), fill))
+        self.assertTrue(close(on.get(*at(0.78, 0.78)), fill))
         self.assertFalse(close(off.get(*at(0.45, 0.68)), fill))
 
-    # ---- restore never reuses the Install page's firmware ----------------------
     def test_restore_with_saved_image_passes_no_firmware(self):
         app = self._app()
         app.fw_var.set("/from/install.zip")

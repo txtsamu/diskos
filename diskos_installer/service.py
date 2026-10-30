@@ -83,7 +83,7 @@ def _settle(action, pending, rep, note):
             rep.warning(f"the uncommitted backup {pending} could not be removed; it stays on disk (not current)")
             return
         rep.log(f"backup {pending}: {note}")
-    except Exception as e:  # disk full, permissions, ...
+    except Exception as e:
         rep.warning(f"the flash outcome stands, but updating the saved-backup record failed ({e}); "
                     f"the backup files are kept in {os.path.dirname(state.generation_paths(pending)[0])}")
 
@@ -93,14 +93,14 @@ def _flash_with_backup(image, mver, pending, log_name, rep):
     try:
         d = flasher.flash(image, mver, log_path=os.path.join(state.state_dir(), log_name), rep=rep)
     except flasher.BaseRefused:
-        if pending:                                    # the Disc is NOT on this base: this backup is wrong for it
+        if pending:
             _settle("discard", pending, rep, "discarded (the Disc is on a different base)")
         raise
     except flasher.FlashError as e:
         v = getattr(e, "verdict", None)
         if pending and getattr(e, "pre_launch", False):
             _settle("discard", pending, rep, "discarded (nothing was sent to the Disc)")
-        elif pending and v and v.get("result") == 1:   # base proven; the write failed - still the right recovery image
+        elif pending and v and v.get("result") == 1:
             _settle("promote", pending, rep, "committed (the Disc's base was confirmed before the write failed)")
         elif pending:
             rep.warning(f"flash result unknown - the new stock backup ({pending}) is kept but NOT made current")
@@ -120,8 +120,6 @@ def _save_stock(stock_sq, rep):
     rep.status("Saving your stock rootfs image (so diskOS can always be deactivated/reverted)")
     sz = os.path.getsize(stock_sq)
     if sz > imagebuild.IMG_SIZE:
-        # NEVER truncate a larger image - a truncated file can still look flashable
-        # (hsqs magic + right size) yet be a corrupt, unbootable stock.
         raise imagebuild.BuildError(
             f"stock rootfs is {sz} bytes > {imagebuild.IMG_SIZE} partition - refusing "
             "(truncating it would produce a corrupt 'stock' image).", code="E240")
@@ -151,10 +149,10 @@ def _ensure_full_size(image_path, rep):
             f"saved stock image is {sz} bytes > {imagebuild.IMG_SIZE} - refusing (truncating it could "
             "hide a corrupt image)", code="E142",
             action="delete the saved image and rebuild it from FiiO's firmware .zip")
-    padded = image_path + ".restorepad"   # next to the saved backup (an existing state dir)
+    padded = image_path + ".restorepad"
     imagebuild._copyfile(image_path, padded)
     with open(padded, "r+b") as f:
-        f.truncate(imagebuild.IMG_SIZE)   # zero-fills the tail to the partition size
+        f.truncate(imagebuild.IMG_SIZE)
     rep.log(f"repadded saved stock image {sz} -> {imagebuild.IMG_SIZE} bytes for the 768-block writer")
     return padded
 
@@ -164,7 +162,7 @@ def _save_state_soft(st, rep):
     failure. Call only AFTER a verified flash."""
     try:
         state.save(st)
-    except Exception as e:  # disk full, permissions, etc.
+    except Exception as e:
         rep.warning(f"flash succeeded, but saving local history failed: {e}")
 
 
@@ -184,7 +182,6 @@ def do_install(params, rep, confirm):
     st.update({"phase": "prepared", "variant": variant})
     state.save(st)
 
-    # 1) obtain the stock rootfs + save it as the restore image
     stock_sq = os.path.join(work, "stock_rootfs.squashfs")
     if params.get("stock"):
         imagebuild._copyfile(params["stock"], stock_sq)
@@ -193,23 +190,17 @@ def do_install(params, rep, confirm):
     else:
         raise imagebuild.BuildError("need a firmware .zip or a stock rootfs.squashfs.", code="E140",
                                    action="pass your official FiiO firmware .zip")
-    # Validate the stock image is a genuine, supported, known-good Disc rootfs BEFORE it overwrites
-    # the saved recovery copy - so a wrong/corrupt image can't destroy a good recovery then abort.
-    # The install policy (INSTALL_FW) is checked here too, for the same reason: refusing an unsupported
-    # firmware must leave the saved recovery image untouched.
     mver = imagebuild.validate_stock_rootfs(stock_sq, rep, allow_override=False)
     imagebuild.require_installable(mver)
     if mver not in basegate.CATALOGUE:
         raise imagebuild.BuildError(f"no known firmware base for V{mver}", code="E226",
                                    action="this firmware version is not supported by this installer")
 
-    # 2) build the diskOS image
     out_bin = os.path.join(work, f"diskos_{variant}.bin")
     ota_cfg = imagebuild.resolve_ota_config(params.get("ota_rootpub"), no_ota=bool(params.get("no_ota")))
     imagebuild.build_image(stock_sq, ui_bin, variant, out_bin, work, rep=rep,
                            ota_rootpub=params.get("ota_rootpub"), no_ota=bool(params.get("no_ota")))
 
-    # 3) preflight + confirm (destructive gate), then flash
     flasher.preflight(out_bin, rep)
     summary = {
         "action": "install",
@@ -225,13 +216,10 @@ def do_install(params, rep, confirm):
     if not confirm(summary):
         rep.warning("aborted before flashing (nothing written to the device).")
         return {"ok": False, "aborted": True}
-    # staged only now (after the confirmation), so a failed build/preflight/cancel never leaves a backup behind
     pending = _stage_stock(stock_sq, mver, rep, "install")
 
     st.update({"phase": "flash-started"})
     _save_state_soft(st, rep)
-    # From here, flash() either raises (real failure) or returns verified. A later
-    # state-save error must NOT turn a verified flash into a reported failure.
     d = _flash_with_backup(out_bin, mver, pending, "last-flash.log", rep)
     st.update({"phase": "flash-verified", "installed": True,
                "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
@@ -268,15 +256,12 @@ def do_restore(params, rep, confirm):
                 "no saved bone-stock image", code="E141",
                 action="provide FiiO's firmware .zip so I can rebuild your stock rootfs image")
         stock_bin, _ = state.stock_paths()
-        # An OLD saved backup (from a prior installer that built 580-block/76 MB images) can be smaller than
-        # IMG_SIZE; the 768-block writer needs the full partition-size image, so repad a short one first.
         stock_bin = _ensure_full_size(stock_bin, rep)
-        # Never restore-flash an unvalidated image: product/version/known-good-hash, not just size+magic.
         mver = imagebuild.validate_stock_rootfs(stock_bin, rep)
         gen = state.current_generation()
         m = state.read_manifest(gen) if gen else None
         if m is not None and "main_os_ver" not in m:
-            m = None                                   # saved without a base record: treat like a legacy backup
+            m = None
         if m is not None and m.get("main_os_ver") != mver:
             raise flasher.FlashError(
                 f"the saved backup's record says V{m.get('main_os_ver')} but its image is V{mver} - refusing",
@@ -285,7 +270,6 @@ def do_restore(params, rep, confirm):
             raise flasher.FlashError(f"no known firmware base for the saved V{mver} backup", code="E143",
                                      action="restore with a supported firmware .zip instead")
         if m is None:
-            # a backup from an older installer: re-save it WITH its base record; committed after the base check
             pending = _stage_stock(stock_bin, mver, rep, "legacy backup")
             stock_bin = state.generation_paths(pending)[0]
     try:

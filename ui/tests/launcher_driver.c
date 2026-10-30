@@ -1,12 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Driver for tests/launcher_test.py: links the REAL launcher.c and handoff.c. Faked through their seams: the exec
- * (handoff_execv) and the launcher_env table (run_bounded, the SD export probe, the delete guard, the child killer).
- * The paths launcher.c reads (PLAYER_SYSCONFIG_DB, PLAYER_SD_CARD_NODE, LAUNCH_STATUS_PATH, BOOT_LOG_PATH, PLAYER_COMM_NAME,
- * LAUNCH_DEADLINE_S) are macros the python test points at a temp dir.
- *   driver            the in-process checks (verdicts, host ownership, stale/foreign pid records)
- *   driver <case>     prepare + exec_stock_player(): prints PLAYER_EXEC_REACHED when the (fake) exec is reached
- *   driver firstrun   prints player_config_absent_without_card() for the paths compiled in */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,8 +18,7 @@ static int hang_guard=0, kills=0;
 static int fake_execv(const char *path, char *const argv[]){
     assert(!strcmp(path, "/usr/bin/mq_player"));
     assert(argv[0] && !strcmp(argv[0], "mq_player") && !argv[1]);
-    assert(kills >= 1);                 /* any preparation child is killed before stock starts */
-    /* a handed-off program must not inherit our timer, our blocked mask, or an ignored disposition */
+    assert(kills >= 1);
     sigset_t cur; sigprocmask(SIG_BLOCK, NULL, &cur);
     assert(!sigismember(&cur, SIGALRM));
     struct sigaction sa; sigaction(SIGALRM, NULL, &sa);
@@ -60,7 +52,6 @@ int main(int argc, char **argv){
     handoff_execv = fake_execv;
     if(argc > 1 && !strcmp(argv[1], "firstrun")){ printf("%d\n", player_config_absent_without_card()); return 0; }
     int fresh = argc > 1 && !strcmp(argv[1], "fresh");
-    /* the player's config database exists unless this is a first run (and then the card is absent too) */
     if(fresh) unlink(PLAYER_SYSCONFIG_DB);
     else { FILE *d = fopen(PLAYER_SYSCONFIG_DB, "w"); assert(d); fclose(d); }
     if(argc > 1){
@@ -70,12 +61,9 @@ int main(int argc, char **argv){
         else if(!strcmp(argv[1], "late")) late_export=1;
         else if(!strcmp(argv[1], "transient")) transient=1;
         else if(!strcmp(argv[1], "hang")) hang_guard=1;
-        else if(!strcmp(argv[1], "blockedlog")) guard=0;   /* forces boot_note, whose log is a FIFO */
+        else if(!strcmp(argv[1], "blockedlog")) guard=0;
         player_launch_prepare();
-        /* what the UI will read back is the contract between the two processes */
         assert(launch_status_get() == (guard && !exported && (reset_rc==0) && !late_export));
-        /* Go through the REAL handoff. Printing the sentinel here instead is what let a broken
-         * ordinary path pass: only the deadline cases ever reached exec_stock_player(). */
         exec_stock_player();
         assert(0 && "exec_stock_player must never return");
     }
@@ -85,30 +73,26 @@ int main(int argc, char **argv){
     reset_rc=0; late_export=1; probes=0; assert(!player_local_mode_confirmed() && resets==2);
     late_export=0; probes=0; assert(player_local_mode_confirmed() && resets==3 && probes==2);
     puts("PASS actual host ownership, reset failure and late export are reported independently");
-    /* A verdict only authorizes the player that EARNED it. tmpfs gives a boot lifetime, which is not
-     * the same thing: the firmware watchdog can respawn the stock player without running our launcher. */
     {   FILE *f;
-        pid_t dead = fork();            /* a pid that is certainly no longer that process */
+        pid_t dead = fork();
         if(dead == 0) _exit(0);
         waitpid(dead, NULL, 0);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=1 local=1 pid=%ld\n",(long)getpid()); fclose(f);
         assert(launch_status_get()==1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=10 local=10 pid=%ld\n",(long)getpid()); fclose(f);
-        assert(launch_status_get()==-1);            /* a substring match would have accepted this */
+        assert(launch_status_get()==-1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=1 local=1 pid=%ld\n",(long)dead); fclose(f);
-        assert(launch_status_get()==-1);            /* the player that earned it is gone */
+        assert(launch_status_get()==-1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"nonsense\n"); fclose(f);
         assert(launch_status_get()==-1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=1 local=1 pid=%ldjunk\n",(long)getpid()); fclose(f);
-        assert(launch_status_get()==-1);            /* trailing junk must not be silently ignored */
+        assert(launch_status_get()==-1);
         unlink(LAUNCH_STATUS_PATH);
-        assert(launch_status_get()==-1);            /* absent is never "safe" */
-        /* Once a verdict has been accepted, a DIFFERENT player must not inherit it - otherwise a
-         * watchdog respawn that never ran our launcher would keep the card open. */
+        assert(launch_status_get()==-1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=1 local=1 pid=%ld\n",(long)getpid()); fclose(f);
-        assert(launch_status_get()==1);             /* pins this generation */
+        assert(launch_status_get()==1);
         f=fopen(LAUNCH_STATUS_PATH,"w"); assert(f); fprintf(f,"guard=1 local=1 pid=%ld\n",(long)getppid()); fclose(f);
-        assert(launch_status_get()==-1);            /* a different live process cannot adopt it */
+        assert(launch_status_get()==-1);
         unlink(LAUNCH_STATUS_PATH);
         puts("PASS stale, malformed, junk-suffixed and foreign-pid verdicts are all rejected");
     }

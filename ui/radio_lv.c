@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* The LVGL adapter of radio.c's platform seam: the tick clock and one lv_timer per watch. */
 #include "radio.h"
 #include "lvgl/lvgl.h"
 

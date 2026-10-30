@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Offline Windows x86_64 native tools. Retain the workspace for build evidence.
 set -euo pipefail
 trap 'echo "FAIL: build-windows-tools.sh line $LINENO" >&2' ERR
 [[ $# == 0 ]] || { echo 'Usage: bash build/build-windows-tools.sh' >&2; exit 1; }
@@ -21,7 +20,6 @@ for tool in /usr/bin/gcc /usr/bin/ar /usr/bin/ranlib /usr/bin/strip /ucrt64/bin/
     [[ -x $tool ]] || { echo "Missing build tool: $tool" >&2; exit 1; }
 done
 [[ $(/ucrt64/bin/gcc -dumpmachine) == x86_64-w64-mingw32 ]]
-# Match the release source asset exactly; refuse upgraded or older runtime inputs.
 check_runtime_version() {
     [[ $1 == 'msys2-runtime 3.6.10-6' ]] || {
         echo 'Requires msys2-runtime 3.6.10-6 (pinned corresponding source)' >&2
@@ -38,16 +36,13 @@ verify() { printf '%s  %s\n' "$1" "$source_dir/$2" | sha256sum --check --strict 
 verify 94201754b36121a9f022a190c75f718441df15402df32c2b520ca331a107511c squashfs-tools_4.6.1.orig.tar.gz
 verify c0f892943208266f9b6543b3ae308fab6284c5c90e627931446fb49b4221a072 lzo2_2.10.orig.tar.gz
 verify ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575 libusb-1.0_1.0.27.orig.tar.bz2
-# All generated files, including configure's temporary files, stay under vendor/.
 mkdir -p "$root/vendor"
 work=$(mktemp -d "$root/vendor/.windows-build.XXXXXXXX")
 export TMPDIR="$work" TMP="$work" TEMP="$work"
 stage="$work/bundle"
 mkdir "$stage"
-# Device inputs are tracked under flash/; publish byte-for-byte copies with the tools.
 cp "$root/flash/my_write6_dram.bin" "$root/flash/disc_spl_lpddr3.bin" "$stage/"
 export CFLAGS="-O2 -ffile-prefix-map=$work=."
-# Use the same vendored upstream LZO source as Linux, not an MSYS package DLL.
 tar -xzf "$source_dir/lzo2_2.10.orig.tar.gz" -C "$work"
 cd "$work/lzo-2.10"
 ./configure --prefix="$work/lzo-static" --enable-static --disable-shared \
@@ -76,7 +71,6 @@ make -j2 CC=/usr/bin/gcc EXTRA_CFLAGS="'-ffile-prefix-map=$work=.' '-I$work/lzo-
 cp mksquashfs.exe unsquashfs.exe "$stage/"
 /usr/bin/strip "$stage/mksquashfs.exe" "$stage/unsquashfs.exe"
 for dll in "${dlls[@]}"; do cp "/usr/bin/$dll" "$stage/"; done
-# Build the pinned libusb, rather than incorporating an unrecorded package library.
 tar -xjf "$source_dir/libusb-1.0_1.0.27.orig.tar.bz2" -C "$work"
 cd "$work/libusb-1.0.27"
 ./configure --host=x86_64-w64-mingw32 --prefix="$work/libusb-static" \
@@ -85,7 +79,6 @@ cd "$work/libusb-1.0.27"
 make -j2
 make install
 export PKG_CONFIG_LIBDIR="$work/libusb-static/lib/pkgconfig"
-# pkg-config output deliberately splits compiler/linker flags into shell words.
 # shellcheck disable=SC2046
 /ucrt64/bin/gcc -O2 "-ffile-prefix-map=$root=." -std=c99 -static \
     -I"$work/libusb-static/include/libusb-1.0" -L"$work/libusb-static/lib" \
@@ -93,13 +86,10 @@ export PKG_CONFIG_LIBDIR="$work/libusb-static/lib/pkgconfig"
     $(/ucrt64/bin/pkg-config --static --libs-only-l --libs-only-other libusb-1.0)
 /ucrt64/bin/strip "$stage/usbboot.exe"
 bash "$root/build/build-windows-driver.sh" "$stage/bind_winusb.exe"
-# objdump -p text on stdin: exactly one Delay Import Directory entry, RVA and size 0.
-# The runtime verifier refuses delay imports, so the build must never publish one.
 delay_free() {
     awk '/Delay Import Directory/ { n++; if ($3 !~ /^0+$/ || $4 !~ /^0+$/) bad = 1 }
          END { exit (n == 1 && !bad) ? 0 : 1 }'
 }
-# Per-file policy: squashfs has only MSYS + KERNEL32; runtime adds ntdll.
 import_allowed() {
     local file=$1 name=$2 part
     case "$file:$name" in

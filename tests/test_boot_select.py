@@ -30,13 +30,12 @@ from pathlib import Path
 PAYLOAD = Path(__file__).resolve().parents[1] / 'payload'
 S96 = PAYLOAD / 'S96diskos_select'
 S97 = PAYLOAD / 'S97diskos_install'
-# the stock firmware whose shell runs S96/S97: DISKOS_FW_BASE (default V2.40) and its extracted rootfs
 FW_BASE = os.environ.get('DISKOS_FW_BASE', '240')
 _fw_location = os.environ.get('DISKOS_FW_ROOT') or os.environ.get('DISKOS_V240_ROOT')
 FW_ROOT = Path(_fw_location) if _fw_location else None
 QEMU = shutil.which('qemu-mipsel-static')
-RELEASED = 0xF6EFE127     # live V2.40 read, all keys released (bit 13 high)
-HELD = 0xF6EFC127         # the same with bit 13 low = Vol-Up held
+RELEASED = 0xF6EFE127
+HELD = 0xF6EFC127
 FW_BUSYBOX_MD5 = {'209': 'e6b2bb328e1c08238878991c0aae062d', '228': 'c1af60e81cea22b040b957c00404de9e',
                   '240': '5d8a5e60ee7d40002fe70f43228596cb', '257': '8651f07f6387df9f10a22a73f0f9450f'}
 FW_APPLETS = ('mkdir', 'rm', 'mv', 'cat')
@@ -62,8 +61,6 @@ def _host_only_mount():
     for line in Path('/proc/mounts').read_text().splitlines():
         m = line.split()[1]
         if m != '/' and (FW_ROOT is None or not (FW_ROOT / m.lstrip('/')).exists()) and os.path.ismount(m):
-            # Container credential mounts can share their parent's device. The real probe
-            # requires a directory whose stat device differs from its parent (or root inode).
             try:
                 st, parent = os.stat(m), os.stat(m + '/..')
             except OSError:
@@ -141,8 +138,6 @@ class _Env:
                 w.write_text(f'#!/bin/sh\nexec {QEMU} -L {FW_ROOT} {FW_ROOT}/bin/busybox {applet} "$@"\n')
                 w.chmod(0o755)
         else:
-            # S96 uses plain mkdir, without -p. Keep the lock exclusive even on
-            # hosts whose mkdir accepts a directory created by a competing call.
             w = self.bin / 'mkdir'
             w.write_text(f'#!{sys.executable}\n' + '''import os
 import sys
@@ -235,12 +230,12 @@ class _Base:
 
     def test_userdata_not_mounted_is_stock(self):
         e = self.make()
-        e.env['DISKOS_DATA_MOUNT'] = str(e.tmp)      # an ordinary directory, not a mountpoint
+        e.env['DISKOS_DATA_MOUNT'] = str(e.tmp)
         e.run()
         self.assertEqual(e.record(), 'stock\n', e.why())
 
     def test_pin_unreadable_is_stock(self):
-        e = self.make(pin=None)                      # no memory device at all
+        e = self.make(pin=None)
         e.run()
         self.assertEqual(e.record(), 'stock\n', e.why())
         self.assertIn('pin read failed', e.why())
@@ -301,7 +296,7 @@ class _Base:
         e = self.make()
         e.run()
         self.assertEqual(e.record(), 'diskos\n')
-        _fake_mem(e.mem, HELD)                       # the button is now "held"
+        _fake_mem(e.mem, HELD)
         for arg in ('start', 'reload', 'restart', 'stop', ''):
             with self.subTest(arg=arg):
                 e.run(arg=arg)
@@ -384,8 +379,8 @@ class InstallHookHonoursRecordTests(unittest.TestCase):
             rec.write_bytes(record)
         started = tmp / 'worker-started'
         text = S97.read_text()
-        b = text.index('# >>> SUPERVISOR BEGIN')
-        e = text.index('# <<< SUPERVISOR END')
+        b = text.index('if [ "$1" != "__worker" ]; then')
+        e = text.index('SIGS="TERM HUP INT')
         script = tmp / 'S97test'
         script.write_text('#!/bin/sh\n' + text[b:e] + f': > "{started}"\nexit 0\n')
         script.chmod(0o755)

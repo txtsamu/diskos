@@ -90,18 +90,17 @@ class _WindowsIO:
         for name, (args, result) in signatures.items():
             fn = getattr(self.api, name)
             fn.argtypes, fn.restype = args, result
-        # BY_HANDLE_FILE_INFORMATION consists of thirteen 32-bit words.
         self.info_type = ctypes.c_uint32 * 13
 
     def open(self, path, directory=False, create=False, removing=False, expected=None):
         access = 0x80 if directory else 0xC0000000
         if removing:
-            access |= 0x10000  # DELETE, for handle-based cleanup
+            access |= 0x10000
         handle = self.api.CreateFileW(path, access, 3 if directory else 1, None,
                                       1 if create else 3, 0x02200000, None)
         if handle in (None, ctypes.c_void_p(-1).value):
             error = ctypes.get_last_error()
-            if not directory and error == 32:  # ERROR_SHARING_VIOLATION
+            if not directory and error == 32:
                 raise _LogBusy()
             raise ctypes.WinError(error)
         try:
@@ -115,7 +114,6 @@ class _WindowsIO:
             if expected is not None:
                 identity = (info[11] << 32) | info[12]
                 if expected.st_ino > 0xFFFFFFFFFFFFFFFF:
-                    # Newer CPython exposes the full FILE_ID_128 on Windows.
                     full = (ctypes.c_ubyte * 24)()
                     if not self.api.GetFileInformationByHandleEx(handle, 18, ctypes.byref(full), 24):
                         raise ctypes.WinError(ctypes.get_last_error())
@@ -128,7 +126,7 @@ class _WindowsIO:
             raise
 
     def delete(self, handle):
-        flag = ctypes.c_ubyte(1)  # FILE_DISPOSITION_INFO.DeleteFile
+        flag = ctypes.c_ubyte(1)
         if not self.api.SetFileInformationByHandle(handle, 4, ctypes.byref(flag), 1):
             raise ctypes.WinError(ctypes.get_last_error())
 
@@ -167,8 +165,6 @@ class _LogDirectory:
                     self.stack.callback(self.win.api.CloseHandle, handle)
                 self.directory = handle
             else:
-                # Linux bind mounts can keep st_dev unchanged. Read their actual
-                # mount table too; other POSIX hosts use ismount and device IDs.
                 mounts = set()
                 if sys.platform.startswith("linux"):
                     with open("/proc/self/mountinfo", encoding="ascii") as table:
@@ -203,8 +199,6 @@ class _LogDirectory:
                 info = os.fstat(parent)
                 if info.st_uid != os.getuid() or info.st_mode & 0o022:
                     raise OSError("log directory is not private to this user")
-                # The directory lock survives marker unlink during Remove, so
-                # a simultaneous launch cannot adopt the half-removed folder.
                 _lock_log(parent)
             self.removing = removing
         except BaseException:
@@ -282,8 +276,6 @@ class _DiagnosticLog(io.TextIOBase):
         self._reset(history)
 
     def _reset(self, history=None):
-        # Newest chunk is always slot 0. Copy through the pinned handles;
-        # timestamp ties cannot cause the same history to be discarded twice.
         names = [name for name in LOG_NAMES if name in self.files]
         migrating = history is not None
         if history is None:
@@ -303,9 +295,6 @@ class _DiagnosticLog(io.TextIOBase):
                 remaining = remaining[written:]
             file.truncate(len(data))
 
-        # Migration can put the newest source in a slot we overwrite first.
-        # Keep a complete copy before shifting anything; write it again last
-        # so its timestamp still sorts ahead of the older history.
         if migrating and history:
             copy_chunk(names[1], history[0])
         for name, data in reversed(list(zip(names[1:], history))):
@@ -315,10 +304,10 @@ class _DiagnosticLog(io.TextIOBase):
         self.file.truncate(0)
 
     def write(self, value):
-        return len(value)  # No exception text, device output, or user paths.
+        return len(value)
 
     def flush(self):
-        pass  # Binary writes are unbuffered.
+        pass
 
     def event(self, value):
         with self.lock:
@@ -339,19 +328,15 @@ class _DiagnosticLog(io.TextIOBase):
 
 
 def _open_log():
-    # A sibling of state: bootstrap must not mark fresh state as foreign.
     directory = _LogDirectory(create=True)
     try:
         _, files = directory.owned_files(create=True)
-        # Preserve timestamp order from older installers. Ties use the fixed
-        # newest-first slot order maintained by this implementation.
         ordered = sorted(files, key=lambda name: (
             -os.fstat(files[name].fileno()).st_mtime_ns, LOG_NAMES.index(name)))
         history = []
         for name in ordered[:LOG_SLOTS - 1]:
             files[name].seek(0)
             history.append(files[name].read(LOG_LIMIT))
-        # Open the whole ring before writing; hold every identity until close.
         for name in LOG_NAMES:
             if name not in files:
                 files[name] = directory.open_file(name, create=True)
@@ -367,8 +352,6 @@ def remove_logs():
     for stream in (sys.stdout, sys.stderr):
         if getattr(stream, "_diskos_log", False):
             stream.close()
-    # Only the Windows windowed bootstrap uses LOCALAPPDATA. Native POSIX
-    # frontends never create this sibling directory.
     if os.name != "nt":
         return
     try:
@@ -387,7 +370,6 @@ def remove_logs():
 
 
 def _show_error(message):
-    # Native dialog still works when Python/Tk imports or Tk startup fail.
     from ctypes import wintypes as w
     dialog = ctypes.WinDLL("user32", use_last_error=True).MessageBoxW
     dialog.argtypes = [w.HWND, w.LPCWSTR, w.LPCWSTR, w.UINT]
@@ -406,8 +388,6 @@ def _run_child(argv):
 
 
 def _failure_event(log, exc):
-    # Exception messages, source lines, filenames and locals are private. Keep
-    # only known exception kinds, installer error codes and bootstrap line IDs.
     kinds = {"ImportError", "ModuleNotFoundError", "OSError", "PermissionError",
              "RuntimeError", "ValueError", "TypeError", "SystemExit"}
     kind = type(exc).__name__
@@ -416,7 +396,6 @@ def _failure_event(log, exc):
     if isinstance(code, str) and len(code) == 4 and code[0] in "EF" and code[1:].isascii() and code[1:].isdigit():
         log.event("error " + code)
     for frame, line in traceback.walk_tb(exc.__traceback__):
-        # Only this fixed, known module's line numbers; no arbitrary names.
         if frame.f_code.co_filename == __file__:
             log.event(f"bootstrap line {line}")
 
@@ -461,9 +440,9 @@ def main(argv=None):
                     try:
                         _failure_event(sys.stderr, exc)
                     except Exception:
-                        pass  # Diagnostics must not prevent the startup dialog.
+                        pass
             if child:
-                return 1  # Missing pipes never fall back to a GUI or a null gate.
+                return 1
             _show_error(f"Could not start diskOS Installer:\n{reason}\n\nDetails: {log_path}\n"
                         "Use diskos-installer-cli.exe doctor for diagnostics.")
             return 1

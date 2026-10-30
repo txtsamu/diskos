@@ -73,7 +73,7 @@ class OtaOptionTests(unittest.TestCase):
 
     def test_no_ota_overrides_env_and_payload_key(self):
         with self._payload(self.payload_key):
-            self.assertIsNotNone(imagebuild.resolve_ota_config())          # the key really is picked up otherwise
+            self.assertIsNotNone(imagebuild.resolve_ota_config())
             os.environ["DISKOS_OTA_ROOTPUB"] = self.env_key
             self.assertIsNotNone(imagebuild.resolve_ota_config())
             self.assertIsNone(imagebuild.resolve_ota_config(no_ota=True))

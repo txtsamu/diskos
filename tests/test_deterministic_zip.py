@@ -155,7 +155,6 @@ class DeterministicZipTests(unittest.TestCase):
                 self.assertFalse(self.output.exists())
 
     def test_zip32_preflight_member_offset_directory_and_count_boundaries(self):
-        # Small synthetic limits exercise the real arithmetic without giant fixtures.
         path = mock.Mock()
         size = 0
         def info(_):
@@ -179,7 +178,6 @@ class DeterministicZipTests(unittest.TestCase):
             with mock.patch.object(zipfile, 'ZIP64_LIMIT', directory), \
                     mock.patch.object(zipfile, 'ZIP_FILECOUNT_LIMIT', 1):
                 zipper.zip32_preflight(files)
-            # UTF-8 filename bytes, not character counts, determine both headers.
             unicode_files = {'\u00e9' * 20: path}
             with mock.patch.object(zipfile, 'ZIP64_LIMIT', 110):
                 with self.assertRaisesRegex(ValueError, 'directory size'):

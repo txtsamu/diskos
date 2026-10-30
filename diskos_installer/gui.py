@@ -23,10 +23,8 @@ from diskos_installer.reporter import QueueReporter
 ACCENT, BG, FG, SUBFG = gui_theme.ACCENT, gui_theme.BG, gui_theme.TEXT, gui_theme.SECONDARY
 PANEL, WARN, OKC, ERRC = gui_theme.PANEL, gui_theme.WARN, gui_theme.OK, gui_theme.ERR
 
-# operation states
 IDLE, RUNNING, CONFIRM, SUCCESS, FAILED = "idle", "running", "confirm", "success", "failed"
 
-# mode -> (title, one-line intro, primary button label)
 MODE_TEXT = {
     "install": ("Install diskOS",
                 "Builds diskOS from your own FiiO firmware .zip and flashes it to the Disc over USB.",
@@ -39,11 +37,9 @@ MODE_TEXT = {
                "Remove installer data"),
 }
 
-# the whole window must fit a 1366x768 laptop (screen minus title bar and taskbar); taller content scrolls
 MAX_WINDOW_H = gui_theme.MAX_WINDOW_H
 WRAP = gui_theme.WRAP
 
-# confirmation dialog
 ACK_TEXT = "I understand and will keep the USB cable connected until it finishes."
 BEGIN_TEXT = "Begin flash (~20 min)"
 CONFIRM_TITLE = {"install": "Install diskOS", "restore-stock": "Restore stock firmware",
@@ -51,11 +47,8 @@ CONFIRM_TITLE = {"install": "Install diskOS", "restore-stock": "Restore stock fi
 DEV_CONFIRM_NOTE = ("Dev build: an always-on passwordless root shell over USB. "
                     "Development devices only, never an everyday one.")
 
-# result screens
 FLASH_LOCK_NOTE = ("Closing this window is blocked until the flash finishes. "
                    "Nothing else can be changed while the flash runs.")
-# Wording is based on the engine: service.py do_install rep.ok (L230), do_restore rep.ok (L319), do_remove (L328, L347),
-# docs/INSTALL.md L85-86 and INSTALL.md L123/L132 for first boot. Sources per sentence: merge/HANDOFF.md.
 SUCCESS_TEXT = {
     "install": ("diskOS is installed", "diskOS was written to the Disc and checked.",
                 "Turn the Disc off and on again. On the first start it finishes setting up diskOS by itself."),
@@ -96,7 +89,6 @@ def stage_text(note):
     return t[:1].upper() + t[1:]
 NOTHING_WRITTEN = "Nothing was written to the Disc."
 WAIT_NOTE = "Do not retry or disconnect during the wait."
-# codes whose result is UNKNOWN after the writer may have started (errors.WAIT_THEN_RECOVER)
 UNKNOWN_CODES = ("E301", "E302", "E303", "E321")
 _CODE_RE = re.compile(r"^\[([A-Z]\d{3})\]\s*(.*)$", re.S)
 
@@ -113,10 +105,9 @@ def error_info(msg, info=None, flashing=False):
         message = m.group(2) if m else (msg or "unknown error")
     action = info.get("action")
     wait = errors.WAIT_THEN_RECOVER
-    if not action and wait in message:          # text-only failure: split the engine's own recovery text off
+    if not action and wait in message:
         message, action = message.replace(" - " + wait, "").rstrip(), wait
     waits = bool(action and wait in action)
-    # a writer that FINISHED (RECOVERABLE) is not unknown even under E301; otherwise these codes always are
     unknown = waits or (code in UNKNOWN_CODES and action != errors.RECOVERABLE) \
         or (flashing and not code) or ("[F000]" in message and action != errors.RECOVERABLE)
     if unknown and not waits:
@@ -155,11 +146,11 @@ class App:
         self.reporter = QueueReporter(self.q)
         self.worker = None
         self.state = IDLE
-        self.flashing = False              # True only during the destructive phase
+        self.flashing = False
         self._driver_running = False
         self._inventory_running = False
         self._inventory_worker = None
-        self._ready_probe = None           # last readiness.probe() result (None until the first one lands)
+        self._ready_probe = None
         self._ready_running, self._ready_gen = False, 0
         self._ready_cancel = None
         self._ready_view = None
@@ -171,7 +162,7 @@ class App:
         self._confirm_cancel = None
         self._closing = False
         self.start_time = None
-        self._run_view = False             # True while the welcome group is hidden for a run/result
+        self._run_view = False
         self._saved_pack = []
         self._stage_start = self._flash_start = self._expect_secs = self._progress = None
 
@@ -187,17 +178,15 @@ class App:
         self.root.after(1000, self._tick_elapsed)
         self.root.after(4000, self._tick_device)
 
-    # ---- styling -----------------------------------------------------------
     def _build_style(self):
         from tkinter import ttk
         self.ttk = ttk
         fonts = gui_theme.make_fonts(self.root)
-        self.fonts = fonts              # keep every Font (incl. brand): Tk fonts die with their Python object
+        self.fonts = fonts
         self.f_title, self.f_h, self.f_b = fonts["title"], fonts["h"], fonts["b"]
         self.f_sub, self.f_btn, self.f_mono = fonts["sub"], fonts["btn"], fonts["mono"]
         gui_theme.apply(self.root, fonts)
 
-    # ---- layout ------------------------------------------------------------
     def _make_body(self):
         """All content lives in self.body, inside a canvas that shows a scrollbar only when the content is
         taller than the screen allows (small laptops, 125% scaling). Otherwise the window fits the content."""
@@ -288,11 +277,10 @@ class App:
         self._make_body()
         sp, sec = gui_theme.SP, gui_theme.SECTION
         pad = {"padx": gui_theme.GUTTER}
-        # brand row (wordmark) + hero: the task in one sentence beside the pressed disc
         brand = ttk.Frame(self.body)
         brand.pack(fill="x", pady=(sp["xl"], 0), **pad)
         self._brand = brand
-        self._wordmark = gui_theme.wordmark(self.root)      # kept: Tk drops unreferenced images
+        self._wordmark = gui_theme.wordmark(self.root)
         if self._wordmark is not None:
             ttk.Label(brand, image=self._wordmark, style="Brand.TLabel").pack(side="left")
         else:
@@ -301,7 +289,7 @@ class App:
         hero.pack(fill="x", pady=(sp["s"], sec), **pad)
         gui_theme.hero_bleed(self.body, hero, brand)
         txt = ttk.Frame(hero)
-        txt.pack(side="left", fill="x", expand=True, anchor="s", padx=(0, sp["xl"]))   # text sits on the disc's baseline
+        txt.pack(side="left", fill="x", expand=True, anchor="s", padx=(0, sp["xl"]))
         self.title_lbl = ttk.Label(txt, text="", style="Title.TLabel")
         self.title_lbl.pack(anchor="w")
         self.intro_lbl = ttk.Label(txt, text="", wraplength=360, justify="left", style="Lede.TLabel")
@@ -309,13 +297,10 @@ class App:
         self.driver_lbl = self.driver_btn = None
         if platform_probe.host()[0] == "windows":
             self.driver_lbl = ttk.Label(txt, text="", style="Sub.TLabel", wraplength=380, justify="left")
-            # Show inventory details here; the checklist offers driver setup when needed.
             self.driver_lbl.pack_forget()
 
-        # mode is still one variable; the quiet buttons below select it
         self.mode = tk.StringVar(value="install")
 
-        # ready check: warns, never blocks; flasher.preflight remains the real gate
         self.ready_frame = ttk.Frame(self.body, style="Panel.TFrame")
         self.ready_frame.pack(fill="x", **pad)
         gui_theme.rule(self.ready_frame).pack(fill="x")
@@ -329,17 +314,15 @@ class App:
         self.ready_rows = ttk.Frame(self.ready_frame, style="Panel.TFrame")
         self.ready_rows.pack(fill="x", padx=gui_theme.PANEL_PAD)
         ttk.Frame(self.ready_frame, style="Panel.TFrame", height=sec).pack(side="bottom")
-        self.ready_help = ttk.Frame(self.ready_frame, style="Panel.TFrame")   # packed only with no Disc found
+        self.ready_help = ttk.Frame(self.ready_frame, style="Panel.TFrame")
         ttk.Label(self.ready_help, style="PanelSub.TLabel", wraplength=500, justify="left",
                   text="Enter flash mode:  " + "  ".join("%d. %s" % (i, step) for i, step in enumerate(readiness.STEPS[:2], 1))
                   + "\n3. " + readiness.STEPS[2]
                   ).pack(anchor="w")
 
-        # config panel (per-mode)
         self.cfg = ttk.Frame(self.body, style="Panel.TFrame")
         self.cfg.pack(fill="x", **pad)
 
-        # footer: other actions as quiet links on the left, the primary action on the right
         self.page_foot = ttk.Frame(self.body)
         self.page_foot.pack(fill="x", **pad)
         gui_theme.rule(self.page_foot).pack(fill="x")
@@ -360,13 +343,12 @@ class App:
                                      command=lambda: self._set_mode("remove"))
         self._action_btns = {"restore": self.restore_btn, "remove": self.remove_btn, "install": self.back_btn}
 
-        # progress / result block. In a run (see _enter_run_view) it is the only thing in the page body.
         prog = ttk.Frame(self.body)
         prog.pack(fill="both", expand=True, **pad)
         self.prog = prog
-        self.chip = gui_theme.status_word(prog)                  # results only
-        self.warn_banner = gui_theme.banner(prog, WRAP)          # banner, lock note: packed only while flashing
-        self.prog_head = ttk.Frame(prog)             # shown only once something is happening (see _sync_progress)
+        self.chip = gui_theme.status_word(prog)
+        self.warn_banner = gui_theme.banner(prog, WRAP)
+        self.prog_head = ttk.Frame(prog)
         self.phase_lbl = gui_theme.title(self.prog_head, "Ready.", wrap=WRAP)
         self.phase_lbl.pack(anchor="w")
         self.status_lbl = ttk.Label(self.prog_head, text="", style="Sub.TLabel", wraplength=WRAP, justify="left")
@@ -377,21 +359,19 @@ class App:
         self.elapsed_lbl = ttk.Label(self.prog_head, text="", style="Sub.TLabel")
         self.elapsed_lbl.pack(anchor="w", pady=(gui_theme.SP["xs"], gui_theme.SP["m"]))
         self.lock_lbl = ttk.Label(prog, text=FLASH_LOCK_NOTE, style="Sub.TLabel", wraplength=WRAP, justify="left")
-        self.result_box = ttk.Frame(prog)           # success card / error text and recovery panel
-        # Close/Back live outside the scrolling page so they never scroll away
+        self.result_box = ttk.Frame(prog)
         self.foot = ttk.Frame(self.root)
 
-        # log behind a Details toggle: it still receives every line while hidden
         self.logwrap = ttk.Frame(prog)
         self.logwrap.pack(fill="both", expand=True, pady=(gui_theme.SP["s"], gui_theme.SP["m"]))
         drow = ttk.Frame(self.logwrap)
         drow.pack(fill="x")
         self.details_btn = gui_theme.disclosure(drow, "Details", self._toggle_details)
         self.details_btn.pack(side="left")
-        self.host_lbl = ttk.Label(drow, text="", style="Meta.TLabel", justify="right")   # quiet, bottom right
+        self.host_lbl = ttk.Label(drow, text="", style="Meta.TLabel", justify="right")
         self.host_lbl.pack(side="right")
         self.logbox = ttk.Frame(self.logwrap)
-        self.log = tk.Text(self.logbox, width=1, height=7, font=self.f_mono, wrap="word", relief="flat")   # width follows the window
+        self.log = tk.Text(self.logbox, width=1, height=7, font=self.f_mono, wrap="word", relief="flat")
         gui_theme.style_log(self.log)
         sb = ttk.Scrollbar(self.logbox, command=self.log.yview)
         self.log.configure(yscrollcommand=sb.set, state="disabled")
@@ -445,7 +425,7 @@ class App:
         """Tk's radio traversal includes hidden siblings; keep it on the visible choice."""
         if not self._adv.winfo_manager():
             return "break"
-        return None                    # Advanced is open: use Tk's normal radio traversal
+        return None
 
     def _set_mode(self, m):
         self.mode.set(m)
@@ -463,7 +443,7 @@ class App:
         gui_theme.rule(self.cfg).pack(fill="x")
         inner = ttk.Frame(self.cfg, style="Panel.TFrame")
         inner.pack(fill="x", padx=gui_theme.PANEL_PAD, pady=(sec, sec))
-        hang = gui_theme.hang(self.root)                 # text under a checkbox lines up with its label
+        hang = gui_theme.hang(self.root)
         if m == "install":
             gui_theme.kicker(inner, "Your firmware").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, sp["m"]))
             self.fw_var = tk.StringVar()
@@ -482,7 +462,6 @@ class App:
                 vr, text="Public (recommended)", value="public", style="Panel.TRadiobutton",
                 variable=self.variant, command=self._variant_warn)
             public_radio.pack(side="left")
-            # Dev sits under Advanced: same variable, same warning; it opens by itself whenever Dev is chosen
             self._adv_btn = gui_theme.disclosure(vr, "Advanced", self._toggle_advanced)
             self._adv_btn.pack(side="left", padx=(sp["xl"] + 4, 0))
             self._adv = ttk.Radiobutton(vr, text="Dev (root shell)", value="dev", style="Panel.TRadiobutton",
@@ -493,7 +472,7 @@ class App:
             self.variant_warn_lbl = tk.Label(
                 inner, text="", bg=PANEL, fg=WARN, font=self.f_sub, justify="left", wraplength=540)
             self.variant_warn_lbl.grid(row=6, column=0, columnspan=2, sticky="w", pady=(sp["s"], 0), padx=(hang, 0))
-            self.variant_warn_lbl.grid_remove()          # no empty gap until Dev is picked
+            self.variant_warn_lbl.grid_remove()
             self.ota_key = ota_key_available()
             self.ota_var = tk.BooleanVar(value=self.ota_key)
             self.ota_cb = ota_cb = ttk.Checkbutton(inner, text=OTA_LABEL, variable=self.ota_var,
@@ -506,14 +485,14 @@ class App:
                 row=8, column=0, columnspan=2, sticky="w", pady=(0, 0), padx=(hang, 0))
             inner.columnconfigure(0, weight=1)
         elif m == "restore":
-            have = state.stock_image_exists()   # fast; full verify happens at restore time
+            have = state.stock_image_exists()
             msg = ("A saved bone-stock image is available - restore is one click."
                    if have else
                    "No saved stock image. Pick your FiiO firmware .zip so I can rebuild it.")
             gui_theme.kicker(inner, "Stock firmware").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, sp["m"]))
             ttk.Label(inner, text=msg, style="Panel.TLabel", wraplength=540).grid(
                 row=1, column=0, columnspan=2, sticky="w")
-            self.restore_fw_var = None          # only the no-saved-image field below sets this
+            self.restore_fw_var = None
             if not have:
                 self.restore_fw_var = tk.StringVar()
                 self.restore_fw_var.trace_add("write", lambda *a: self._fw_changed())
@@ -521,7 +500,7 @@ class App:
                 ttk.Button(inner, text="Browse...", style="Small.TButton", command=self._pick_firmware).grid(
                     row=2, column=1, padx=(sp["m"], 0), pady=(sp["m"], 0))
             inner.columnconfigure(0, weight=1)
-        else:  # remove
+        else:
             driver_note = (WINDOWS_REMOVE_NOTE + " "
                            if platform_probe.host()[0] == "windows" else
                            "Nothing was installed system-wide. ")
@@ -531,7 +510,6 @@ class App:
                             + driver_note + "If diskOS is still on the device, "
                             "use 'Restore stock firmware' first.")).pack(anchor="w")
 
-    # ---- helpers -----------------------------------------------------------
     def _pick_firmware(self):
         from tkinter import filedialog
         p = filedialog.askopenfilename(title="Select FiiO firmware .zip",
@@ -558,7 +536,6 @@ class App:
         self._fw_error("")
         self._ready_render()
 
-    # ---- ready check -------------------------------------------------------
     def _ready_pending(self):
         windows = platform_probe.host()[0] == "windows"
         return {"os": platform_probe.host()[0], "count": None, "access": None, "inv": None,
@@ -595,7 +572,7 @@ class App:
         elif bad:
             title, colour = "%d to sort out - you can still continue" % len(bad), WARN
         elif rows[0]["ok"]:
-            title, colour = "Ready - " + rows[0]["text"], OKC       # everything fine: one line, rows collapsed
+            title, colour = "Ready - " + rows[0]["text"], OKC
         else:
             title, colour = "Checking...", SUBFG
         gui_theme.set_status(self.ready_title, title, colour)
@@ -605,19 +582,18 @@ class App:
         for w in self.ready_rows.winfo_children():
             w.destroy()
         sp = gui_theme.SP
-        # an empty pack master keeps its old size, so the rows frame is only shown while it has rows
         if bad:
             self.ready_rows.pack(fill="x", padx=gui_theme.PANEL_PAD, pady=(sp["s"], 0), after=self._ready_head)
         else:
             self.ready_rows.pack_forget()
-        for r in bad:                                               # only what needs attention, with its fix
+        for r in bad:
             line = ttk.Frame(self.ready_rows, style="Panel.TFrame")
             line.pack(fill="x", pady=(sp["xs"], 0))
             ttk.Label(line, image=gui_theme.dot(line, WARN), style="Panel.TLabel").pack(side="left", anchor="n",
                                                                                     pady=(gui_theme.dot_top(line), 0))
             col = ttk.Frame(line, style="Panel.TFrame")
             col.pack(side="left", fill="x", expand=True, anchor="n")
-            short = len(r["text"]) + len(r["fix"]) <= 56           # fix beside the text when both are short
+            short = len(r["text"]) + len(r["fix"]) <= 56
             top = ttk.Frame(col, style="Panel.TFrame")
             top.pack(anchor="w")
             ttk.Label(top, text=r["text"], style="Panel.TLabel", wraplength=440, justify="left").pack(
@@ -717,7 +693,7 @@ class App:
             return
         if getattr(self, "ready_frame", None) is not None:
             self.host_lbl.config(text=f"{o}-{a} - v{__version__}")
-            self._ready_start()          # counts devices off the UI thread; the host line follows
+            self._ready_start()
             return
         n = platform_probe.maskrom_count()
         dev = {0: "no device in flash mode", -1: "USB not enumerable"}.get(n, f"{n} device(s) in flash mode")
@@ -731,7 +707,7 @@ class App:
         gui_theme.set_display(self.title_lbl, title)
         self.intro_lbl.config(text=intro)
         self.action_btn.config(text=label)
-        for key, btn in self._action_btns.items():      # every screen except the current one
+        for key, btn in self._action_btns.items():
             btn.pack_forget()
             if key != m:
                 btn.pack(side="left", padx=(0, gui_theme.SP["xl"]))
@@ -740,13 +716,11 @@ class App:
     def _log(self, line, color=None):
         self.log.config(state="normal")
         self.log.insert("end", line + "\n")
-        # cap the log so it can't grow unbounded
         if int(self.log.index("end-1c").split(".")[0]) > 500:
             self.log.delete("1.0", "100.0")
         self.log.see("end")
         self.log.config(state="disabled")
 
-    # ---- action / worker ---------------------------------------------------
     def _on_driver_setup(self):
         if self.state == RUNNING:
             return
@@ -784,7 +758,7 @@ class App:
             params.update(ota_params(self.ota_var.get(), self.ota_key))
             fn = service.do_install
         elif m == "restore":
-            fw = getattr(self, "restore_fw_var", None)       # never the Install page's field
+            fw = getattr(self, "restore_fw_var", None)
             params = {"firmware": (fw.get().strip() or None if fw else None)}
             fn = service.do_restore
         else:
@@ -808,8 +782,7 @@ class App:
             try:
                 r = fn(params, self.reporter, self._worker_confirm)
                 self.q.put(("done", r))
-            except Exception as e:  # BuildError/FlashError/etc.
-                # the engine's own fields travel with the text so the result screen can show them apart
+            except Exception as e:
                 self.q.put(("failed", {"error": str(e), "code": getattr(e, "code", None),
                                        "message": getattr(e, "message", None),
                                        "action": getattr(e, "action", None),
@@ -841,7 +814,7 @@ class App:
             walk(self.ready_frame)
         cb = getattr(self, "ota_cb", None)
         if cb is not None and not self.ota_key:
-            cb.state(["disabled"])          # no release key: stays off and locked
+            cb.state(["disabled"])
         self.action_btn.config(state=st)
         if self.driver_btn is not None:
             self.driver_btn.config(state=st)
@@ -924,7 +897,6 @@ class App:
             self._confirm_event.clear()
             self.q.put(("confirm", summary))
         try:
-            # No timeout can turn a pending decision into consent. Destroy always wakes us.
             self._confirm_event.wait()
             with self._confirm_lock:
                 return self._confirm_result
@@ -1084,21 +1056,20 @@ class App:
         begin = ttk.Button(row, text=(BEGIN_TEXT if destructive else "Proceed"),
                            style="Accent.TButton", command=lambda: resolve(True))
         begin.pack(side="right")
-        cancel.pack(side="right", padx=(0, th.SP["l"]))        # Cancel sits left of Begin
+        cancel.pack(side="right", padx=(0, th.SP["l"]))
         if destructive:
             begin.config(state="disabled")
         return ack_cb, cancel, begin
 
-    # ---- queue drain (main thread) ----------------------------------------
     def _drain(self):
-        budget = 200   # bounded per tick so a flood of events can't starve Tk
+        budget = 200
         try:
             while budget > 0:
                 kind, payload = self.q.get_nowait()
                 budget -= 1
                 try:
                     self._handle(kind, payload)
-                except Exception as e:   # one malformed event must not stop the drain
+                except Exception as e:
                     self._log(f"[ui error handling {kind}: {e}]")
         except queue.Empty:
             pass
@@ -1177,7 +1148,6 @@ class App:
             else:
                 self._fail(p.get("error", "unknown error"))
 
-    # ---- result screens ----------------------------------------------------
     def _show_flash_ui(self):
         """The do-not-unplug banner and the close-blocked note; shown from the instant the flash is confirmed."""
         self.warn_banner.config(text=FLASH_KEEP_NOTE)
@@ -1234,7 +1204,7 @@ class App:
         self.status_lbl.config(text="")
         self._build_result_body(self.result_box, body, card, panel, note)
         self.result_box.pack(fill="x", pady=(th.SP["m"], th.SP["m"]), before=self.logwrap)
-        if self._run_view:          # inline (driver setup) results have no footer: the window is still the welcome
+        if self._run_view:
             self._build_result_footer(kind, back)
         self._scroll_top()
 
@@ -1263,7 +1233,6 @@ class App:
         th.rule(self.foot).pack(fill="x", pady=(0, th.SECTION))
         row = ttk.Frame(self.foot)
         row.pack(fill="x")
-        # one rose primary per screen: Back when there is a way back to retry, else Close
         backb = ttk.Button(row, text="Back", command=self._back_to_start, style="Accent.TButton") if back else None
         close = ttk.Button(row, text="Close", command=self._on_close,
                            style=("Link.TButton" if backb is not None else "Accent.TButton"))
@@ -1290,7 +1259,7 @@ class App:
             self._leave_run_view()
             self.phase_lbl.config(text="Cancelled - device unchanged.")
             self.elapsed_lbl.config(text="")
-        elif r.get("errors"):        # e.g. uninstall couldn't remove everything
+        elif r.get("errors"):
             self.state = FAILED
             self._toggle_details(True)
             self._present("err", "Problems", "Finished with problems",
@@ -1345,7 +1314,6 @@ class App:
         self.root.after(1000, self._tick_elapsed)
 
     def _tick_device(self):
-        # keep the device-status line fresh, but never scan USB mid-operation
         if self.state != RUNNING:
             self._refresh_state_labels()
         self.root.after(4000, self._tick_device)
@@ -1387,12 +1355,9 @@ def main():
         return 0
     except Exception as e:
         if getattr(sys.stderr, "_diskos_log", False):
-            raise  # The windowed bootstrap owns sanitized logging and its dialog.
-        # A packaged GUI hides early tracebacks - persist one and show a dialog.
+            raise
         import tempfile
         import traceback
-        # Unique, 0600 crash log (a fixed name in a world-writable temp dir could be pre-placed as a
-        # symlink to truncate an arbitrary target). The exact path is shown in the message below.
         try:
             fd, logp = tempfile.mkstemp(prefix="diskos-installer-startup-", suffix=".log")
             with os.fdopen(fd, "w") as f:

@@ -1,10 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* theme.c - the active theme's palette. Stage 1: only the default dark theme, whose values are exactly the colours
- * the UI used before roles existed (so it renders pixel-identically). The only lv_color_hex() calls in the app. */
 #include "theme.h"
 #include "theme_kit.h"
-#include "screens.h"   /* ui_font_cjk: the CJK-capable user-text chains (built in ui.c) */
+#include "screens.h"
 #include "config.h"
 #include "i18n.h"
 #include "theme_model.h"
@@ -12,12 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "lvgl/src/themes/lv_theme_private.h"   /* lv_theme_t layout: our overlay copies the base theme */
+#include "lvgl/src/themes/lv_theme_private.h"
 
 LV_FONT_DECLARE(font_icons_20)
 LV_FONT_DECLARE(font_icons_28)
-/* "something" faces (SIL OFL 1.1, texts in licenses/): IBM Plex Mono SemiBold/Bold converted as "diskos_mono"
- * (the licence reserves the name "Plex"), and Doto (weight 700, square dots) as "diskos_dot" */
 LV_FONT_DECLARE(diskos_mono_14)
 LV_FONT_DECLARE(diskos_mono_16)
 LV_FONT_DECLARE(diskos_mono_18)
@@ -112,12 +108,10 @@ static const uint32_t DEFAULT_DARK[THEME_CLR_COUNT] = {
     [THEME_CLR_FIXED_SPLASH_3]         = 0xF6F2F8,
 };
 
-/* The default theme's LIGHT variant (Outdoor mode forces it). Every text/control pair passes the contrast rules in
- * tests/release (text >= 4.5:1 on the surfaces it sits on, quiet text/controls >= 3:1). */
 static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
     [THEME_CLR_CANVAS]                 = 0xFFFFFF,
     [THEME_CLR_SCRIM]                  = 0x000000,
-    [THEME_CLR_IMAGE_TINT]             = 0xFFFFFF,   /* lightens a background image so dark text stays readable */
+    [THEME_CLR_IMAGE_TINT]             = 0xFFFFFF,
     [THEME_CLR_SURFACE]                = 0xF2F2F7,
     [THEME_CLR_SURFACE_RAISED]         = 0xE5E5EA,
     [THEME_CLR_SURFACE_STRONG]         = 0xD1D1D6,
@@ -199,7 +193,7 @@ static const uint32_t DEFAULT_LIGHT[THEME_CLR_COUNT] = {
     [THEME_CLR_FIXED_SPLASH_3]         = 0xF6F2F8,
 };
 
-#include "theme_presets.inc"   /* generated: tools/gen_theme_presets.py */
+#include "theme_presets.inc"
 
 typedef struct { const char *name; const uint32_t *dark, *light; } theme_preset_t;
 static const theme_preset_t PRESETS[] = {
@@ -209,12 +203,10 @@ static const theme_preset_t PRESETS[] = {
 _Static_assert(sizeof PRESETS / sizeof PRESETS[0] == THEME_PRESET_COUNT, "THEME_PRESET_COUNT (theme.h) is stale");
 const char *const theme_preset_names[THEME_PRESET_COUNT] = { "halo", THEME_PRESET_NAMES_GENERATED };
 static int g_preset;
-static uint32_t g_custom[2][THEME_CLR_COUNT];      /* the saved custom theme, fixed roles filled from Default */
+static uint32_t g_custom[2][THEME_CLR_COUNT];
 static int g_custom_on, g_custom_fixed_accent;
-static const theme_def_t *g_def;                     /* the active unique theme, NULL = Default / custom */
+static const theme_def_t *g_def;
 static unsigned g_traits;
-/* the active theme's fonts, as copies whose fallback is the matching international/CJK chain (symbols, accents, CJK):
- * text a face lacks renders in the chain instead of disappearing */
 static lv_font_t g_tf[THEME_FONT_COUNT];
 static lv_font_t g_tf_ft[THEME_FONT_COUNT];
 static const lv_font_t *g_tfp[THEME_FONT_COUNT];
@@ -228,8 +220,6 @@ static void theme_fonts_install(void){
             g_tfp[r] = &g_tf[r];
             continue;
         }
-        /* Standard text sizes keep the Montserrat/intl head for missing symbols.
-         * Special face sizes have no Montserrat peer, so use TTC then compiled CJK. */
         if(px == 10 || px == 12 || px == 14 || px == 16 || px == 18 || px == 20 ||
            px == 22 || px == 24 || px == 28 || px == 32 || px == 36 || px == 40)
             g_tf[r].fallback = ui_font_cjk(px);
@@ -240,8 +230,6 @@ static void theme_fonts_install(void){
         }
         g_tfp[r] = &g_tf[r];
     }
-    /* a text size the theme's set lacks takes the theme's nearest own face: otherwise Default's face shows through
-     * (the weather's "Fetching..." in Montserrat on a monospace theme) */
     static const theme_font_role_t GAP[][3] = { { THEME_FONT_UI_22, THEME_FONT_UI_24, THEME_FONT_UI_20 },
                                                 { THEME_FONT_UI_10, THEME_FONT_UI_12, THEME_FONT_UI_14 } };
     if(g_def) for(unsigned i = 0; i < sizeof GAP / sizeof GAP[0]; i++)
@@ -249,7 +237,7 @@ static void theme_fonts_install(void){
 }
 const theme_def_t *theme_def(void){ return g_def; }
 int theme_screen_plain(unsigned which){ return g_def && (g_def->plain & which) != 0; }
-const lv_font_t *theme_font_smaller(const lv_font_t *f){   /* the theme's next smaller text face (NULL = none) */
+const lv_font_t *theme_font_smaller(const lv_font_t *f){
     static const theme_font_role_t R[] = { THEME_FONT_UI_24, THEME_FONT_UI_20, THEME_FONT_UI_18, THEME_FONT_UI_16,
                                            THEME_FONT_UI_14, THEME_FONT_UI_12 };
     if(!g_def || !f) return NULL;
@@ -258,8 +246,6 @@ const lv_font_t *theme_font_smaller(const lv_font_t *f){   /* the theme's next s
         if(g_tfp[R[i]] && lv_font_get_line_height(g_tfp[R[i]]) < h) return g_tfp[R[i]];
     return NULL;
 }
-/* A label still in one of Default's Montserrat text sizes, under a theme with its own faces: the theme's face at the
- * nearest role size (NULL = keep). Glyph-only labels are the caller's to skip (the icons live in Montserrat). */
 const lv_font_t *theme_font_substitute(const lv_font_t *f){
     static const struct { const lv_font_t *m; theme_font_role_t r; } T[] = {
         { &lv_font_montserrat_12, THEME_FONT_UI_12 }, { &lv_font_montserrat_14, THEME_FONT_UI_14 },
@@ -273,8 +259,6 @@ const lv_font_t *theme_font_substitute(const lv_font_t *f){
         if(T[i].m == f && g_tfp[T[i].r]) return g_tfp[T[i].r];
     return NULL;
 }
-/* Load the saved custom theme into g_custom. Any problem (none saved, unreadable, invalid, future schema) -> 0 and
- * the caller uses Default; the file itself is never changed here. */
 static int load_custom(void){
     static theme_model_t m;
     char err[128];
@@ -284,18 +268,16 @@ static int load_custom(void){
     }
     for(int v = 0; v < 2; v++)
         for(int r = 0; r < THEME_CLR_COUNT; r++)
-            g_custom[v][r] = theme_role_key(r) ? m.pal[v][r] : DEFAULT_DARK[r];   /* keyless = fixed identity */
+            g_custom[v][r] = theme_role_key(r) ? m.pal[v][r] : DEFAULT_DARK[r];
     g_custom_fixed_accent = m.accent_fixed;
     return 1;
 }
 
 static const uint32_t *g_pal = DEFAULT_DARK;
 
-static int g_variant;   /* 0 dark, 1 light */
-static int g_outdoor;   /* Outdoor mode was on at startup */
+static int g_variant;
+static int g_outdoor;
 
-/* Called once at startup, after the config is loaded and before any screen is built (a theme change re-launches
- * the UI, so the palette never changes under live objects). Outdoor mode forces the light variant. */
 static void theme_install_lvgl(void);
 void theme_init(void){
     int outdoor = cfg_get_int("outdoor", 0) == 1;
@@ -308,20 +290,18 @@ void theme_init(void){
         g_custom_on = 1;
         g_pal = g_custom[g_variant];
     } else if(g_preset == THEME_PRESET_CUSTOM){
-        g_preset = 0;                                   /* use Default this run; KEEP the choice (the file may be back) */
+        g_preset = 0;
         g_pal = g_variant ? DEFAULT_LIGHT : DEFAULT_DARK;
     } else {
-        if(g_preset < 0 || g_preset >= THEME_PRESET_COUNT){ g_preset = 0; cfg_set_int("theme_preset", 0); }   /* Settings shows it */
+        if(g_preset < 0 || g_preset >= THEME_PRESET_COUNT){ g_preset = 0; cfg_set_int("theme_preset", 0); }
         g_pal = g_variant ? PRESETS[g_preset].light : PRESETS[g_preset].dark;
-        g_def = theme_def_find(PRESETS[g_preset].name);   /* NULL for Default */
+        g_def = theme_def_find(PRESETS[g_preset].name);
     }
-    /* fixed identities (brand, QR, splash, debug) are the same in every palette; a palette that changes one is
-     * refused as a whole rather than half-applied */
     for(int r = THEME_CLR_FIXED_QR_DARK; r <= THEME_CLR_FIXED_SPLASH_3; r++)
         if(g_pal[r] != DEFAULT_DARK[r]){ fprintf(stderr, "theme: palette changes fixed role %d, using dark\n", r);
                                          g_pal = DEFAULT_DARK; g_variant = 0; g_preset = 0; g_custom_on = 0; g_def = NULL; break; }
     g_traits = g_def ? g_def->traits : 0;
-    if(g_def && g_def->texture != THEME_TEX_NONE) g_traits |= 1u << THEME_TRAIT_DOT_GRID;   /* textured screens */
+    if(g_def && g_def->texture != THEME_TEX_NONE) g_traits |= 1u << THEME_TRAIT_DOT_GRID;
     theme_fonts_install();
     theme_install_lvgl();
 }
@@ -335,7 +315,7 @@ lv_color_t theme_preset_color(int preset, theme_color_role_t role){
 }
 
 uint32_t theme_rgb(theme_color_role_t role){
-    return ((unsigned)role < THEME_CLR_COUNT) ? g_pal[role] : 0xFF00FFu;   /* magenta = a bug, never a silent black */
+    return ((unsigned)role < THEME_CLR_COUNT) ? g_pal[role] : 0xFF00FFu;
 }
 lv_color_t theme_color(theme_color_role_t role){ return lv_color_hex(theme_rgb(role)); }
 lv_color_t theme_color_from_rgb(uint32_t rgb){ return lv_color_hex(rgb & 0xFFFFFFu); }
@@ -359,8 +339,6 @@ const lv_font_t *theme_font_base(int px){
 }
 int theme_trait(theme_trait_t t){ return (unsigned)t < THEME_TRAIT_COUNT && (g_traits >> t & 1u); }
 
-/* flat list rows: no card, a hairline underneath, accent drill-down chevrons, and the pressed row as an accent-outlined
- * pill (assets/reference/something/library_dark.png). Default theme: nothing changes. */
 void theme_list_row(lv_obj_t *row){
     if(!row || !theme_trait(THEME_TRAIT_FLAT_LISTS)) return;
     int h = lv_obj_get_style_height(row, 0);
@@ -380,8 +358,6 @@ void theme_list_row(lv_obj_t *row){
             lv_obj_set_style_text_color(c, TC(ACCENT_PRIMARY), 0);
     }
 }
-/* Case of one two-byte UTF-8 letter: Latin-1, Latin Extended-A and Cyrillic, the scripts of the UI languages and of
- * most tags. Every pair maps two bytes to two bytes, so a case change never changes the length. 0 = no other case. */
 static unsigned case2(unsigned cp, int upper){
     if(upper){
         if(cp >= 0xE0 && cp <= 0xFE && cp != 0xF7) return cp - 0x20;
@@ -394,10 +370,9 @@ static unsigned case2(unsigned cp, int upper){
         if(cp >= 0x410 && cp <= 0x42F) return cp + 0x20;
         if(cp >= 0x400 && cp <= 0x40F) return cp + 0x50;
     }
-    /* Latin Extended-A: upper/lower pairs, lower odd in 0100-0137 and 014A-0177, even in 0139-0148 and 0179-017E */
     int odd_lower = (cp >= 0x100 && cp <= 0x137) || (cp >= 0x14A && cp <= 0x177);
     int even_lower = (cp >= 0x139 && cp <= 0x148) || (cp >= 0x179 && cp <= 0x17E);
-    if(cp == 0x130 || cp == 0x131) return 0;            /* dotted/dotless i are not a pair */
+    if(cp == 0x130 || cp == 0x131) return 0;
     if(odd_lower) return ((cp & 1) == (unsigned)upper) ? (upper ? cp - 1 : cp + 1) : 0;
     if(even_lower) return ((cp & 1) != (unsigned)upper) ? (upper ? cp - 1 : cp + 1) : 0;
     return 0;
@@ -408,9 +383,9 @@ static char *theme_case_copy(char *dst, int cap, const char *src, int upper){
     if(src) while(src[n]){
         unsigned char c = (unsigned char)src[n];
         int len = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
-        for(int k = 1; k < len; k++)                   /* malformed (a missing or wrong continuation byte, or the */
-            if(((unsigned char)src[n + k] & 0xC0) != 0x80){ len = 1; break; }   /* string ends early): one byte */
-        if(n + len > cap - 1) break;                   /* would not fit whole: stop at the character boundary */
+        for(int k = 1; k < len; k++)
+            if(((unsigned char)src[n + k] & 0xC0) != 0x80){ len = 1; break; }
+        if(n + len > cap - 1) break;
         for(int k = 0; k < len && src[n + k]; k++) dst[n + k] = src[n + k];
         if(len == 1 && upper && c >= 'a' && c <= 'z') dst[n] = (char)(c - 32);
         else if(len == 1 && !upper && c >= 'A' && c <= 'Z') dst[n] = (char)(c + 32);
@@ -426,7 +401,7 @@ static char *theme_case_copy(char *dst, int cap, const char *src, int upper){
 }
 char *theme_upper(char *dst, int cap, const char *src){ return theme_case_copy(dst, cap, src, 1); }
 char *theme_lower(char *dst, int cap, const char *src){ return theme_case_copy(dst, cap, src, 0); }
-void theme_case_text(lv_obj_t *label, const char *text){   /* the theme's case only (dates, captions) */
+void theme_case_text(lv_obj_t *label, const char *text){
     if(!label) return;
     theme_case_t c = g_def ? g_def->title_case : THEME_CASE_KEEP;
     char buf[160];
@@ -435,13 +410,8 @@ void theme_case_text(lv_obj_t *label, const char *text){   /* the theme's case o
     else lv_snprintf(buf, sizeof buf, "%s", text ? text : "");
     lv_label_set_text(label, buf);
 }
-/* A header title set after its header was laid out (a playlist's name) that is too wide for its box steps down the
- * theme's smaller faces rather than ending in "...", its last line staying where it was. Chosen before the text is
- * set: a dotted label edits its own copy. A title form may add a little (the terminal's "~/"): measured with it. */
 #define TITLE_STEPPED THEME_TITLE_STEPPED
 const char theme_title_tag = 0;
-/* a title's next smaller face: a display-face theme steps inside its own face first (HEADER_SM), so titles don't
- * mix two families, then down the theme's text faces */
 const lv_font_t *theme_title_smaller(const lv_font_t *f){
     const lv_font_t *hf = theme_font(THEME_FONT_HEADER), *hsm = g_def ? g_tfp[THEME_FONT_HEADER_SM] : NULL;
     if(f == hf && hsm && lv_font_get_line_height(hsm) < lv_font_get_line_height(hf)) return hsm;
@@ -454,7 +424,6 @@ static void title_face(lv_obj_t *l, const char *text){
     lv_obj_update_layout(l);
     int room = lv_obj_get_content_width(l);
     if(room <= 0) return;
-    /* Terminal alone uses a path form, including its 160-byte limit and underscores. */
     char m[160];
     int terminal = !strcmp(theme_kit()->id, "terminal");
     lv_snprintf(m, sizeof m, "%s%s", terminal ? "~/" : "", text);
@@ -479,53 +448,47 @@ void theme_title_text(lv_obj_t *label, const char *text){
     else if(c == THEME_CASE_LOWER) theme_lower(buf, sizeof buf, text);
     else lv_snprintf(buf, sizeof buf, "%s", text ? text : "");
     title_face(label, buf);
-    /* A content-sized dotted title (blueprint) still has the OLD text's box when the new text is set, and the label
-     * picks its dots against that box: a longer title wrapped, became "..." and then shrank to fit the dots. Set the
-     * text at the title's widest instead, so it dots only past that, then let it take its content size again. */
     int fit = lv_obj_get_style_width(label, 0) == LV_SIZE_CONTENT && lv_label_get_long_mode(label) == LV_LABEL_LONG_DOT;
-    if(fit && theme_kit()->title_fit) theme_kit()->title_fit(label, buf);   /* the theme sizes it for THIS text */
+    if(fit && theme_kit()->title_fit) theme_kit()->title_fit(label, buf);
     else if(fit){
         int32_t mw = lv_obj_get_style_max_width(label, 0);
         if(mw <= 0 || mw >= LV_COORD_MAX || LV_COORD_IS_PCT(mw)) mw = lv_obj_get_content_width(lv_obj_get_parent(label));
         lv_obj_set_width(label, mw);
         lv_obj_update_layout(label);
     }
-    if(theme_kit()->title) theme_kit()->title(label, buf);   /* the theme's title form (e.g. "~/library") */
+    if(theme_kit()->title) theme_kit()->title(label, buf);
     else lv_label_set_text(label, buf);
     if(fit) lv_obj_set_width(label, LV_SIZE_CONTENT);
 }
 
-/* dot grid: one 2x2 dot every 12 px, DOT_GRID on CANVAS, pre-rendered ONCE as a full 360x360 image (a single blit
- * per redraw; tiling a small image would cost ~900 blits on this GPU-less CPU). Built on first use, never freed. */
 #define GRID_W 360
 #define GRID_H 360
 static uint8_t *g_grid_px;
 static lv_image_dsc_t g_grid_img;
-static uint32_t mix(uint32_t a, uint32_t b, int k){   /* a -> b by k/256 */
+static uint32_t mix(uint32_t a, uint32_t b, int k){
     uint32_t o = 0;
     for(int sh = 0; sh <= 16; sh += 8){ int ca = a >> sh & 255, cb = b >> sh & 255; o |= (uint32_t)(ca + (cb - ca) * k / 256) << sh; }
     return o;
 }
-/* one texel of the active theme's background texture (the texture colour is DOT_GRID) */
 static uint32_t texel(int x, int y, uint32_t bg, uint32_t tx, uint32_t ink){
     switch(g_def ? g_def->texture : THEME_TEX_NONE){
     case THEME_TEX_DOTS:      return (x % 12 >= 5 && x % 12 < 7 && y % 12 >= 5 && y % 12 < 7) ? tx : bg;
-    case THEME_TEX_GRID:      /* drafting paper: a fine line every 12 px, a rule in the drawing ink every 60 */
+    case THEME_TEX_GRID:
         if(x % 60 == 0 || y % 60 == 0) return mix(bg, ink, 72);
         return (x % 12 == 0 || y % 12 == 0) ? tx : bg;
     case THEME_TEX_SCANLINES: return (y % 3 == 0) ? tx : bg;
-    case THEME_TEX_PAPER: {   /* photocopy grain: sparse deterministic speckle */
+    case THEME_TEX_PAPER: {
         uint32_t h = (uint32_t)x * 374761393u + (uint32_t)y * 668265263u; h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16;
         return (h & 1023) < 22 ? tx : bg; }
-    case THEME_TEX_BEZEL: {   /* hi-fi: minute ticks round the WHOLE rim (no gap: a gap read as a flaw), a longer one every 5 */
+    case THEME_TEX_BEZEL: {
         int dx = x - 180, dy = y - 180, r2 = dx * dx + dy * dy;
         if(r2 < 166 * 166 || r2 > 176 * 176) return bg;
-        double a = __builtin_atan2(dy, dx) * 60.0 / 6.283185307179586;   /* in minute steps */
+        double a = __builtin_atan2(dy, dx) * 60.0 / 6.283185307179586;
         double f = a - __builtin_floor(a + 0.5);
         int m = (int)__builtin_floor(a + 0.5);
         int major = (m % 5) == 0;
         if(!major && r2 < 170 * 170) return bg;
-        double half = (major ? 0.9 : 0.5) / 2.0 * 60.0 / (6.283185307179586 * 171);   /* ~1.8 / 1 px wide */
+        double half = (major ? 0.9 : 0.5) / 2.0 * 60.0 / (6.283185307179586 * 171);
         return (f > -half && f < half) ? tx : bg; }
     default: return bg;
     }
@@ -536,12 +499,12 @@ void theme_screen_bg(lv_obj_t *root){
     if(!theme_trait(THEME_TRAIT_DOT_GRID)) return;
     if(!g_grid_px){
         g_grid_px = malloc(GRID_W * GRID_H * 4);
-        if(!g_grid_px) return;                       /* out of memory: plain canvas */
+        if(!g_grid_px) return;
         uint32_t bg = theme_rgb(THEME_CLR_CANVAS), dot = theme_rgb(THEME_CLR_DOT_GRID), ink = theme_rgb(THEME_CLR_DECOR_2);
         for(int y = 0; y < GRID_H; y++) for(int x = 0; x < GRID_W; x++){
             uint32_t c = texel(x, y, bg, dot, ink);
             uint8_t *p = g_grid_px + (y * GRID_W + x) * 4;
-            p[0] = c & 255; p[1] = c >> 8 & 255; p[2] = c >> 16 & 255; p[3] = 255;   /* BGRA */
+            p[0] = c & 255; p[1] = c >> 8 & 255; p[2] = c >> 16 & 255; p[3] = 255;
         }
         g_grid_img.header.magic = LV_IMAGE_HEADER_MAGIC;
         g_grid_img.header.cf = LV_COLOR_FORMAT_XRGB8888;
@@ -553,16 +516,13 @@ void theme_screen_bg(lv_obj_t *root){
 
 void theme_screen_solid(lv_obj_t *root){ if(root) lv_obj_set_style_bg_image_src(root, NULL, 0); }
 
-/* Font size (Settings > Display, stock's Small / Medium / Large): body text roles move one rung where the
- * fixed-height layouts fit. Large keeps UI_12/UI_14 and USER_14/USER_16 at Medium: enlarging those clips Home
- * controls or overlaps Now Playing metadata. Titles, clocks and display sizes stay fixed. Read once at startup. */
 int theme_font_size(void){
     static int v = -1;
     if(v < 0){ v = cfg_get_int("font_size", 1); if(v < 0 || v > 2) v = 1; }
     return v;
 }
 static theme_font_role_t sized_role(theme_font_role_t r){
-    static const signed char STEP[THEME_FONT_COUNT][2] = {   /* {Small, Large} replacement, 0 = unchanged */
+    static const signed char STEP[THEME_FONT_COUNT][2] = {
         [THEME_FONT_UI_14] = { THEME_FONT_UI_12, 0 },
         [THEME_FONT_UI_16] = { THEME_FONT_UI_14, THEME_FONT_UI_18 },
         [THEME_FONT_UI_18] = { THEME_FONT_UI_16, THEME_FONT_UI_20 },
@@ -576,8 +536,6 @@ static theme_font_role_t sized_role(theme_font_role_t r){
     int n = STEP[r][sz == 0 ? 0 : 1];
     return n ? (theme_font_role_t)n : r;
 }
-/* Default theme, a language that is not English: Montserrat has neither accents nor Cyrillic nor CJK, so its text
- * sizes get the same fallback chain the user-text fonts use (mutable copies; .fallback cannot be set on the const ones) */
 static const lv_font_t *lang_font(int px, const lv_font_t *base){
     static lv_font_t c[41];
     if(!c[px].get_glyph_dsc) { c[px] = *base; c[px].fallback = ui_font_cjk(px); }
@@ -634,28 +592,19 @@ const lv_font_t *theme_font(theme_font_role_t role){
     }
 }
 
-/* WCAG 2 relative luminance / contrast */
 static float lin(unsigned c){ float v = c / 255.0f; return v <= 0.03928f ? v / 12.92f : __builtin_powf((v + 0.055f) / 1.055f, 2.4f); }
 static float lum(uint32_t rgb){ return 0.2126f * lin(rgb >> 16 & 255) + 0.7152f * lin(rgb >> 8 & 255) + 0.0722f * lin(rgb & 255); }
 static float contrast(uint32_t a, uint32_t b){ float x = lum(a), y = lum(b); return x > y ? (x + 0.05f) / (y + 0.05f) : (y + 0.05f) / (x + 0.05f); }
 
-/* text on a fill of `bg`: the palette's ON_ACCENT while it reads at 3:1 (the rule for glyphs on the accent, below), else
- * black or white, whichever reads better
- * (Default dark passes album/user accents through unchecked, and a light one under white text is unreadable) */
 lv_color_t theme_on_color(lv_color_t bg){
     uint32_t b = lv_color_to_u32(bg) & 0xFFFFFFu, on = g_pal[THEME_CLR_ON_ACCENT] & 0xFFFFFFu;
     if(contrast(on, b) >= 3.0f) return lv_color_hex(on);
     return lv_color_hex(contrast(0x000000u, b) >= contrast(0xFFFFFFu, b) ? 0x000000u : 0xFFFFFFu);
 }
-/* The album-art accent is fitted (and cached per song) for the default DARK surfaces. Default dark returns it
- * unchanged (the shipped look). Every other palette moves it in small steps, keeping its hue - toward white on a dark
- * palette, toward black on a light one - until it reads at 4.5:1 on the canvas and on surfaces AND glyphs drawn on it
- * (ON_ACCENT) read at 3:1. Both ends always pass (white on dark surfaces with black ON_ACCENT, black on light ones
- * with white ON_ACCENT), so the loop ends. */
 lv_color_t theme_accent_from_rgb(uint32_t rgb){
     rgb &= 0xFFFFFFu;
     if((g_custom_on && g_custom_fixed_accent) || (g_def && g_def->fixed_accent))
-        return lv_color_hex(g_pal[THEME_CLR_ACCENT_PRIMARY]);                  /* the theme's one accent */
+        return lv_color_hex(g_pal[THEME_CLR_ACCENT_PRIMARY]);
     if(!g_variant && g_preset == 0) return lv_color_hex(rgb);
     uint32_t bg1 = g_pal[THEME_CLR_CANVAS], bg2 = g_pal[THEME_CLR_SURFACE], on = g_pal[THEME_CLR_ON_ACCENT];
     int lighten = !g_variant;
@@ -670,17 +619,11 @@ lv_color_t theme_accent_from_rgb(uint32_t rgb){
     return lv_color_hex(c);
 }
 
-/* a generated accent (the no-art fallback hue), fitted like an album accent */
 lv_color_t theme_accent_from_hsv(uint16_t h, uint8_t s, uint8_t v){
     lv_color_t c = lv_color_hsv_to_rgb(h, s, v);
     return theme_accent_from_rgb(((uint32_t)c.red << 16) | ((uint32_t)c.green << 8) | c.blue);
 }
 
-/* ---- LVGL's built-in theme ---------------------------------------------------------------------------------------
- * LVGL styles every widget with its default theme before the app touches it. Screens that do not restyle a widget
- * (switches, the text-entry cursor/placeholder, plain buttons) would keep LVGL's own colours in every palette, so an
- * overlay theme on top of it re-colours exactly those parts from roles. It also sets a chained inherited font on
- * screen roots. Sizes, radii and animations stay LVGL's; screen-local styles still win. */
 static lv_theme_t g_lv_overlay;
 static lv_style_t st_sw_main, st_sw_on, st_sw_knob, st_ta_cursor, st_ta_placeholder, st_btn, st_btn_checked,
                   st_primary_bg, st_arc_track, st_arc_indic, st_screen_font;
@@ -709,7 +652,7 @@ static void overlay_apply(lv_theme_t *th, lv_obj_t *obj){
     }
 #if LV_USE_SLIDER
     if(lv_obj_check_type(obj, &lv_slider_class) || lv_obj_check_type(obj, &lv_bar_class)){
-        lv_obj_add_style(obj, &st_primary_bg, 0);                   /* LVGL draws the track at 20% of this */
+        lv_obj_add_style(obj, &st_primary_bg, 0);
         lv_obj_add_style(obj, &st_primary_bg, LV_PART_INDICATOR);
         lv_obj_add_style(obj, &st_primary_bg, LV_PART_KNOB);
         return;
@@ -722,15 +665,12 @@ static void overlay_apply(lv_theme_t *th, lv_obj_t *obj){
         lv_obj_add_style(obj, &st_primary_bg, LV_PART_KNOB);
     }
 #endif
-    /* Not colours, so not roles: LVGL's pressed (darken 35/255) and disabled (50% toward grey) filters shade
-     * whatever role colour is underneath, in every palette. Focus-key/edited outlines need a keypad or encoder,
-     * which this UI never attaches. */
 }
 static void theme_install_lvgl(void){
     lv_display_t *d = lv_display_get_default();
     lv_theme_t *base = d ? lv_display_get_theme(d) : NULL;
     static int installed;
-    if(!base || installed) return;     /* one-shot: a theme change re-launches the UI, so styles never go stale */
+    if(!base || installed) return;
     installed = 1;
     lv_style_init(&st_sw_main);        lv_style_set_bg_color(&st_sw_main, TC(SWITCH_OFF));
     lv_style_init(&st_sw_on);          lv_style_set_bg_color(&st_sw_on, TC(SWITCH_ON));
@@ -759,5 +699,4 @@ static void theme_install_lvgl(void){
     lv_obj_set_style_text_font(lv_screen_active(), ui_font_cjk(16), 0);
 }
 
-/* the active preset's component kit (theme_kit.h); presets without their own kit use Default's builders */
 const theme_kit_t *theme_kit_for_active(void){ return (g_def && g_def->kit) ? g_def->kit : &theme_kit_default; }

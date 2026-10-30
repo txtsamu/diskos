@@ -1,9 +1,3 @@
-/* USB Audio media buttons. In USB Audio the Disc is the USB host and the IEM/DAC's play/next/volume buttons arrive
- * as a plain HID consumer-control device, which the kernel (usbhid + hid-generic) exposes as an evdev node. The
- * player only knows its own hardware keys, so diskOS reads those nodes itself and drives the same commands the
- * UI uses. Read-only (never EVIOCGRAB), opened only while the output route is USB, and event0/event1 (the Disc's
- * own keys and touch) are never touched: a node must resolve to a sysfs path containing "/usb". A press never
- * wakes a blanked panel (player-originated events must not call ui_backlight()); it only counts as activity. */
 #include "usbhid.h"
 #include "screens.h"
 #include "modes.h"
@@ -20,8 +14,8 @@
 #define MAXFD 4
 #define SCAN_MS 1500
 #define DEBOUNCE_MS 150
-#define VOL_STEP 2        /* VOL_MAX is 120 (the player's 0715 scale); 2 = ~1.7% per press, 60 presses end to end */
-#define VOL_SETTLE_MS 600 /* the a714 echo lags; within this window keep stepping from our own target */
+#define VOL_STEP 2
+#define VOL_SETTLE_MS 600
 
 static struct { int fd, idx; } g_dev[MAXFD];
 static int g_open_n, g_was_usb, g_vol = -1;
@@ -38,9 +32,8 @@ static void drop(int i){
 }
 static void close_all(void){ while(g_open_n) drop(g_open_n - 1); }
 
-/* open every USB-attached evdev node we are not already reading */
 static void scan(void){
-    for(int idx = 2; idx < 32 && g_open_n < MAXFD; idx++){      /* 0 = x2000_key, 1 = cst816t touch: never ours */
+    for(int idx = 2; idx < 32 && g_open_n < MAXFD; idx++){
         char p[96], real[PATH_MAX], name[64] = "";
         if(already_open(idx)) continue;
         snprintf(p, sizeof p, "/sys/class/input/event%d/device", idx);
@@ -76,17 +69,17 @@ int usbhid_poll(int screen_lit){
     for(int i = 0; i < g_open_n; i++){
         struct input_event ev[16]; ssize_t n;
         while((n = read(g_dev[i].fd, ev, sizeof ev)) > 0){
-            if(quiet) continue;                                  /* charging screen / keyboard: drain, act on nothing */
+            if(quiet) continue;
             for(int k = 0; k < (int)(n / (ssize_t)sizeof ev[0]); k++){
                 int c = ev[k].code, vol = c == KEY_VOLUMEUP || c == KEY_VOLUMEDOWN;
                 const char *cmd = NULL, *what = NULL;
                 if(ev[k].type != EV_KEY || ev[k].value < 1 || c < 0 || c >= 0x300) continue;
-                if(ev[k].value == 2 && !vol) continue;           /* auto-repeat only makes sense for volume */
+                if(ev[k].value == 2 && !vol) continue;
                 if(c == KEY_PLAYPAUSE || c == KEY_PLAYCD || c == KEY_PAUSECD){ cmd = PLAYER_CMD_PLAYPAUSE; what = "play/pause"; }
                 else if(c == KEY_NEXTSONG){ cmd = "0201000C0001"; what = "next"; }
                 else if(c == KEY_PREVIOUSSONG){ cmd = "0201000C0002"; what = "previous"; }
                 else if(!vol) continue;
-                if((uint32_t)(now - g_key_ms[c]) < DEBOUNCE_MS) continue;   /* also paces volume auto-repeat */
+                if((uint32_t)(now - g_key_ms[c]) < DEBOUNCE_MS) continue;
                 g_key_ms[c] = now;
                 if(cmd){
                     int rc = ui_transport_command(cmd);
@@ -101,7 +94,7 @@ int usbhid_poll(int screen_lit){
                 handled = 1;
             }
         }
-        if(n < 0 && errno == ENODEV) drop(i--);                  /* unplugged */
+        if(n < 0 && errno == ENODEV) drop(i--);
     }
     return handled;
 }

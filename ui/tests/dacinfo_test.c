@@ -1,12 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Host test for dacinfo.c: the uevent and hw_params parsers and the rate wording. The netlink side is not testable on
- * the host (a user process cannot forge the kernel's group-1 messages); it is checked on the Disc. */
 #include "dacinfo.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
-/* A kernel uevent is one buffer of NUL-separated strings; the first is "action@devpath". */
 #define EV(...) ((const char[]){ __VA_ARGS__ })
 
 static int feed(dac_stream_t *s, const char *raw, size_t len){ return dacinfo_parse_uevent(raw, len, s); }
@@ -26,7 +23,6 @@ static void test_dsd_stream(void){
 }
 
 static void test_stop_clears_format(void){
-    /* the Player's log shows the stop as UAC_SRATE=0 with UAC_FORMAT: UNKNOW (sic) */
     static const char run[]  = "change@/x\0UAC_SRATE=48000\0UAC_FORMAT=PCM\0";
     static const char stop[] = "change@/x\0UAC_SRATE=0\0UAC_FORMAT=UNKNOW\0";
     dac_stream_t s = {0, DAC_FMT_UNKNOWN};
@@ -49,7 +45,7 @@ static void test_unrelated_uevents_are_ignored(void){
     static const char m[] = "add@/devices/platform/usb\0ACTION=add\0SUBSYSTEM=usb\0DEVTYPE=usb_device\0SEQNUM=1";
     dac_stream_t s = {48000, DAC_FMT_PCM};
     assert(feed(&s, m, sizeof m) == 0);
-    assert(s.rate_hz == 48000 && s.fmt == DAC_FMT_PCM);   /* untouched */
+    assert(s.rate_hz == 48000 && s.fmt == DAC_FMT_PCM);
 }
 
 static void test_garbage(void){
@@ -57,18 +53,16 @@ static void test_garbage(void){
     assert(feed(&s, "", 0) == 0);
     static const char junk[] = "UAC_SRATE=abc\0UAC_FORMAT=\0";
     assert(feed(&s, junk, sizeof junk) == 1);
-    assert(s.rate_hz == 0 && s.fmt == DAC_FMT_UNKNOWN);   /* unparseable rate reads as stopped, not as a huge number */
+    assert(s.rate_hz == 0 && s.fmt == DAC_FMT_UNKNOWN);
     static const char big[] = "UAC_SRATE=99999999999999\0";
     feed(&s, big, sizeof big);
     assert(s.rate_hz == 0);
-    /* a key that runs to the end of the buffer with no NUL must not be read past len */
     char tail[] = {'U','A','C','_','S','R','A','T','E','=','4','8','0','0','0'};
     s.rate_hz = 0; feed(&s, tail, sizeof tail);
     assert(s.rate_hz == 48000);
 }
 
 static void test_hwparams(void){
-    /* captured from the Disc while a host streamed to it */
     const char run[] = "access: RW_INTERLEAVED\nformat: S32_LE\nsubformat: STD\nchannels: 2\nrate: 48000 (48000/1)\nperiod_size: 960\nbuffer_size: 3840\n";
     assert(dacinfo_parse_hwparams(run) == 48000);
     assert(dacinfo_parse_hwparams("closed\n") == 0);
@@ -85,7 +79,7 @@ static void test_wording(void){
     dacinfo_format_rate(b, sizeof b, 384000);   assert(!strcmp(b, "384 kHz"));
     dacinfo_format_rate(b, sizeof b, 2822400);  assert(!strcmp(b, "2.82 MHz"));
     dacinfo_format_rate(b, sizeof b, 0);        assert(!strcmp(b, "-"));
-    dacinfo_format_rate(b, 4, 48000);           assert(strlen(b) == 3);   /* truncates, never overruns */
+    dacinfo_format_rate(b, 4, 48000);           assert(strlen(b) == 3);
     assert(!strcmp(dacinfo_fmt_name(DAC_FMT_PCM), "PCM"));
     assert(!strcmp(dacinfo_fmt_name(DAC_FMT_DSD), "DSD"));
     assert(!strcmp(dacinfo_fmt_name(DAC_FMT_UNKNOWN), "-"));

@@ -51,9 +51,9 @@ class ThemeTables(unittest.TestCase):
         for name in BUTTONS + CHOICES:
             fg, bg = t.STYLES[name]["disabled"]
             self.assertGreaterEqual(t.contrast(fg, bg), 3.0, name)
-        self.assertGreaterEqual(t.contrast(t.LINE, t.BG), 3.0)       # interactive outline
-        self.assertGreaterEqual(t.contrast(t.FOCUS, t.BG), 3.0)      # focus ring
-        self.assertGreaterEqual(t.contrast(t.ACCENT, t.SURFACE), 3.0)  # selected indicator
+        self.assertGreaterEqual(t.contrast(t.LINE, t.BG), 3.0)
+        self.assertGreaterEqual(t.contrast(t.FOCUS, t.BG), 3.0)
+        self.assertGreaterEqual(t.contrast(t.ACCENT, t.SURFACE), 3.0)
 
 
 class NoLiteralLook(unittest.TestCase):
@@ -140,17 +140,16 @@ class AppFlows(unittest.TestCase):
     record their FULL arguments and call the confirm gate the way the engine does."""
 
     def setUp(self):
-        self.calls = []                       # (name, params, rep, confirm, confirmed)
-        self.gate = None                      # threading.Event: hold the fake service until set
-        self.service_error = None             # str (RuntimeError) or an exception instance to raise
-        self.after_confirm = None             # callable(rep) run after an accepted confirm (may raise)
-        self.errors = []                      # messagebox.showerror calls
-        self.close_answers = []               # askokcancel calls
+        self.calls = []
+        self.gate = None
+        self.service_error = None
+        self.after_confirm = None
+        self.errors = []
+        self.close_answers = []
         self.confirm_summary = {"action": "install", "variant": "public", "ota": "on", "duration": "20 min"}
         self.key = True
         self.saved_image = True
 
-    # ---- harness ----
     def _make(self, key=True, saved_image=True, scaling=None):
         try:
             import tkinter as tk
@@ -239,7 +238,7 @@ class AppFlows(unittest.TestCase):
         dlg = self._dialog()
         if accept:
             for cb in _find(dlg, "TCheckbutton"):
-                cb.invoke()                    # the "I understand" gate on destructive dialogs
+                cb.invoke()
             btn = [b for b in _find(dlg, "TButton") if str(b.cget("text")) in ("Proceed", "Begin flash (~20 min)")]
         else:
             btn = _find(dlg, "TButton", "Cancel")
@@ -262,7 +261,6 @@ class AppFlows(unittest.TestCase):
             self.app.fw_var.set(firmware)
         self.app.action_btn.invoke()
 
-    # ---- install ----
     def test_install_public_exact_arguments(self):
         app = self._make()
         self._go("/fw/disc.zip")
@@ -311,7 +309,7 @@ class AppFlows(unittest.TestCase):
         labels = [str(w.cget("text")) for w in _find(app.cfg, "Label")]
         self.assertIn(gui.OTA_NO_KEY, labels)
         self.assertNotIn(gui.OTA_HELP, labels)
-        app.ota_var.set(True)                  # even if something ticks it, the install stays off
+        app.ota_var.set(True)
         self._go("/fw/disc.zip")
         self._answer(True)
         self._finish()
@@ -352,7 +350,6 @@ class AppFlows(unittest.TestCase):
         self._go("/fw/disc.zip")
         dlg = self._dialog()
         self.assertFalse(app.flashing)
-        # Begin stays disabled until the acknowledgement is ticked
         begin = _find(dlg, "TButton", "Begin flash (~20 min)")[0]
         self.assertEqual(str(begin.cget("state")), "disabled")
         _find(dlg, "TCheckbutton")[0].invoke()
@@ -360,12 +357,11 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(app.flashing)
         self._finish()
 
-    # ---- restore ----
     def test_restore_with_saved_image(self):
         app = self._make(saved_image=True)
         self._button("Restore stock firmware...").invoke()
         self.assertEqual(str(app.action_btn.cget("text")), gui.MODE_TEXT["restore"][2])
-        self.assertEqual(self.calls, [])       # selecting the mode starts nothing
+        self.assertEqual(self.calls, [])
         self.app.action_btn.invoke()
         self._answer(True)
         self._finish()
@@ -395,7 +391,6 @@ class AppFlows(unittest.TestCase):
         self.assertIs(self.calls[0][4], False)
         self.assertEqual(app.state, gui.IDLE)
 
-    # ---- remove ----
     def test_remove_installer_data(self):
         app = self._make()
         self._button("Remove installer data...").invoke()
@@ -427,12 +422,11 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(str(app.action_btn.cget("text")), "Install diskOS...")
         self.assertEqual(self.calls, [])
 
-    # ---- Dev warning ----
     def test_dev_warning_only_for_dev(self):
         app = self._make()
         lbl = app.variant_warn_lbl
         self.assertEqual(str(lbl.cget("text")), "")
-        self.assertEqual(lbl.winfo_manager(), "")            # no empty gap while Public is selected
+        self.assertEqual(lbl.winfo_manager(), "")
         _find(self.root, "TRadiobutton", "Dev (root shell)")[0].invoke()
         self.assertIn("always-on passwordless USB root", str(lbl.cget("text")))
         self.assertIn("Development devices only.", str(lbl.cget("text")))
@@ -441,7 +435,6 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(str(lbl.cget("text")), "")
         self.assertEqual(lbl.winfo_manager(), "")
 
-    # ---- busy state ----
     def _controls(self):
         """Every widget the pre-slice _set_controls disabled: mode_frame + cfg descendants of the
         listed classes, plus the action button (and the Windows driver button when present)."""
@@ -468,7 +461,6 @@ class AppFlows(unittest.TestCase):
     def test_busy_state_disables_every_control_and_restores_them(self):
         app = self._make()
         ctrls = self._controls()
-        # install mode: Restore, Remove, (hidden) Back, Browse, entry, 2 radios, OTA checkbox, action
         desc = sorted(w.winfo_class() + ":" + (str(w.cget("text")) if w.winfo_class() != "TEntry" else "")
                       for w in ctrls)
         self.assertEqual(desc, sorted([
@@ -482,7 +474,6 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(app.state, gui.RUNNING)
         self.assertTrue(all(self._disabled(w) for w in ctrls),
                         [str(w) for w in ctrls if not self._disabled(w)])
-        # a second click while running starts nothing
         app.action_btn.config(state="normal")
         app.action_btn.invoke()
         self.root.update()
@@ -511,23 +502,22 @@ class AppFlows(unittest.TestCase):
         self._pump(lambda: self.calls, "service start")
         before = app.mode.get()
         for text in ("Restore stock firmware...", "Remove installer data..."):
-            self._button(text).invoke()      # ttk invoke() on a disabled button does nothing
+            self._button(text).invoke()
         self.assertEqual(app.mode.get(), before)
         self.gate.set()
         self._answer(True)
         self._finish()
 
-    # ---- details / log ----
     def test_log_lines_queued_while_collapsed_all_appear_when_expanded(self):
         app = self._make()
         self.assertFalse(app._details_open)
         for i in range(30):
             app.reporter.log("queued %d" % i)
         app.reporter.status("a status")
-        self.assertEqual(app.log.get("1.0", "end").strip(), "")     # still queued, not drained
+        self.assertEqual(app.log.get("1.0", "end").strip(), "")
         self._pump(lambda: "queued 29" in app.log.get("1.0", "end"), "drain")
         self.assertFalse(app._details_open)
-        self.assertEqual(app.logbox.winfo_manager(), "")            # hidden
+        self.assertEqual(app.logbox.winfo_manager(), "")
         app.details_btn.invoke()
         self.assertTrue(app._details_open)
         self.assertEqual(app.logbox.winfo_manager(), "pack")
@@ -536,7 +526,7 @@ class AppFlows(unittest.TestCase):
             self.assertIn("queued %d" % i, text)
         self.assertIn("a status", text)
         self.assertEqual(str(app.details_btn.cget("text")), "Details")
-        self.assertTrue(app.details_btn._diskos_open)              # chevron turned down
+        self.assertTrue(app.details_btn._diskos_open)
         app.details_btn.invoke()
         self.assertFalse(app._details_open)
         self.assertEqual(app.logbox.winfo_manager(), "")
@@ -551,7 +541,6 @@ class AppFlows(unittest.TestCase):
         self.assertIn("detail line 1", text)
         self.assertIn("detail line 2", text)
 
-    # ---- failure ----
     def test_failing_service_presents_error_and_opens_details(self):
         app = self._make()
         self.service_error = "disc exploded"
@@ -563,7 +552,7 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(app._details_open)
         self.assertEqual(app.logbox.winfo_manager(), "pack")
         self.assertIn("disc exploded", app.log.get("1.0", "end"))
-        self.assertEqual(self.errors, [])        # the result is on screen; no second pop-up
+        self.assertEqual(self.errors, [])
         self.assertIn("Disc exploded.", self._result_text())
         self.assertFalse(app.flashing)
         self.assertFalse(any(self._disabled(w) for w in self._controls()))
@@ -575,7 +564,6 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(app._details_open)
         self.assertIn("Finished with problems", str(app.phase_lbl.cget("text")))
 
-    # ---- window close ----
     def test_close_while_running_cancelled_keeps_window(self):
         app = self._make()
         self.gate = threading.Event()
@@ -597,7 +585,6 @@ class AppFlows(unittest.TestCase):
             self.root.winfo_exists()
             self.root.update()
 
-    # ---- slice 3: the destructive gate ----
     def _texts(self, widget, classes=("Label", "TLabel")):
         out = []
         for w in [widget] + list(widget.winfo_children()):
@@ -614,7 +601,7 @@ class AppFlows(unittest.TestCase):
     def _open_gate(self, summary=None, mode=None):
         """Start the stubbed service and return (app, dialog) with the confirm gate on screen."""
         app = self._make()
-        self.root.deiconify()                  # keys and focus reach a dialog only when its parent is on screen
+        self.root.deiconify()
         self.root.update()
         if summary:
             self.confirm_summary = summary
@@ -643,7 +630,7 @@ class AppFlows(unittest.TestCase):
         ack = _find(dlg, "TCheckbutton")
         self.assertEqual(len(ack), 1)
         self.assertEqual(str(ack[0].cget("text")), gui.ACK_TEXT)
-        self.assertEqual(str(ack[0].tk.globalgetvar(str(ack[0].cget("variable")))), "0")      # unticked
+        self.assertEqual(str(ack[0].tk.globalgetvar(str(ack[0].cget("variable")))), "0")
         self.assertEqual(str(_find(dlg, "TButton", gui.BEGIN_TEXT)[0].cget("state")), "disabled")
         self._answer(False)
         self._finish()
@@ -655,7 +642,7 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(str(begin.cget("state")), "normal")
         ack.invoke()
         self.assertEqual(str(begin.cget("state")), "disabled")
-        begin.invoke()                                  # a disabled ttk button does nothing
+        begin.invoke()
         self.root.update()
         self.assertFalse(app.flashing)
         self.assertIsNone(self.calls[0][4])
@@ -666,7 +653,7 @@ class AppFlows(unittest.TestCase):
     def test_gate_cannot_begin_with_the_tick_off_even_if_called_directly(self):
         app, dlg = self._open_gate()
         self._focus(_find(dlg, "TButton", gui.BEGIN_TEXT)[0])
-        dlg.event_generate("<Return>")                  # Enter on a disabled Begin
+        dlg.event_generate("<Return>")
         self.root.update()
         self.assertFalse(app.flashing)
         self.assertIsNone(self.calls[0][4])
@@ -677,7 +664,7 @@ class AppFlows(unittest.TestCase):
     def test_gate_guard_blocks_a_begin_that_bypasses_the_disabled_button(self):
         app, dlg = self._open_gate()
         begin = _find(dlg, "TButton", gui.BEGIN_TEXT)[0]
-        begin.config(state="normal")                    # something enabled it without the tick
+        begin.config(state="normal")
         begin.invoke()
         self.root.update()
         self.assertFalse(app.flashing)
@@ -792,7 +779,7 @@ class AppFlows(unittest.TestCase):
         worker = threading.Thread(target=lambda: answers.append(app._worker_confirm({"action": "install"})),
                                   daemon=True)
         worker.start()
-        while app.q.get(timeout=1)[0] != "confirm":      # skip readiness events
+        while app.q.get(timeout=1)[0] != "confirm":
             pass
         self.root.destroy()
         worker.join(1)
@@ -818,10 +805,10 @@ class AppFlows(unittest.TestCase):
                     order.append(str(c.cget("text")))
                 walk(c)
         walk(dlg)
-        self.assertEqual(order, [gui.ACK_TEXT, "Cancel", gui.BEGIN_TEXT])      # tab order = creation order
+        self.assertEqual(order, [gui.ACK_TEXT, "Cancel", gui.BEGIN_TEXT])
         self.assertEqual(dlg.focus_get(), _find(dlg, "TCheckbutton")[0])
         cancel, begin = _find(dlg, "TButton", "Cancel")[0], _find(dlg, "TButton", gui.BEGIN_TEXT)[0]
-        self.assertLess(cancel.winfo_rootx(), begin.winfo_rootx())              # Cancel sits left of Begin
+        self.assertLess(cancel.winfo_rootx(), begin.winfo_rootx())
         self._answer(False)
         self._finish()
 
@@ -830,7 +817,7 @@ class AppFlows(unittest.TestCase):
         seen = []
 
         class Rec(threading.Event):
-            def set(ev):                                 # what the worker would observe the instant it wakes
+            def set(ev):
                 seen.append((app.flashing, app._confirm_result))
                 super().set()
         app._confirm_event = Rec()
@@ -889,7 +876,7 @@ class AppFlows(unittest.TestCase):
         try:
             begin.invoke()
         except Exception:
-            pass                                         # already destroyed: fine
+            pass
         self._finish()
         self.assertEqual(len(self.calls), 1)
         self.assertIs(self.calls[0][4], True)
@@ -899,11 +886,10 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(app.warn_banner.winfo_manager(), "")
         _find(dlg, "TCheckbutton")[0].invoke()
         _find(dlg, "TButton", gui.BEGIN_TEXT)[0].invoke()
-        self.assertEqual(app.warn_banner.winfo_manager(), "pack")      # before the engine's first flash event
+        self.assertEqual(app.warn_banner.winfo_manager(), "pack")
         self.assertEqual(str(app.warn_banner.cget("text")), gui.FLASH_KEEP_NOTE)
         self._finish()
 
-    # ---- slice 4: progress ----
     def _emit(self, kind, **kw):
         self.app.q.put((kind, kw))
         self._pump(lambda: self.app.q.empty(), "drain")
@@ -927,13 +913,13 @@ class AppFlows(unittest.TestCase):
         app.start_time = app._stage_start = now - 20
         app._progress = (25, 100)
         self.assertEqual(app._timing_text(now), "elapsed 0m20s - 25% - about 60 s left")
-        app._progress = (10, 1000)                       # under 5%: too little to extrapolate
+        app._progress = (10, 1000)
         self.assertEqual(app._timing_text(now), "elapsed 0m20s - 1%")
         app._progress = (10, 100)
         app._stage_start = now - 1200
         self.assertEqual(app._timing_text(now), "elapsed 0m20s - 10% - about 180 min left")
         app._progress = (50, 100)
-        app._stage_start = now - 1                       # too early to extrapolate: no remaining estimate
+        app._stage_start = now - 1
         self.assertNotIn("left", app._timing_text(now))
 
     def test_flash_elapsed_and_remaining_use_the_engine_expectation(self):
@@ -946,7 +932,7 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(str(app.status_lbl.cget("text")), "Flashing: scan, erase")
         self.assertEqual(str(app.phase_lbl.cget("text")), "Writing diskOS to the Disc - about 20 minutes")
         self.assertIn("about 20 min left (estimate)", str(app.elapsed_lbl.cget("text")))
-        self.assertTrue(str(app.elapsed_lbl.cget("text")).startswith("elapsed 0m0"))   # since the flash began
+        self.assertTrue(str(app.elapsed_lbl.cget("text")).startswith("elapsed 0m0"))
         now = app._flash_start + 1000
         self.assertEqual(app._timing_text(now), "elapsed 16m40s - about 4 min left (estimate)")
         self.assertIn("longer than the usual 20 minutes; keep waiting", app._timing_text(app._flash_start + 1300))
@@ -961,14 +947,14 @@ class AppFlows(unittest.TestCase):
         with mock.patch("tkinter.messagebox.showwarning") as warn:
             app._on_close()
         warn.assert_called_once()
-        self.assertEqual(self.close_answers, [])                     # no "close anyway?" offer either
+        self.assertEqual(self.close_answers, [])
         self.assertTrue(self.root.winfo_exists())
         self.root.update()
 
     def test_close_is_vetoed_end_to_end_while_the_flash_runs(self):
         app = self._make()
         self.gate = threading.Event()
-        hold = threading.Event()                        # keeps the stub "flashing" until the test says so
+        hold = threading.Event()
         self.after_confirm = lambda rep: (rep.phase("Flashing", destructive=True),
                                           rep.indeterminate(True, expect_secs=60), hold.wait(20))
         self._go("/fw/disc.zip")
@@ -998,11 +984,10 @@ class AppFlows(unittest.TestCase):
         self._answer(False)
         self._finish()
         self.root.update()
-        for w in (app.action_btn, app.cfg, app.mode_frame):      # cancel returns to the welcome, in order
+        for w in (app.action_btn, app.cfg, app.mode_frame):
             self.assertTrue(w.winfo_ismapped(), w)
         self.assertEqual(self._pack_order(app), before)
 
-    # ---- slice 4: results ----
     @staticmethod
     def _pack_order(app):
         return [str(w) for w in app.body.pack_slaves()]
@@ -1029,7 +1014,7 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(app.bar.winfo_manager(), "")
         self.assertFalse(app._details_open)
         self.assertEqual(str(app.chip.cget("text")), "Success")
-        self.assertTrue(str(app.chip.cget("image")))                 # drawn status dot (STYLE.md: no glyphs)
+        self.assertTrue(str(app.chip.cget("image")))
         self.assertEqual(self.errors, [])
 
     def test_success_screen_restore_and_remove(self):
@@ -1067,14 +1052,14 @@ class AppFlows(unittest.TestCase):
         self.assertEqual(app.state, gui.FAILED)
         texts = self._texts(app.result_box)
         self.assertIn("Error E226", str(app.chip.cget("text")))
-        self.assertIn("This firmware version is not supported by this installer.", texts)      # display capitalised
+        self.assertIn("This firmware version is not supported by this installer.", texts)
         self.assertIn("What to do now.", texts)
-        self.assertIn("Download the supported FiiO firmware .zip.", texts)                 # display only
+        self.assertIn("Download the supported FiiO firmware .zip.", texts)
         self.assertIn(gui.NOTHING_WRITTEN, texts)
-        self.assertNotIn(errors.WAIT_THEN_RECOVER, "\n".join(texts))                      # not an unknown result
-        self.assertTrue(app._details_open)                                                # Details auto-expanded
+        self.assertNotIn(errors.WAIT_THEN_RECOVER, "\n".join(texts))
+        self.assertTrue(app._details_open)
         self.assertIn("[E226]", app.log.get("1.0", "end"))
-        self.assertIn("this firmware version is not supported by this installer", app.log.get("1.0", "end"))   # log keeps engine text
+        self.assertIn("this firmware version is not supported by this installer", app.log.get("1.0", "end"))
         self.assertEqual(str(self.service_error).count("download the supported FiiO firmware .zip"), 1)
         self.assertEqual(sorted(self._buttons(app.foot)), ["Back", "Close"])
         self.assertEqual(self.errors, [])
@@ -1096,7 +1081,7 @@ class AppFlows(unittest.TestCase):
         _find(app.foot, "TButton", "Back")[0].invoke()
         self.assertEqual(app.state, gui.IDLE)
         self.assertFalse(app._run_view)
-        self.assertEqual(app.prog_head.winfo_manager(), "")           # idle again: no empty "Ready." + bar
+        self.assertEqual(app.prog_head.winfo_manager(), "")
         self.root.update(); self.assertTrue(app.action_btn.winfo_ismapped())
         self.assertEqual(app.foot.winfo_manager(), "")
         self.assertEqual(str(app.phase_lbl.cget("text")), "Ready.")
@@ -1135,16 +1120,15 @@ class AppFlows(unittest.TestCase):
                 self._finish()
                 self.assertEqual(app.state, gui.FAILED)
                 texts = self._texts(app.result_box)
-                self.assertIn(errors.WAIT_THEN_RECOVER, texts)           # the engine's 25-minute text, verbatim
+                self.assertIn(errors.WAIT_THEN_RECOVER, texts)
                 self.assertIn("25 minutes", errors.WAIT_THEN_RECOVER)
                 self.assertIn(gui.WAIT_NOTE, texts)
                 self.assertIn(gui.display_sentence(message), texts)
                 self.assertIn("Error " + code, str(app.chip.cget("text")))
                 self.assertEqual(str(app.phase_lbl.cget("text")), "The flash result is unknown")
-                self.assertEqual(self._buttons(app.foot), ["Close"])      # no Back / Retry after an unknown result
+                self.assertEqual(self._buttons(app.foot), ["Close"])
                 self.assertNotIn(gui.NOTHING_WRITTEN, texts)
                 self.assertTrue(app._details_open)
-                # persistent: a panel in the window with a red border, not a pop-up; it survives time and Details
                 panel = [w for w in app.result_box.winfo_children() if w.winfo_class() == "Frame"][0]
                 self.assertEqual(str(panel.cget("highlightbackground")), gui_theme_mod.ERR)
                 app._toggle_details(False)
@@ -1170,7 +1154,7 @@ class AppFlows(unittest.TestCase):
         texts = self._texts(app.result_box)
         self.assertIn("Flash timed out.", texts)
         self.assertIn(errors.WAIT_THEN_RECOVER, texts)
-        self.assertEqual(sum(errors.WAIT_THEN_RECOVER in t for t in texts), 1)     # not repeated in the message
+        self.assertEqual(sum(errors.WAIT_THEN_RECOVER in t for t in texts), 1)
 
     def test_finished_writer_with_host_error_is_not_an_unknown_result(self):
         app = self._make()
@@ -1221,7 +1205,6 @@ class AppFlows(unittest.TestCase):
         self.assertIn("Finished with problems", self._result_text())
         self.assertEqual(sorted(self._buttons(app.foot)), ["Back", "Close"])
 
-    # ---- height budget ----
     def _budget_states(self, app):
         """Drive the real handlers to each state; yield (name, shown) after the window settles."""
         def settle():
@@ -1283,7 +1266,7 @@ class AppFlows(unittest.TestCase):
             h = self.root.winfo_reqheight()
             self.assertLessEqual(h, gui.MAX_WINDOW_H, (name, h))
             inner, view = app.body.winfo_reqheight(), int(app._canvas.cget("height"))
-            if inner > view:                       # content taller than the window allows: it must scroll
+            if inner > view:
                 self.assertTrue(app._scrolling, name)
                 self.assertEqual(app._vbar.winfo_manager(), "pack", name)
                 scrolled.append(name)
@@ -1325,7 +1308,7 @@ class AppFlows(unittest.TestCase):
                 self.assertIn(self.confirm_summary["consequence"], self._texts(dlg))
                 title = ("Install diskOS (dev)" if action == "install" else "Restore stock firmware")
                 self.assertTrue(str(_find(dlg, "TLabel", title)[0].cget("image")))
-                for b in _find(dlg, "TButton"):                       # nothing clipped: buttons inside the dialog
+                for b in _find(dlg, "TButton"):
                     self.assertLessEqual(b.winfo_rooty() + b.winfo_height(), dlg.winfo_rooty() + dlg.winfo_height())
                 self._answer(False)
                 self._finish()
@@ -1343,7 +1326,6 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(app._scrolling)
         self.assertEqual(app.foot.winfo_manager(), "pack")
 
-    # ---- unchanged smoke ----
     def test_wordmark_loads_with_text_fallback(self):
         app = self._make()
         self.assertIsNotNone(app._wordmark)

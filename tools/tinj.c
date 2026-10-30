@@ -1,27 +1,3 @@
-/* tinj.c - touch injector for the FiiO Snowsky Disc (cst816t capacitive controller).
- *
- * Drives the diskOS or stock UI without a finger, for automated navigation and testing. Writes
- * synthetic multitouch events directly to /dev/input/event1 (the cst816t is MT type-B there; on this
- * kernel, writing input_event records to the evdev node injects them).
- *
- * COORDINATES: the panel is mounted rotated 180 degrees, and both diskOS and the stock UI rotate raw
- * touch 180 internally, so a point shown at screen (x, y) is panel (360-x, 360-y). This tool takes
- * SCREEN coordinates (the same ones you read off an upright screenshot from diskos-shot.sh) and
- * applies the flip for you. Coordinates are 0..359, origin top-left.
- *
- * BUILD (with the diskOS musl cross toolchain, e.g. inside the ui/ Docker builder):
- *   mipsel-linux-musl-gcc -O2 -static -o tinj tinj.c
- * Then push it to the device (e.g. /usr/data/tinj) and run it there.
- *
- * USAGE (on the device):
- *   tinj tap   <x> <y>
- *   tinj swipe <x1> <y1> <x2> <y2>
- *
- * LIMITATION: a synthetic tap reliably wakes the screen and drives list rows and swipe navigation.
- * Small non-list buttons can occasionally be missed if the press and release land in a single UI
- * input-read cycle, which is why the tap holds the contact for ~90ms with intermediate frames. If a
- * particular control resists, prefer a list-row equivalent or a swipe gesture.
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,8 +5,6 @@
 #include <unistd.h>
 #include <stdint.h>
 
-/* 32-bit-ABI input_event. The kernel here is 32-bit; a 64-bit time_t (musl default) would mismatch
- * the struct layout the kernel expects, so we lay it out explicitly. */
 struct ev32 { uint32_t sec, usec; uint16_t type, code; int32_t value; };
 
 #define EV_SYN              0x00
@@ -44,7 +18,7 @@ struct ev32 { uint32_t sec, usec; uint16_t type, code; int32_t value; };
 #define ABS_MT_TRACKING_ID  0x39
 
 static int g_fd = -1;
-static int g_err = 0;   /* set on any short/failed write so we can exit nonzero */
+static int g_err = 0;
 
 static void emit(uint16_t type, uint16_t code, int32_t value)
 {
@@ -55,8 +29,6 @@ static void emit(uint16_t type, uint16_t code, int32_t value)
 }
 static void syn(void) { emit(EV_SYN, SYN_REPORT, 0); }
 
-/* screen -> panel (180 rotation). Verified on-device with the UI's debug-dot: a tap sent for screen
- * (x,y) registers at (360-x, 360-y), so this maps a screen coordinate to the panel coordinate to send. */
 static int fx(int x) { return 360 - x; }
 static int fy(int y) { return 360 - y; }
 
@@ -65,7 +37,6 @@ static void usage(const char *p)
     fprintf(stderr, "usage: %s tap <x> <y> | hold <x> <y> <ms> | swipe <x1> <y1> <x2> <y2>\n", p);
 }
 
-/* parse a screen coordinate, rejecting junk / negatives / out-of-range (valid range 0..359) */
 static int parse_coord(const char *s)
 {
     char *end;
@@ -85,7 +56,7 @@ int main(int argc, char **argv)
     if (g_fd < 0) { perror("open /dev/input/event1"); return 1; }
 
     if ((!strcmp(argv[1], "tap") && argc == 4) || (!strcmp(argv[1], "hold") && argc == 5)) {
-        int hold_ms = !strcmp(argv[1], "hold") ? atoi(argv[4]) : 0;   /* hold x y ms: a long press (LVGL long-press is 400 ms) */
+        int hold_ms = !strcmp(argv[1], "hold") ? atoi(argv[4]) : 0;
         int x = fx(parse_coord(argv[2])), y = fy(parse_coord(argv[3]));
         emit(EV_ABS, ABS_MT_SLOT, 0);
         emit(EV_ABS, ABS_MT_TRACKING_ID, 1);
@@ -93,10 +64,6 @@ int main(int argc, char **argv)
         emit(EV_ABS, ABS_MT_POSITION_Y, y);
         emit(EV_KEY, BTN_TOUCH, 1);
         syn();
-        /* Hold ~220ms with periodic no-move frames. The UI drains all pending evdev events each input
-         * poll and keeps the last state, so a too-short tap can be read as press+release in one poll and
-         * never register a click. A generous hold guarantees at least one poll sees a steady PRESSED
-         * before the release lands as a separate poll. */
         usleep(80000);
         for (int i = 0; i < 4 + hold_ms / 35; i++) {
             emit(EV_ABS, ABS_MT_POSITION_X, x);

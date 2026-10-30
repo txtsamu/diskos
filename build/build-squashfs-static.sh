@@ -1,18 +1,6 @@
 #!/bin/bash
-# build-squashfs-static.sh - build mksquashfs + unsquashfs for Linux,
-# with the compressors the installer actually uses.
-#
-# The installer repacks the rootfs with `-comp lzo -b 131072` and unpacks the
-# stock (lzo) rootfs, so LZO is mandatory; gzip + xz are included for reading
-# other firmware. Static builds have no liblzo2/libz/liblzma/glibc-version
-# runtime deps on the user's machine.
-#
-# Output: installer/vendor/linux-x86_64/{mksquashfs,unsquashfs} (stripped).
-# A dynamic fallback is for this host only; stage-release.sh refuses it.
-# A cosmetic getpwuid NSS warning at link time is expected (owner-name display in
-# the summary only; packing uses numeric uid/gid) and does not affect output.
 set -euo pipefail
-cd "$(dirname "$0")/.."                       # installer/
+cd "$(dirname "$0")/.."
 OUTDIR="$(pwd)/vendor/linux-x86_64"
 
 verify_sha256() {
@@ -67,7 +55,6 @@ else
   echo "      stage-release.sh will refuse them; build static tools before staging a release."
 fi
 
-# prove the installer's exact LZO path round-trips before installing
 t="$WORK/smoke"; mkdir -p "$t/src"; echo diskos > "$t/src/f"
 ./mksquashfs "$t/src" "$t/o.sqsh" -comp lzo -b 131072 -noappend >/dev/null 2>&1
 ./unsquashfs -d "$t/u" "$t/o.sqsh" >/dev/null 2>&1

@@ -25,50 +25,30 @@
 #include <arpa/inet.h>
 #include "ui_round.h"
 
-/* Wi-Fi settings (SCR_WIFI) + a details screen (SCR_WIFI_INFO).
- * Radio on/off reuses the stock /usr/bin/wifi_up.sh / wifi_down.sh (rfkill +
- * wpa_supplicant + udhcpc).  Scan/connect drive the running supplicant via
- * `wpa_cli -i wlan0`.  Connecting writes the network in and `save_config`s it
- * to /usr/data/wpa_supplicant.conf (update_config=1), so it persists.
- * Round-screen-aware: the top corners stay clear (only back chevron + centred
- * title); the on/off switch + scan button share one row in the wide centre
- * band.  The list itself carries state (connected checkmark row / "Wi-Fi is off" /
- * "Scanning" / "No networks") so there is no redundant status line.
- * NB: connecting to a DIFFERENT AP drops the laptop deploy link - recover over
- * serial if needed. */
-
 #define WCLI "/usr/sbin/wpa_cli -i wlan0 "
 
 static lv_obj_t *g_sw, *g_list;
 static lv_timer_t *g_scan_timer;
-static lv_timer_t *g_conn_timer;      /* non-NULL while a user connect is being polled */
-static uint32_t    g_wifi_last_start = 0;   /* last wifi_up.sh launch (shared: toggle + keepalive) */
-static int         g_sanitize_pending = 1;  /* sanitize saved nets once the supplicant is up (set on 1st run + each (re)launch) */
-static unsigned    g_intent_epoch = 0;      /* bumped by every explicit user Wi-Fi choice (switch or QS tile) */
-static char g_pending_ssid[64];   /* SSID awaiting a password from the keyboard */
-static char g_cur_ssid[64];       /* currently-connected SSID (to mark the list) */
-static lv_obj_t *g_info_list;     /* details screen */
+static lv_timer_t *g_conn_timer;
+static uint32_t    g_wifi_last_start = 0;
+static int         g_sanitize_pending = 1;
+static unsigned    g_intent_epoch = 0;
+static char g_pending_ssid[64];
+static char g_cur_ssid[64];
+static lv_obj_t *g_info_list;
 
-static void start_scan(void);     /* fwd */
+static void start_scan(void);
 static void wifi_lease_retry_reset(void);
 static void scan_fill(void);
 static void wifi_info_refresh(void);
 extern int ui_screen_backlight_on(void);
 
-/* The refresh glyph INSIDE the "Scanning" message spins while a scan runs. It lives
- * in g_list, so it must be stopped before g_list is cleaned (else the anim references
- * a freed object). scan_stop() is called at the top of every g_list-clearing path. */
 static lv_obj_t *g_scan_icon;
 static void spin_anim_cb(void *o, int32_t v){ lv_obj_set_style_transform_rotation((lv_obj_t*)o, v, 0); }
 static void scan_stop(void){
     if(g_scan_icon){ lv_anim_delete(g_scan_icon, spin_anim_cb); g_scan_icon = NULL; }
 }
 
-/* ---- tiny local copies of settings.c's header helpers ------------------- */
-
-/* ---- shell helpers ------------------------------------------------------ */
-/* Run cmd and return ALL of its output (malloc'd, NUL-terminated; caller frees), read to EOF, capped at
- * `max` bytes (a bigger output is cut there, which the row parser treats as a partial last row). */
 static char *run_cap_all(const char *cmd, size_t max){
     char *b = malloc(max); if(!b) return NULL;
     ui_run_cap_bounded(cmd, b, (int)max, 2000);
@@ -80,15 +60,12 @@ static int run_cap(const char *cmd, char *out, int cap){
 
 static int wifi_dhcp_absent(void);
 
-/* Radio-up stays asynchronous. Its children belong to stock, not our probe group. */
 static int wifi_shell(const char *cmd){
     static pid_t launch;
     if(launch > 0){
         if(waitpid(launch, NULL, WNOHANG) != 0) launch = 0;
     }
     if(strstr(cmd, "wifi_up.sh")){
-        /* With a surviving client, restore only the supplicant. Never run the
-         * stock script here: it starts another DHCP client unconditionally. */
         int absent = wifi_dhcp_absent();
         if(absent < 0) return -1;
         if(!absent) return wifi_shell("rfkill unblock wifi; ifconfig wlan0 up; "
@@ -105,10 +82,6 @@ static int wifi_shell(const char *cmd){
 }
 #define system wifi_shell
 
-/* wpa_cli prints SSIDs (scan_results, list_networks, status) printf-encoded: \\ \" \n \r \t \e and \xNN
- * for every non-printable / non-ASCII byte. Decode to the real bytes into out[cap]. Returns the byte
- * count, or -1 if the SSID is longer than 32 bytes (the 802.11 limit), does not fit, has a malformed
- * escape, or holds a control byte / NUL (unusable as a label and unsafe in a wpa_cli command). */
 static int wifi_ssid_decode(const char *in, int inlen, char *out, int cap){
     int o = 0;
     for(int i=0;i<inlen;i++){
@@ -143,7 +116,6 @@ static int wifi_ssid_decode(const char *in, int inlen, char *out, int cap){
     out[o] = 0;
     return o;
 }
-/* does the list_networks ssid field fld[0..flen) name exactly the real SSID `ssid`? */
 static int wifi_ssid_field_eq(const char *fld, int flen, const char *ssid){
     char d[64]; int n = wifi_ssid_decode(fld, flen, d, sizeof d);
     return n >= 0 && (size_t)n == strlen(ssid) && memcmp(d, ssid, (size_t)n) == 0;
@@ -174,33 +146,24 @@ static int wifi_radio_on(void){
     return buf[0] ? 1 : 0;
 }
 
-/* ---- persistence / auto-reconnect hardening ----------------------------- */
-/* Make the running supplicant's config writable, keep EVERY saved network a candidate
- * for auto-join (not just the last-selected), and drop stale per-network channel pins
- * (a network locked to a frequency the AP has since left never associates). Run on each
- * supplicant bring-up and after a user connect. */
-/* wpa_cli only responds once the control interface is up - pidof can be true well before
- * that, so a ping (PONG) is the real "ready" signal. */
 static int wpa_ready(void){
     char buf[64];
     run_cap(WCLI "ping 2>/dev/null", buf, sizeof buf);
     return strstr(buf, "PONG") != NULL;
 }
-/* returns 1 if it actually ran (ctrl interface ready), 0 if skipped so the caller keeps
- * g_sanitize_pending set until a live, responsive supplicant can be sanitized. */
 static int wifi_sanitize_savenets(void){
-    if(!wpa_ready()) return 0;                            /* supplicant not (yet) accepting wpa_cli */
-    system("" WCLI "set update_config 1 >/dev/null 2>&1");   /* else save_config silently fails */
-    system("" WCLI "enable_network all >/dev/null 2>&1");    /* any known net can auto-join */
+    if(!wpa_ready()) return 0;
+    system("" WCLI "set update_config 1 >/dev/null 2>&1");
+    system("" WCLI "enable_network all >/dev/null 2>&1");
     char buf[4096];
     run_cap(WCLI "list_networks 2>/dev/null", buf, sizeof buf);
-    char *l = strchr(buf, '\n'); if(l) l++;               /* skip header row */
+    char *l = strchr(buf, '\n'); if(l) l++;
     while(l && *l){
         int nid;
         if(sscanf(l, "%d", &nid) == 1){
             char c[96];
             snprintf(c, sizeof c, "" WCLI "set_network %d frequency 0 >/dev/null 2>&1", nid);
-            system(c);                                     /* clear stale channel lock */
+            system(c);
         }
         l = strchr(l, '\n'); if(l) l++;
     }
@@ -208,51 +171,28 @@ static int wifi_sanitize_savenets(void){
     return 1;
 }
 
-/* Seed diskOS's own Wi-Fi on/off intent from stock SYSCONFIG.WIFI_STATUS the FIRST time
- * only; thereafter diskOS owns "wifi_on" (the toggle persists every change), so the
- * keepalive can distinguish "supplicant died" from "user turned Wi-Fi off". */
 void wifi_init_intent(void){
-    if(cfg_get_int("wifi_on", -1) >= 0) return;           /* already owned */
+    if(cfg_get_int("wifi_on", -1) >= 0) return;
     char buf[32];
     run_cap("sqlite3 /usr/data/fiio/db/sysconfig.db \"SELECT WIFI_STATUS FROM SYSCONFIG WHERE ID=1\" 2>/dev/null",
             buf, sizeof buf);
-    /* only persist a VALID read (0/1); a failed/empty query leaves it unseeded so it
-     * retries next boot AND the keepalive's default (on) applies meanwhile - never
-     * silently latch Wi-Fi off because sqlite hiccuped. */
     if(buf[0]=='0' || buf[0]=='1') cfg_set_int("wifi_on", buf[0]-'0');
 }
 
-/* Keepalive: whenever Wi-Fi should be on but wpa_supplicant isn't running (died, never
- * started, radio glitch) (re)start it, so a known network returning in range auto-joins.
- * Sanitize saved nets once the supplicant is up after each (re)launch - driven by a pending
- * flag (set on first run + every launch we initiate, cleared after one run), so it's
- * deterministic and idempotent regardless of pid reuse or a transient pidof miss. Enforce a
- * deliberate OFF against a late in-flight wifi_up. Self-rate-limited: safe to call each loop. */
-/* ---- V2.57 radio reconciliation ---------------------------------------------------------------------
- * V2.57's player turns Wi-Fi off at boot when both radios were saved on (keeps Bluetooth, saves WIFI_STATUS=0).
- * diskOS keeps its own "wifi_on" intent, and the keepalive below would restart Wi-Fi at once, undoing stock's
- * decision and leaving both radios fighting. So on firmware with that arbitration, each player generation (boot or
- * player restart) holds the keepalive until the player has answered and settled, then accepts stock's decision
- * ONLY for its exact signature. An explicit user choice at any point ends the hold and always wins; a player that
- * never answers releases the hold unchanged after RECO_GIVEUP_MS, so Wi-Fi cannot get stuck off. */
-#define RECO_SETTLE_MS 9000      /* same settle as the local-init handshake (past the ~7 s mode-control window) */
-#define RECO_GIVEUP_MS 30000     /* silent player: release unchanged this long after arming */
-#define RECO_WINDOW_MS 30000     /* answered player: keep re-checking this long after its first frame, since stock's
-                                  * radio work can finish well after the settle (our own BT restore allows 28 s) */
-#define RECO_PROBE_MS  1000      /* every probe (sqlite read, pidof) is killed at this bound: never blocks the UI */
-static int      g_reco_hold = 0;           /* 1 = keepalive passive while this generation is being reconciled */
-static unsigned g_reco_gen  = 0xFFFFFFFFu; /* generation armed */
+#define RECO_SETTLE_MS 9000
+#define RECO_GIVEUP_MS 30000
+#define RECO_WINDOW_MS 30000
+#define RECO_PROBE_MS  1000
+static int      g_reco_hold = 0;
+static unsigned g_reco_gen  = 0xFFFFFFFFu;
 static unsigned g_reco_rx0, g_reco_epoch0;
 static uint32_t g_reco_armed_at, g_reco_first_rx_at, g_reco_probe_at, g_reco_eval_at;
 static int      g_reco_seen_rx;
 
-/* The decision, pure: 1 = adopt stock's "Wi-Fi off" into diskOS's intent. Every input must be a clean 0/1 read
- * (callers pass -1 for anything unknown, which never adopts). */
 static int wifi_reco_decide(int db_wifi, int db_bt, int eff_wifi, int eff_bt, int want_wifi, int user_changed){
     return db_wifi == 0 && db_bt == 1 && eff_wifi == 0 && eff_bt == 1 && want_wifi == 1 && !user_changed;
 }
 
-/* Saved radio state from stock SYSCONFIG: 1 and fills both on a clean "d|d" read, else 0. Bounded. */
 static int read_saved_radios(int *wifi, int *bt){
     char buf[32] = {0};
     ui_run_cap_bounded("sqlite3 /usr/data/fiio/db/sysconfig.db \"SELECT WIFI_STATUS||'|'||BT_STATUS FROM SYSCONFIG WHERE ID=1\" 2>/dev/null",
@@ -262,7 +202,6 @@ static int read_saved_radios(int *wifi, int *bt){
     }
     return 0;
 }
-/* Wi-Fi rfkill state: 1 blocked, 0 unblocked, -1 unknown. */
 static int wifi_rfkill_blocked(void){
     for(int i = 0; i < 12; i++){
         char p[64]; snprintf(p, sizeof p, "/sys/class/rfkill/rfkill%d/type", i);
@@ -279,12 +218,10 @@ static int wifi_rfkill_blocked(void){
     }
     return -1;
 }
-/* Effective Wi-Fi the way stock's wifi_down.sh leaves it: 0 = no supplicant AND radio rfkill-blocked, 1 = either one
- * says on, -1 = could not tell (probe failed / no rfkill switch). */
 static int wifi_effective(void){
     char buf[64] = {0};
     int rc = ui_run_cap_bounded("pidof wpa_supplicant 2>/dev/null; echo done", buf, sizeof buf, RECO_PROBE_MS);
-    if(rc <= 0 || !strstr(buf, "done")) return -1;              /* probe did not finish */
+    if(rc <= 0 || !strstr(buf, "done")) return -1;
     int daemon = (buf[0] >= '0' && buf[0] <= '9');
     int blocked = wifi_rfkill_blocked();
     if(daemon || blocked == 0) return 1;
@@ -296,18 +233,16 @@ static void wifi_reconcile_poll(void){
     unsigned gen = ipc_generation(), rx = ipc_rx_frames();
     uint32_t now = lv_tick_get();
     int first_generation = 0;
-    if(gen != g_reco_gen){                          /* new player generation: arm */
+    if(gen != g_reco_gen){
         first_generation = (g_reco_gen == 0xFFFFFFFFu);
         g_reco_gen = gen; g_reco_hold = 1; g_reco_rx0 = rx; g_reco_epoch0 = g_intent_epoch;
         g_reco_armed_at = now; g_reco_seen_rx = 0; g_reco_probe_at = now - 1000; g_reco_eval_at = now - RECO_PROBE_MS;
     }
     if(!g_reco_hold) return;
-    if(g_intent_epoch != g_reco_epoch0){ g_reco_hold = 0; return; }        /* the user chose: their choice wins */
-    if(cfg_get_int("wifi_on", 1) == 0){ g_reco_hold = 0; return; }         /* Wi-Fi intent already off: nothing to undo */
+    if(g_intent_epoch != g_reco_epoch0){ g_reco_hold = 0; return; }
+    if(cfg_get_int("wifi_on", 1) == 0){ g_reco_hold = 0; return; }
     if(first_generation){
         int dbw, dbb;
-        /* Stock arbitrates from saved SYSCONFIG state: BT_STATUS=0 means it cannot turn Wi-Fi off at boot.
-         * Only use this shortcut on UI start; Bluetooth state may change before a later player restart. */
         if(read_saved_radios(&dbw, &dbb) && dbb == 0){
             g_reco_hold = 0;
             fprintf(stderr, "radio reconcile (gen %u): saved Bluetooth off, released boot hold\n", gen);
@@ -316,33 +251,30 @@ static void wifi_reconcile_poll(void){
     }
     if(!g_reco_seen_rx){
         if(rx == g_reco_rx0){
-            if(now - g_reco_armed_at >= RECO_GIVEUP_MS){ g_reco_hold = 0; return; }   /* silent player: unchanged */
-            if(now - g_reco_probe_at >= 1000){ g_reco_probe_at = now; ipc_send_probe("02020008"); }   /* solicit, 1/s */
+            if(now - g_reco_armed_at >= RECO_GIVEUP_MS){ g_reco_hold = 0; return; }
+            if(now - g_reco_probe_at >= 1000){ g_reco_probe_at = now; ipc_send_probe("02020008"); }
             return;
         }
         g_reco_seen_rx = 1; g_reco_first_rx_at = now;
     }
     if(now - g_reco_first_rx_at < RECO_SETTLE_MS) return;
-    if(now - g_reco_eval_at < 1000) return;         /* re-check about once a second */
+    if(now - g_reco_eval_at < 1000) return;
     g_reco_eval_at = now;
     int dbw = -1, dbb = -1;
-    if(!read_saved_radios(&dbw, &dbb)) dbw = dbb = -1;                       /* unknown: never adopts */
+    if(!read_saved_radios(&dbw, &dbb)) dbw = dbb = -1;
     int effw = wifi_effective(), effb = bt_radio_on();
-    /* the probes themselves take time (each is bounded, not instant): judge the window on the clock AFTER them, so a
-     * check that started just inside it can never adopt once it has closed */
     if(lv_tick_get() - g_reco_first_rx_at >= RECO_WINDOW_MS){ g_reco_hold = 0; return; }
-    if(g_intent_epoch != g_reco_epoch0){ g_reco_hold = 0; return; }        /* the user chose while we probed */
-    if(!cfg_get_int(CFG_PDBG, 0) && wifi_reco_decide(dbw, dbb, effw, effb, cfg_get_int("wifi_on", 1), 0)){   /* Persistent debug keeps Wi-Fi on whatever stock arbitrated */
+    if(g_intent_epoch != g_reco_epoch0){ g_reco_hold = 0; return; }
+    if(!cfg_get_int(CFG_PDBG, 0) && wifi_reco_decide(dbw, dbb, effw, effb, cfg_get_int("wifi_on", 1), 0)){
         cfg_set_int("wifi_on", 0);
         ui_toast("Wi-Fi off: Bluetooth was on");
         fprintf(stderr, "radio reconcile (gen %u): accepted stock's Bluetooth-priority boot, wifi_on=0\n", gen);
         g_reco_hold = 0;
         return;
     }
-    if(now - g_reco_first_rx_at >= RECO_WINDOW_MS) g_reco_hold = 0;       /* no conflict appeared: release unchanged */
+    if(now - g_reco_first_rx_at >= RECO_WINDOW_MS) g_reco_hold = 0;
 }
 
-/* Stock owns DHCP. Only signal a uniquely identified process. */
 struct wifi_proc { int pid; unsigned long long start; };
 struct wifi_obs { struct wifi_proc wpa, dhcp; int id, ip, idle, sockets, allowed; char ssid[64]; };
 static struct {
@@ -354,7 +286,7 @@ static char g_lease_dir[64];
 static long g_lease_offset;
 static pid_t g_lease_helper;
 static uint32_t g_lease_check, g_lease_retry_ms = 100;
-static int g_lease_settled;   /* a lease step has seen offline, ready or failed */
+static int g_lease_settled;
 
 static int wifi_proc_stat(int pid, struct wifi_proc *p, int *parent){
     char path[64], buf[1024]; snprintf(path, sizeof path, "/proc/%d/stat", pid);
@@ -398,7 +330,6 @@ static int wifi_proc_find(const char *name, struct wifi_proc *p){
     }
     closedir(d); if(count != 1) memset(p, 0, sizeof *p); return count == 1;
 }
-/* Fail closed on unreadable proc data; multiple clients also forbid startup. */
 static int wifi_dhcp_absent(void){
     DIR *d = opendir("/proc"); if(!d) return -1;
     struct dirent *e; int absent = 1;
@@ -416,7 +347,6 @@ static int wifi_dhcp_signal(struct wifi_proc expected, int sig){
     struct wifi_proc current = {0};
     return wifi_lease_signal_context(sig) && wifi_proc_find("udhcpc", &current) && wifi_proc_eq(expected, current) && kill(current.pid, sig) == 0;
 }
-/* udhcpc waits for its script. A live child or unreadable proc data blocks the barrier. */
 static int wifi_dhcp_idle(struct wifi_proc p, int *sockets){
     char path[64], link[128]; int idle = 1; *sockets = 0;
     DIR *d = opendir("/proc"); if(!d) return 0;
@@ -473,12 +403,9 @@ static int wifi_lease_signal_context(int sig){
     if(sig == SIGUSR2) g_lease.release_evidence |= o.ip == 1 || o.sockets || !o.idle;
     return sig != SIGUSR1 || (o.ip == 0 && o.idle && !o.sockets);
 }
-/* This step never starts DHCP or raises wlan0. Failure stays uncertified. */
 static void wifi_lease_advance(const struct wifi_obs *o, uint32_t now){
     int same_owner = wifi_proc_eq(o->dhcp, g_lease.net.dhcp);
     if(o->dhcp.pid && !same_owner) g_lease.released = g_lease.release_evidence = 0;
-    /* A release belongs to the DHCP process, even across disconnects or profiles.
-     * Acquisition consumes it; only the unchanged transaction may resume. */
     if(same_owner && g_lease.release_evidence &&
        (g_lease.phase == LEASE_RELEASE || g_lease.phase == LEASE_FAILED) &&
        now != g_lease.since && o->ip == 0 && o->idle && !o->sockets)
@@ -529,7 +456,6 @@ static int wifi_lease_ready(const char *status){
     struct wifi_obs o; wifi_lease_observe(&o, status);
     return o.allowed && o.ip == 1 && o.idle && wifi_lease_matches(&o);
 }
-/* The action helper only records events, so a late helper can never signal DHCP. */
 static void wifi_lease_events(void){
     if(g_lease_helper && waitpid(g_lease_helper, NULL, WNOHANG) == 0) return;
     g_lease_helper = 0;
@@ -551,7 +477,6 @@ static void wifi_lease_events(void){
     }
     if(g_lease_helper < 0) g_lease_helper = 0;
 }
-/* Failed leases back off, except an acquisition still resumable in its window. */
 static int wifi_lease_slow(void){
     return g_lease.phase == LEASE_FAILED && !g_conn_timer && !g_scan_timer &&
         !(g_lease.resume == LEASE_ACQUIRE && lv_tick_elaps(g_lease.since) <= 30000);
@@ -562,7 +487,6 @@ static void wifi_lease_step(void){
     static uint32_t input_prev;
     int want_now = cfg_get_int("wifi_on", 1), lit = ui_screen_backlight_on(), screen = screen_current();
     unsigned gen = ipc_generation();
-    /* Last input tick, read against one unchanged tick so it is exact. */
     uint32_t tick, idle;
     do { tick = lv_tick_get(); idle = lv_display_get_inactive_time(NULL); } while(lv_tick_get() != tick);
     uint32_t input = tick - idle;
@@ -601,12 +525,10 @@ static void wifi_lease_step(void){
     }
 }
 
-/* Only failed leases back off; recovery cues make the next step due. */
 static void wifi_lease_retry_reset(void){
     g_lease_retry_ms = 100; g_lease_check = lv_tick_get() - 100;
 }
 
-/* Append-only records preserve order. A partial final line is retried next loop. */
 static int wifi_lease_consume(void){
     if(!g_lease_dir[0]) return 0;
     char path[96], event[128]; snprintf(path, sizeof path, "%s/event", g_lease_dir);
@@ -631,7 +553,7 @@ static int wifi_lease_consume(void){
 
 void wifi_supervise(void){
     wifi_reconcile_poll();
-    if(g_reco_hold) return;                         /* stock's radio decision is still being read: stay passive */
+    if(g_reco_hold) return;
     static uint32_t lease_check;
     int event = wifi_lease_consume();
     if(!event && lv_tick_elaps(lease_check) >= 100 &&
@@ -641,30 +563,26 @@ void wifi_supervise(void){
     }
     static uint32_t last_check = 0;
     static int      first = 1;
-    if(!first && lv_tick_elaps(last_check) < 5000) return;   /* check ~every 5s */
+    if(!first && lv_tick_elaps(last_check) < 5000) return;
     first = 0; last_check = lv_tick_get();
 
     wifi_lease_step();
     int up   = wifi_radio_on();
     int want = cfg_get_int("wifi_on", 1);
 
-    /* re-enable all nets + clear freq locks + persist once the supplicant is up, unless a
-     * user connect is mid-flight (conn_poll_cb sanitizes on its outcome). */
     if(up && g_sanitize_pending && !g_conn_timer && wifi_sanitize_savenets()) g_sanitize_pending = 0;
 
-    if(!up && want){                        /* should be on but isn't -> (re)start */
-        if(!g_wifi_last_start || lv_tick_elaps(g_wifi_last_start) > 30000){  /* 30s backoff */
+    if(!up && want){
+        if(!g_wifi_last_start || lv_tick_elaps(g_wifi_last_start) > 30000){
             g_wifi_last_start = lv_tick_get();
-            g_sanitize_pending = 1;         /* sanitize once this new instance is up */
+            g_sanitize_pending = 1;
             system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
         }
-    } else if(up && !want){                 /* should be off but a late wifi_up won -> enforce off */
+    } else if(up && !want){
         system("/usr/bin/wifi_down.sh >/dev/null 2>&1");
     }
 }
 
-/* UI-thread snapshot of the lease observations: 1 connected, 0 offline, -1 not known yet
- * (radio decision pending, or no lease step has settled since start). */
 int wifi_connectivity(void){
     if(!cfg_get_int("wifi_on", 1)) return 0;
     if(g_reco_hold || !g_lease_settled) return -1;
@@ -672,8 +590,6 @@ int wifi_connectivity(void){
            g_lease.intent == g_intent_epoch && g_lease.player == ipc_generation();
 }
 
-/* centred grey placeholder shown in the list area for non-network states */
-/* a single status message (Scanning / off / empty) - centered in the list area */
 static void list_msg(const char *m){
     if(!g_list) return;
     scan_stop();
@@ -684,7 +600,6 @@ static void list_msg(const char *m){
     lv_obj_set_style_text_color(e, TC(TEXT_MUTED), 0);
     lv_obj_set_style_text_font(e, TF(UI_14), 0);
 }
-/* "Scanning" + a spinning refresh glyph, centered in the list area */
 static void list_msg_scanning(void){
     if(!g_list) return;
     scan_stop();
@@ -717,13 +632,12 @@ static void list_msg_scanning(void){
     lv_anim_start(&a);
 }
 
-/* default gateway from /proc/net/route (no external tools). */
 static int get_gateway(char *out, int cap){
     out[0] = 0;
     FILE *f = fopen("/proc/net/route", "r");
     if(!f) return 0;
     char line[256]; int got = 0;
-    if(!fgets(line, sizeof line, f)){ fclose(f); return 0; }   /* header */
+    if(!fgets(line, sizeof line, f)){ fclose(f); return 0; }
     while(fgets(line, sizeof line, f)){
         char iface[32]; unsigned long dest, gw;
         if(sscanf(line, "%31s %lx %lx", iface, &dest, &gw) == 3 && dest == 0 && gw != 0){
@@ -736,53 +650,38 @@ static int get_gateway(char *out, int cap){
     return got;
 }
 
-/* Shell-safe token for a password: wpa_supplicant's quoted-string parser (wpa_config_parse_psk, 2.9)
- * takes the bytes between the first and LAST double quote literally, with no unescaping, and the
- * SET_NETWORK control command hands the rest of the line over untouched. So the value goes in as
- * "<bytes>" with NO backslash escaping (escaping " or \ would put a real backslash in the key); the
- * whole token is wrapped in shell single-quotes with any ' emitted as '\''. Output e.g. '"pa"ss\'  */
 static void wpa_q(const char *v, char *out, int cap){
     int o = 0;
     #define WQ_PUT(ch) do{ if(o < cap-1) out[o++] = (char)(ch); }while(0)
-    WQ_PUT('\'');                 /* open shell single-quote   */
-    WQ_PUT('"');                  /* open wpa quoted-string    */
+    WQ_PUT('\'');
+    WQ_PUT('"');
     for(; *v && o < cap-8; v++){
-        if(*v == '\'') { WQ_PUT('\''); WQ_PUT('\\'); WQ_PUT('\''); WQ_PUT('\''); } /* '\'' */
+        if(*v == '\'') { WQ_PUT('\''); WQ_PUT('\\'); WQ_PUT('\''); WQ_PUT('\''); }
         else WQ_PUT(*v);
     }
-    WQ_PUT('"');                  /* close wpa quoted-string   */
-    WQ_PUT('\'');                 /* close shell single-quote  */
+    WQ_PUT('"');
+    WQ_PUT('\'');
     out[o] = 0;
     #undef WQ_PUT
 }
-/* SSID as unquoted hex (wpa_supplicant reads an unquoted ssid value as hex bytes): any byte sequence,
- * including " and \, arrives exactly. */
 static void wpa_hex(const char *v, char *out, int cap){
     int o = 0;
     for(; *v && o + 2 < cap; v++){ snprintf(out + o, 3, "%02x", (unsigned char)*v); o += 2; }
     out[o] = 0;
 }
 
-/* ---- connect completion poll (honest feedback) -------------------------
- * A connect is async (association + DHCP take seconds). Instead of re-listing
- * immediately and implying success, poll wpa_state + IP for up to 15s and toast
- * the real outcome. */
 static uint32_t    g_conn_start;
 static char        g_conn_ssid[64];
 static int         g_conn_id = -1;
 
-/* Did the supplicant give up on network `id` after auth failures? `list_networks` rows are
- * "id \t ssid \t bssid \t flags"; flags holds [TEMP-DISABLED] once it has temp-disabled the network
- * (the string is in this wpa_supplicant 2.9 build's flag table next to [CURRENT]/[DISABLED]). Only the
- * 4th field is checked; the ssid field is printf-encoded by wpa_cli but is never looked at here. */
 static int wifi_net_temp_disabled(const char *list, int id){
-    const char *l = strchr(list, '\n');           /* skip the header row */
+    const char *l = strchr(list, '\n');
     l = l ? l + 1 : "";
     while(*l){
         const char *nl = strchr(l, '\n'); size_t len = nl ? (size_t)(nl - l) : strlen(l);
         char *end; long v = strtol(l, &end, 10);
         if(end != l && *end == '\t' && v == id && (size_t)(end - l) < len){
-            const char *f = end;                  /* skip ssid and bssid fields: the 3rd tab starts flags */
+            const char *f = end;
             int tabs = 0;
             while(f < l + len && tabs < 3){ if(*f == '\t') tabs++; if(tabs < 3) f++; }
             if(tabs == 3){
@@ -800,8 +699,6 @@ static int wifi_net_temp_disabled(const char *list, int id){
 
 static void conn_fail(const char *why){
     lv_timer_del(g_conn_timer); g_conn_timer = NULL;
-    /* connect failed: re-enable other nets IF the supplicant is still up; if it died,
-     * leave g_sanitize_pending set so supervise sanitizes the fresh instance when it's up. */
     if(wifi_sanitize_savenets()) g_sanitize_pending = 0;
     ui_toast(why);
     start_scan();
@@ -809,22 +706,20 @@ static void conn_fail(const char *why){
 static void conn_poll_cb(lv_timer_t *t){
     (void)t;
     char ss[64], ip[32];
-    /* Association and witnessed DHCP must belong to this selected profile. */
     if(wifi_status(ss, sizeof ss, ip, sizeof ip) && ip[0] && g_lease.net.id == g_conn_id && !strcmp(ss, g_conn_ssid)){
         lv_timer_del(g_conn_timer); g_conn_timer = NULL;
         snprintf(g_cur_ssid, sizeof g_cur_ssid, "%s", g_conn_ssid);
-        if(wifi_sanitize_savenets()) g_sanitize_pending = 0;   /* re-enable all + persist (supplicant is up here) */
+        if(wifi_sanitize_savenets()) g_sanitize_pending = 0;
         ui_toast("Connected");
-        start_scan();                        /* refresh list so the joined net gets its checkmark */
+        start_scan();
         return;
     }
     char nl[2048]; run_cap(WCLI "list_networks 2>/dev/null", nl, sizeof nl);
     if(wifi_net_temp_disabled(nl, g_conn_id)){ conn_fail("Couldn't connect - check the password"); return; }
-    if(lv_tick_elaps(g_conn_start) > 75000)   /* association plus two 30s DHCP stages */
+    if(lv_tick_elaps(g_conn_start) > 75000)
         conn_fail("Couldn't connect");
 }
 
-/* wpa_cli 2.9 prints FAIL and still exits 0, so a step succeeded only if its reply is exactly "OK". */
 static int wifi_reply_ok(const char *out){
     return out[0] == 'O' && out[1] == 'K' && (out[2] == 0 || out[2] == '\n' || out[2] == '\r');
 }
@@ -834,12 +729,8 @@ static int wifi_step(const char *cmd, const char *step){
     fprintf(stderr, "wifi connect: %s failed (reply '%.20s')\n", step, out);
     return -1;
 }
-/* WPA passphrase: 8..63 bytes (wpa_supplicant's own limit; a 64-char value would have to be a hex PSK) */
 static int wifi_psk_len_ok(const char *key){ size_t n = strlen(key); return n >= 8 && n <= 63; }
 
-/* Write the profile into the supplicant and select it. Every step must reply OK; the first that
- * does not aborts BEFORE anything later runs (a half-built profile or an old saved key must never be
- * selected). Returns NULL on success, else the toast text. */
 static const char *wifi_apply_net(int id, const char *ssid, const char *key){
     char cmd[512], qssid[160], qkey[300];
     wpa_hex(ssid, qssid, sizeof qssid);
@@ -847,8 +738,6 @@ static const char *wifi_apply_net(int id, const char *ssid, const char *key){
     if(wifi_step(cmd, "set ssid")) return "Couldn't configure Wi-Fi";
     if(key && key[0]){
         wpa_q(key, qkey, sizeof qkey);
-        /* set key_mgmt WPA-PSK BEFORE psk: a REUSED profile that was previously open still has
-         * key_mgmt NONE, and setting only psk would leave it open-auth (connect fails w/ right pass). */
         snprintf(cmd, sizeof cmd, WCLI "set_network %d key_mgmt WPA-PSK 2>/dev/null", id);
         if(wifi_step(cmd, "set key_mgmt")) return "Couldn't configure Wi-Fi";
         snprintf(cmd, sizeof cmd, WCLI "set_network %d psk %s 2>/dev/null", id, qkey);
@@ -864,25 +753,19 @@ static const char *wifi_apply_net(int id, const char *ssid, const char *key){
     return NULL;
 }
 
-/* ---- connect ------------------------------------------------------------ */
 static void wifi_connect(const char *ssid, const char *key){
     wifi_lease_retry_reset();
     char buf[2048];
     if(key && key[0] && !wifi_psk_len_ok(key)){ ui_toast("Password must be 8 to 63 characters"); return; }
     int id = -1;
     run_cap(WCLI "list_networks 2>/dev/null", buf, sizeof buf);
-    char *l = strchr(buf, '\n'); if(l) l++;               /* skip the header row */
+    char *l = strchr(buf, '\n'); if(l) l++;
     while(l && *l){
-        /* exact SSID match by literal-tab field split. sscanf("%d\t%63[^\t]") swallowed leading
-         * whitespace in the SSID, so " Home" and "Home" compared equal - selecting one could
-         * reconfigure the other saved profile. Split on the real tabs instead. */
         char *nl = strchr(l, '\n');
-        char *t1 = strchr(l, '\t');                       /* end of id field */
+        char *t1 = strchr(l, '\t');
         if(t1 && (!nl || t1 < nl)){
-            char *sfld = t1 + 1;                          /* ssid field */
-            char *t2 = strchr(sfld, '\t');                /* the SSID is always followed by a tab (bssid) */
-            /* require a COMPLETE ssid field: a truncated capture ("17\tHom") must NOT match a shorter
-             * prefix of a longer real SSID (e.g. select "Home" and reconfigure saved "HomeOffice"). */
+            char *sfld = t1 + 1;
+            char *t2 = strchr(sfld, '\t');
             if(t2 && (!nl || t2 < nl) && wifi_ssid_field_eq(sfld, (int)(t2 - sfld), ssid)){
                 id = atoi(l); break;
             }
@@ -894,19 +777,18 @@ static void wifi_connect(const char *ssid, const char *key){
         run_cap(WCLI "add_network 2>/dev/null", idbuf, sizeof idbuf);
         char *end = idbuf;
         long nid = strtol(idbuf, &end, 10);
-        if(end == idbuf || nid < 0){   /* empty / "FAIL\n" -> id would be 0 and clobber network 0 */
+        if(end == idbuf || nid < 0){
             fprintf(stderr, "wifi add_network failed: '%s'\n", idbuf);
             ui_toast("Couldn't add network");
             return;
         }
         id = (int)nid;
     }
-    g_intent_epoch++;                         /* selection invalidates any earlier transaction */
+    g_intent_epoch++;
     const char *why = wifi_apply_net(id, ssid, key);
     if(why){ ui_toast(why); return; }
     if(g_conn_timer){ lv_timer_del(g_conn_timer); g_conn_timer = NULL; }
-    if(system("" WCLI "save_config >/dev/null 2>&1")) fprintf(stderr, "wifi connect: save_config failed\n");   /* non-fatal: connection still works unsaved */
-    /* don't claim success yet - poll for the real outcome (assoc + DHCP). */
+    if(system("" WCLI "save_config >/dev/null 2>&1")) fprintf(stderr, "wifi connect: save_config failed\n");
     snprintf(g_conn_ssid, sizeof g_conn_ssid, "%s", ssid);
     g_conn_id = id;
     ui_toast("Connecting...");
@@ -918,7 +800,6 @@ static void psk_done(const char *text){
     if(text && text[0]) wifi_connect(g_pending_ssid, text);
 }
 
-/* ---- details screen (SCR_WIFI_INFO) ------------------------------------- */
 static void info_row(const char *key, const char *val){
     lv_obj_t *r = lv_obj_create(g_info_list);
     lv_obj_remove_style_all(r);
@@ -937,7 +818,7 @@ static void info_row(const char *key, const char *val){
     lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(v, 110, 11); lv_obj_set_size(v, 128, 18);
     lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_font(v, TF(USER_14), 0);   /* "Network" value = SSID: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(v, TF(USER_14), 0);
     lv_obj_set_style_text_color(v, TC(TEXT_PRIMARY), 0);
 }
 static void info_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
@@ -945,11 +826,11 @@ static void info_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICK
 void wifi_info_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
-    ui_header_cb(root, "Network", info_back_cb);   /* shared header */
+    ui_header_cb(root, "Network", info_back_cb);
     g_info_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_info_list);
     lv_obj_set_pos(g_info_list, 55, 84); lv_obj_set_size(g_info_list, 250, 230);
-    lv_obj_set_style_pad_bottom(g_info_list, 44, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_style_pad_bottom(g_info_list, 44, 0);
     lv_obj_set_style_bg_opa(g_info_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(g_info_list, 8, 0);
     lv_obj_set_flex_flow(g_info_list, LV_FLEX_FLOW_COLUMN);
@@ -959,7 +840,6 @@ void wifi_info_create(lv_obj_t *root){
     lv_obj_add_flag(g_info_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
 }
 
-/* A tappable destructive-action row appended to the details list (Forget). */
 static void info_action_row(const char *label, lv_event_cb_t cb){
     lv_obj_t *r = lv_button_create(g_info_list);
     lv_obj_remove_style_all(r);
@@ -975,45 +855,38 @@ static void info_action_row(const char *label, lv_event_cb_t cb){
     lv_obj_set_style_text_font(t, TF(UI_14), 0);
     lv_obj_set_style_text_color(t, TC(STATUS_DANGER), 0);
 }
-static char g_info_ssid[64];   /* the exact SSID shown on the details screen (retained for Forget) */
-/* Remove EVERY saved network whose SSID EXACTLY equals `ssid`, then persist. 1 if any removed.
- * list_networks is TAB-separated (id\tssid\tbssid\tflags); we split on literal tabs and compare the
- * exact ssid field - NOT sscanf "%[^\t]" after a "\t", which would swallow a leading space so " Home"
- * and "Home" collide and Forget could delete the wrong network. */
+static char g_info_ssid[64];
 static int wifi_remove_ssid(const char *ssid){
     wifi_lease_retry_reset();
     if(!wpa_ready() || !ssid || !ssid[0]) return 0;
     char buf[4096]; run_cap(WCLI "list_networks 2>/dev/null", buf, sizeof buf);
-    char *l = strchr(buf, '\n'); if(l) l++;               /* skip the header row */
+    char *l = strchr(buf, '\n'); if(l) l++;
     int removed = 0, failed = 0;
     while(l && *l){
         char *nl = strchr(l, '\n');
-        char *t1 = strchr(l, '\t');                       /* end of id field */
+        char *t1 = strchr(l, '\t');
         if(t1 && (!nl || t1 < nl)){
-            char *sfld = t1 + 1;                           /* ssid field start */
-            char *t2 = strchr(sfld, '\t');                 /* end of ssid field (always a tab: bssid follows) */
-            /* require a COMPLETE ssid field so a truncated capture can't match a shorter prefix of a longer real SSID. */
+            char *sfld = t1 + 1;
+            char *t2 = strchr(sfld, '\t');
             if(t2 && (!nl || t2 < nl) && wifi_ssid_field_eq(sfld, (int)(t2 - sfld), ssid)){
                 int nid = atoi(l);
-                /* wpa_cli prints OK/FAIL and exits 0 either way, so check its output, not the
-                 * shell rc - otherwise a failed remove would still report "forgotten". */
                 char cmd[80]; snprintf(cmd, sizeof cmd, WCLI "remove_network %d 2>/dev/null", nid);
                 char out[64]; run_cap(cmd, out, sizeof out);
-                if(strstr(out, "OK")) removed = 1; else failed = 1;   /* a duplicate-SSID profile we could not remove -> report failure */
+                if(strstr(out, "OK")) removed = 1; else failed = 1;
             }
         }
         l = nl ? nl + 1 : NULL;
     }
     if(removed){
         char so[64]; run_cap(WCLI "save_config 2>/dev/null", so, sizeof so);
-        if(!strstr(so, "OK")) failed = 1;   /* removed from the running config but not persisted (it returns on reboot) */
+        if(!strstr(so, "OK")) failed = 1;
     }
-    return removed && !failed;   /* success only when something was removed AND nothing failed */
+    return removed && !failed;
 }
 static void wifi_forget_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     ui_toast(wifi_remove_ssid(g_info_ssid) ? "Network forgotten" : "Couldn't forget network");
-    wifi_open();   /* back to the list + fresh scan */
+    wifi_open();
 }
 static void wifi_info_refresh(void){
     if(!g_info_list) return;
@@ -1026,7 +899,7 @@ static void wifi_info_refresh(void){
     char ssid[64], ip[32], buf[2048], val[64], gw[32];
     int ready = wifi_status(ssid, sizeof ssid, ip, sizeof ip);
     if(!ready) ip[0] = 0;
-    snprintf(g_info_ssid, sizeof g_info_ssid, "%s", ssid);   /* retain for Forget (don't re-read on click) */
+    snprintf(g_info_ssid, sizeof g_info_ssid, "%s", ssid);
     info_row("Network", ssid);
     info_row("IP Address", ip);
     if(ready && get_gateway(gw, sizeof gw)) info_row("Router", gw);
@@ -1035,16 +908,15 @@ static void wifi_info_refresh(void){
     if(p){ int r; if(sscanf(p+5, "%d", &r)==1){ snprintf(val,sizeof val,"%d dBm", r); info_row("Signal", val);} }
     run_cap(WCLI "status 2>/dev/null", buf, sizeof buf);
     p = strstr(buf, "key_mgmt=");
-    if(p && sscanf(p+9, "%63[^\n]", val)==1){ info_row("Security", strstr(val,"NONE")?"Open":val); }   /* check sscanf: val was read uninitialized on no-match */
+    if(p && sscanf(p+9, "%63[^\n]", val)==1){ info_row("Security", strstr(val,"NONE")?"Open":val); }
     p = strstr(buf, "\nfreq=");
     if(p){ int fr; if(sscanf(p+6,"%d",&fr)==1){ snprintf(val,sizeof val,"%d MHz", fr); info_row("Frequency", val);} }
     p = strstr(buf, "bssid=");
-    if(p && sscanf(p+6, "%63[^\n]", val)==1){ info_row("BSSID", val); }   /* check sscanf: val was read uninitialized on no-match */
-    info_action_row("Forget This Network", wifi_forget_cb);   /* C05: remove the saved network */
+    if(p && sscanf(p+6, "%63[^\n]", val)==1){ info_row("BSSID", val); }
+    info_action_row("Forget This Network", wifi_forget_cb);
 }
 void wifi_info_open(void){ wifi_lease_retry_reset(); wifi_info_refresh(); screen_show(SCR_WIFI_INFO); }
 
-/* ---- scan list ---------------------------------------------------------- */
 static void row_free_cb(lv_event_t *e){ free(lv_obj_get_user_data(lv_event_get_target(e))); }
 static void net_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
@@ -1055,17 +927,16 @@ static void net_cb(lv_event_t *e){
     int connected = flags & 2;
     if(!ssid || !ssid[0]) return;
     if(connected){
-        wifi_info_open();                 /* tap the joined network -> details */
+        wifi_info_open();
     } else if(secured){
         snprintf(g_pending_ssid, sizeof g_pending_ssid, "%s", ssid);
         char prompt[80]; snprintf(prompt, sizeof prompt, "Password for %s", ssid);
-        kbinput_open_password(prompt, "", psk_done);   /* masked entry; prompt, not the bare SSID */
+        kbinput_open_password(prompt, "", psk_done);
     } else {
         wifi_connect(ssid, NULL);
     }
 }
 
-/* signal-strength bars: RSSI(dBm) -> 1..4 filled bars, bottom-aligned. */
 static void add_signal_bars(lv_obj_t *parent, int x, int y, int sig){
     int bars = sig >= -55 ? 4 : sig >= -67 ? 3 : sig >= -78 ? 2 : 1;
     static const int h[4] = {5, 9, 13, 17};
@@ -1108,20 +979,18 @@ static void add_net_row(const char *ssid, int signal, int secured, int connected
     lv_label_set_text(t, ssid);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(t, tx, 13); lv_obj_set_size(t, 190 - tx, 20);
-    lv_obj_set_style_text_font(t, TF(USER_16), 0);   /* SSIDs are user data: Cyrillic/CJK-capable (issue #3) */
+    lv_obj_set_style_text_font(t, TF(USER_16), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
     if(secured){
-        /* drawn padlock (no lock glyph exists in the fonts): a shackle loop with the body covering
-         * its lower half, muted grey, in the clear lane left of the signal bars. */
-        lv_obj_t *shk = lv_obj_create(r);            /* shackle: border-only circle, lower half hidden by body */
+        lv_obj_t *shk = lv_obj_create(r);
         lv_obj_remove_style_all(shk);
-        lv_obj_clear_flag(shk, LV_OBJ_FLAG_CLICKABLE);   /* decorative: don't steal taps from the row */
+        lv_obj_clear_flag(shk, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_size(shk, 8, 8); lv_obj_set_pos(shk, 217, 15);
         lv_obj_set_style_radius(shk, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_width(shk, 2, 0);
         lv_obj_set_style_border_color(shk, TC(TEXT_MUTED), 0);
-        lv_obj_t *body = lv_obj_create(r);           /* body: rounded rect */
+        lv_obj_t *body = lv_obj_create(r);
         lv_obj_remove_style_all(body);
         lv_obj_clear_flag(body, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_size(body, 10, 8); lv_obj_set_pos(body, 216, 20);
@@ -1132,25 +1001,16 @@ static void add_net_row(const char *ssid, int signal, int secured, int connected
     add_signal_bars(r, 232, 14, signal);
 }
 
-/* one de-duplicated network of a scan */
 struct wnet { char ssid[64]; int sig; int secured; int connected; };
 #define WNET_MAX 40
 
-/* Parse `wpa_cli scan_results` (bssid \t freq \t signal \t flags \t ssid) into out[] (max WNET_MAX).
- * SSIDs are printf-encoded by wpa_cli and are decoded to real bytes first (wifi_ssid_decode), so names
- * compare, dedupe, display and connect as what they are; undecodable/over-long/hidden rows are skipped.
- * Only newline-terminated rows count: a capture cut off mid-row (buffer full) loses its last row rather
- * than showing a partial name. Access points with the same SSID collapse into one row at the first
- * one's position, showing the strongest signal (duplicates are merged BEFORE the row cap applies).
- * The connected network (cur, may be "") is always row 0; the rest keep scan order. If cur is not in the
- * scan it is still shown first, using cur_rssi (dBm or WNET_NO_RSSI -> weakest bars) and cur_secured. */
 #define WNET_NO_RSSI (-1000)
 static int wifi_scan_order(char *buf, const char *cur, int cur_rssi, int cur_secured, struct wnet *out){
     int n = 0;
-    char *l = strchr(buf, '\n'); if(l) l++;   /* skip header */
+    char *l = strchr(buf, '\n'); if(l) l++;
     while(l && *l){
         char *nl = strchr(l, '\n');
-        if(!nl) break;                         /* unterminated final row: truncated capture, discard */
+        if(!nl) break;
         *nl = 0;
         char *f[5] = {0,0,0,0,0}; int nf = 0; char *p = l;
         f[nf++] = p;
@@ -1181,7 +1041,7 @@ static int wifi_scan_order(char *buf, const char *cur, int cur_rssi, int cur_sec
         snprintf(c.ssid, sizeof c.ssid, "%s", cur);
         c.sig = (cur_rssi == WNET_NO_RSSI) ? -100 : cur_rssi;
         c.secured = cur_secured;
-        if(n >= WNET_MAX) n--;                 /* keep the cap: drop the last row */
+        if(n >= WNET_MAX) n--;
         memmove(&out[1], &out[0], sizeof(struct wnet) * n);
         n++;
     }
@@ -1190,7 +1050,6 @@ static int wifi_scan_order(char *buf, const char *cur, int cur_rssi, int cur_sec
     return n;
 }
 
-/* RSSI from `signal_poll` output: a complete signed integer after "RSSI=", else WNET_NO_RSSI */
 static int wifi_parse_rssi(const char *b){
     const char *r = strstr(b, "RSSI=");
     if(!r) return WNET_NO_RSSI;
@@ -1199,7 +1058,6 @@ static int wifi_parse_rssi(const char *b){
     if(end == r || (*end && *end != '\n' && *end != '\r') || v > 0 || v < -200) return WNET_NO_RSSI;
     return (int)v;
 }
-/* is the current link encrypted, from `status` output? (key_mgmt=NONE -> open; absent -> unknown, treated open) */
 static int wifi_status_secured(const char *st){
     for(const char *l = st; l && *l; ){
         if(!strncmp(l, "key_mgmt=", 9)){
@@ -1220,7 +1078,7 @@ static void scan_fill(void){
     if(!g_list) return;
     scan_stop();
     lv_obj_clean(g_list);
-    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);  /* rows top-aligned */
+    lv_obj_set_flex_align(g_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     char cs[64], cip[32];
     if(!(wifi_radio_on() && wifi_status(cs, sizeof cs, cip, sizeof cip))) cs[0]=0;
     snprintf(g_cur_ssid, sizeof g_cur_ssid, "%s", cs);
@@ -1242,14 +1100,12 @@ static void scan_fill(void){
 
 static void scan_timer_cb(lv_timer_t *t){
     (void)t;
-    scan_fill();   /* scan_fill() calls scan_stop() before clearing the list */
+    scan_fill();
     if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }
 }
 static void start_scan(void){
     wifi_lease_retry_reset();
     if(!wifi_radio_on()){ list_msg("Wi-Fi is off"); return; }
-    /* wpa_cli returns non-zero when it can't reach the control socket / issue the scan; surface
-     * that honestly instead of letting scan_fill() report a false "No networks found". */
     if(system("" WCLI "scan >/dev/null 2>&1") != 0){ list_msg("Couldn't scan Wi-Fi"); return; }
     list_msg_scanning();
     if(g_scan_timer) lv_timer_del(g_scan_timer);
@@ -1257,23 +1113,15 @@ static void start_scan(void){
     lv_timer_set_repeat_count(g_scan_timer, 1);
 }
 
-/* ---- radio toggle ------------------------------------------------------- */
-/* wifi_up.sh runs async, so wpa_supplicant isn't up the instant the switch flips.
- * Show "Turning on Wi-Fi..." and poll until the radio is actually up before
- * scanning (otherwise start_scan() would immediately report "Wi-Fi is off").
- * The intent / bring-up watch / off teardown / toggle lifecycle is radio.c's; this is its Wi-Fi adapter, facts only.
- * Where it differs from Bluetooth: a timeout only reports (RADIO_REPORT_ONLY: the intent stays on and the keepalive
- * retries); the Quick Settings tile flips the persisted intent (that is what the tile shows); and a tile toggle does
- * not watch the bring-up (no Wi-Fi screen is waiting, and the keepalive enforces the intent). */
-static void wifi_set_intent(int on){ cfg_set_int("wifi_on", on); }   /* OFF is set before the down, so the keepalive won't resurrect it */
+static void wifi_set_intent(int on){ cfg_set_int("wifi_on", on); }
 static int  wifi_intent_on(void){ return cfg_get_int("wifi_on", 1); }
 static void wifi_radio_start(void){
     system("/usr/bin/wifi_up.sh >/dev/null 2>&1 &");
-    g_wifi_last_start = lv_tick_get();       /* let the keepalive back off (no duplicate launch) */
-    g_sanitize_pending = 1;                  /* sanitize this instance once it's up */
+    g_wifi_last_start = lv_tick_get();
+    g_sanitize_pending = 1;
 }
 static void wifi_radio_cleanup(void){
-    if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }  /* cancel a pending scan, else scan_fill overwrites "Wi-Fi is off" with stale networks */
+    if(g_scan_timer){ lv_timer_del(g_scan_timer); g_scan_timer = NULL; }
     if(g_conn_timer){ lv_timer_del(g_conn_timer); g_conn_timer = NULL; }
     wifi_lease_step();
 }
@@ -1290,9 +1138,9 @@ static void sw_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_VALUE_CHANGED) return;
     wifi_lease_retry_reset();
     int on = lv_obj_has_state(g_sw, LV_STATE_CHECKED);
-    g_intent_epoch++;                            /* an explicit choice: ends any radio reconciliation hold */
+    g_intent_epoch++;
     if(on){
-        radio_on(&g_wifi_radio, 1);   /* persist intent -> keepalive keeps it up */
+        radio_on(&g_wifi_radio, 1);
         list_msg("Turning on Wi-Fi...");
     } else {
         radio_off(&g_wifi_radio);
@@ -1300,12 +1148,9 @@ static void sw_cb(lv_event_t *e){
     }
 }
 
-/* Quick Settings tile short-press: flip the radio + persist intent, no screen-specific UI.
- * Mirrors sw_cb's radio actions (keepalive enforces the intent). Returns the new state. */
 int wifi_toggle(void){
-    g_intent_epoch++;                        /* an explicit choice: ends any radio reconciliation hold */
-    int on = radio_toggle(&g_wifi_radio);    /* off also cancels any pending radio/scan work on the open Wi-Fi screen */
-    /* keep the Wi-Fi screen's switch in sync so it reflects reality when opened later */
+    g_intent_epoch++;
+    int on = radio_toggle(&g_wifi_radio);
     if(g_sw){ if(on) lv_obj_add_state(g_sw, LV_STATE_CHECKED); else lv_obj_clear_state(g_sw, LV_STATE_CHECKED); }
     return on;
 }
@@ -1316,10 +1161,8 @@ static void back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) s
 void wifi_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
-    ui_header_cb(root, "Wi-Fi", back_cb);   /* shared header */
+    ui_header_cb(root, "Wi-Fi", back_cb);
 
-    /* control row: pill with [label + switch]; scan button OUTSIDE, to the
-     * right of the switch (still inside the round screen). */
     lv_obj_t *trow = lv_obj_create(root);
     lv_obj_remove_style_all(trow);
     lv_obj_set_pos(trow, 50, 64); lv_obj_set_size(trow, 208, 48);
@@ -1355,11 +1198,10 @@ void wifi_create(lv_obj_t *root){
     lv_obj_set_style_text_color(rl, TC(TEXT_SECONDARY), 0);
     lv_obj_center(rl);
 
-    /* network list (carries connected/off/scanning state itself) */
     g_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_list);
     lv_obj_set_pos(g_list, 40, 126); lv_obj_set_size(g_list, 280, UI_LIST_H_FROM(126));
-    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);   /* last row scrolls clear of the round bottom bezel */
+    lv_obj_set_style_pad_bottom(g_list, UI_LIST_PAD_BOTTOM, 0);
     lv_obj_set_style_bg_opa(g_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_row(g_list, 6, 0);
     lv_obj_set_flex_flow(g_list, LV_FLEX_FLOW_COLUMN);
@@ -1369,7 +1211,6 @@ void wifi_create(lv_obj_t *root){
     lv_obj_add_flag(g_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
 }
 
-/* called from settings when the Wi-Fi row is tapped */
 void wifi_open(void){
     wifi_lease_retry_reset();
     if(g_sw){

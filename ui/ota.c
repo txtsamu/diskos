@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Over-the-air diskOS UI updates, core (no LVGL; host-tested). Contract: update-system/OTA_CONTRACT.md.
- * Flow: releases/latest -> tag + "are the six bundle assets listed" -> wget each file into <updates>/incoming (bounded,
- * cancellable, stall-guarded) -> the read-only rootfs verifier (the same sh file boot runs) -> fsync -> ONE atomic
- * rename(incoming, pending). Nothing here installs a binary or touches /usr/data/mq_ui. */
 #include "ota.h"
 #include "system.h"
 #include "config.h"
@@ -30,7 +26,6 @@ const ota_paths_t OTA_DEV = {
     SYS_GITHUB_LATEST, SYS_GITHUB_DOWNLOAD, "/usr/data", "/sys/class/net/wlan0/operstate", "/tmp/.diskos_run", "/tmp/.diskos_launched", "/proc/asound/card*/pcm*p/sub*/status", "/proc/self/exe"
 };
 
-/* the release asset (all under one tag), the name it is saved as, and its size cap (0 = the manifest's size) */
 static const struct { const char *asset, *local; long cap; } OTA_FILES[OTA_NFILES] = {
     { "diskos-ota-keyauthz",              "keyauthz",             8192 },
     { "diskos-ota-keyauthz.sig",          "keyauthz.sig",         4096 },
@@ -51,15 +46,12 @@ int ota_asset_name(int i, const char **asset, const char **local){
     return 0;
 }
 
-/* ---------------------------------------------------------------- release JSON */
-/* Minimal JSON walk: only the "assets" array of the top-level release object counts, and only each element's own
- * top-level "name" string. A release title or a nested "name" is never an asset. Malformed input = no assets. */
 static const char *jws(const char *s){ while(*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++; return s; }
-static const char *jstr_end(const char *s){                       /* s at an opening quote; returns the closing quote or NULL */
+static const char *jstr_end(const char *s){
     for(s++; *s; s++){ if(*s == '\\'){ if(!*++s) return NULL; continue; } if(*s == '"') return s; }
     return NULL;
 }
-static const char *jskip(const char *s, int depth){               /* skip one value; returns the char after it, or NULL */
+static const char *jskip(const char *s, int depth){
     s = jws(s);
     if(depth > 12 || !*s) return NULL;
     if(*s == '"'){ const char *e = jstr_end(s); return e ? e + 1 : NULL; }
@@ -75,7 +67,7 @@ static const char *jskip(const char *s, int depth){               /* skip one va
             return *s == close ? s + 1 : NULL;
         }
     }
-    while(*s && *s != ',' && *s != '}' && *s != ']' && *s != ' ' && *s != '\n' && *s != '\r' && *s != '\t') s++;   /* number/true/null */
+    while(*s && *s != ',' && *s != '}' && *s != ']' && *s != ' ' && *s != '\n' && *s != '\r' && *s != '\t') s++;
     return s;
 }
 int ota_assets_ok(const char *json){
@@ -90,7 +82,7 @@ int ota_assets_ok(const char *json){
         s = jws(ke + 1); if(*s != ':') return 0;
         s = jws(s + 1);
         if(is_assets){
-            if(have_assets || *s != '[') return 0;                    /* duplicate or non-array "assets" */
+            if(have_assets || *s != '[') return 0;
             have_assets = 1;
             s = jws(s + 1);
             while(*s && *s != ']'){
@@ -129,11 +121,10 @@ int ota_assets_ok(const char *json){
         break;
     }
     if(*s != '}' || !have_assets) return 0;
-    for(int i = 0; i < OTA_NFILES; i++) if(seen[i] != 1) return 0;    /* every asset exactly once */
+    for(int i = 0; i < OTA_NFILES; i++) if(seen[i] != 1) return 0;
     return 1;
 }
 
-/* Strict version grammar: [v]N.N.N, each 1-5 digits, nothing before or after. */
 int ota_ver_parse(const char *s, int allow_v, int v[3]){
     if(!s) return -1;
     if(allow_v && *s == 'v') s++;
@@ -146,16 +137,13 @@ int ota_ver_parse(const char *s, int allow_v, int v[3]){
     }
     return *s ? -1 : 0;
 }
-int ota_ver_cmp(const char *a, int a_v, const char *b, int b_v){    /* -1 a<b, 0, 1, or -2 if either is not strict */
+int ota_ver_cmp(const char *a, int a_v, const char *b, int b_v){
     int x[3], y[3];
     if(ota_ver_parse(a, a_v, x) != 0 || ota_ver_parse(b, b_v, y) != 0) return -2;
     for(int i = 0; i < 3; i++) if(x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
     return 0;
 }
 
-/* ---------------------------------------------------------------- child processes */
-/* Run argv, capture stdout (and stderr when merge_err) into buf (cap bytes, NUL-terminated). Returns the exit status,
- * or -1 for a signal/spawn failure. *capped = the output hit the cap (child killed; the caller treats it as failure). */
 static int run_capture(char *const argv[], int use_path, int merge_err, char *buf, size_t cap, size_t *got, int *capped){
     int pfd[2];
     *got = 0; *capped = 0;
@@ -198,7 +186,7 @@ int ota_fetch_release(const ota_paths_t *p, char *tag, size_t n, int *has_bundle
     if(rc == 0 && !capped && sys_parse_tag(buf, tag, n) == 0){
         ok = 0;
         int tv[3];
-        if(has_bundle) *has_bundle = ota_ver_parse(tag, 1, tv) == 0 && ota_assets_ok(buf);   /* a tag outside the grammar is never offered */
+        if(has_bundle) *has_bundle = ota_ver_parse(tag, 1, tv) == 0 && ota_assets_ok(buf);
     }
     free(buf);
     return ok;
@@ -207,7 +195,7 @@ int ota_fetch_release(const ota_paths_t *p, char *tag, size_t n, int *has_bundle
 int ota_wifi_down(const ota_paths_t *p){
     char b[24] = "";
     int fd = open(p->operstate, O_RDONLY | O_CLOEXEC);
-    if(fd < 0) return 0;                                  /* unknown state is not "down": let the fetch decide */
+    if(fd < 0) return 0;
     ssize_t r = read(fd, b, sizeof b - 1);
     close(fd);
     if(r <= 0) return 0;
@@ -216,11 +204,8 @@ int ota_wifi_down(const ota_paths_t *p){
     return !strcmp(b, "down");
 }
 
-/* ---------------------------------------------------------------- small file helpers */
-/* /tmp/.diskos_run grows GOOD_* and PREV_* lines while a good build exists (S97 write_run, about 540 bytes at most);
- * the launcher accepts up to 1023 bytes (diskos_launch.c), so the UI reads it with the same limit. */
 enum { OTA_RUN_MAX = 1024 };
-static int read_file(const char *path, char *buf, size_t n){          /* regular non-symlink file, NUL-terminated; length or -1 */
+static int read_file(const char *path, char *buf, size_t n){
     struct stat st;
     if(lstat(path, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 || (size_t)st.st_size >= n) return -1;
     int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
@@ -231,17 +216,6 @@ static int read_file(const char *path, char *buf, size_t n){          /* regular
     buf[r] = 0;
     return (int)r;
 }
-/* Decision predicate from installer/payload/S97diskos_install:318-326:
- * [ -f marker ] && [ ! -L marker ]; value=$(head -n 1 marker); compare value.
- * V2.57 BusyBox head stops at the first LF (or EOF); ash drops NUL bytes and
- * strips the final LF from command substitution. Every other byte, including CR,
- * is significant. Later lines and the total file size do not matter to boot.
- * The single intentional divergence from boot: examine at most 64 KiB total,
- * including NULs; reaching the cap before LF/EOF returns no valid decision so
- * a corrupt/hostile file cannot make the UI thread scan without bound. This
- * may re-ask the user; diskOS never writes such files. Compare retained bytes
- * without allocation; an extra/mismatched byte cannot be undone. The host
- * parity table runs real boot expressions and marks capped cases divergent. */
 #define OTA_DECISION_READ_CAP (64 * 1024)
 static int boot_marker_matches(const char *path, const char *expected){
     struct stat st;
@@ -256,7 +230,6 @@ static int boot_marker_matches(const char *path, const char *expected){
         size_t remaining = OTA_DECISION_READ_CAP - examined;
         ssize_t r = read(fd, buf, remaining < sizeof buf ? remaining : sizeof buf);
         if(r < 0 && errno == EINTR) continue;
-        /* Boot compares head's emitted output even if head reports a read error. */
         if(r <= 0){ match = used == len; break; }
         examined += (size_t)r;
         for(ssize_t i = 0; i < r; i++){
@@ -270,7 +243,7 @@ done:
     close(fd);
     return match;
 }
-static int read_at(int dfd, const char *name, char *buf, size_t n){   /* same, relative to a directory fd (no path re-resolution) */
+static int read_at(int dfd, const char *name, char *buf, size_t n){
     int fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if(fd < 0) return -1;
     struct stat st;
@@ -283,7 +256,7 @@ static int read_at(int dfd, const char *name, char *buf, size_t n){   /* same, r
 }
 static int all_digits(const char *s, size_t max){ size_t l = strlen(s); if(!l || l > max) return 0; for(; *s; s++) if(!isdigit((unsigned char)*s)) return 0; return 1; }
 static int hex64(const char *s){ if(strlen(s) != 64) return 0; for(int i = 0; i < 64; i++) if(!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f'))) return 0; return 1; }
-static void rm_at(int dfd, const char *name, int depth){                /* unlinkat; recurse into real directories only (never follows links) */
+static void rm_at(int dfd, const char *name, int depth){
     struct stat st;
     if(fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW) != 0) return;
     if(S_ISDIR(st.st_mode)){
@@ -301,7 +274,7 @@ static void rm_at(int dfd, const char *name, int depth){                /* unlin
         unlinkat(dfd, name, AT_REMOVEDIR);
     } else unlinkat(dfd, name, 0);
 }
-static int fsync_at(int dfd, const char *name){                        /* 0 = durable; the error is propagated, never dropped */
+static int fsync_at(int dfd, const char *name){
     int fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if(fd < 0) return -1;
     int r = fsync(fd);
@@ -313,7 +286,6 @@ static int64_t ota_free_bytes(const char *dir){
     if(statvfs(dir, &sv) != 0) return -1;
     return (int64_t)((unsigned long long)sv.f_bavail * (unsigned long long)sv.f_frsize);
 }
-/* the staging root: created 0700, must be a real directory (not a link) owned by the running user with no group/other bits */
 static int open_updates(const ota_paths_t *p){
     if(mkdir(p->updates, 0700) != 0 && errno != EEXIST) return -1;
     int fd = open(p->updates, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
@@ -324,7 +296,6 @@ static int open_updates(const ota_paths_t *p){
     return fd;
 }
 
-/* ---------------------------------------------------------------- SHA-256 (health binding: hash of the running executable) */
 typedef struct { uint32_t h[8]; uint64_t len; unsigned char buf[64]; size_t n; } sha_t;
 static const uint32_t SHA_K[64] = {
 0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
@@ -372,7 +343,6 @@ static int sha256_file(const char *path, char hex[65]){
 int ota_supported(const ota_paths_t *p){
     return access(p->rootpub, R_OK) == 0 && access(p->epochs, R_OK) == 0 && access(p->verifier, R_OK) == 0;
 }
-/* MIN_KEY_EPOCH / MIN_UI_EPOCH from the RO epochs file; both strict digits or the update is refused (fail closed). */
 static int read_epochs(const ota_paths_t *p, char *key, char *ui, size_t n){
     char t[256];
     if(read_file(p->epochs, t, sizeof t) < 0) return -1;
@@ -381,18 +351,12 @@ static int read_epochs(const ota_paths_t *p, char *key, char *ui, size_t n){
     return 0;
 }
 
-/* ---------------------------------------------------------------- download one file */
-/* wget writes into the incoming directory THROUGH ITS FD (/proc/self/fd/N/...), so a swapped pathname cannot redirect it;
- * RLIMIT_FSIZE = cap + 1 stops it on the device even if this poller is slow (the +1 makes an over-cap file detectable). */
 static int dl_file(const ota_paths_t *p, const char *tag, const char *asset, int ifd, const char *local, long long cap, ota_prog_t *pg, long long base){
     char url[400], part[80], target[160];
     if(snprintf(url, sizeof url, "%s/%s/%s", p->dl_base, tag, asset) >= (int)sizeof url) return OTA_E_BAD;
     if(snprintf(part, sizeof part, "%s.part", local) >= (int)sizeof part) return OTA_E_BAD;
-    snprintf(target, sizeof target, "/proc/self/fd/3/%s", part);       /* the incoming directory is the child's fd 3 */
+    snprintf(target, sizeof target, "/proc/self/fd/3/%s", part);
     unlinkat(ifd, part, 0);
-    /* posix_spawn, not fork() (a fork of the big UI can fail for memory). The file-size limit is set by a small shell
-     * (ulimit -f counts 512-byte blocks: the cap rounded up, +1 block, so an over-cap file is still detectable below);
-     * the arguments go in as $1..$3, never into the command text. */
     char blocks[24]; snprintf(blocks, sizeof blocks, "%lld", cap > 0 ? cap / 512 + 2 : 0LL);
     char *argv[] = { "/bin/sh", "-c", cap > 0 ? "ulimit -f \"$1\" || exit 126; exec wget -q -T 15 -t 1 -O \"$2\" \"$3\""
                                               : "exec wget -q -T 15 -t 1 -O \"$2\" \"$3\"",
@@ -411,7 +375,7 @@ static int dl_file(const ota_paths_t *p, const char *tag, const char *asset, int
         int kill_it = 0;
         clock_gettime(CLOCK_MONOTONIC, &now);
         if(atomic_load(&pg->cancel)){ rc = OTA_E_CANCEL; kill_it = 1; }
-        else if(cap > 0 && sz > cap){ rc = OTA_E_BAD; kill_it = 1; }                    /* bigger than the signed size: stop now */
+        else if(cap > 0 && sz > cap){ rc = OTA_E_BAD; kill_it = 1; }
         else if(sz != lastsz){ lastsz = sz; last = now.tv_sec; }
         else if(now.tv_sec - last >= OTA_STALL_S){ rc = OTA_E_NET; kill_it = 1; }
         if(kill_it){
@@ -426,19 +390,18 @@ static int dl_file(const ota_paths_t *p, const char *tag, const char *asset, int
     if(rc != OTA_OK){ unlinkat(ifd, part, 0); return rc; }
     struct stat sb;
     int have = fstatat(ifd, part, &sb, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(sb.st_mode);
-    if(have && cap > 0 && (long long)sb.st_size > cap){ unlinkat(ifd, part, 0); return OTA_E_BAD; }   /* incl. wget stopped by the rlimit */
+    if(have && cap > 0 && (long long)sb.st_size > cap){ unlinkat(ifd, part, 0); return OTA_E_BAD; }
     if(!WIFEXITED(st) || WEXITSTATUS(st) != 0 || !have || sb.st_size <= 0){ unlinkat(ifd, part, 0); return OTA_E_NET; }
     if(renameat(ifd, part, ifd, local) != 0){ unlinkat(ifd, part, 0); return OTA_E_IO; }
     return OTA_OK;
 }
 
-/* ---------------------------------------------------------------- verify */
 static int reject_class(const char *out){
     if(strstr(out, "signature invalid") || strstr(out, "substituted key") || strstr(out, "bad magic") || strstr(out, "role '")) return OTA_E_SIG;
     if(strstr(out, "downgrade") || strstr(out, "revoked key")) return OTA_E_OLDER;
     return OTA_E_BAD;
 }
-static int tok(const char *line, const char *key, char *out, size_t n){    /* " key=value" token of the verifier's OK line */
+static int tok(const char *line, const char *key, char *out, size_t n){
     char pat[24]; snprintf(pat, sizeof pat, " %s=", key);
     const char *k = strstr(line, pat);
     if(!k) return -1;
@@ -453,15 +416,13 @@ static int tok(const char *line, const char *key, char *out, size_t n){    /* " 
     return 0;
 }
 
-static int fin(int ufd, int ifd, int rc){                                  /* failure exit: drop the work dir, release the fds */
+static int fin(int ufd, int ifd, int rc){
     if(rc != OTA_OK && ufd >= 0) rm_at(ufd, "incoming", 0);
     if(ifd >= 0) close(ifd);
     if(ufd >= 0) close(ufd);
     return rc;
 }
 
-/* updates/rejected: the mq_ui SHA256 of each build the boot script rolled back, one per line (it keeps the last 8).
- * Boot refuses to try those again, so staging one would only download it for nothing. */
 static int sha_rejected(int ufd, const char *sha){
     char r[1024];
     if(read_at(ufd, "rejected", r, sizeof r) < 0) return 0;
@@ -477,29 +438,27 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
     char kep[16], uep[16], path[300];
     atomic_store(&pg->done, 0); atomic_store(&pg->total, 0); atomic_store(&pg->phase, 1); pg->need_free = 0; pg->version[0] = 0;
 
-    if(!ota_allowed()) return OTA_E_OFF;                                       /* turned off in Settings: nothing is downloaded or staged */
+    if(!ota_allowed()) return OTA_E_OFF;
     if(!ota_supported(p)) return OTA_E_UNSUPPORTED;
     if(read_epochs(p, kep, uep, sizeof kep) != 0) return OTA_E_UNSUPPORTED;
     int tv[3];
     if(ota_ver_parse(running, 0, tv) != 0) return OTA_E_OLDER;
-    if(ota_ver_parse(tag, 1, tv) != 0) return OTA_E_BAD;                       /* the whole tag must be vN.N.N */
-    if(ota_ver_cmp(running, 0, tag, 1) != -1) return OTA_E_OLDER;              /* only strictly newer */
+    if(ota_ver_parse(tag, 1, tv) != 0) return OTA_E_BAD;
+    if(ota_ver_cmp(running, 0, tag, 1) != -1) return OTA_E_OLDER;
     int64_t fr = ota_free_bytes(p->data_root);
     if(fr < OTA_MARGIN){ pg->need_free = OTA_MARGIN; return OTA_E_SPACE; }
 
     int ufd = open_updates(p), ifd = -1;
-    if(ufd < 0) return OTA_E_IO;                                               /* a link, a foreign owner or an unfixable mode: refuse */
-    /* defence in depth: the last accepted epoch (wipeable, so never lower than the baked floor); same floor boot uses: accepted + 1 */
+    if(ufd < 0) return OTA_E_IO;
     char acc[128], av[16];
     if(read_at(ufd, "accepted", acc, sizeof acc) > 0 && sys_kv(acc, "epoch", av, sizeof av) == 0 && all_digits(av, 9) && atol(av) + 1 > atol(uep))
         snprintf(uep, sizeof uep, "%ld", atol(av) + 1);
-    /* an interrupted pending replacement: put the aside copy back, or drop a stale one */
     struct stat sb;
     if(fstatat(ufd, "pending", &sb, AT_SYMLINK_NOFOLLOW) != 0 && fstatat(ufd, "pending.old", &sb, AT_SYMLINK_NOFOLLOW) == 0) renameat(ufd, "pending.old", ufd, "pending");
     else rm_at(ufd, "pending.old", 0);
     rm_at(ufd, "incoming", 0);
     if(mkdirat(ufd, "incoming", 0700) != 0) return fin(ufd, -1, OTA_E_IO);
-    ifd = openat(ufd, "incoming", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);        /* NOT close-on-exec: wget/the verifier reach it as /proc/self/fd/N */
+    ifd = openat(ufd, "incoming", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
     if(ifd < 0) return fin(ufd, -1, OTA_E_IO);
     char ipath[48]; snprintf(ipath, sizeof ipath, "/proc/self/fd/%d", ifd);
 
@@ -507,13 +466,13 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
     for(int i = 0; i < OTA_NFILES; i++){
         long long cap = OTA_FILES[i].cap;
         if(i == OTA_UI_IDX){
-            char mt[8192 + 1], sz[16];                                         /* the manifest is downloaded but NOT trusted yet: size only bounds work */
+            char mt[8192 + 1], sz[16];
             if(read_at(ifd, OTA_FILES[OTA_MANIFEST_IDX].local, mt, sizeof mt) < 0 || sys_kv(mt, "size", sz, sizeof sz) != 0 || !all_digits(sz, 9)) return fin(ufd, ifd, OTA_E_BAD);
-            char msha[72];                                                     /* a build rolled back here before: refuse before the big download */
+            char msha[72];
             if(sys_kv(mt, "sha256", msha, sizeof msha) == 0 && hex64(msha) && sha_rejected(ufd, msha)) return fin(ufd, ifd, OTA_E_REJECTED);
             ui_size = atoll(sz);
             if(ui_size <= 0 || ui_size > OTA_MAX_UI) return fin(ufd, ifd, OTA_E_BAD);
-            int64_t need = 2 * ui_size + OTA_MARGIN;                            /* boot copies pending/mq_ui next to the live one */
+            int64_t need = 2 * ui_size + OTA_MARGIN;
             fr = ota_free_bytes(p->data_root);
             if(fr < need){ pg->need_free = need; return fin(ufd, ifd, OTA_E_SPACE); }
             atomic_store(&pg->total, (long)(base + ui_size));
@@ -524,7 +483,6 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
         if(fstatat(ifd, OTA_FILES[i].local, &sb, AT_SYMLINK_NOFOLLOW) == 0) base += (long long)sb.st_size;
     }
 
-    /* verify BEFORE staging, with the RO root key and floors */
     atomic_store(&pg->phase, 2);
     if(atomic_load(&pg->cancel)) return fin(ufd, ifd, OTA_E_CANCEL);
     char ui[80], out[512]; size_t got; int capped;
@@ -534,11 +492,10 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
     if(vrc != 0 || capped) return fin(ufd, ifd, (vrc == 1 && !capped) ? reject_class(out) : OTA_E_BAD);
     char ver[40], ep[16];
     if(strncmp(out, "OK ", 3) != 0 || tok(out, "version", ver, sizeof ver) != 0 || tok(out, "epoch", ep, sizeof ep) != 0 || !all_digits(ep, 18)) return fin(ufd, ifd, OTA_E_BAD);
-    if(ota_ver_parse(ver, 0, tv) != 0) return fin(ufd, ifd, OTA_E_BAD);                  /* signed version must be strict N.N.N too */
-    if(ota_ver_cmp(running, 0, ver, 0) != -1) return fin(ufd, ifd, OTA_E_OLDER);         /* a validly signed OLD bundle replayed under a new tag */
-    if(ota_ver_cmp(tag, 1, ver, 0) != 0) return fin(ufd, ifd, OTA_E_BAD);                /* signed version must be the release's */
+    if(ota_ver_parse(ver, 0, tv) != 0) return fin(ufd, ifd, OTA_E_BAD);
+    if(ota_ver_cmp(running, 0, ver, 0) != -1) return fin(ufd, ifd, OTA_E_OLDER);
+    if(ota_ver_cmp(tag, 1, ver, 0) != 0) return fin(ufd, ifd, OTA_E_BAD);
 
-    /* commit: ready last, fsync everything (errors are failures), keep the old pending until the new one is durable */
     if(atomic_load(&pg->cancel)) return fin(ufd, ifd, OTA_E_CANCEL);
     atomic_store(&pg->phase, 3);
     int wfd = openat(ifd, "ready.tmp", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
@@ -555,12 +512,12 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
         if(had) renameat(ufd, "pending.old", ufd, "pending");
         return fin(ufd, ifd, OTA_E_IO);
     }
-    if(fsync(ufd) != 0){                                                        /* not durable: put things back exactly as they were */
+    if(fsync(ufd) != 0){
         renameat(ufd, "pending", ufd, "incoming");
         if(had) renameat(ufd, "pending.old", ufd, "pending");
         return fin(ufd, ifd, OTA_E_IO);
     }
-    if(had){ rm_at(ufd, "pending.old", 0); fsync(ufd); }                        /* the old bundle goes only now (best effort: a leftover is swept next time) */
+    if(had){ rm_at(ufd, "pending.old", 0); fsync(ufd); }
     snprintf(pg->version, sizeof pg->version, "%s", ver);
     (void)path;
     return fin(ufd, ifd, OTA_OK);
@@ -568,10 +525,6 @@ int ota_stage(const ota_paths_t *p, const char *running, const char *tag, ota_pr
 
 int ota_allowed(void){ return cfg_get_int("ota_allow", 1) != 0; }
 
-/* Drop a staged bundle the user no longer wants. Only pending/ and its aside copy pending.old/ (which recovery would
- * otherwise rename back to pending/) are removed, by name relative to the updates directory fd, never following links:
- * active/, good/, good.prev/, accepted, rejected, trial* and the running build are not touched. pending.old goes first so
- * a power cut in between leaves a pending/ that can simply be discarded again. */
 int ota_discard_pending(const ota_paths_t *p){
     int ufd = open_updates(p);
     if(ufd < 0) return 0;
@@ -592,8 +545,6 @@ int ota_pending(const ota_paths_t *p, char *ver, size_t n){
     return 1;
 }
 
-/* Trial boot = the launcher's intent (/tmp/.diskos_run) AND its statement of what it really started (/tmp/.diskos_launched)
- * both say BUILD=trial with the same 64-hex SHA256. No hashing here (cheap enough for the UI thread). */
 int ota_trial_version(const ota_paths_t *p, char *ver, size_t n){
     char t[OTA_RUN_MAX], u[256], b1[16], b2[16], s1[80], s2[80];
     if(read_file(p->run_file, t, sizeof t) <= 0 || read_file(p->launched_file, u, sizeof u) <= 0) return 0;
@@ -604,8 +555,6 @@ int ota_trial_version(const ota_paths_t *p, char *ver, size_t n){
     if(ver){ if(sys_kv(t, "VERSION", ver, n) != 0) snprintf(ver, n, "%s", "update"); }
     return 1;
 }
-/* the strict form: as above, and the executable that is RUNNING hashes to that SHA256 (a fallback/flashed UI never vouches
- * for a trial it did not run, even with identical-looking run files). Fills sha. */
 static int trial_is_me(const ota_paths_t *p, char sha[80]){
     char t[OTA_RUN_MAX], self[65];
     if(!ota_trial_version(p, NULL, 0)) return 0;
@@ -613,7 +562,6 @@ static int trial_is_me(const ota_paths_t *p, char sha[80]){
     if(sha256_file(p->self_exe, self) != 0 || strcmp(self, sha) != 0) return 0;
     return 1;
 }
-/* A saved choice counts only for this running trial. Avoid hashing when neither marker matches. */
 int ota_trial_decided(const ota_paths_t *p){
     char path[300], t[OTA_RUN_MAX], sha[80], running_sha[80], expected[sizeof "SHA256=" + 64];
     if(!ota_trial_version(p, NULL, 0) || read_file(p->run_file, t, sizeof t) <= 0 ||
@@ -639,7 +587,7 @@ int ota_pcm_running(const ota_paths_t *p){
     globfree(&g);
     return found;
 }
-static int write_marker(const ota_paths_t *p, const char *name, const char *sha){          /* SHA256=<hex>\n, tmp + fsync + rename + dir fsync */
+static int write_marker(const ota_paths_t *p, const char *name, const char *sha){
     char tmp[300], dst[300], b[80];
     snprintf(tmp, sizeof tmp, "%s/%s.tmp", p->updates, name);
     snprintf(dst, sizeof dst, "%s/%s", p->updates, name);
@@ -655,12 +603,10 @@ static int write_marker(const ota_paths_t *p, const char *name, const char *sha)
     close(dfd);
     return ok;
 }
-/* Health proof for the trial build (contract 4a): only the RUNNING trial may write exactly SHA256=<its hash>. */
 int ota_health_write(const ota_paths_t *p){
     char sha[80];
     return trial_is_me(p, sha) && write_marker(p, "healthy", sha);
 }
-/* "Go back": the user asked to drop the trial; boot honours <updates>/revert only when it names the trial's sha. */
 int ota_revert_write(const ota_paths_t *p){
     char sha[80];
     return trial_is_me(p, sha) && write_marker(p, "revert", sha);
@@ -668,7 +614,7 @@ int ota_revert_write(const ota_paths_t *p){
 int ota_rollback_take(const ota_paths_t *p){
     char path[300], t[512];
     snprintf(path, sizeof path, "%s/rollback", p->updates);
-    if(read_file(path, t, sizeof t) < 0) return 0;              /* absent, not a regular file, or oversize: not a marker */
+    if(read_file(path, t, sizeof t) < 0) return 0;
     unlink(path);
     return 1;
 }

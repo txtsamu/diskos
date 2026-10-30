@@ -73,7 +73,6 @@ class WindowsBuildTests(unittest.TestCase):
         self.probe.assert_not_called()
 
     def test_msys_or_cygwin_python_refused(self):
-        # MSYS2/Cygwin Python reports a non-Windows system name; never fall back to the tree path.
         from diskos_installer.errors import PreflightError
         for host in ('msys_nt-10.0-26100', 'cygwin_nt-10.0-26100'):
             self.host.return_value = (host, 'x86_64')
@@ -111,7 +110,6 @@ class WindowsBuildTests(unittest.TestCase):
             self.assertFalse(self.out.exists())
 
     def test_actual_size_gate(self):
-        # Invoke the real size gate on the build's output, before any content export.
         self.validate.side_effect = lambda *a, **kw: ib_validate(*a, **kw)
         with mock.patch.object(ib.os.path, 'getsize', return_value=ib.IMG_SIZE + 1):
             with self.assertRaises(ib.BuildError) as caught:
@@ -202,7 +200,6 @@ class WindowsBuildTests(unittest.TestCase):
                             self.assertEqual(caught.exception.code, 'E232')
 
     def test_comparison_read_failure_is_e232(self):
-        # Export succeeded; reading a spool while hashing the manifests fails.
         sq = self.work / 'out.sq'; sq.write_bytes(b'hsqs')
         with self.archive() as intended, self.archive() as actual:
             def broken(*a, **kw):

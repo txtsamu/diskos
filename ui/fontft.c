@@ -24,7 +24,6 @@ typedef struct glyph {
 
 static FT_Library library;
 static FT_Face face;
-/* Indexed by pixel size; objects are initialized only when a role requests them. */
 static lv_font_t fonts[141];
 static glyph_t *newest, *oldest;
 static glyph_t *buckets[256];
@@ -40,8 +39,6 @@ static unsigned bucket_for(uint32_t cp, uint8_t px)
 
 static int on_lv_thread(void)
 {
-    /* LVGL and the FreeType face are owned by the thread that calls init. Another thread gets "not found"
-     * (the chain continues) rather than an abort: a crash here would take the whole UI down. */
     return pthread_equal(lv_thread, pthread_self());
 }
 

@@ -31,7 +31,6 @@ def quote(p):
 
 
 def token(line):
-    # Export uses backslash escaping, not shell quoting. Reject other grammars.
     p, i = bytearray(), 0
     while i < len(line) and line[i] != 32:
         if line[i] == 92:
@@ -55,7 +54,6 @@ def number(s, base=10, maximum=(1 << 32) - 1):
 
 
 def xattr_value(value):
-    # Native hex_decode underallocates; base64 is outside this proof's grammar.
     if value.startswith((b'0t', b'0T')):
         payload = value[2:]
         if not re.fullmatch(rb'(?:[\x20-\x5b\x5d-\x7e]|\\[0-3][0-7]{2})+', payload):
@@ -193,7 +191,6 @@ class Archive:
 
     @property
     def data(self):
-        # Legacy proof API; interface consumers use chunks()/write(), never this.
         return b''.join(self.chunks(0, self._size - self._base))
 
     def chunks(self, off, size):
@@ -248,7 +245,6 @@ class Archive:
                     out.write(block)
 
     def write(self, out):
-        # Validate a bounded-memory serialization before modifying caller output.
         with tempfile.TemporaryFile() as stage:
             self._write(stage)
             stage.seek(0)
@@ -265,6 +261,6 @@ class Archive:
                     remaining = remaining[written:]
 
     def dump(self):
-        out = io.BytesIO()  # Legacy proof API; streaming callers use write().
+        out = io.BytesIO()
         self.write(out)
         return out.getvalue()

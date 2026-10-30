@@ -11,7 +11,7 @@ void radio_watch_cancel(struct radio_watch *w){
 }
 
 void radio_watch_begin(struct radio_watch *w){
-    radio_watch_cancel(w);                 /* a running watch is replaced, never doubled */
+    radio_watch_cancel(w);
     w->start = w->env->now();
     w->active = 1;
     w->timer = w->env->timer_start(w->interval_ms, w);
@@ -29,8 +29,8 @@ int radio_watch_fire(struct radio_watch *w){
         radio_watch_cancel(w);
         struct radio *r = w->owner;
         if(r && r->timeout == RADIO_ROLLBACK){
-            r->set_intent(0);              /* never came up: do not keep claiming it is on */
-            r->power_down();               /* and make the cleared intent true, so a late half-start cannot linger */
+            r->set_intent(0);
+            r->power_down();
         }
         if(w->on_timeout) w->on_timeout();
         return RADIO_TIMEOUT;
@@ -40,14 +40,14 @@ int radio_watch_fire(struct radio_watch *w){
 
 void radio_on(struct radio *r, int observe){
     r->watch.owner = r;
-    r->set_intent(1);                      /* intent first: whatever keeps the radio up (keepalive, boot restore) sees it */
+    r->set_intent(1);
     r->start();
-    if(r->excludes) radio_watch_cancel(r->excludes);   /* this bring-up owns the radio now */
+    if(r->excludes) radio_watch_cancel(r->excludes);
     if(observe) radio_watch_begin(&r->watch);
 }
 
 void radio_off(struct radio *r){
-    r->set_intent(0);                      /* OFF before the teardown, so nothing resurrects the radio mid-way */
+    r->set_intent(0);
     radio_watch_cancel(&r->watch);
     if(r->cleanup) r->cleanup();
     r->power_down();

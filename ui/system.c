@@ -1,7 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* System rows S21-S27. See system.h for the stock facts. The top half is pure/OS-only (host-tested with
- * SYSTEM_CORE_ONLY); the bottom half is the LVGL flow. */
 #include "system.h"
 #include "config.h"
 #include <stdio.h>
@@ -22,8 +20,7 @@ const sys_paths_t SYS_DEV_PATHS = {
     "/sys/class/power_supply/cw221X-bat", "/tmp/sdcard", "/usr/data", "/proc/mounts"
 };
 
-/* ---------------------------------------------------------------- small helpers */
-static int read_small(const char *path, char *buf, size_t n){   /* whole small text file, NUL-terminated, trimmed; 0 ok */
+static int read_small(const char *path, char *buf, size_t n){
     if(!buf || n < 2) return -1;
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     if(fd < 0) return -1;
@@ -67,7 +64,6 @@ void sys_fmt_bytes(unsigned long long b, char *buf, size_t n){
     else snprintf(buf, n, "%llu KB", b >> 10);
 }
 
-/* ---------------------------------------------------------------- About */
 int sys_read_battery(const sys_paths_t *pp){
     const sys_paths_t *p = pp ? pp : &SYS_DEV_PATHS;
     char path[200], b[16];
@@ -93,7 +89,7 @@ static void add_row(sys_about_row_t *rows, int *n, int max, const char *label, c
     va_end(ap);
     (*n)++;
 }
-int sys_is_mounted(const char *mounts, const char *dir){   /* 1 = dir is a mount point listed in mounts (/proc/mounts) */
+int sys_is_mounted(const char *mounts, const char *dir){
     FILE *f = fopen(mounts, "r");
     if(!f) return 0;
     char line[512]; int found = 0;
@@ -142,11 +138,10 @@ int sys_about_collect(const sys_paths_t *pp, const char *diskos_id, sys_about_ro
     return n;
 }
 
-/* ---------------------------------------------------------------- local update: detection */
 int sys_update_name_ok(const char *name){
     if(!name || !*name || strlen(name) >= sizeof(((sys_update_t *)0)->name)) return 0;
-    if(name[0] == '.' && name[1] == '_') return 0;             /* macOS resource forks (stock skips "._*") */
-    if(!strstr(name, SYS_UPDATE_PRODUCT)) return 0;            /* stock: strstr(name, product) */
+    if(name[0] == '.' && name[1] == '_') return 0;
+    if(!strstr(name, SYS_UPDATE_PRODUCT)) return 0;
     return ends_with_ci(name, ".zip");
 }
 int sys_update_version(const char *name){
@@ -155,7 +150,7 @@ int sys_update_version(const char *name){
         const char *d = v + 1; int n = 0;
         if(!isdigit((unsigned char)*d)) continue;
         while(isdigit((unsigned char)*d)){ if(n > 100000) return -1; n = n * 10 + (*d - '0'); d++; }
-        if(ends_with_ci(d, ".zip") && (d[4] == 0)) return n;   /* stock: sscanf(strchr(name,'v'), "v%d.zip") */
+        if(ends_with_ci(d, ".zip") && (d[4] == 0)) return n;
     }
     return -1;
 }
@@ -179,9 +174,7 @@ int sys_find_update(const char *dir, sys_update_t *out){
     closedir(d);
     return found;
 }
-/* Battery and free space are shown as information only; they never gate anything (diskOS starts no update). */
 
-/* ---------------------------------------------------------------- check for diskOS updates */
 static int parse_ver(const char *s, int v[3]){
     v[0] = v[1] = v[2] = 0;
     if(*s == 'v' || *s == 'V') s++;
@@ -246,22 +239,15 @@ int sys_fetch_latest(char *tag, size_t n){
     }
     int capped = (got >= FETCH_CAP);
     close(pfd[0]);
-    if(capped) kill(p, SIGKILL);         /* an oversized reply is not the releases JSON: stop wget, fail below */
+    if(capped) kill(p, SIGKILL);
     int st = 0, waited = 0;
     while(!waited){ if(waitpid(p, &st, 0) >= 0) waited = 1; else if(errno != EINTR) break; }
     int rc = -1;
-    if(buf && !capped && waited && WIFEXITED(st) && WEXITSTATUS(st) == 0){ buf[got] = 0; rc = sys_parse_tag(buf, tag, n); }   /* only a clean wget exit is parsed */
+    if(buf && !capped && waited && WIFEXITED(st) && WEXITSTATUS(st) == 0){ buf[got] = 0; rc = sys_parse_tag(buf, tag, n); }
     free(buf);
     return rc;
 }
 
-/* ---------------------------------------------------------------- reset diskOS settings */
-/* Only the diskOS UI's own look-and-behaviour keys. Deliberately NOT here: keys that mirror the stock player's state
- * (audio_*, eq_*, eqN_*, work_mode, volume, max_vol, balance, replay_gain, gapless, folder_jump, artist_class,
- * charge_protect, auto_time, tz_idx, memory_play, language), radio intents (wifi_on, bt_on) and
- * stock_power_save (the user's stock idle value that diskOS parked). Resetting those would change the
- * config without changing the player. Wi-Fi/Bluetooth pairings and the SD card are outside
- * diskos.conf entirely. */
 static const char *const RESET_KEYS[] = {
     "brightness", "swipe_thresh", "saver_idx", "saver_style", "screenoff_idx",
     "anim", "time_24h", "accent_mode", "accent_color", "np_style", "theme_preset", "theme_variant",
@@ -276,7 +262,6 @@ int sys_reset_match(const char *key){
 int sys_reset_settings(void){ return cfg_remove_if(sys_reset_match); }
 
 #ifndef SYSTEM_CORE_ONLY
-/* ================================================================ LVGL flow */
 #include "screens.h"
 #include "theme.h"
 #include "theme_kit.h"
@@ -287,10 +272,10 @@ int sys_reset_settings(void){ return cfg_remove_if(sys_reset_match); }
 #include <pthread.h>
 #include <stdatomic.h>
 
-void settings_diskos_id(char *buf, int n);    /* settings.c */
-void settings_restart_prompt(const char *note);           /* settings.c */
+void settings_diskos_id(char *buf, int n);
+void settings_restart_prompt(const char *note);
 
-static lv_obj_t *g_m;                          /* the one open modal (top layer) */
+static lv_obj_t *g_m;
 static void modal_close(void){ if(g_m){ lv_obj_delete_async(g_m); g_m = NULL; } }
 static void cb_close(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED){ modal_close(); } }
 
@@ -302,7 +287,7 @@ static lv_obj_t *modal_card(const char *title, int h){
     lv_obj_set_style_bg_color(g_m, TC(SCRIM), 0);
     lv_obj_set_style_bg_opa(g_m, LV_OPA_70, 0);
     lv_obj_clear_flag(g_m, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(g_m, LV_OBJ_FLAG_CLICKABLE);        /* absorb taps */
+    lv_obj_add_flag(g_m, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *card = lv_obj_create(g_m);
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 296, h); lv_obj_center(card);
@@ -343,24 +328,21 @@ static void modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_role_
     lv_obj_set_style_text_color(l, theme_color(col), 0);
     lv_obj_center(l);
 }
-static void modal_simple(const char *title, const char *body){          /* one "OK" */
+static void modal_simple(const char *title, const char *body){
     lv_obj_t *c = modal_card(title, 190);
     lv_obj_t *s = modal_text(c, body, 46, THEME_CLR_TEXT_MUTED);
-    /* grow the card to fit the wrapped text above the pill (46 top + text + 12 gap + 40 pill + 14 margin), so a
-     * long or translated message (up to ~10 lines) clears OK; capped at 300 like About so it stays on the round screen */
     lv_obj_update_layout(s);
     int32_t h = 46 + lv_obj_get_height(s) + 12 + 40 + 14;
     if(h > 190) { lv_obj_set_height(c, h > 300 ? 300 : h); lv_obj_center(c); }
     modal_pill(c, 0, "OK", THEME_CLR_ACCENT_EMPHASIS, cb_close, "system.ok");
 }
 
-/* ---- About ---- */
 void system_about_open(int v){
     (void)v;
     sys_about_row_t rows[12];
     char id[40]; settings_diskos_id(id, sizeof id);
     int n = sys_about_collect(NULL, id, rows, 12);
-    int rb = ota_rollback_take(&OTA_DEV);                    /* boot rolled a failed update back: tell the user once */
+    int rb = ota_rollback_take(&OTA_DEV);
     lv_obj_t *card = modal_card("About", 300);
     if(rb){
         char note[80]; snprintf(note, sizeof note, "Update failed to start - back on %s", DISKOS_VERSION);
@@ -388,7 +370,6 @@ void system_about_open(int v){
     modal_pill(card, 0, "Close", THEME_CLR_ACCENT_EMPHASIS, cb_close, "system.about_close");
 }
 
-/* ---- Update from SD card: information only. diskOS never starts a firmware update. ---- */
 void system_update_sd_open(int v){
     (void)v;
     sys_update_t u; memset(&u, 0, sizeof u);
@@ -400,12 +381,10 @@ void system_update_sd_open(int v){
     modal_pill(c, 0, "OK", THEME_CLR_ACCENT_EMPHASIS, cb_close, "system.ok");
 }
 
-/* ---- Check for diskOS updates, then (when the release carries the signed bundle) download + verify + stage ---- */
-static struct { pthread_t th; _Atomic int state; char tag[40]; int bundle; } g_chk;   /* state: 0 idle, 1 running, 2 ok, 3 failed; tag/bundle are written before the release store of 2 */
+static struct { pthread_t th; _Atomic int state; char tag[40]; int bundle; } g_chk;
 static lv_timer_t *g_chk_tm;
 static void *chk_thread(void *a){ (void)a; int ok = ota_fetch_release(&OTA_DEV, g_chk.tag, sizeof g_chk.tag, &g_chk.bundle) == 0; atomic_store_explicit(&g_chk.state, ok ? 2 : 3, memory_order_release); return NULL; }
 
-/* the download/verify worker: state 0 idle, 1 running, 2 finished (rc is written before the release store of 2) */
 static struct { pthread_t th; _Atomic int state; ota_prog_t pg; char tag[40]; int rc; } g_dl;
 static lv_timer_t *g_dl_tm;
 static lv_obj_t *g_dl_lbl;
@@ -413,7 +392,7 @@ static void *dl_thread(void *a){ (void)a; g_dl.rc = ota_stage(&OTA_DEV, DISKOS_V
 static void dl_status(void){
     if(!g_dl_lbl || !g_m || !lv_obj_is_valid(g_dl_lbl)) return;
     char t[64]; int ph = atomic_load(&g_dl.pg.phase);
-    long long tot = atomic_load(&g_dl.pg.total), done = atomic_load(&g_dl.pg.done);   /* long -> long long */
+    long long tot = atomic_load(&g_dl.pg.total), done = atomic_load(&g_dl.pg.done);
     if(atomic_load(&g_dl.pg.cancel) && ph < 3) snprintf(t, sizeof t, "Cancelling...");
     else if(ph == 2) snprintf(t, sizeof t, "Verifying...");
     else if(ph == 3) snprintf(t, sizeof t, "Saving...");
@@ -458,7 +437,7 @@ static void chk_tick(lv_timer_t *t){
     if(st == 3){ atomic_store(&g_chk.state, 0); modal_simple("Check failed", "Couldn't reach GitHub. Check the Wi-Fi connection and try again."); return; }
     char body[260]; int c = sys_ver_cmp(DISKOS_VERSION, g_chk.tag);
     atomic_store(&g_chk.state, 0);
-    if(c == -1 && g_chk.bundle && ota_supported(&OTA_DEV) && !ota_allowed()){    /* reported, never downloaded */
+    if(c == -1 && g_chk.bundle && ota_supported(&OTA_DEV) && !ota_allowed()){
         snprintf(body, sizeof body, tr("diskOS %s is available (you have %s). Updates are turned off in Settings. Turn on Allow diskOS Updates, or install it with the installer from github.com/b0hemia/diskos."), g_chk.tag, DISKOS_VERSION);
         modal_simple(tr("diskOS updates"), body);
         return;
@@ -477,15 +456,9 @@ static void chk_tick(lv_timer_t *t){
     else snprintf(body, sizeof body, "Latest release: %s. Couldn't compare it with %s.", g_chk.tag, DISKOS_VERSION);
     modal_simple("diskOS updates", body);
 }
-/* Promotion proof for a TRIAL build (contract 4a). Navigation alone never promotes. After >= 3 minutes up, the trial is
- * kept when (a) a real playback start was confirmed (main.c: g_play_pending cleared by a genuine track change) AND a
- * playback PCM substream is RUNNING, or (b) the user answers the one-time "Keep diskOS <ver>?" prompt with Keep. "Go back"
- * writes the revert request marker (boot rolls the trial back) and offers the restart. No proof = never promoted: the
- * boot's trial counter keeps running and rolls it back. The identity checks (running exe hash, run + launched files) are
- * in ota_health_write / ota_revert_write. */
 #define OTA_HEALTH_MIN_MS 180000
-#define OTA_HEALTH_RETRY_MS 30000     /* a failed save of the proof (storage full or busy) is tried again this often, */
-#define OTA_HEALTH_TRIES 10           /* this many times in all: each try hashes the running build */
+#define OTA_HEALTH_RETRY_MS 30000
+#define OTA_HEALTH_TRIES 10
 static struct { uint32_t t0, tw; int tries; _Atomic int play, ok, asked, busy, saved; char ver[24]; } g_hl;
 static lv_timer_t *g_hl_tm;
 static void *ota_health_thread(void *a){
@@ -513,7 +486,7 @@ static void ota_keep_prompt(void){
     modal_pill(c,  58, tr("Keep"), THEME_CLR_ACCENT_EMPHASIS, cb_keep, "system.ota_keep");
 }
 static void ota_health_cb(lv_timer_t *t){
-    if(atomic_load(&g_hl.busy)) return;                                     /* a save is still running */
+    if(atomic_load(&g_hl.busy)) return;
     if(atomic_load(&g_hl.saved) || g_hl.tries >= OTA_HEALTH_TRIES){ lv_timer_delete(t); g_hl_tm = NULL; return; }
     if(lv_tick_elaps(g_hl.t0) < OTA_HEALTH_MIN_MS) return;
     if(!atomic_load(&g_hl.ok) && ota_trial_decided(&OTA_DEV)){ lv_timer_delete(t); g_hl_tm = NULL; return; }
@@ -526,7 +499,6 @@ static void ota_health_cb(lv_timer_t *t){
         else atomic_store(&g_hl.busy, 0);
         return;
     }
-    /* Let an existing dialog or update job finish before asking: its result must not replace Keep. */
     if(g_m || atomic_load(&g_chk.state) != 0 || atomic_load(&g_dl.state) != 0) return;
     if(atomic_load(&g_hl.asked)) return;
     atomic_store(&g_hl.asked, 1);
@@ -535,15 +507,11 @@ static void ota_health_cb(lv_timer_t *t){
 }
 void system_ota_note_playback(void){ atomic_store(&g_hl.play, 1); }
 void system_ota_health_init(void){
-    if(!ota_trial_version(&OTA_DEV, g_hl.ver, sizeof g_hl.ver)) return;     /* only a trial build has anything to prove */
+    if(!ota_trial_version(&OTA_DEV, g_hl.ver, sizeof g_hl.ver)) return;
     if(ota_trial_decided(&OTA_DEV)) return;
     g_hl.t0 = lv_tick_get();
     g_hl_tm = lv_timer_create(ota_health_cb, 2000, NULL);
 }
-/* Settings > System > Allow diskOS Updates was switched (set_val already saved cfg ota_allow). Turning it OFF while a verified
- * bundle waits would still let boot install it, so OFF then needs the bundle discarded: the switch goes back to ON and the
- * user is asked. Discard removes pending/ and turns the setting OFF; Cancel leaves both as they were. With nothing staged the
- * switch simply stays OFF. The running build is never touched. */
 static void cb_discard_go(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     modal_close();
@@ -554,7 +522,7 @@ static void cb_discard_go(lv_event_t *e){
 void system_ota_allow_changed(int v){
     char pv[40];
     if(v || !ota_pending(&OTA_DEV, pv, sizeof pv)) return;
-    cfg_set_int("ota_allow", 1);                                  /* stays ON until the user confirms the discard */
+    cfg_set_int("ota_allow", 1);
     lv_obj_t *c = modal_card(tr("Turn off updates?"), 230);
     modal_text(c, tr("Turning updates off discards the downloaded update."), 46, THEME_CLR_TEXT_MUTED);
     modal_pill(c, -58, tr("Cancel"), THEME_CLR_TEXT_SECONDARY, cb_close, "system.ota_off_cancel");
@@ -564,7 +532,7 @@ void system_check_update_open(int v){
     (void)v;
     char pv[40];
     if(atomic_load(&g_dl.state) != 0){ ui_toast("Already updating"); return; }
-    if(ota_allowed() && ota_pending(&OTA_DEV, pv, sizeof pv)){   /* a verified bundle is already staged: only a restart is left */
+    if(ota_allowed() && ota_pending(&OTA_DEV, pv, sizeof pv)){
         char n[120]; snprintf(n, sizeof n, "diskOS %s is ready. Restart to finish updating.", pv);
         settings_restart_prompt(n);
         return;
@@ -577,7 +545,6 @@ void system_check_update_open(int v){
     ui_toast("Checking for updates...");
 }
 
-/* ---- Reset diskOS settings ---- */
 static void cb_reset_go(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     modal_close();

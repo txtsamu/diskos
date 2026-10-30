@@ -24,8 +24,6 @@ class FullVerifierSpoofTests(unittest.TestCase):
             (path / (SOURCE + '.sig')).write_bytes(b'invalid detached signature')
             keyring = path / 'keyring'
             keyring.mkdir(mode=0o700)
-            # Prove the main script reaches authentication, independently of the
-            # archive digest. Only the checksum tool is substituted by the test.
             pin = re.search(r'^runtime_sha256=(\w+)', SCRIPT.read_text(), re.M).group(1)
             checksum = path / 'sha256sum'
             checksum.write_text('#!/bin/sh\nprintf checked > "$CHECKSUM_MARKER"\n'
@@ -46,8 +44,6 @@ class FullVerifierSpoofTests(unittest.TestCase):
                 foreign = path / 'foreign-keyring'
                 foreign.mkdir()
                 env['GNUPGHOME'] = str(foreign)
-                # Neither the caller's default home nor the explicit keyring's
-                # gpg.conf may alter verification options.
                 for home in (foreign, keyring):
                     (home / 'gpg.conf').write_text('diskos-invalid-config-option\n')
             if attack in ('function', 'path'):

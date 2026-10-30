@@ -1,7 +1,3 @@
-/* diskOS v6 / v1 - one story in four acts.
-   Base styles below are the still layout (no script, or reduced motion).
-   Everything under .full is the scroll show: a sticky theatre behind the text. */
-
 @font-face { font-family: "Archivo"; src: url("../fonts/archivo-100-900.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; }
 @font-face { font-family: "Michroma"; src: url("../fonts/michroma-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Hanken Grotesk"; src: url("../fonts/hanken-300-700.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
@@ -46,7 +42,6 @@ h1, h2 { font-weight: 250; font-stretch: 125%; text-wrap: balance; letter-spacin
 .skip { position: absolute; left: 16px; top: -80px; z-index: 60; background: var(--ink); color: #000; padding: 10px 14px; border-radius: 6px; text-decoration: none; }
 .skip:focus { top: 12px; }
 
-/* ---------- Header (fixed through all four acts) ---------- */
 .bar {
   position: fixed; inset: 0 0 auto; z-index: 40;
   display: flex; align-items: center; gap: 22px;
@@ -96,14 +91,14 @@ h1, h2 { font-weight: 250; font-stretch: 125%; text-wrap: balance; letter-spacin
   transition: border-color .3s var(--ease), opacity .35s var(--ease), translate .35s var(--ease), visibility 0s;
 }
 .btn-small::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--rose); flex: none; }
-.btn-small::after { content: ""; position: absolute; inset: -6px -4px; } /* 32 px pill, 44 px tap target */
+.btn-small::after { content: ""; position: absolute; inset: -6px -4px; }
 .btn-small:hover { transform: none; box-shadow: none; border-color: rgba(243, 242, 239, .34); }
 .btn-small:active { transform: scale(.98); }
 .btn-big { min-height: 60px; padding: 0 38px; font-size: 18px; box-shadow: inset 0 1px 0 #fff, 0 0 0 1px rgba(255, 255, 255, .25), 0 22px 80px -16px rgba(var(--room), 1), 0 0 120px -30px rgba(var(--room), .9); }
 .btn-big:hover { box-shadow: inset 0 1px 0 #fff, 0 0 0 1px rgba(255, 255, 255, .4), 0 26px 90px -14px rgba(var(--room), 1), 0 0 160px -30px rgba(var(--room), 1); }
 .link { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(243, 242, 239, .3); text-underline-offset: 6px; text-decoration-thickness: 1px; transition: text-decoration-color .3s; }
 .link:hover { text-decoration-color: var(--ink); }
-.actions .link { padding: 11px 0; margin: -11px 0; } /* a 48 px tall target without moving the text */
+.actions .link { padding: 11px 0; margin: -11px 0; }
 
 .kicker { font-family: var(--mach); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); display: flex; gap: 14px; align-items: center; margin-bottom: 26px; }
 .kicker span { color: var(--rose); }
@@ -112,7 +107,6 @@ h1, h2 { font-weight: 250; font-stretch: 125%; text-wrap: balance; letter-spacin
 .actions { margin-top: 30px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; }
 .fine { margin-top: 24px; font-size: 14px; color: var(--ink-3); max-width: 46ch; }
 
-/* The CSS disc: a pressed-disc stand-in without WebGL (tracks, a mirror band and a fixed spectrum). */
 .disc-css, .still-disc {
   border-radius: 50%;
   --hubp: 46%; --b0: 50%; --b1: 57%;
@@ -123,9 +117,6 @@ h1, h2 { font-weight: 250; font-stretch: 125%; text-wrap: balance; letter-spacin
     radial-gradient(circle closest-side, #121216 70%, #1a1a1f 99%, #2a2b30 100%);
 }
 
-/* =====================================================================
-   STILL LAYOUT (no script, or prefers-reduced-motion)
-   ===================================================================== */
 .theatre { display: none; }
 .act { position: relative; max-width: 1440px; margin: 0 auto; padding: clamp(96px, 13vh, 150px) var(--gut); }
 html:not(.full) .act { scroll-margin-top: 16px; }
@@ -226,7 +217,6 @@ h1 .ln { display: block; }
   .motion-ring, .bar .motion-ring { width: 32px; height: 32px; }
   .motion-ring circle { stroke-width: 1.25; }
   .motion-ring .track { stroke: rgba(243, 242, 239, .09); }
-  /* the header Get diskOS waits until the hero's own button has scrolled away (js adds .cta-on); no js = always there */
   .js .bar .btn-small { opacity: 0; visibility: hidden; translate: 0 -6px; pointer-events: none; transition: opacity .35s var(--ease), translate .35s var(--ease), visibility 0s .35s, border-color .3s; }
   .js .bar.cta-on .btn-small { opacity: 1; visibility: visible; translate: 0 0; pointer-events: auto; transition-delay: 0s; }
 }
@@ -234,22 +224,17 @@ h1 .ln { display: block; }
   .js .bar .btn-small, .js .bar.cta-on .btn-small { transition: none; translate: 0 0; }
 }
 
-/* =====================================================================
-   THE SHOW (.full): one sticky theatre, the text scrolls over it
-   ===================================================================== */
 .full .theatre {
   display: block; position: sticky; top: 0; height: 100vh; overflow: hidden; z-index: 0;
   background: var(--bg); contain: layout paint;
 }
 .full .story { position: relative; z-index: 2; margin-top: -100vh; pointer-events: none; }
 .full .story .copy, .full .story .tracks, .full .story .index { pointer-events: auto; }
-/* the still pictures stay in the page for screen readers; the theatre shows them to everyone else */
 .full .still-art { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
 .full .still-art .still-disc, .full .still-art .sa-glow, .full .still-art .sa-ring { display: none; }
 .layer { position: absolute; inset: 0; visibility: hidden; }
 .layer.on { visibility: visible; }
 
-/* ---------- Act 1 + 2 layer: the pressed disc ---------- */
 .press-scrim { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: var(--scrim, 1);
   background: linear-gradient(90deg, var(--bg) 0%, rgba(5, 5, 6, .9) 24%, rgba(5, 5, 6, .35) 44%, transparent 56%); }
 .press .disc-css { position: absolute; z-index: 1; display: none; --hubp: 50%; --b0: 54%; --b1: 64%; }
@@ -277,7 +262,6 @@ h1 .ln { display: block; }
 }
 .laser.on { opacity: 1; }
 
-/* intro: the disc powers on, the words rise */
 .full.intro .hub { animation: power 1.5s .2s var(--ease) both; }
 @keyframes power { from { opacity: 0; scale: .94; filter: brightness(2.2) saturate(.4); } 60% { filter: brightness(1.15); } to { opacity: 1; scale: 1; filter: none; } }
 .full.intro .hero-copy > * { animation: rise 1.2s var(--ease) both; }
@@ -291,7 +275,6 @@ h1 .ln { display: block; }
 .full.intro .hero-copy .fine { animation-delay: .82s; }
 @keyframes rise { from { opacity: 0; translate: 0 26px; } to { opacity: 1; translate: 0 0; } }
 
-/* ---------- Act 3 layer: eight worlds ---------- */
 .world { position: absolute; inset: 0; background: var(--bg); color: var(--fg); visibility: hidden; }
 .world.is-cur, .world.is-next { visibility: visible; }
 .world.is-cur { z-index: 1; }
@@ -327,14 +310,12 @@ h1 .ln { display: block; }
 .world[data-i="0"] .info { opacity: calc(var(--infoOp, 1) * (1 - var(--hero, 0))); }
 .worlds.bridging .world[data-i="0"] .disc { visibility: hidden; }
 
-/* the hand on the rim that leads every sweep */
 .hand { position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; transition: opacity .3s; }
 .hand.on { opacity: 1; }
 .hand i { position: absolute; left: var(--hx, 50%); top: var(--hy, 50%); width: 0; height: 0; rotate: var(--ha, 0deg); }
 .hand i::before { content: ""; position: absolute; left: -.5px; bottom: calc(var(--hr, 200px) + 12px); width: 1px; height: 160vmax; background: linear-gradient(to top, rgba(255, 255, 255, .85), rgba(255, 255, 255, .25) 30%, rgba(255, 255, 255, 0)); }
 .hand i::after { content: ""; position: absolute; left: -9px; top: calc(var(--hr, 200px) * -1 - 21px); width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 6px rgba(255, 255, 255, .14), 0 0 24px 4px rgba(255, 255, 255, .5); }
 
-/* ---------- Act 4 layer: the lit stage ---------- */
 .stage { --ax: 50vw; --ay: 40vh; --ad: 360px; --floorY: 70vh; z-index: 3; }
 .stage.masked {
   -webkit-mask-image: conic-gradient(from 0deg at var(--sx) var(--sy), #000 calc(var(--wa, 0deg) - .4deg), transparent var(--wa, 0deg));
@@ -403,12 +384,10 @@ h1 .ln { display: block; }
 .grain { position: absolute; inset: 0; z-index: 9; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
-/* motion off (the pause control, or a phone that cannot keep up) */
 .paused .etch svg, .paused .rec img, .still-mode .etch svg, .still-mode .rec img,
 .motion-idle .etch svg, .motion-idle .rec img,
 .press:not(.on) .etch svg, .stage:not(.on) .rec img { animation-play-state: paused; }
 
-/* ---------- Story text in the show ---------- */
 .full .act { max-width: none; margin: 0; padding: 0; }
 .full .act > .copy, .full .tl-head, .full .tracks, .full .also, .full .th-intro { margin-left: max(var(--gut), calc((100vw - 1440px) / 2 + 48px)); }
 

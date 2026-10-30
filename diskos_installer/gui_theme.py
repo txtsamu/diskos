@@ -18,9 +18,9 @@ HOVER = "#1c1c20"
 PRESSED = "#242428"
 TEXT = "#f5f5f7"
 SECONDARY = "#b9b8b4"
-KICKER = "#908f8b"          # site --ink-3: section kickers, host line, quiet meta text
-DIVIDER = "#29292f"         # hairline rules between sections
-LINE = "#5f5f68"            # interactive outlines (entry, secondary buttons)
+KICKER = "#908f8b"
+DIVIDER = "#29292f"
+LINE = "#5f5f68"
 ACCENT = "#ff375f"
 ACCENT_HOVER = "#ff6482"
 ACCENT_PRESSED = "#f02f58"
@@ -29,25 +29,22 @@ ON_ACCENT = "#0a0a0b"
 WARN = "#ffcc00"
 ERR = "#ff453a"
 OK = "#34c759"
-DISABLED = "#85858d"        # disabled text: dimmer, still legible
-PANEL = BG                  # sections sit on the ground, split by hairlines (no filled boxes)
+DISABLED = "#85858d"
+PANEL = BG
 
-# vertical rhythm (px at 100% scaling): one place to tighten or loosen the window
 SP = {"xs": 2, "s": 4, "m": 8, "l": 12, "xl": 20, "xxl": 28}
-GUTTER = 28                 # window side margin; every section aligns to it
-SECTION = 12                # space between a hairline and the content on either side of it
-PANEL_PAD = 0               # inner inset of a section (flat sections align with the gutter)
-INDICATOR = 16              # radio / checkbox indicator size
-INDICATOR_GAP = 8           # space between an indicator or status dot and its text
-HANG = INDICATOR + INDICATOR_GAP   # at 100%; hang(widget) gives it at the current display scale
-SCREEN_MARGIN = 80          # title bar + taskbar kept clear when sizing the window
-HERO_RISE = 0               # the hero disc top lines up with the top of the brand row (wordmark)
-HIDPI_FACTOR = 1.5          # dense(): 150% display scaling or more (Tk scaling / (96/72))
+GUTTER = 28
+SECTION = 12
+PANEL_PAD = 0
+INDICATOR = 16
+INDICATOR_GAP = 8
+HANG = INDICATOR + INDICATOR_GAP
+SCREEN_MARGIN = 80
+HERO_RISE = 0
+HIDPI_FACTOR = 1.5
 
-# type scale in px at 100% (converted to points per platform in make_fonts)
 TYPE = {"title": 26, "h": 16, "b": 13, "sub": 12, "btn": 13, "brand": 15, "kicker": 10, "mono": 12}
 
-# states in ttk precedence order (first match wins)
 _STATE = {"disabled": ("disabled",), "pressed": ("pressed", "!disabled"),
           "hover": ("active", "!disabled"), "focus": ("focus", "!disabled"),
           "selected": ("selected", "!disabled")}
@@ -55,16 +52,12 @@ _STATE = {"disabled": ("disabled",), "pressed": ("pressed", "!disabled"),
 _CHOICE = {"normal": (TEXT, PANEL), "hover": (TEXT, PANEL), "pressed": (TEXT, PANEL),
            "disabled": (DISABLED, PANEL), "focus": (TEXT, PANEL), "selected": (TEXT, PANEL)}
 
-# style -> {state: (foreground, background)}; "normal" is the base
 STYLES = {
-    # secondary: hairline pill on the ground
     "TButton": {"normal": (TEXT, BG), "hover": (TEXT, HOVER), "pressed": (TEXT, PRESSED),
                 "disabled": (DISABLED, BG), "focus": (TEXT, BG)},
-    # primary: rose pill
     "Accent.TButton": {"normal": (ON_ACCENT, ACCENT), "hover": (ON_ACCENT, ACCENT_HOVER),
                        "pressed": (ON_ACCENT, ACCENT_PRESSED), "disabled": (DISABLED, PRESSED),
                        "focus": (ON_ACCENT, ACCENT)},
-    # quiet text action (other actions, Refresh, disclosures)
     "Link.TButton": {"normal": (SECONDARY, BG), "hover": (TEXT, BG), "pressed": (TEXT, BG),
                      "disabled": (DISABLED, BG), "focus": (TEXT, BG)},
     "TRadiobutton": dict(_CHOICE),
@@ -86,9 +79,8 @@ STYLES = {
     "TFrame": {"normal": (TEXT, BG)},
     "Panel.TFrame": {"normal": (TEXT, PANEL)},
 }
-_FONTS = {}                  # apply() keeps the fonts here for plain-tk widgets (banner)
+_FONTS = {}
 
-# the log Text widget and the plain-tk banners
 LOG = (SECONDARY, SURFACE)
 BANNER_WARN = (ON_ACCENT, WARN)
 BANNER_OK = (ON_ACCENT, OK)
@@ -109,7 +101,6 @@ def _hex(c):
     return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
 
 
-# ---- type ---------------------------------------------------------------------------------------
 def make_fonts(root):
     """Named UI fonts from the TYPE px scale. System family (no font is installed): Tk's default, or Segoe UI on
     Windows when Tk lists it. Points = px * 0.75 (96 dpi), except macOS where Tk treats 1 pt as 1 px."""
@@ -117,7 +108,7 @@ def make_fonts(root):
     import tkinter.font as tkfont
     fam = tkfont.nametofont("TkDefaultFont").actual("family")
     if sys.platform.startswith("win") and "Segoe UI" in tkfont.families(root):
-        fam = "Segoe UI"            # only when installed; else keep what Tk resolved
+        fam = "Segoe UI"
     k = 1.0 if sys.platform == "darwin" else 0.75
 
     def f(px, weight="normal", underline=0):
@@ -130,7 +121,6 @@ def make_fonts(root):
             "mono": mono}
 
 
-# ---- drawn images (no asset files) ---------------------------------------------------------------
 def _cov(d):
     """Pixel coverage of the region d <= 0 for a signed distance d (1 px anti-aliasing)."""
     return min(1.0, max(0.0, 0.5 - d))
@@ -172,7 +162,7 @@ def _check_image(root, size, bg, fill, border, tick):
     r = 3.0
     segs = ((size * 0.26, size * 0.52, size * 0.43, size * 0.70), (size * 0.43, size * 0.70, size * 0.76, size * 0.30))
 
-    def box_d(px, py):          # signed distance to the rounded box (negative inside)
+    def box_d(px, py):
         hx = hy = size / 2 - 0.5
         qx, qy = abs(px - size / 2) - (hx - r), abs(py - size / 2) - (hy - r)
         return (max(qx, 0) ** 2 + max(qy, 0) ** 2) ** 0.5 + min(max(qx, qy), 0) - r
@@ -382,7 +372,6 @@ def radio_style(root, st):
                 ("Radiobutton.label", {"sticky": "nswe"})]})]})])
 
 
-# button geometry: pill height = linespace * k; margins hold the glow and focus ring
 BUTTONS = {
     "Accent.TButton": {"font": "btn", "k": 2.0, "m": (3, 2, 3, 9), "padx": 0.62},
     "TButton": {"font": "b", "k": 1.9, "m": (3, 3, 3, 3), "padx": 0.55},
@@ -440,7 +429,6 @@ def apply(root, fonts):
         pass
     root.configure(bg=BG)
     root._diskos_fonts = fonts
-    # buttons: colours from STYLES; shape from the drawn skins (flat clam boxes if drawing fails)
     for name, font in (("TButton", fonts["b"]), ("Accent.TButton", fonts["btn"]), ("Small.TButton", fonts["sub"])):
         s = STYLES["TButton" if name == "Small.TButton" else name]
         st.configure(name, font=font, padding=(14, 5), foreground=s["normal"][0], background=s["normal"][1],
@@ -456,8 +444,7 @@ def apply(root, fonts):
     try:
         _button_skins(root, st, fonts)
     except Exception:
-        pass                         # keep clam's flat buttons rather than fail to start
-    # quiet text action: no box; brighter and underlined on hover; a 1px focus ring for the keyboard
+        pass
     s = STYLES["Link.TButton"]
     st.layout("Link.TButton", [("Button.padding", {"sticky": "nswe", "children": [
         ("Button.focus", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])
@@ -483,7 +470,7 @@ def apply(root, fonts):
     try:
         checkbox_style(root, st, fonts)
     except Exception:
-        pass                         # keep clam's own indicator rather than fail to start
+        pass
     try:
         radio_style(root, st)
     except Exception:
@@ -515,7 +502,6 @@ def style_log(text):
                    highlightcolor=FOCUS, padx=10, pady=8)
 
 
-# ---- layout helpers -----------------------------------------------------------------------------
 def rule(parent, colour=DIVIDER):
     """A 1px hairline (pack with fill="x"). Sections are split by these, never boxed."""
     import tkinter as tk
@@ -580,11 +566,11 @@ def disc(parent, size, bg=BG):
         c.create_oval(m - rad, m - rad, m + rad, m + rad, fill=fill, outline=line)
     ring(r, "#141417", DIVIDER)
     k = 0.92
-    while k > 0.6:                               # grooves
+    while k > 0.6:
         ring(r * k, "#101013", "#1b1b20")
         k -= 0.08
-    ring(r * 0.54, "#202126", "")                # mirror band
-    ring(r * 0.50, "#08080a", "#2a2a30")         # hub (the Disc's screen)
+    ring(r * 0.54, "#202126", "")
+    ring(r * 0.50, "#08080a", "#2a2a30")
     c.create_arc(m - r * 0.4, m - r * 0.4, m + r * 0.4, m + r * 0.4, start=-135, extent=-195,
                  style="arc", outline=ACCENT, width=max(1, size // 50))
     return c
@@ -634,7 +620,6 @@ def hero_bleed(container, hero, top):
     return lbl
 
 
-# ---- assets -------------------------------------------------------------------------------------
 def asset_dirs():
     """Where the asset files may live: next to this module (source tree, tarball) or under the
     PyInstaller data root (sys._MEIPASS/diskos_installer/assets)."""
@@ -660,12 +645,12 @@ def _find_asset(name):
 def dense(root):
     """True on screens at 150% scaling or more."""
     try:
-        return float(root.tk.call("tk", "scaling")) / (96 / 72) >= HIDPI_FACTOR - 0.01   # Tk rounds scaling
+        return float(root.tk.call("tk", "scaling")) / (96 / 72) >= HIDPI_FACTOR - 0.01
     except Exception:
         return False
 
 
-SCALES = ("1", "1.5", "2")     # asset scales; the wordmark has only 1 and 2
+SCALES = ("1", "1.5", "2")
 
 
 def asset_scales(widget):
@@ -739,14 +724,12 @@ def wordmark(root):
         return None
 
 
-# ---- confirm, progress and result screens -------------------------------------------------------
-# Same look as the welcome: hairlines, kickers and titles from the display sheet, drawn status dots.
-DIALOG_W = 560              # confirm dialog width at 100% (scaled up on denser screens by the caller)
-DIALOG_PAD = (GUTTER, 24)   # x, y
-WRAP = 530                  # label wrap width in the run/result body
-CARD_PAD = 14               # inner inset of a bordered card (next step / recovery)
-KV_LABEL_W = 200            # confirm summary: kicker column
-MAX_WINDOW_H = 700          # the whole window must fit a 1366x768 laptop; taller content scrolls
+DIALOG_W = 560
+DIALOG_PAD = (GUTTER, 24)
+WRAP = 530
+CARD_PAD = 14
+KV_LABEL_W = 200
+MAX_WINDOW_H = 700
 
 BORDER = {"quiet": DIVIDER, "line": LINE, "warn": WARN, "err": ERR}
 STATUS_COLOUR = {"ok": OK, "err": ERR}

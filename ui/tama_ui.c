@@ -8,30 +8,15 @@
 #include <string.h>
 #include <time.h>
 
-/* Pet (SCR_TAMA): a Tamagotchi-style virtual pet, an Agumon evolution line. The rules live in tama.c (pure C, host
- * tested); this file is the screen. The pet is drawn from small hand-made 1-bit pixel sprites (ASCII art below, '#' = a
- * lit cell) scaled x4 onto a canvas in ONE theme colour, so the silhouette has to carry the character. The art is
- * original; it only evokes the creatures (ears, horn, eye stalks...).
- *
- * Life cycle: tama_open() loads the pet (or hatches a new egg), simulates the time that passed (tama_advance) and shows
- * the screen. While the screen is visible ONE 600 ms timer runs (idle animation; every 50th tick = 30 s it advances the
- * pet); the screen manager calls tama_visible(0/1) on leaving/entering, so no timer runs anywhere else. The pet is saved
- * after every action, at most once a minute otherwise, and when the screen is left. */
-
-#define EGG_HATCH_MIN 3   /* tama.c hatches after 3 minutes; the UI shows the crack in the last one */
+#define EGG_HATCH_MIN 3
 #define TICK_MS       600
-#define ADV_TICKS     50  /* 50 x 600 ms = 30 s between simulation steps */
+#define ADV_TICKS     50
 #define SAVE_GAP_S    60
 
-/* ---- sprites -------------------------------------------------------------------------------------------------- */
-/* A sprite is rows of equal-width strings, drawn bottom-aligned and centred in a 24x24 box. Cells: '#' lit, '.' empty,
- * 'E'/'e' an eye (2x2): open = both rows empty, closed (asleep/sleepy) = the 'E' row fills in, leaving a slit. Frame B
- * of the idle animation = the rows listed in the sprite's patch list replace the base rows, then the whole body moves
- * by (bdx, bdy) (a hop for most; a slump instead when the pet feels bad). */
 typedef struct { int y; const char *row; } patch_t;
 typedef struct {
-    const char *const *rows;   /* NULL-terminated */
-    const patch_t *b;          /* frame-B row replacements, {0,NULL}-terminated */
+    const char *const *rows;
+    const patch_t *b;
     int bdx, bdy;
 } sprite_t;
 
@@ -57,7 +42,7 @@ static const char *const R_EGG[] = {
     "...##########...",
     "....########....", NULL };
 static const patch_t P_EGG[] = { {0, NULL} };
-static const patch_t P_EGG_CRACK[] = {   /* the shell splitting, applied to both frames in the last minute */
+static const patch_t P_EGG_CRACK[] = {
     {3, "..######.#####.."},
     {4, "..##..#.######.."},
     {5, "..##..##.#####.."},
@@ -66,7 +51,7 @@ static const patch_t P_EGG_CRACK[] = {   /* the shell splitting, applied to both
     {8, ".####.#####..##."},
     {0, NULL} };
 
-static const char *const R_BOTA[] = {   /* Botamon: a small round blob, two eyes */
+static const char *const R_BOTA[] = {
     "......####......",
     "....########....",
     "..############..",
@@ -81,7 +66,7 @@ static const char *const R_BOTA[] = {   /* Botamon: a small round blob, two eyes
     "....########....", NULL };
 static const patch_t P_BOTA[] = { {8, "#######..#######"}, {0, NULL} };
 
-static const char *const R_KORO[] = {   /* Koromon: round head, two long ears, wide mouth */
+static const char *const R_KORO[] = {
     "..##............##..",
     ".####..........####.",
     ".####..........####.",
@@ -99,7 +84,7 @@ static const char *const R_KORO[] = {   /* Koromon: round head, two long ears, w
     "...####......####...", NULL };
 static const patch_t P_KORO[] = { {0, "...##..........##..."}, {1, "..###..........###.."}, {0, NULL} };
 
-static const char *const R_AGU[] = {   /* Agumon: big head with an open snout, small clawed arm, tail, short legs (faces right) */
+static const char *const R_AGU[] = {
     "..........#######.......",
     "........###########.....",
     ".......#############....",
@@ -125,7 +110,7 @@ static const char *const R_AGU[] = {   /* Agumon: big head with an open snout, s
     NULL };
 static const patch_t P_AGU[] = { {11, "##..###############..##."}, {12, "#...##############.#...."}, {0, NULL} };
 
-static const char *const R_NUME[] = {   /* Numemon: slimy slug, eyes on stalks, wide mouth */
+static const char *const R_NUME[] = {
     ".######........######.",
     "########......########",
     "###EE###......###EE###",
@@ -147,7 +132,7 @@ static const char *const R_NUME[] = {   /* Numemon: slimy slug, eyes on stalks, 
     "##..####..##..####..##", NULL };
 static const patch_t P_NUME[] = { {0, "..######........######"}, {1, ".########......#######"}, {0, NULL} };
 
-static const char *const R_TYR[] = {   /* Tyrannomon: huge toothy jaw, tiny arm, heavy tail, thick legs (faces right) */
+static const char *const R_TYR[] = {
     "..............#########.",
     ".............###########",
     ".............####EE#####",
@@ -173,7 +158,7 @@ static const char *const R_TYR[] = {   /* Tyrannomon: huge toothy jaw, tiny arm,
     NULL };
 static const patch_t P_TYR[] = { {7, ".............#.#.#.#.#.#"}, {0, NULL} };
 
-static const char *const R_GREY[] = {   /* Greymon: Tyrannomon's build plus a nose horn, a back horn and striped flanks (faces right) */
+static const char *const R_GREY[] = {
     "..............#.......#.",
     "..............##....###.",
     ".............###########",
@@ -199,7 +184,7 @@ static const char *const R_GREY[] = {   /* Greymon: Tyrannomon's build plus a no
     NULL };
 static const patch_t P_GREY[] = { {7, ".............#.#.#.#.#.#"}, {0, NULL} };
 
-static const char *const R_GONE[] = {   /* a gravestone with a cross cut out */
+static const char *const R_GONE[] = {
     "....########....",
     "..############..",
     ".##############.",
@@ -227,7 +212,6 @@ static const sprite_t SP_TYR   = { R_TYR,  P_TYR,  0, -1 };
 static const sprite_t SP_GREY  = { R_GREY, P_GREY, 0, -1 };
 static const sprite_t SP_GONE  = { R_GONE, P_GONE, 0, 0 };
 
-/* small status overlays, drawn in the corners of the scene */
 static const char *const O_HEART[] = { ".##.##.", "#######", "#######", ".#####.", "..###..", "...#...", NULL };
 static const char *const O_DROP[]  = { "..#..", "..#..", ".###.", "#####", "#####", ".###.", NULL };
 static const char *const O_PLUS[]  = { "..#..", "..#..", "#####", "..#..", "..#..", NULL };
@@ -236,24 +220,23 @@ static const char *const O_ZS[]    = { "###", ".#.", "###", NULL };
 static const char *const O_MEAT[]  = { ".####..", "######.", "######.", ".####..", "..##...", ".#.#...", "#...#..", NULL };
 static const char *const O_POOP[]  = { "..#..", ".###.", ".###.", "#####", NULL };
 
-/* ---- state ---------------------------------------------------------------------------------------------------- */
-#define SCENE_W 40            /* cells; x4 = 160 px */
-#define SCENE_H 28            /* 112 px */
+#define SCENE_W 40
+#define SCENE_H 28
 #define CELL    4
-#define BOX_X   8             /* the 24x24 sprite box inside the scene */
+#define BOX_X   8
 #define BOX_Y   3
-#define STATS_W 300   /* three groups of label + 5 pips, 100 px apart (x 30..330 inside the glass at this height) */
+#define STATS_W 300
 #define STATS_H 14
 
 enum { B_FEED, B_PLAY, B_CLEAN, B_SLEEP, B_HEAL, B_NEW, B_COUNT };
 enum { PN_NONE, PN_FEED, PN_GAME };
 
 static tama_t   s_t;
-static int      s_have;             /* s_t holds a loaded pet */
-static int      s_vis;              /* the screen is on show: the timer exists */
+static int      s_have;
+static int      s_vis;
 static int      s_prev_stage = -1;
 static int      s_frame, s_ticks;
-static int      s_dirty;            /* changed since the last save */
+static int      s_dirty;
 static time_t   s_saved_at;
 static lv_timer_t *s_timer;
 static lv_obj_t *s_name, *s_sub, *s_scene, *s_stats, *s_row, *s_btn[B_COUNT], *s_btnlbl[B_COUNT];
@@ -263,7 +246,6 @@ static unsigned char s_cell[SCENE_H][SCENE_W];
 static lv_obj_t *s_panel, *s_ptitle, *s_pa, *s_pb, *s_palbl, *s_pblbl, *s_pinfo;
 static int      s_pmode = PN_NONE, s_g_round, s_g_win, s_g_loss;
 
-/* ---- pixels --------------------------------------------------------------------------------------------------- */
 static uint32_t px32(lv_color_t c){
     lv_color32_t q = lv_color_to_32(c, LV_OPA_COVER);
     uint32_t v; memcpy(&v, &q, sizeof v);
@@ -282,7 +264,6 @@ static int nrows(const char *const *r){ int n = 0; while(r[n]) n++; return n; }
 
 static void cell_set(int x, int y){ if(x >= 0 && x < SCENE_W && y >= 0 && y < SCENE_H) s_cell[y][x] = 1; }
 
-/* draw rows with their top-left at (x0,y0); an 'E' cell lights only when `shut`. `patch` rows win over the base rows. */
 static void draw_rows(const char *const *rows, const patch_t *patch, const patch_t *patch2, int x0, int y0, int shut){
     for(int y = 0; rows[y]; y++){
         const char *row = rows[y];
@@ -328,9 +309,9 @@ static void draw_scene(void){
     int x0 = BOX_X + (24 - w) / 2, y0 = BOX_Y + 24 - n;
     int crack = t->stage == TAMA_EGG && t->stage_min >= EGG_HATCH_MIN - 1;
     if(b){
-        if(low) y0 += 1;                       /* a slump/breath instead of a hop */
+        if(low) y0 += 1;
         else { x0 += sp->bdx; y0 += sp->bdy; }
-        if(m == TAMA_MOOD_SICK) x0 += 1;       /* a shiver */
+        if(m == TAMA_MOOD_SICK) x0 += 1;
     }
     draw_rows(sp->rows, b ? sp->b : NULL, crack ? P_EGG_CRACK : NULL, x0, y0, shut);
 
@@ -343,7 +324,6 @@ static void draw_scene(void){
     case TAMA_MOOD_ASLEEP: put_overlay(O_Z, 33, b ? 1 : 3); put_overlay(O_ZS, 29, b ? 0 : 1); break;
     default: break;
     }
-    /* messes on the floor: right side first, then left */
     for(int i = 0; t->stage != TAMA_EGG && t->stage != TAMA_GONE && i < t->poop && i < 4; i++)
         put_overlay(O_POOP, i < 2 ? 34 : 1, 23 - (i & 1) * 5);
 
@@ -368,7 +348,6 @@ static void draw_stats(void){
     lv_obj_invalidate(s_stats);
 }
 
-/* ---- text + buttons ------------------------------------------------------------------------------------------ */
 static void fmt_age(char *out, int cap, long min){
     if(min < 60) snprintf(out, cap, "%ldm", min);
     else if(min < 24 * 60) snprintf(out, cap, "%ldh %ldm", min / 60, min % 60);
@@ -417,7 +396,7 @@ static void note_stage_change(void){
 static void save_now(void){
     if(tama_save(&s_t, TAMA_FILE) == 0){ s_dirty = 0; s_saved_at = time(NULL); }
 }
-static void changed(void){ s_dirty = 1; save_now(); }   /* an action: persist at once */
+static void changed(void){ s_dirty = 1; save_now(); }
 
 static void load_state(void){
     if(tama_load(&s_t, TAMA_FILE) != 0){
@@ -428,7 +407,6 @@ static void load_state(void){
     s_prev_stage = -1;
 }
 
-/* ---- panel (feed choice / which-hand game) ------------------------------------------------------------------- */
 static void panel_close(void){ s_pmode = PN_NONE; set_hidden(s_panel, 1); }
 
 static void panel_game_text(const char *result){
@@ -472,7 +450,7 @@ static void panel_open(int mode){
 
 static void panel_pick_cb(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED || s_pmode == PN_NONE) return;
-    int side = (int)(intptr_t)lv_event_get_user_data(e);   /* 0 = left/meal, 1 = right/snack */
+    int side = (int)(intptr_t)lv_event_get_user_data(e);
     if(s_pmode == PN_FEED){
         tama_rc rc = side == 0 ? tama_feed_meal(&s_t) : tama_feed_snack(&s_t);
         panel_close();
@@ -491,7 +469,7 @@ static void panel_pick_cb(lv_event_t *e){
         return;
     }
     panel_game_text(hit ? "Hit!" : "Miss");
-    s_dirty = 1;   /* the pet's generator moved on */
+    s_dirty = 1;
 }
 static void panel_close_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED) panel_close(); }
 
@@ -505,7 +483,7 @@ static void act_cb(lv_event_t *e){
         panel_open(PN_FEED);
         return;
     case B_PLAY: {
-        tama_t probe = s_t;                 /* dry run on a copy: would the pet play at all? */
+        tama_t probe = s_t;
         tama_rc rc = tama_play(&probe, 0);
         if(rc != TAMA_OK){ ui_toast(rc_msg(rc, "") ? rc_msg(rc, "") : "Not now"); break; }
         panel_open(PN_GAME);
@@ -525,8 +503,7 @@ static void act_cb(lv_event_t *e){
     refresh_all();
 }
 
-/* ---- timer + visibility -------------------------------------------------------------------------------------- */
-extern int ui_screen_backlight_on(void);   /* main.c: 0 while the display is off */
+extern int ui_screen_backlight_on(void);
 
 static void tick_cb(lv_timer_t *t){
     (void)t;
@@ -540,12 +517,11 @@ static void tick_cb(lv_timer_t *t){
         refresh_all();
         return;
     }
-    if(!ui_screen_backlight_on()) return;   /* nothing to animate with the display off */
+    if(!ui_screen_backlight_on()) return;
     s_frame ^= 1;
     draw_scene();
 }
 
-/* The screen manager calls this when SCR_TAMA is entered (1) and left (0), including by the screensaver. */
 void tama_visible(int on){
     if(on){
         if(!s_have) load_state();
@@ -568,12 +544,11 @@ void tama_open(void){
     load_state();
     tama_advance(&s_t, time(NULL));
     s_dirty = 1;
-    s_prev_stage = s_t.stage;   /* no hatch toast for what happened while away */
+    s_prev_stage = s_t.stage;
     refresh_all();
     screen_show(SCR_TAMA);
 }
 
-/* ---- build ---------------------------------------------------------------------------------------------------- */
 static lv_obj_t *mk_btn(lv_obj_t *parent, const char *text, int w, int h, lv_event_cb_t cb, void *ud, const char *tag, lv_obj_t **lbl){
     lv_obj_t *b = lv_button_create(parent);
     lv_obj_remove_style_all(b);
@@ -632,7 +607,6 @@ void tama_create(lv_obj_t *root){
         lv_obj_set_pos(s_lab[i], 30 + i * 100, 212);
     }
 
-    /* action row: up to 5 buttons of 50x44 (Heal only while sick), inside the glass at y 232..276 */
     s_row = lv_obj_create(root);
     lv_obj_remove_style_all(s_row);
     lv_obj_set_size(s_row, 290, 44);
@@ -646,14 +620,12 @@ void tama_create(lv_obj_t *root){
     for(int i = 0; i < B_COUNT; i++)
         s_btn[i] = mk_btn(s_row, bl[i], i == B_NEW ? 130 : 50, 44, act_cb, (void *)(intptr_t)i, bt[i], &s_btnlbl[i]);
 
-    /* feed / game panel, hidden until opened */
     s_panel = lv_obj_create(root);
     lv_obj_remove_style_all(s_panel);
-    kit_keep(s_panel);   /* a popup over the pet must stay solid: flat-list themes (Terminal) turn plain cards transparent, which put
-                          * Meal / Snack / Cancel on top of the sprite and the action row */
+    kit_keep(s_panel);
     lv_obj_set_size(s_panel, 250, 172);
     lv_obj_set_pos(s_panel, 55, 96);
-    lv_obj_set_style_radius(s_panel, !strcmp(theme_kit()->id, "terminal") ? 0 : 20, 0);   /* square corners in the terminal's boxed style */
+    lv_obj_set_style_radius(s_panel, !strcmp(theme_kit()->id, "terminal") ? 0 : 20, 0);
     lv_obj_set_style_bg_color(s_panel, TC(SURFACE_RAISED), 0);
     lv_obj_set_style_bg_opa(s_panel, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(s_panel, TC(BORDER_STRONG), 0);
@@ -672,7 +644,7 @@ void tama_create(lv_obj_t *root){
     lv_obj_set_style_text_align(s_pinfo, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(s_pinfo, TF(UI_12), 0);
     lv_obj_set_style_text_color(s_pinfo, TC(TEXT_SECONDARY), 0);
-    lv_obj_align(s_pinfo, LV_ALIGN_TOP_MID, 0, 98);   /* two lines (result + round) must clear Cancel at y 130 */
+    lv_obj_align(s_pinfo, LV_ALIGN_TOP_MID, 0, 98);
     lv_obj_t *x = mk_btn(s_panel, "Cancel", 110, 38, panel_close_cb, NULL, "tama.panel.close", NULL);
     lv_obj_set_pos(x, 70, 130);
     lv_obj_set_ext_click_area(x, 4);

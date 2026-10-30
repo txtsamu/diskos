@@ -141,7 +141,6 @@ class BackendTests(unittest.TestCase):
                     self.archive.write(out)
                 self.assertIs(caught.exception, failure)
                 self.assertEqual(out.write.call_count, after + 1)
-                # A failed caller output must not damage the source archive.
                 with Archive(self.archive.dump()) as other:
                     self.assertEqual(other.manifest(), self.archive.manifest())
 
@@ -191,7 +190,7 @@ class BackendTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ArchiveFS(sparse)
         fs = self.backends[0]
-        fs.unlink(b'd/f')  # Preserve the surviving hardlink's data and metadata.
+        fs.unlink(b'd/f')
         self.assertEqual(fs.read_bytes(b'alias'), b'abc')
         rejected = io.BytesIO(b'untouched')
         self.archive.entries[b'case'][2] = 0o10000

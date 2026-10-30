@@ -13,15 +13,8 @@ typedef enum {
 typedef struct {
     opus_title_outcome outcome;
     opus_title_reason reason;
-    unsigned retryable; /* IO only: EINTR, EAGAIN/EWOULDBLOCK or EIO. */
-    char title[256]; /* Exact UTF-8 comment value, never truncated or manufactured. */
+    unsigned retryable;
+    char title[256];
 } opus_title_result;
-/* Cancellation callback/context have the same contract as ad_opus. No extension filter,
- * duration/audio traversal, fallback, or SD lease: the future caller owns the lease.
- * Other errno values, unknown IO errors and nonregular files are permanent.
- * The failing operation determines retryable; cleanup cannot overwrite it.
- * CHANGED compares fd/path dev, ino, size and nanosecond mtime. An editor preserving
- * all those attributes is undetectable; changes after the final stat are also outside
- * this read's observation window. */
 opus_title_result opus_title_read(const char *path, int (*cancel)(void *), void *ctx);
 #endif

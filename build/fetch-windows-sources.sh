@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fetch release source assets outside the checkout; retain failed downloads.
 set -euo pipefail
 runtime_source=msys2-runtime-3.6.10-6.src.tar.zst
 runtime_sha256=1d06b1482199ca8adaea770c4b596ec3adb2749345ef81a5d111cb792f0f1643
@@ -13,7 +12,6 @@ verify_runtime_source() {
     }
 }
 verify_runtime_status() {
-    # A good signature by an unknown/untrusted key does not authenticate MSYS2.
     awk '
         $1 == "[GNUPG:]" && $2 == "VALIDSIG" { valid++ }
         $1 == "[GNUPG:]" && ($2 == "TRUST_FULLY" || $2 == "TRUST_ULTIMATE") { trusted++ }

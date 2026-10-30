@@ -252,8 +252,6 @@ class StageRelease(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         with tarfile.open(self.rel / 'diskos-installer-linux-x86_64.tar.gz') as tar:
             self.assertIn('diskos-installer/vendor/linux-x86_64/usbboot.manifest', tar.getnames())
-        # Source in the working tree still agrees with the manifest; only the
-        # archived release input changes. Staging must check the archive.
         (self.export / 'src/usbboot/usbboot.c').write_bytes(b'different archived source')
         self.export_archive()
         result = self.run_stage('linux-x86_64')
@@ -264,7 +262,6 @@ class StageRelease(unittest.TestCase):
         import json
         vendor, good, fixtures = self.linux_fixture()
         manifest_path = vendor / 'usbboot.manifest'
-        # No vendor manifest: reject before creating a release tarball.
         manifest_path.rename(vendor / 'saved-manifest')
         result = self.run_stage('linux-x86_64')
         self.assertNotEqual(result.returncode, 0)

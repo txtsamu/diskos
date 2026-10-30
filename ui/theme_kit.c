@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* theme_kit.c - the action registry and the active kit (see theme_kit.h). */
 #include "theme_kit.h"
 #include "theme.h"
 #include "screens.h"
@@ -9,8 +8,6 @@
 #include <stdio.h>
 
 #ifdef DISKOS_HOST
-/* host tests only: remember which object carries which action. Entries are dropped when the object is deleted, so a
- * reused address never inherits a stale name. */
 typedef struct act { const lv_obj_t *obj; char name[96]; int tier; struct act *next; } act_t;
 static act_t *g_acts;
 static void act_deleted(lv_event_t *e){
@@ -30,10 +27,10 @@ static void act_add(lv_obj_t *o, const char *name, int tier){
     lv_obj_add_event_cb(o, act_deleted, LV_EVENT_DELETE, NULL);
 }
 const char *ui_action_of(const lv_obj_t *o){ for(act_t *a = g_acts; a; a = a->next) if(a->obj == o) return a->name; return NULL; }
-lv_obj_t *ui_action_find(const char *name){   /* "name#K" = the K-th newest (0 = newest) */
+lv_obj_t *ui_action_find(const char *name){
     const char *h = strchr(name, '#'); size_t n = h ? (size_t)(h - name) : strlen(name); int k = h ? atoi(h + 1) : 0;
     for(act_t *a = g_acts; a; a = a->next){
-        for(const char *p = a->name; ; ){   /* each '|'-separated action of this object */
+        for(const char *p = a->name; ; ){
             const char *q = strchr(p, '|'); size_t len = q ? (size_t)(q - p) : strlen(p);
             if(len == n && !strncmp(p, name, n) && k-- == 0) return (lv_obj_t *)a->obj;
             if(!q) break;
@@ -45,14 +42,7 @@ lv_obj_t *ui_action_find(const char *name){   /* "name#K" = the K-th newest (0 =
 int ui_action_tier(const lv_obj_t *o){ for(act_t *a = g_acts; a; a = a->next) if(a->obj == o) return a->tier; return -1; }
 #endif
 
-/* A touch that moved like a swipe is not a tap. LVGL keeps a button pressed when the finger slides off it (press
- * lock), so a swipe that STARTS on a control would CLICK it on release as well as doing the swipe: the left-edge
- * back swipe went back twice from an edge back arrow, or opened/changed a left-edge row and then went back (a slow,
- * held swipe could also fire a row's long-press action). For every ui_on() CLICKED / SHORT_CLICKED / LONG_PRESSED
- * handler the guard runs first (registration order) and stops the event - and its bubbling - when the active pointer ended more than UI_CLICK_SLOP from where THIS press began. The origin is taken
- * on the object's own PRESSED event (not the main loop's gesture state, which the keyboard bypasses); key/encoder
- * clicks have no pointer travel and are never stopped. */
-#define UI_CLICK_SLOP 16        /* below the swipe threshold's 20 px floor, so every recognised swipe is covered */
+#define UI_CLICK_SLOP 16
 static lv_point_t g_click_origin;
 static void click_origin_cb(lv_event_t *e){
     (void)e;
@@ -73,7 +63,7 @@ void ui_on(lv_obj_t *obj, lv_event_cb_t cb, lv_event_code_t code, void *user_dat
     if(!obj) return;
     if(code == LV_EVENT_CLICKED || code == LV_EVENT_SHORT_CLICKED || code == LV_EVENT_LONG_PRESSED){
         lv_obj_add_event_cb(obj, click_origin_cb, LV_EVENT_PRESSED, NULL);
-        lv_obj_add_event_cb(obj, click_swipe_guard, code, NULL);       /* before the handler: see above */
+        lv_obj_add_event_cb(obj, click_swipe_guard, code, NULL);
     }
     lv_obj_add_event_cb(obj, cb, code, user_data);
 #ifdef DISKOS_HOST
@@ -90,12 +80,11 @@ const char *ui_transport_action(const char *cmd, const char *prefix, char *buf, 
     return buf;
 }
 
-/* ---- the styling pass ---- */
-#define KIT_DONE LV_OBJ_FLAG_USER_4     /* already styled */
-static int is_glyph(const char *t){    /* one symbol / icon glyph (private use area or LVGL symbol), no words */
+#define KIT_DONE LV_OBJ_FLAG_USER_4
+static int is_glyph(const char *t){
     if(!t || !*t) return 0;
     unsigned char c = (unsigned char)t[0];
-    if(c == 0xEF && strlen(t) == 3) return 1;           /* U+F000..U+FFFF: LVGL symbols + icon fonts */
+    if(c == 0xEF && strlen(t) == 3) return 1;
     return 0;
 }
 static lv_obj_t *first_label(lv_obj_t *o){
@@ -133,8 +122,6 @@ static kit_role_t classify(lv_obj_t *o, kit_role_t parent_role, int is_root, int
         if(l && is_glyph(lv_label_get_text(l))) return KIT_ICON_BUTTON;
         if(l) return KIT_BUTTON;
     }
-    /* a filled container on the top layer (a dialog's panel inside its dimmer) is part of a popup: it stays a solid
-     * window in every theme, where a flat-list theme draws the cards of a screen as bare text */
     if(lv_obj_get_style_bg_opa(o, 0) > LV_OPA_10 && lv_obj_get_child_count(o) > 0) return on_top ? KIT_POPUP : KIT_CARD;
     return KIT_OTHER;
 }
@@ -143,21 +130,17 @@ static void pass(lv_obj_t *o, kit_role_t parent_role, int is_root, int on_top, i
     kit_role_t r = classify(o, parent_role, is_root, on_top);
     if(force || !lv_obj_has_flag(o, KIT_DONE)){
         lv_obj_add_flag(o, KIT_DONE);
-        if(lv_obj_check_type(o, &lv_label_class) && !is_glyph(lv_label_get_text(o))){   /* no Default face left */
+        if(lv_obj_check_type(o, &lv_label_class) && !is_glyph(lv_label_get_text(o))){
             const lv_font_t *f = theme_font_substitute(lv_obj_get_style_text_font(o, 0));
             if(f) lv_obj_set_style_text_font(o, f, 0);
         }
         style(o, r);
         if(r == KIT_ROW && theme_kit()->row_decor) theme_kit()->row_decor(o, first_label(o));
-        /* a one-line label with a fixed height shorter than the theme's face: grow it to the face (accents and
-         * descenders are not cut off) */
         if(lv_obj_check_type(o, &lv_label_class) && lv_label_get_long_mode(o) != LV_LABEL_LONG_WRAP){
             int32_t sh = lv_obj_get_style_height(o, 0);
             int lh = lv_font_get_line_height(lv_obj_get_style_text_font(o, 0));
             if(sh != LV_SIZE_CONTENT && !LV_COORD_IS_PCT(sh) && sh > 0 && sh < lh) lv_obj_set_height(o, lh);
         }
-        /* a label in a button that no longer fits (a wider theme face): step down to the theme's smaller sizes
-         * (one line: content-sized, or clipped rather than wrapped) */
         if(r == KIT_TEXT && (parent_role == KIT_BUTTON || parent_role == KIT_ICON_BUTTON) &&
            (lv_obj_get_style_width(o, 0) == LV_SIZE_CONTENT || lv_label_get_long_mode(o) != LV_LABEL_LONG_WRAP)){
             lv_obj_t *b = lv_obj_get_parent(o);
@@ -176,7 +159,6 @@ static void pass(lv_obj_t *o, kit_role_t parent_role, int is_root, int on_top, i
     for(uint32_t i = 0; i < n; i++) pass(lv_obj_get_child(o, (int32_t)i), r, 0, on_top, force);
 }
 static int on_top_layer(lv_obj_t *o){ return lv_obj_get_parent(o) == lv_layer_top() || lv_obj_get_parent(o) == lv_layer_sys(); }
-/* sizes decide roles (a row is wide): lay out first, or content built this frame still measures 0 */
 void kit_pass(lv_obj_t *root){
     if(!root || !theme_kit()->style) return;
     lv_obj_update_layout(root); pass(root, KIT_OTHER, 1, on_top_layer(root), 0);
@@ -199,9 +181,6 @@ kit_row_layout_t kit_row_layout_get(const lv_obj_t *row){
                               (lv_obj_has_flag(row, LV_OBJ_FLAG_USER_3) ? 2 : 0));
 }
 
-/* content can be built after a screen is shown (lists fill asynchronously, popups open on the top layer): before
- * each redraw, style whatever is new on the visible screen and the top layer. Styled widgets are skipped, and nothing
- * runs while the screen is idle. */
 static void before_redraw(lv_event_t *e){
     (void)e;
     lv_obj_t *cur = screen_get_root(screen_current());
@@ -211,7 +190,6 @@ static void before_redraw(lv_event_t *e){
     for(uint32_t i = 0; i < n; i++) kit_pass(lv_obj_get_child(top, (int32_t)i));
 }
 
-/* the styling pass watches redraws; screens_init calls this once the display exists (no-op for Default) */
 void kit_install(void){
     static int done;
     if(done || !theme_kit()->style || !lv_display_get_default()) return;
@@ -219,8 +197,7 @@ void kit_install(void){
     lv_display_add_event_cb(lv_display_get_default(), before_redraw, LV_EVENT_REFR_START, NULL);
 }
 
-/* ---- the active kit ---- */
-lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t back_cb);   /* ui.c */
+lv_obj_t *kit_default_header(lv_obj_t *root, const char *title, lv_event_cb_t back_cb);
 void kit_default_empty_state(kit_empty_kind_t kind, lv_obj_t *message);
 void kit_default_np_cover_state(lv_obj_t *cover, lv_obj_t *note, int show, int loading);
 void kit_default_home_progress(lv_obj_t *pill, int progress, int have_track, lv_color_t accent);

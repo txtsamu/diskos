@@ -1,7 +1,3 @@
-/* Host test for the outbound line's stall reopen (tx_open .. tx_drain_locked in ipc.c) against a fake mq_*: an ORPHANED
- * /player (the player restarted and recreated it, nothing reads the old queue) must not keep the line stuck until the 30 s
- * health tick. The whole of ipc.c is compiled into this translation unit (so the test sees its statics, and nothing is
- * sliced out or redeclared); only the mq_* calls are faked. Build: make -C tests ipc_tx_test */
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -13,7 +9,6 @@
 #include <sys/stat.h>
 #include <mqueue.h>
 
-/* ---- fake queues: fd 1 = the old (orphaned) /player, fd 2.. = what mq_open("/player") hands out next ---- */
 static int old_full = 1, new_full = 0, opens, closes, enoent;
 static char sent_old[64][16], sent_new[64][16];
 static int n_old, n_new;
@@ -34,8 +29,8 @@ static int fails;
 #define CHECK(c, msg) do{ if(!(c)){ printf("FAIL %s (line %d)\n", msg, __LINE__); fails++; } }while(0)
 static void reset(void){
     old_full = 1; new_full = 0; opens = closes = n_old = n_new = enoent = 0; g_txh = g_txn = 0; g_send_err = 0;
-    g_tx = (mqd_t)1;                                  /* starts on the old queue */
-    g_rx_frames = 1;                                  /* the player has answered before: 6 s hold */
+    g_tx = (mqd_t)1;
+    g_rx_frames = 1;
 }
 static void enq(const char *f, uint32_t age_ms){
     txe_t *e = &g_txq[(g_txh + g_txn) % TX_MAX];
@@ -47,7 +42,6 @@ int main(void){
     CHECK(!tx_stall_reopen(1000, 0) && tx_stall_reopen(2000, 0), "threshold");
     CHECK(tx_stall_reopen(5, 0xFFFFF000u), "wraps");
 
-    /* orphan: three frames stuck >2 s on the dead queue go out IN ORDER on the reopened one, none on the dead one */
     reset(); enq("0100AAAA", 2500); enq("0103BBBB", 2400); enq("0201CCCC", 2300);
     drain();
     CHECK(g_txn == 0, "line empties after reopen");
@@ -55,23 +49,19 @@ int main(void){
     CHECK(n_old == 0 && opens == 1 && closes == 1, "dead fd closed once, reopened once");
     CHECK(!g_send_err, "no toast");
 
-    /* a short stall must not touch the fd (a busy player drains on its own) */
     reset(); enq("0100AAAA", 500); drain();
     CHECK(g_txn == 1 && opens == 0 && closes == 0, "no reopen under 2 s");
 
-    /* busy-but-healthy: the reopened queue is full too -> frame stays held, and no reopen storm on the next passes */
     reset(); new_full = 1; enq("0100AAAA", 2500); drain(); drain(); drain();
     CHECK(g_txn == 1 && opens == 1 && closes == 1, "one reopen per stall window");
-    g_txq[g_txh].s0 -= 2500; drain();                                   /* another 2 s of stall -> one more reopen */
+    g_txq[g_txh].s0 -= 2500; drain();
     CHECK(g_txn == 1 && opens == 2, "reopens again after another window");
     new_full = 0; drain();
     CHECK(g_txn == 0 && n_new == 1, "delivered once it drains");
 
-    /* still undeliverable at the hold limit: dropped and reported as before */
     reset(); new_full = 1; enq("0100AAAA", 7000); drain();
     CHECK(g_txn == 0 && g_send_err == 1, "hold expiry still fails the frame");
 
-    /* new /player not created yet (ENOENT right after a restart): frame waits, then goes out when it appears */
     reset(); enoent = 1; enq("0100AAAA", 2500); drain();
     CHECK(g_txn == 1 && n_new == 0, "waits while /player is absent");
     enoent = 0; drain();

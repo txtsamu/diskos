@@ -26,8 +26,6 @@ import sys
 
 from . import platform_probe
 
-# Standard host tools that also ship as an ordinary system package (squashfs-tools).
-# ONLY these may fall back to a PATH copy when the vendored binary is absent.
 _SYSTEM_FALLBACK = frozenset({"mksquashfs", "unsquashfs"})
 
 
@@ -38,7 +36,6 @@ def resource_root():
     - Source tree: the installer/ dir (parent of this package)."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return sys._MEIPASS
-    # this file is installer/diskos_installer/bundle.py -> installer/
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -59,7 +56,7 @@ def is_vendored(path):
         vd = os.path.abspath(vendor_dir())
         return os.path.commonpath([os.path.abspath(path), vd]) == vd
     except ValueError:
-        return False   # different drive/root (Windows) -> not vendored
+        return False
 
 
 def native_build_script(kind="squashfs"):
@@ -102,7 +99,6 @@ def _verify_windows_manifest(sources, binaries):
         inputs, outputs = text.split("\nOutput SHA256:\n")
         inputs = inputs.split("\nInput SHA256 (paths relative to installer):\n")[1]
         import re
-        # sha256sum lines: "<hash>  <name>" (text) or "<hash> *<name>" (binary; MSYS2 writes this form).
         line_re = re.compile(r"^([0-9a-f]{64}) [ *](.+)$")
         def check(section, name, path):
             matches = [m.group(1) for m in map(line_re.match, section.splitlines())
@@ -160,18 +156,16 @@ def native(name, required=True):
     filename = name + ".exe" if windows and not name.endswith((".bin", ".exe")) else name
     p = os.path.join(vendor_dir(), filename)
     try:
-        os.lstat(p)                          # present (even as a dangling/broken symlink) -> vendored
-        return p if windows else _ensure_exec(p)               # dangling symlink still returned -> fails loudly downstream
+        os.lstat(p)
+        return p if windows else _ensure_exec(p)
     except FileNotFoundError:
-        pass                                 # genuinely absent -> may fall back below
+        pass
     except OSError:
-        # the vendored path exists but is inaccessible (e.g. an unsearchable vendor dir): do NOT
-        # mask a broken install with a system copy - return it so it fails loudly downstream.
         return p if windows else _ensure_exec(p)
     if name in _SYSTEM_FALLBACK and not windows:
         sysp = _which_abs(name)
         if sysp:
-            return sysp                       # system tool: absolute, reused as-is, not chmod'd
+            return sysp
     if not required:
         return None
     from .errors import PreflightError
@@ -226,8 +220,6 @@ def native_env(tool_path=None):
         if tool_path is None:
             raise ValueError("Windows native environment requires an explicit executable")
         _verify_windows_dlls(tool_path)
-        # Private runtime DLLs MUST be beside the executable. PATH is searched after
-        # System32, so putting a lib/ directory on PATH alone cannot protect them.
         env["PATH"] = os.path.dirname(os.path.abspath(tool_path))
         return env
     var = "DYLD_LIBRARY_PATH" if o == "macos" else "LD_LIBRARY_PATH"
@@ -236,13 +228,12 @@ def native_env(tool_path=None):
         if os.path.isdir(libdir):
             env[var] = libdir + (os.pathsep + env[var] if env.get(var) else "")
         return env
-    # System tool: strip our / PyInstaller loader overrides so it uses its own libs.
     for v in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
-        orig = env.pop(v + "_ORIG", None)    # PyInstaller stashes the pre-launch value here
+        orig = env.pop(v + "_ORIG", None)
         if orig is not None:
             env[v] = orig
         elif getattr(sys, "frozen", False):
-            env.pop(v, None)                 # frozen w/o _ORIG -> don't leak _MEIPASS to a system tool
+            env.pop(v, None)
     return env
 
 
@@ -280,18 +271,12 @@ def _windows_api():
         fn.argtypes, fn.restype = args, result
     return api
 
-# External dependencies observed in the built Windows squashfs tools and their
-# adjacent MSYS runtime. Add names only with import evidence for shipped tools.
 _WINDOWS_OS_DLLS = frozenset({"kernel32.dll", "ntdll.dll"})
-# Static UCRT64 usbboot import evidence: exactly these Windows 10+ OS contracts
-# (filesystem: _lock_file/_unlock_file, pulled in by the MinGW stdio runtime; seen 2026-10-09).
-# The binding helper has no CRT imports or CRT startup.
 _WINDOWS_USBBOOT_UCRT = frozenset(
     "api-ms-win-crt-" + part + "-l1-1-0.dll" for part in (
         "convert", "environment", "filesystem", "heap", "locale", "math", "private",
         "runtime", "stdio", "string", "time", "utility"))
 
-# Explicit System32 loads by the binding helper; never allowed as static imports.
 _WINDOWS_BIND_OS = frozenset({"setupapi.dll", "cfgmgr32.dll", "advapi32.dll", "newdev.dll"})
 _WINDOWS_BIND_IMPORTS = frozenset({"kernel32.dll"})
 
@@ -342,7 +327,6 @@ def _verify_windows_dlls(tool_path):
                         return raw + rva - addr
                 raise ValueError("unmapped PE import")
             directory = opt + (112 if magic == 0x20b else 96)
-            # Delay-loaded dependencies cannot be verified by this slice.
             if any(struct.unpack_from("<II", data, directory + 13 * 8)):
                 raise ValueError("delay imports are unsupported")
             rva = struct.unpack_from("<I", data, directory + 8)[0]

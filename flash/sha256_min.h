@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: MIT */
 /* Copyright (c) 2026 diskOS contributors */
-/* sha256_min.h - freestanding SHA-256 (FIPS 180-4) for the DRAM NAND tools: no libc, no heap, streaming.
- * Used to hash NAND partitions on the device (fed one 2 KiB page at a time). Checked against Python's
- * hashlib by tests/release (host build of this same header). */
 #ifndef SHA256_MIN_H
 #define SHA256_MIN_H
 typedef struct { unsigned int h[8]; unsigned int nbuf; unsigned long long nbytes; unsigned char buf[64]; } sha256_ctx;
@@ -47,7 +44,6 @@ static void sha256_update(sha256_ctx *c, const unsigned char *p, unsigned int n)
         if(c->nbuf == 64){ sha256_block(c, c->buf); c->nbuf = 0; }
     }
 }
-/* out: the digest as 8 big-endian words (word i = bytes 4i..4i+3 of the standard digest) */
 static void sha256_final(sha256_ctx *c, unsigned int out[8]){
     unsigned long long bits = c->nbytes * 8u; int i;
     unsigned char pad = 0x80, z = 0;

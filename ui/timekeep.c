@@ -27,7 +27,7 @@ time_t timekeep_load(const char *path){
 }
 
 int timekeep_save(const char *path, time_t t){
-    if(!in_range((long long)t)) return -1;                 /* never persist an unset or garbage clock */
+    if(!in_range((long long)t)) return -1;
     char tmp[256];
     if(snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int)sizeof tmp) return -1;
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);

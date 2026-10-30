@@ -5,7 +5,6 @@
 from pathlib import Path
 import os, subprocess, tempfile
 app = Path(__file__).resolve().parents[1]
-# vendored beside the sources (public ui/ tree) or one level up (dev tree)
 lvgl = next(c for c in (app/'lvgl', app.parent/'lvgl') if (c/'src/font/lv_font.c').exists())
 points=sorted(set(map(ord,'世界贈予我的妖精帝國曼衍珠汝華Nada Upasana PundarikaLudwig GöranssonZeus’s Law‘’ЛенинградΑθήνα'))- {32})
 header=r'''
@@ -78,4 +77,4 @@ with tempfile.TemporaryDirectory(prefix='diskos-font-test-') as tmp:
     cmd=[os.environ.get('CC','cc'),'-g','-O1','-ffunction-sections','-fdata-sections','-fsanitize=address,undefined','-DLV_CONF_INCLUDE_SIMPLE','-I'+str(app),'-I'+str(app.parent),*[str(x) for x in sources],'-Wl,--gc-sections','-o',str(p/'test')]
     subprocess.run(cmd,check=True);run_harness(p/'test',15)
 
-print('COMPLETE font_coverage_test.py')   # last line: the runner requires it, so an early clean exit cannot pass
+print('COMPLETE font_coverage_test.py')

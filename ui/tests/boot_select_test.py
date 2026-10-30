@@ -21,14 +21,10 @@ import tempfile
 app = Path(__file__).resolve().parents[1]
 driver = app / 'tests' / 'bootsel_driver.c'
 
-# the helper ships in the installer payload; dev tree and public tree sit at different depths
 helper = next((p for p in (app.parents[1] / 'installer' / 'payload' / 'diskos-selected',
                            app.parent / 'payload' / 'diskos-selected') if p.is_file()), None)
 if helper is None:
     raise SystemExit('FAIL cannot find payload/diskos-selected next to this tree')
-# The stock firmware whose shell runs the helper: DISKOS_FW_BASE picks the version (default V2.40) and
-# DISKOS_FW_ROOT its extracted rootfs. The BusyBox must be that version's pinned binary, so a run cannot
-# quietly use another version's shell and report it as this one.
 FW_BASE = os.environ.get('DISKOS_FW_BASE', '240')
 FW_BUSYBOX_MD5 = {'209': 'e6b2bb328e1c08238878991c0aae062d', '228': 'c1af60e81cea22b040b957c00404de9e',
                   '240': '5d8a5e60ee7d40002fe70f43228596cb', '257': '8651f07f6387df9f10a22a73f0f9450f'}
@@ -70,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='diskos-bootsel-') as t:
 
     def shell_says(name, path):
         env = dict(os.environ, DISKOS_BOOT_SELECT=str(path))
-        if name == f'v{FW_BASE}-ash':             # this base's own applets, not the host's
+        if name == f'v{FW_BASE}-ash':
             env['PATH'] = f'{fwbin}:{env["PATH"]}'
         r = subprocess.run(shells[name], env=env, timeout=10, capture_output=True)
         if r.returncode not in (0, 1):

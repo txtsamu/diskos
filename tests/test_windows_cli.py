@@ -25,8 +25,6 @@ import verify_git_blobs
 
 
 def windows_normalize_toc(toc):
-    # Model datastruct.py:309-384 in PyInstaller 6.16.0, without importing it.
-    # Equal-priority duplicates keep the first source; Windows keys ignore case.
     priorities = {'DEPENDENCY': 3, 'SYMLINK': 2, 'BINARY': 1, 'EXTENSION': 1}
     options, entries = [], {}
     for dest, source, kind in toc:
@@ -77,7 +75,6 @@ class WindowsBuildScriptTests(unittest.TestCase):
         self.script = (root / 'build/build-windows.ps1').read_text(encoding='ascii')
 
     def test_capability_checks_are_unchanged(self):
-        # Keep the committed enablement gates verbatim, including argument forwarding.
         gate = '''    $capabilityArgs = @()
     if ($EnableWindowsFlash) {
         $revision = & git rev-parse --verify HEAD
@@ -108,7 +105,6 @@ class WindowsBuildScriptTests(unittest.TestCase):
                 mock.patch.dict(sys.modules, {'deterministic_zip': types.SimpleNamespace(checked_stat=lambda p: None)}):
             with self.assertRaisesRegex(ValueError, 'retained tools-build hash'):
                 exec(code, namespace)
-        # Derive the recipe's input list; the fixture covers every generated output.
         recipe = (root / 'build/build-windows-tools.sh').read_text()
         inputs = re.search(r'\(cd "\$root" && sha256sum (.*?)\)', recipe, re.S).group(1)
         inputs = inputs.replace('\\\n', '').split()
@@ -256,7 +252,6 @@ class WindowsBuildScriptTests(unittest.TestCase):
                 [Environment]::SetEnvironmentVariable($entry.Key, $null, 'Process')
             }
         }
-        # NUL disables all pip config files on Windows, including global/site config.
         [Environment]::SetEnvironmentVariable('PIP_CONFIG_FILE', 'NUL', 'Process')
         & $buildPython -I -m pip --isolated --disable-pip-version-check install --no-cache-dir @installArgs
         if ($LASTEXITCODE -ne 0) { throw 'Could not install build requirements' }
@@ -484,7 +479,6 @@ class WindowsOutputTests(unittest.TestCase):
         self.assertEqual(stream.text, 'OK \\u97f3')
 
     def test_parser_error_redirected_in_subprocess(self):
-        # Like cmd redirection: both inherited streams point at a real file.
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'cli.log'
             env = dict(os.environ, PYTHONIOENCODING='cp1252:strict')
@@ -599,8 +593,6 @@ class FirmwareDependencyTests(unittest.TestCase):
                  final_binaries=None, final_datas=None, tk_collected=()):
         root = Path(__file__).resolve().parents[1]
         dll = Path(work).parent / 'libusb/libusb-1.0.dll'
-        # Synthetic bytes keep the mechanism tests independent of local build inputs.
-        # The separate evidence test compares the real manifest to the official DLL.
         manifest = json.loads((root / 'build/windows-libusb.json').read_text())
         manifest.update(dll_sha256=hashlib.sha256(dll_bytes).hexdigest(), dll_size=len(dll_bytes))
         manifest.update(pin or {})
@@ -665,7 +657,6 @@ class FirmwareDependencyTests(unittest.TestCase):
         def analysed_result(*args, **kwargs):
             nonlocal analysed
             if host[0] == 'Windows':
-                # Spec inputs, then hook collection before build_main.py:745.
                 frozen.binaries = build_main.normalize_toc(frozen.binaries)
                 frozen.datas = build_main.normalize_toc(frozen.datas)
                 for stage in ('hooks', 'ctypes', 'dependencies'):
@@ -673,11 +664,9 @@ class FirmwareDependencyTests(unittest.TestCase):
                         frozen.binaries += list(collection_binaries)
                         frozen.datas += list(collection_datas)
                     if stage == 'ctypes':
-                        # Separate normalizations at build_main.py:824-825.
                         frozen.datas = build_main.normalize_toc(frozen.datas)
                         frozen.binaries = build_main.normalize_toc(frozen.binaries)
                         continue
-                    # Combined reclassification at :745 and :1009.
                     combined = build_main.normalize_toc(frozen.datas + frozen.binaries)
                     frozen.binaries = [entry for entry in combined if entry[2] in ('BINARY', 'EXTENSION')]
                     frozen.datas = [entry for entry in combined if entry[2] not in ('BINARY', 'EXTENSION')]
@@ -694,8 +683,6 @@ class FirmwareDependencyTests(unittest.TestCase):
         outputs_exe = [object(), object()] if host[0] == 'Windows' else [object()]
         exe = mock.Mock(side_effect=outputs_exe)
         spec = root / 'build/diskos-installer.spec'
-        # Match building.build_main.build() in the pinned PyInstaller 6.16.0.
-        # Plain exec adds builtins; runpy adds globals the real builder lacks.
         namespace = {
             'DISTPATH': str(Path(work) / 'dist'),
             'HOMEPATH': str(Path(work) / 'PyInstaller'),
@@ -824,16 +811,15 @@ class FirmwareDependencyTests(unittest.TestCase):
                 self.run_spec(work, final_datas=[pinned])
 
     def test_spec_refuses_every_alternate_usb_backend_name(self):
-        # Runtime candidates at pyi_rth_usb.py:79-85; Windows glob at :47.
         candidates = ('usb-1.0', 'libusb-1.0', 'usb', 'usb-0.1', 'libusb0',
                       'libusb', 'openusb', 'cygusb-1.0', 'cygusb0')
         for candidate in candidates:
             names = [candidate + suffix for suffix in ('.dll', '-host.dll', 'extra.DLL')]
             if candidate == 'cygusb-1.0':
-                names.append('cygusb-1.0-0.dll')  # Exact collection-hook fallback.
+                names.append('cygusb-1.0-0.dll')
             for name in names:
                 if name == 'libusb-1.0.dll':
-                    continue  # The conflicting canonical name has its own regression.
+                    continue
                 for field in ('source', 'destination'):
                     for kind in ('BINARY', 'DATA'):
                         with self.subTest(name=name, field=field, kind=kind), \
@@ -852,7 +838,6 @@ class FirmwareDependencyTests(unittest.TestCase):
                 for dest in ('libusb-1.0.dll', 'LIBUSB-1.0.DLL', './libusb-1.0.dll'):
                     for kind in ('BINARY', 'DATA'):
                         host = (dest, 'C:\\Windows\\System32\\libusb-1.0.dll', kind)
-                        # Real normalization discards this conflict, retaining the pin.
                         raw = [host, pinned] if kind == 'DATA' else [pinned, host]
                         self.assertEqual(windows_normalize_toc(raw), [pinned])
                         with self.subTest(stage=stage, dest=dest, kind=kind), \
@@ -914,7 +899,6 @@ class FirmwareDependencyTests(unittest.TestCase):
                             self.assertRaisesRegex(SystemExit, 'PyInstaller-COPYING.*placeholder'):
                         self.run_spec(work, args, licence_text=text)
                     self.assertEqual(hook.read_text(encoding='ascii'), 'previous hook\n')
-            # A short non-placeholder text passes: this is a marker check, not a length check.
             self.run_spec(work, licence_text='licence\n')
             self.run_spec(work, ('--enable-windows-flash', '--source-commit', 'a' * 40),
                           licence_text='licence\n')
@@ -940,7 +924,7 @@ class FirmwareDependencyTests(unittest.TestCase):
         self.assertIn('diskos-installer.exe', recovery)
         self.assertIn('diskos-installer-cli.exe restore-stock --firmware', recovery)
         with tempfile.TemporaryDirectory() as work:
-            self.run_spec(work)  # Checks each EXE's name, entry script and retained hooks.
+            self.run_spec(work)
 
     def test_spec_inventory_is_complete_and_exact_on_every_platform(self):
         from test_windows_release_inventory import NATIVE, PAYLOAD

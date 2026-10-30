@@ -23,8 +23,6 @@ class OutseqGuard(unittest.TestCase):
         self.assertEqual(offenders, [], 'routing frames must go through outseq.c:\n' + '\n'.join(offenders))
 
     def test_play_preamble_only_sent_by_admit(self):
-        # the "should this play re-assert the route / work mode?" gate lives in admit.c; a caller that sends the
-        # preamble itself has copied the gate again
         call = re.compile(r'\boutseq_(local_preamble|assert_workmode)\s*\(')
         offenders = []
         for path in sorted(APP.glob('*.c')):
@@ -37,8 +35,6 @@ class OutseqGuard(unittest.TestCase):
         self.assertTrue(call.search((APP / 'admit.c').read_text()))
 
     def test_playpause_frame_spelled_once(self):
-        # the pause and the resume half of every switch send the same toggle; it is ipc.h's PLAYER_CMD_PLAYPAUSE
-        # (theme_kit.c only names the transport commands for the theme kits)
         offenders = []
         for path in sorted(APP.glob('*.c')) + sorted(APP.glob('*.h')):
             if path.name in ('ipc.h', 'theme_kit.c', 'sqlite3.c') or path.name.startswith('font_'):
@@ -50,10 +46,8 @@ class OutseqGuard(unittest.TestCase):
         self.assertIn('#define PLAYER_CMD_PLAYPAUSE "0201000C0000"', (APP / 'ipc.h').read_text())
 
     def test_admission_not_recomposed_by_callers(self):
-        # "may the UI touch the Player now?" is admit_check(); the facts it reads (the launch verdict, an output
-        # switch in flight) are handed to admit.c once, in main.c's struct admit_env, not re-combined per caller
         facts = re.compile(r'\b(ui_local_playback_allowed|modes_output_busy|ui_output_blocked|ui_player_settling)\b')
-        owners = {'srcswitch.c', 'srcswitch.h', 'modes.c', 'modes.h', 'admit.c', 'admit.h'}   # where the facts are defined, owned or documented
+        owners = {'srcswitch.c', 'srcswitch.h', 'modes.c', 'modes.h', 'admit.c', 'admit.h'}
         offenders = []
         for path in sorted(APP.glob('*.c')) + sorted(APP.glob('*.h')):
             if path.name in owners or path.name in ('sqlite3.c', 'sqlite3.h') or path.name.startswith('font_'):
@@ -62,12 +56,11 @@ class OutseqGuard(unittest.TestCase):
                 if not facts.search(line):
                     continue
                 if path.name == 'main.c' and ('.local_playback_allowed' in line or 'Output is switching' in line):
-                    continue   # the env table, and ui_theme_reload's exec guard (not a Player command)
+                    continue
                 offenders.append(f'{path.name}:{n}: {line.strip()[:100]}')
         self.assertEqual(offenders, [], 'ask admit_check() instead of combining the facts:\n' + '\n'.join(offenders))
 
     def test_outseq_still_owns_them(self):
-        # the guard is meaningless if the pattern stopped matching the real frames
         self.assertTrue(ROUTING.search((APP / 'outseq.c').read_text()))
 
 

@@ -1,14 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Power settings and the SD-safe shutdown (see power.h for the stock facts this is built on). */
 #include "command_spawn.h"
 #include "power.h"
 #include <stdio.h>
 #include <string.h>
 #include "sqlite3.h"
 
-/* ---- option tables and frames ------------------------------------------------------------------------------------ */
-/* Stock's Idle poweroff menu (V2.57 mq_ui 0x46e298 jump table): Off, 5, 10, 30, 60, 90, 120 minutes, sent as seconds. */
 static const int IDLE_SECS[POWER_IDLE_N] = { 0, 300, 600, 1800, 3600, 5400, 7200 };
 static const char *const IDLE_LABEL[POWER_IDLE_N] = { "Off", "5 min", "10 min", "30 min", "60 min", "90 min", "120 min" };
 
@@ -37,7 +34,6 @@ int power_apply_charge_via(int (*send)(const char *), int on){
     return send(f) == 0 ? 0 : -1;
 }
 
-/* The player's battery task (0x4e2f9c): raw >= 551 is "too high", a leading '-' is "too low". */
 int power_temp_state(int tenths_c){ return tenths_c >= 551 ? 1 : (tenths_c < 0 ? 2 : 0); }
 const char *power_temp_msg(int state){
     return state == 1 ? "Temperature too high" : (state == 2 ? "Temperature too low" : NULL);
@@ -64,16 +60,15 @@ int power_read_sysconfig(const char *db_path, const char *column){
     return v;
 }
 
-/* ---- idle power-off run by diskOS ---- */
 static struct { uint32_t since; int started, fired; } g_idle;
 void power_idle_reset(void){ memset(&g_idle, 0, sizeof g_idle); }
 int power_idle_tick(uint32_t now, uint32_t limit_secs, int playing, uint32_t last_input, int (*request)(void)){
     if(limit_secs == 0 || playing){ g_idle.started = 0; g_idle.fired = 0; return 0; }
     if(!g_idle.started){ g_idle.started = 1; g_idle.fired = 0; g_idle.since = now; }
-    if((int32_t)(last_input - g_idle.since) > 0 && (int32_t)(now - last_input) >= 0){ g_idle.since = last_input; g_idle.fired = 0; }   /* input restarts it */
+    if((int32_t)(last_input - g_idle.since) > 0 && (int32_t)(now - last_input) >= 0){ g_idle.since = last_input; g_idle.fired = 0; }
     if(g_idle.fired || now - g_idle.since < limit_secs * 1000u) return 0;
     g_idle.fired = 1;
-    if(request && request() != 0){ g_idle.since = now; g_idle.fired = 0; }   /* refused: try again after another period */
+    if(request && request() != 0){ g_idle.since = now; g_idle.fired = 0; }
     return 1;
 }
 void power_takeover_reset(pw_take_t *t){ t->sent = 0; }
@@ -81,38 +76,29 @@ int power_takeover_step(pw_take_t *t, int (*read_secs)(void), int (*send)(const 
     if(!t || !read_secs || !send) return -1;
     int s = read_secs();
     if(t->sent){
-        if(s == 0) return 1;              /* the player's setter ran: confirmed off */
-        if(s > 0) t->sent = 0;            /* still on: send again below */
-        else return 0;                    /* unreadable: keep waiting */
+        if(s == 0) return 1;
+        if(s > 0) t->sent = 0;
+        else return 0;
     }
     int prev = stock_secs ? *stock_secs : 0;
-    if(stock_secs && s > 0) *stock_secs = s;   /* remember stock's value for a later restore; diskOS's own setting is untouched */
+    if(stock_secs && s > 0) *stock_secs = s;
     if(send("0664000C0000") != 0){ if(stock_secs) *stock_secs = prev; return -1; }
     t->sent = 1;
     return 0;
 }
 
-/* ---- sleep timer expiry ------------------------------------------------------------------------------------------ */
 pw_sleep_act_t power_sleep_decide(uint32_t armed_ms, uint32_t elapsed_ms, int guarded, int playing, int action){
     if(!armed_ms || elapsed_ms < armed_ms) return PW_SLEEP_WAIT;
-    if(action == POWER_SLEEP_SHUTDOWN) return PW_SLEEP_SHUTDOWN;   /* not a toggle: the seek guard does not apply */
+    if(action == POWER_SLEEP_SHUTDOWN) return PW_SLEEP_SHUTDOWN;
     if(guarded) return PW_SLEEP_WAIT;
     return playing ? PW_SLEEP_PAUSE : PW_SLEEP_DISARM;
 }
 
-/* ---- SD-safe shutdown -------------------------------------------------------------------------------------------- */
-/* Same order as the Restart action: close SD admission, wait for every admitted writer, a full `sync` that must
- * succeed - and only then tell the player to power off. Any failure reopens the card and says so; nothing is powered off
- * after a failed step. The player's own power-off routine kills mq_ui and calls `poweroff -f` with no sync of its own, so
- * this sequence is what makes the card safe. */
 static struct { power_ops_t ops; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;
 
 static uint32_t pw_elapsed(void){ return g_pw.ops.now_ms(g_pw.ops.ctx) - g_pw.t0; }
 static void pw_fail(const char *msg){
     if(g_pw.phase == PW_HANDOFF){
-        /* Take the player's timer back. 0806 does not persist and has no read-back, and a queued frame proves nothing, so
-         * the cancel can never be confirmed: keep the card CLOSED (a stock power-off may still be pending) until the player
-         * has restarted or the Disc reboots. */
         g_pw.cancel_sent = g_pw.ops.send(g_pw.ops.ctx, "0806000C0000") == 0;
         g_pw.phase = PW_PROTECTED; g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
         g_pw.ops.toast(g_pw.ops.ctx, "Shutdown didn't complete - restart the Disc to use the card");
@@ -152,22 +138,18 @@ pw_phase_t power_shutdown_tick(void){
         int r = g_pw.ops.sync_poll(g_pw.ops.ctx);
         if(r < 0){ pw_fail("Couldn't shut down - card flush failed"); break; }
         if(r == 1){
-            /* 0806 is the stock sleep timer: 1 s should make the player run its own power-off routine within about 2 s.
-             * UNVERIFIED: the player resets that counter every second while a separate state word equals 1
-             * (mq_player_257.dis 0x4f4558-0x4f4560, 0x4f46a4); its meaning is not identified. The hand-off timeout below
-             * covers it. */
             if(g_pw.ops.send(g_pw.ops.ctx, "0806000C0001") != 0){ pw_fail("Couldn't shut down - try again"); break; }
             g_pw.phase = PW_HANDOFF; g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
         } else if(pw_elapsed() >= POWER_SYNC_MS){ g_pw.ops.sync_kill(g_pw.ops.ctx); pw_fail("Couldn't shut down - card busy, try again"); }
         break; }
     case PW_PROTECTED:
-        if(!g_pw.cancel_sent && pw_elapsed() >= POWER_CANCEL_RETRY_MS){   /* keep trying to queue the cancel; never reopens */
+        if(!g_pw.cancel_sent && pw_elapsed() >= POWER_CANCEL_RETRY_MS){
             g_pw.cancel_sent = g_pw.ops.send(g_pw.ops.ctx, "0806000C0000") == 0;
             g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
         }
         break;
     case PW_HANDOFF:
-        if(pw_elapsed() >= POWER_HANDOFF_MS) pw_fail("Couldn't shut down - try again");   /* still running: the player did not power off */
+        if(pw_elapsed() >= POWER_HANDOFF_MS) pw_fail("Couldn't shut down - try again");
         break;
     }
     return g_pw.phase;
@@ -185,26 +167,21 @@ pw_phase_t power_shutdown_tick(void){
 #include <signal.h>
 #include <sys/wait.h>
 
-void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);   /* main.c */
+void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
 #define POWER_SYSCONFIG "/usr/data/fiio/db/sysconfig.db"
 
 int power_supported(void){ return fw_os_ver() == 257; }
 int power_apply_charge(int on){ return power_supported() ? power_apply_charge_via(ipc_send_cmd, on) : -1; }
 
-static uint32_t g_key_ms; static int g_have_key;   /* physical-key input the main loop's touch timestamp misses */
+static uint32_t g_key_ms; static int g_have_key;
 static pw_take_t g_take; static int g_take_ok; static unsigned g_take_gen; static int g_take_gen_set;
 static int take_read(void){ return power_read_sysconfig(POWER_SYSCONFIG, "POWER_SAVE"); }
-/* diskOS owns idle power-off (see power.h): the player's own must be off, CONFIRMED by a POWER_SAVE re-read, before
- * diskOS's idle timer may run. Retried by power_tick until confirmed, and redone after every player reconnect (new ipc
- * generation). Stock's value is only recorded (cfg stock_power_save, for a restore); it never becomes the diskOS setting. */
 static void idle_takeover(void){
     unsigned gen = ipc_generation();
     if(!g_take_gen_set || gen != g_take_gen){ g_take_gen = gen; g_take_gen_set = 1; power_takeover_reset(&g_take); g_take_ok = 0; }
     if(g_take_ok) return;
     int sps = cfg_get_int("stock_power_save", 0), was = sps;
-    /* background sync retried by power_tick: send silently, or a boot that beats the player's /player queue toasts
-     * "Player didn't respond" for a command the user never gave */
     int r = power_takeover_step(&g_take, take_read, ipc_send_probe, &sps);
     if(sps != was) cfg_set_int("stock_power_save", sps);
     if(r == 1) g_take_ok = 1;
@@ -224,7 +201,7 @@ static int  real_drained(void *c){ (void)c; return ui_sd_quiesce_drained(); }
 static void real_quiesce_end(void *c){ (void)c; ui_sd_quiesce_end(); }
 static int  real_sync_start(void *c){
     (void)c;
-    pid_t p = 0;                                   /* posix_spawn, not fork(): a fork of the big UI can fail for memory */
+    pid_t p = 0;
     char *argv[] = { "sync", NULL };
     if(command_spawn(&p, argv) != 0 || p <= 0) return -1;
     g_sync_pid = p; return 0;
@@ -266,12 +243,12 @@ void power_tick(uint32_t last_input_ms, int playing){
     static uint32_t last; static int have_last, temp_state;
     power_shutdown_tick();
     { static unsigned pg; static int pg_set; unsigned g = ipc_generation();
-      if(pg_set && g != pg) power_shutdown_new_generation();   /* the player restarted: a pending stock power-off is gone */
+      if(pg_set && g != pg) power_shutdown_new_generation();
       pg = g; pg_set = 1; }
     uint32_t now = lv_tick_get();
     if(power_supported()){
         if(g_have_key && (int32_t)(g_key_ms - last_input_ms) > 0) last_input_ms = g_key_ms;
-        if(power_shutdown_phase() == PW_OFF && g_take_ok)   /* never before the player's own idle power-off is confirmed off */
+        if(power_shutdown_phase() == PW_OFF && g_take_ok)
             power_idle_tick(now, (uint32_t)power_idle_secs(cfg_get_int("idle_off_idx", 0)), playing, last_input_ms, idle_request);
     }
     if(have_last && now - last < 5000u) return;

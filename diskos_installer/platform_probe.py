@@ -11,9 +11,8 @@ import platform
 import struct
 import sys
 
-MASKROM_VID = 0x0a108 & 0xFFFF  # printed as a108 by lsusb; VID field is 0xa108
+MASKROM_VID = 0x0a108 & 0xFFFF
 MASKROM_PID = 0xeaef
-# lsusb shows "a108:eaef"; libusb reports idVendor=0xa108 idProduct=0xeaef
 MASKROM_VID = 0xa108
 
 
@@ -109,7 +108,6 @@ def _bundled_libusb_backend():
         import usb.backend.libusb1 as libusb1
         from . import bundle
         libdir = os.path.join(bundle.vendor_dir(), "lib")
-        # macOS dylib or Linux .so, whatever we bundled
         for pat in ("libusb-1.0*.dylib", "libusb-1.0.so*", "libusb-1.0*"):
             hits = sorted(glob.glob(os.path.join(libdir, pat)))
             if hits:
@@ -123,11 +121,11 @@ def _maskrom_count_pyusb():
     """Count devices in Ingenic mask-ROM mode via pyusb. Returns int or None if
     pyusb/backend is unavailable."""
     try:
-        import usb.core  # pyusb (bundled)
+        import usb.core
     except Exception:
         return None
     try:
-        backend = _bundled_libusb_backend()   # prefer our bundled libusb
+        backend = _bundled_libusb_backend()
         devs = list(usb.core.find(find_all=True, idVendor=MASKROM_VID,
                                   idProduct=MASKROM_PID, backend=backend))
         return len(devs)

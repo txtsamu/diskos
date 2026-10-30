@@ -7,11 +7,6 @@
 #include "dacinfo.h"
 #include <stdio.h>
 
-/* USB DAC (SCR_DAC): a read-only status page, opened from the Apps page, for when the Disc is a sound card for a computer
- * or phone (Source mode USB DAC). It shows the stream the host is sending (sample rate, PCM or DSD, from dacinfo.c) and the
- * volume. One 500 ms timer runs only while the page is on show (the screen manager calls dac_visible(0/1)), so nothing
- * polls elsewhere. Outside USB DAC mode it says so and offers the Working Mode picker. */
-
 #define TICK_MS 500
 
 static lv_obj_t *g_rate, *g_fmt_pill, *g_fmt, *g_vol_lbl, *g_vol_bar, *g_note, *g_btn;
@@ -40,7 +35,6 @@ static void refresh(void){
     track_state_t st; ipc_get_state(&st);
     dac_stream_t s = dacinfo_get();
 
-    /* the volume is the Player's own level for this mode, so it shows whether or not a host is streaming */
     char vb[24]; snprintf(vb, sizeof vb, "Volume  %d", st.volume);
     lv_label_set_text(g_vol_lbl, vb);
     lv_bar_set_value(g_vol_bar, st.volume < 0 ? 0 : st.volume > VOL_MAX ? VOL_MAX : st.volume, LV_ANIM_OFF);
@@ -79,9 +73,8 @@ void dac_open(void){
 
 void dac_create(lv_obj_t *root){
     ui_header(root, "USB DAC");
-    dacinfo_init();   /* from here on a stream that starts before the page is opened is still seen */
+    dacinfo_init();
 
-    /* all inside the round glass: the chord at y90..y260 is 270 px or more */
     g_rate = lv_label_create(root);
     lv_obj_set_width(g_rate, 260); lv_obj_set_style_text_align(g_rate, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(g_rate, TF(UI_24), 0);
@@ -122,7 +115,7 @@ void dac_create(lv_obj_t *root){
 
     g_btn = lv_button_create(root);
     lv_obj_set_size(g_btn, 190, 44);
-    lv_obj_set_style_shadow_width(g_btn, 0, 0);   /* flat, like every other button */
+    lv_obj_set_style_shadow_width(g_btn, 0, 0);
     lv_obj_align(g_btn, LV_ALIGN_TOP_MID, 0, 196);
     lv_color_t acc = ui_current_accent();
     lv_obj_set_style_bg_color(g_btn, acc, 0);

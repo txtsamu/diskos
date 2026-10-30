@@ -1,15 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Host test for admit.c, the "may the UI touch the Player now?" module.
- *   1. a table of situations -> verdict for every question, written from the intended rules (admit.h);
- *   2. the pause -> Output sequence -> seek -> resume dance, frame by frame;
- *   3. the post-restart settle window and the play-recent latch against the clock;
- *   4. a regression check: over the whole cross product of facts, every verdict equals the OLD expression it replaced
- *      (the LEGACY_* functions are those expressions verbatim, from main.c / ui.c / srcswitch.c before this module, and
- *      from playadmit.c). They prove the extraction kept the behaviour, not that the rule is right: part 1 does that.
- * admit.c links the real outseq.c and session.c; the seams faked here are ipc_send_cmd() (a recorder), ipc_get_state(),
- * ipc_generation(), cfg_*(), and the admit_env table. Each scenario runs in a forked child so the module statics start
- * fresh. */
 #include "admit.h"
 #include "session.h"
 #include <assert.h>
@@ -19,7 +9,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-/* ---- fakes ---- */
 #define MAXF 32
 static char g_log[MAXF][48];
 static int g_n, g_sends, k_fail_nth, k_fail_all;
@@ -42,7 +31,6 @@ int cfg_set_int(const char *key, int v){
 }
 static void reset_log(void){ g_n = 0; g_sends = 0; k_fail_nth = 0; k_fail_all = 0; memset(g_log, 0, sizeof g_log); }
 
-/* what the UI process knows */
 static uint32_t k_now;
 static int k_allowed, k_busy, k_pending, k_book, k_playing, k_fw;
 static uint32_t env_now(void){ return k_now; }
@@ -79,22 +67,21 @@ static void expect_reason(const char *what, const char *got, const char *want){
     }
 }
 
-/* ---- the facts of a situation ---- */
 typedef struct {
-    int allowed, busy;       /* local playback allowed; an output switch in flight */
-    int src;                 /* Source mode: 0 Local, 1 USB DAC, 2 BT Receiving, 3 USB Storage */
-    int bt;                  /* a Bluetooth sink route is active */
-    int settling;            /* inside the post-restart settle window */
-    int pending, recent;     /* a play waiting for its track; a play sent in the last 10 s */
-    int book;                /* an audiobook is the active context */
-    int playing, fw, route;  /* playstate says playing; firmware needs the local init; OUT_* route */
+    int allowed, busy;
+    int src;
+    int bt;
+    int settling;
+    int pending, recent;
+    int book;
+    int playing, fw, route;
 } facts_t;
 
 static void apply(const facts_t *f){
     admit_set_env(&test_env);
-    k_gen++;                                  /* a fresh Player generation: no stale route, no stale play-recent latch */
-    k_now += 20000;                           /* past any window from the previous situation */
-    (void)admit_settling();                   /* ...so it disarms */
+    k_gen++;
+    k_now += 20000;
+    (void)admit_settling();
     k_allowed = f->allowed; k_busy = f->busy; k_pending = f->pending; k_book = f->book; k_playing = f->playing; k_fw = f->fw;
     session_set_source_mode(f->src);
     session_set_route(f->route);
@@ -103,7 +90,6 @@ static void apply(const facts_t *f){
     if(f->recent) admit_note_play_sent();
 }
 
-/* ---- 1. the intended rules ---- */
 #define SW  "Switching output - try again"
 #define LOC "Return to local playback first"
 #define SD  "SD card is not ready"
@@ -111,11 +97,11 @@ static void apply(const facts_t *f){
 #define STA "Player is starting - try again"
 #define BSY "Player is busy - try again"
 #define BOK "Stop the audiobook first"
-static const facts_t IDLE_LOCAL = { .allowed = 1 };   /* everything quiet: Local source, analog route, card fine */
+static const facts_t IDLE_LOCAL = { .allowed = 1 };
 
 typedef struct {
     const char *name; facts_t f;
-    const char *out_idle, *local, *command, *output_switch, *route_bt, *route_bt_send, *analog, *local_init;   /* NULL = go */
+    const char *out_idle, *local, *command, *output_switch, *route_bt, *route_bt_send, *analog, *local_init;
 } rule_t;
 static void rules(void){
     static const rule_t T[] = {
@@ -131,7 +117,6 @@ static void rules(void){
         { "a play pending",         { .allowed = 1, .pending = 1 },                NULL, NULL, NULL, BSY,  NULL, NULL, NULL, NULL },
         { "an audiobook",           { .allowed = 1, .book = 1 },                   NULL, NULL, NULL, BOK,  NULL, NULL, NULL, NULL },
         { "playing on SPDIF",       { .allowed = 1, .playing = 1, .route = 1 },    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL },
-        /* the first failing rule names the reason */
         { "card not ready AND busy AND USB DAC",
                                     { .allowed = 0, .busy = 1, .src = 1 },         SW,   LOC,  SW,   SD,   SW,   NULL, SW,   LOC  },
         { "USB DAC AND BT AND restart AND book",
@@ -157,10 +142,9 @@ static void rules(void){
         expect_reason(r->name, admit_check(ADMIT_ROUTE_ANALOG),     r->analog);
         expect_reason(r->name, admit_check(ADMIT_LOCAL_INIT),       r->local_init);
     }
-    assert(admit_check((admit_what_t)99) != NULL);                    /* an unknown question is never a yes */
+    assert(admit_check((admit_what_t)99) != NULL);
 }
 
-/* ---- 2. the dance ---- */
 typedef struct { int ran, saw_playing; long saw_pos; outseq_rc rc; } step_probe_t;
 static outseq_rc probe_step(const admit_held_t *held, void *arg){
     step_probe_t *p = arg;
@@ -174,11 +158,9 @@ static void dance(void){
     const facts_t quiet = IDLE_LOCAL;
     step_probe_t p;
 
-    /* stopped, nothing loaded: just the step */
     apply(&quiet); reset_log(); memset(&k_state, 0, sizeof k_state); p = (step_probe_t){ .rc = OUTSEQ_OK };
     assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_OK && p.ran == 1 && g_n == 0);
 
-    /* playing a track at 5 s: pause, step, seek back, resume. The step sees the snapshot taken before the pause. */
     apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
     k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
     p = (step_probe_t){ .rc = OUTSEQ_OK };
@@ -187,30 +169,25 @@ static void dance(void){
     assert(held.was_playing == 1 && held.st.position_ms == 5000);
     expect_frames("playing, step landed", (const char *const[]){ PP, seek5k, PP }, 3);
 
-    /* the real analog step: frames between the pause and the seek, in the order main.c's route_analog sent them */
     reset_log(); p = (step_probe_t){ 0 };
     assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
     expect_frames("playing, analog route", (const char *const[]){ PP, R6, W8, seek5k, PP }, 5);
 
-    /* paused/stopped with a track loaded: no pause and no resume, but the position is still restored */
     apply(&quiet); reset_log();
     k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
     assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
     expect_frames("stopped with a track", (const char *const[]){ R6, W8, seek5k }, 3);
 
-    /* a track at 0 is not sought */
     apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
     k_state = (track_state_t){ .have_track = 1, .position_ms = 0 };
     assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
     expect_frames("playing at 0", (const char *const[]){ PP, R6, W8, PP }, 4);
 
-    /* the pause is refused: the step never runs and nothing else is sent */
     apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log(); k_fail_all = 1;
     k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
     p = (step_probe_t){ .rc = OUTSEQ_OK };
     assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_NOT_PAUSED && p.ran == 0 && g_sends == 1 && g_n == 0);
 
-    /* the step does not land: the Player is left paused, no seek, no resume */
     for(int i = 0; i < 2; i++){
         outseq_rc bad = i ? OUTSEQ_MOVED : OUTSEQ_REFUSED;
         apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
@@ -218,18 +195,16 @@ static void dance(void){
         assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_STEP_FAILED && p.ran == 1);
         expect_frames("step failed", (const char *const[]){ PP }, 1);
     }
-    /* ...and a real sequence that fails part way (the 0657 refused) likewise */
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log(); k_fail_nth = 3;   /* PP, 0666 ok, 0657 refused */
+    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log(); k_fail_nth = 3;
     assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_STEP_FAILED);
     expect_frames("analog failed part way", (const char *const[]){ PP, R6 }, 2);
 
-    /* the resume survives a seek the card gate refuses: the position is lost, the play is not */
     apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
     k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
     p = (step_probe_t){ .rc = OUTSEQ_OK };
     {
         struct admit_env e = test_env;
-        e.local_playback_allowed = env_busy;   /* reads 0 here: card not allowed once the step has run */
+        e.local_playback_allowed = env_busy;
         admit_set_env(&e);
         assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_OK);
         expect_frames("seek refused", (const char *const[]){ PP, PP }, 2);
@@ -244,22 +219,21 @@ static void seek(void){
     expect_frames("negative seek clamps to 0", (const char *const[]){ "0103001000000000" }, 1);
     reset_log(); k_fail_all = 1; assert(ui_seek_to(1) == -1);
     apply(&(facts_t){ .allowed = 0 }); reset_log();
-    assert(ui_seek_to(5000) == -1 && g_sends == 0);                /* never before the launch verdict, never with SD held */
+    assert(ui_seek_to(5000) == -1 && g_sends == 0);
 }
 
-/* ---- 3. time ---- */
 static void settle_window(void){
     admit_set_env(&test_env);
     k_now = 1000;
     assert(!admit_settling());
     admit_note_player_restart();
     k_now = 1000 + 8999; assert(admit_settling());
-    k_now = 1000 + 9000; assert(!admit_settling());               /* the window passed: disarmed... */
-    k_now = 1000 + 100;  assert(!admit_settling());               /* ...and stays disarmed */
-    k_now = UINT32_MAX - 100; admit_note_player_restart();        /* armed across the tick wrap */
+    k_now = 1000 + 9000; assert(!admit_settling());
+    k_now = 1000 + 100;  assert(!admit_settling());
+    k_now = UINT32_MAX - 100; admit_note_player_restart();
     k_now = 50;          assert(admit_settling());
-    k_now = 8898;        assert(admit_settling());                    /* 8999 ms after the arm: 1 ms left */
-    k_now = 8899; admit_tick(); assert(!admit_settling());         /* the main loop's tick services the expiry */
+    k_now = 8898;        assert(admit_settling());
+    k_now = 8899; admit_tick(); assert(!admit_settling());
 }
 static void play_recent_window(void){
     apply(&IDLE_LOCAL);
@@ -269,17 +243,16 @@ static void play_recent_window(void){
     k_now = 5000 + 9999; expect_reason("9.999 s later", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
     k_now = 5000 + 10000; expect_reason("10 s later", admit_check(ADMIT_OUTPUT_SWITCH), NULL);
     k_now = 5000; admit_note_play_sent();
-    k_gen++;                                                      /* a restarted Player forgets the play */
+    k_gen++;
     expect_reason("new generation", admit_check(ADMIT_OUTPUT_SWITCH), NULL);
     k_pending = 1; expect_reason("pending", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
 }
 
-/* ---- 4. play start: the named table and the old gates ---- */
 static const char *const W8_ONLY[] = { W8 };
 static void play_start_table(void){
     typedef struct { const char *name; facts_t f; } row_t;
     #define LOCAL_FW(rt_, pl_, rc_) { .allowed = 1, .fw = 1, .route = (rt_), .playing = (pl_), .recent = (rc_) }
-    static const row_t rows[] = {   /* LIST plays, firmware needs the init, Local source, no BT. paused == stopped: playing 0 */
+    static const row_t rows[] = {
         { "internal, stopped",      LOCAL_FW(0, 0, 0) }, { "internal, playing",      LOCAL_FW(0, 1, 0) }, { "internal, play recent",  LOCAL_FW(0, 0, 1) },
         { "SPDIF, stopped",         LOCAL_FW(1, 0, 0) }, { "SPDIF, playing",         LOCAL_FW(1, 1, 0) }, { "SPDIF, play recent",     LOCAL_FW(1, 0, 1) },
         { "USB audio, stopped",     LOCAL_FW(2, 0, 0) }, { "USB audio, playing",     LOCAL_FW(2, 1, 0) }, { "USB audio, play recent", LOCAL_FW(2, 0, 1) },
@@ -295,18 +268,18 @@ static void play_start_table(void){
             expect_frames(r->name, fr, fr[2] ? 3 : 2);
         }
     }
-    apply(&(facts_t){ .allowed = 1, .fw = 1, .bt = 1, .route = 2 }); reset_log();    /* never 0666 under an A2DP sink, whatever route is recorded */
+    apply(&(facts_t){ .allowed = 1, .fw = 1, .bt = 1, .route = 2 }); reset_log();
     assert(admit_play_start(ADMIT_PLAY_LIST) == ADMIT_SENT_NONE && g_n == 0);
-    apply(&(facts_t){ .allowed = 1, .fw = 0 }); reset_log();                          /* firmware without the drift: LIST sends nothing... */
+    apply(&(facts_t){ .allowed = 1, .fw = 0 }); reset_log();
     assert(admit_play_start(ADMIT_PLAY_LIST) == ADMIT_SENT_NONE && g_n == 0);
-    assert(admit_play_start(ADMIT_PLAY_RESERVED_SLOT) == ADMIT_SENT_WORKMODE);        /* ...RESERVED_SLOT still asserts the work mode */
+    assert(admit_play_start(ADMIT_PLAY_RESERVED_SLOT) == ADMIT_SENT_WORKMODE);
     expect_frames("old firmware, reserved slot", W8_ONLY, 1);
-    for(int src = 1; src <= 3; src++){   /* USB DAC / Bluetooth receiving / USB storage own the Player */
+    for(int src = 1; src <= 3; src++){
         apply(&(facts_t){ .allowed = 1, .fw = 1, .src = src }); reset_log();
         assert(admit_play_start(ADMIT_PLAY_LIST) == ADMIT_SENT_NONE);
         assert(admit_play_start(ADMIT_PLAY_RESERVED_SLOT) == ADMIT_SENT_NONE && g_n == 0);
     }
-    for(int rt = 0; rt <= 2; rt++) for(int pl = 0; pl <= 1; pl++) for(int rc = 0; rc <= 1; rc++){   /* the slot ignores play state, latch and route */
+    for(int rt = 0; rt <= 2; rt++) for(int pl = 0; pl <= 1; pl++) for(int rc = 0; rc <= 1; rc++){
         apply(&(facts_t){ .allowed = 1, .fw = 1, .route = rt, .playing = pl, .recent = rc }); reset_log();
         assert(admit_play_start(ADMIT_PLAY_RESERVED_SLOT) == ADMIT_SENT_WORKMODE);
         expect_frames("reserved slot, local", W8_ONLY, 1);
@@ -316,11 +289,8 @@ static void play_start_table(void){
     #undef LOCAL_FW
 }
 
-/* ---- 5. the old expressions, verbatim, over the whole cross product ---- */
-/* playadmit.c's gates (fields were playadmit_situation_t's) */
 static int legacy_preamble(const facts_t *s){ return s->fw && s->src == 0 && !s->bt && !s->playing && !(s->pending || s->recent); }
 static int legacy_workmode(const facts_t *s){ return s->src == 0 && !s->bt; }
-/* main.c ui_output_blocked() */
 static const char *legacy_output_blocked(const facts_t *s, int settling, int recent){
     if(!s->allowed) return "SD card is not ready";
     if(s->src != 0) return "Return to local playback first";
@@ -330,11 +300,9 @@ static const char *legacy_output_blocked(const facts_t *s, int settling, int rec
     if(s->book) return "Stop the audiobook first";
     return NULL;
 }
-/* main.c ui_route_bt() entry, route_analog() entry, localplayer_workmode_cb() entry */
 static int legacy_route_bt_blocked(const facts_t *s){ if(s->busy) return 1; if(!s->allowed) return 1; if(s->src != 0) return 1; return 0; }
 static int legacy_analog_blocked(const facts_t *s){ if(s->busy) return 1; if(!s->allowed) return 1; return 0; }
 static int legacy_local_init_blocked(const facts_t *s){ if(!s->allowed) return 1; if(s->src != 0) return 1; if(s->busy) return 1; return 0; }
-/* ui.c ui_transport_command(), main.c ui_play_list_ex() / ui_queue_jump() / ui_play_book(): the two toasts */
 static const char *legacy_command(const facts_t *s){
     if(s->busy) return "Switching output - try again";
     if(!s->allowed) return "Return to local playback first";
@@ -359,7 +327,7 @@ static void cross_product(void){
         expect_reason("source switch vs old busy toast", admit_check(ADMIT_OUTPUT_IDLE), busy ? "Switching output - try again" : NULL);
         assert((admit_check(ADMIT_LOCAL_PLAYBACK) != NULL) == !allowed);
         n++;
-        {   /* play start, over the same facts (it reads neither the card verdict nor an output switch) */
+        {
             facts_t pf = f;
             apply(&pf); reset_log();
             admit_sent_t got = admit_play_start(ADMIT_PLAY_LIST);

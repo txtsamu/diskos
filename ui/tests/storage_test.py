@@ -261,4 +261,4 @@ int main(void){
                     str(c), str(app / "sdio.c"), str(app / "outseq.c"), str(app / "session.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
-print('COMPLETE storage_test.py')   # last line: the runner requires it, so an early clean exit cannot pass
+print('COMPLETE storage_test.py')

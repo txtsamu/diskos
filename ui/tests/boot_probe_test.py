@@ -56,7 +56,7 @@ def stat_fields(pid):
         st = Path(f'/proc/{pid}/stat').read_text()
     except (FileNotFoundError, ProcessLookupError):
         return None
-    f = st.rsplit(')', 1)[1].split()          # f[0] = field 3 (state)
+    f = st.rsplit(')', 1)[1].split()
     return f[0], int(f[1]), int(f[19]), int(f[49]) if len(f) >= 50 else None
 
 
@@ -96,8 +96,8 @@ def fail(msg):
     raise SystemExit('FAIL ' + msg)
 
 
-SUPERVISORS = []   # Popen objects
-KIDS = []          # pidfds of probe children: they refer to THAT process for as long as we hold them
+SUPERVISORS = []
+KIDS = []
 
 
 def cleanup():
@@ -109,7 +109,7 @@ def cleanup():
                 p.wait(timeout=5)
             except (OSError, subprocess.TimeoutExpired):
                 pass
-    for fd in KIDS:                                   # signalled through the pidfd: never a reused pid
+    for fd in KIDS:
         try:
             signal.pidfd_send_signal(fd, signal.SIGKILL)
         except OSError:
@@ -134,16 +134,14 @@ def release(fifo, timeout=5.0):
 try:
     with tempfile.TemporaryDirectory(prefix='diskos-bootprobe-test-') as t:
         t = Path(t)
-        PDEATH = '    if(prctl(PR_SET_PDEATHSIG, SIGKILL) != 0) _exit(10);       /* die with the supervisor ...        */\n'
+        PDEATH = '    if(prctl(PR_SET_PDEATHSIG, SIGKILL) != 0) _exit(10);\n'
         KILLS = '    kill(-pid, SIGKILL);\n    kill(pid, SIGKILL);\n'
         ACCEPT = '        else if(now >= t_end) late = 1;\n'
         SIGDFL = '    if(sigaction(SIGCHLD, &dfl, NULL) != 0){ puts("X 1 -"); return 0; }\n'
         real = build(SRC, t, 'real')
         no_pdeath = build(variant((PDEATH, '')), t, 'no_pdeath')
-        # the explicit kill and PDEATHSIG back each other up (PDEATHSIG also fires when the supervisor exits
-        # normally), so the explicit kill is isolated with PDEATHSIG removed as well
         no_kill_no_pdeath = build(variant((KILLS, ''), (PDEATH, '')), t, 'no_kill_no_pdeath')
-        no_accept = build(variant((ACCEPT, '')), t, 'no_accept')          # ONLY the acceptance check removed
+        no_accept = build(variant((ACCEPT, '')), t, 'no_accept')
         no_sigdfl = build(variant((SIGDFL, '')), t, 'no_sigdfl')
 
         mem = t / 'mem'
@@ -156,7 +154,6 @@ try:
         afile = t / 'afile'
         afile.write_text('')
 
-        # --- answers ----------------------------------------------------------------------------------
         def probe(exe, pref, mnt='/', deadline='2000', memdev=mem):
             return subprocess.run([str(exe), str(pref), str(mnt), deadline, str(memdev)],
                                   capture_output=True, text=True, timeout=30)
@@ -189,8 +186,6 @@ try:
             if not kid:
                 fail(f'{exe.name}: probe child never appeared')
             kid = kid[0]
-            # take a pidfd, then confirm it is still our supervisor's child: from here on the pidfd names
-            # exactly this process, whatever happens to the numeric pid
             try:
                 fd = os.pidfd_open(kid)
             except OSError as e:
@@ -201,10 +196,9 @@ try:
                 fail(f'{exe.name}: pid {kid} is no longer the supervisor\'s child')
             if not wait_for(lambda: 'wait_for_partner' in wchan(kid)):
                 fail(f'{exe.name}: probe child never blocked in the FIFO open (wchan={wchan(kid)!r})')
-            return p, kid, fifo, time.monotonic()      # observed-blocked time: necessarily after the probe's t0
+            return p, kid, fifo, time.monotonic()
 
-        # --- deadline + kill ------------------------------------------------------------------------------
-        for exe in (real, no_pdeath):                # no_pdeath: the explicit kill alone must do it
+        for exe in (real, no_pdeath):
             t0 = time.monotonic()
             p, kid, fifo, _ = hang(exe, 1000)
             out, _ = p.communicate(timeout=20)
@@ -223,9 +217,8 @@ try:
         print('PASS a blocked probe gives "T" within its deadline and is killed, by the explicit kill alone too '
               '(control: survives without it)')
 
-        # --- supervisor death -----------------------------------------------------------------------------
         for exe, want_dies in ((real, True), (no_pdeath, False)):
-            p, kid, fifo, _ = hang(exe, 60000)       # returns only once the child is blocked (past prctl)
+            p, kid, fifo, _ = hang(exe, 60000)
             os.kill(p.pid, signal.SIGKILL)
             p.wait(timeout=10)
             died = wait_for(lambda: not alive(kid), 2) is not None
@@ -233,27 +226,22 @@ try:
                 fail(f'{exe.name}: after the supervisor was killed the child {"survived" if not died else "died"}')
         print('PASS killing the supervisor kills the probe child (control: survives without PR_SET_PDEATHSIG)')
 
-        # --- late result, and SIGCHLD ---------------------------------------------------------------------
         def late(exe, resume_after_deadline, sigchld_ignored=False):
             """Stop the supervisor (observed), release the child, observe it publish and exit, then resume the
             supervisor before or after the deadline. Returns (supervisor output, child state seen)."""
             deadline_ms = 1500
-            start = time.monotonic()                 # BEFORE launch: a lower bound for the probe's own t0
-            p, kid, fifo, blocked = hang(exe, deadline_ms, sigchld_ignored)   # AFTER the probe's t0
+            start = time.monotonic()
+            p, kid, fifo, blocked = hang(exe, deadline_ms, sigchld_ignored)
             os.kill(p.pid, signal.SIGSTOP)
             if not wait_for(lambda: (stat_fields(p.pid) or ('?',))[0] in ('T', 't')):
                 fail(f'{exe.name}: the supervisor did not stop')
             release(fifo)
-            # published and exited: a zombie with exit code 0 - or, if it was auto-reaped, gone
             seen = wait_for(lambda: (lambda s: 'gone' if s is None else ('Z' if s[0] == 'Z' else None))(
                 stat_fields(kid)), 5)
             if seen is None:
                 fail(f'{exe.name}: the child did not exit while the supervisor was stopped')
             if seen == 'Z' and stat_fields(kid)[3] != 0:
                 fail(f'{exe.name}: the child exited with {stat_fields(kid)[3]}, not a successful publication')
-            # The probe's deadline lies in [start + 1.5s, blocked + 1.5s]. Resume strictly outside it:
-            #  after:  blocked + deadline + 0.6  (>= the probe's deadline + 0.6, however slow its startup was)
-            #  before: start + 0.6               (<= the probe's deadline - 0.9, however fast)
             resume_at = (blocked + deadline_ms / 1000 + 0.6) if resume_after_deadline else (start + 0.6)
             if not resume_after_deadline and time.monotonic() > resume_at:
                 fail(f'{exe.name}: setup overran the pre-deadline resume point - control not meaningful')

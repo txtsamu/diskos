@@ -34,7 +34,6 @@ PYTHON_INCORPORATED_NOTICE = 'CPython-3.12.10-Incorporated-Software.txt'
 TK_WINDOWS_NOTICE = 'Tk-8.6.15-license.terms.txt'
 TK_INCORPORATED_NOTICE = 'Tk-8.6.15-Incorporated-NOTICES.txt'
 TK_RESOURCE_NOTICES = ('CC-BY-SA-3.0-Tango.txt',)
-# Retained in the source checkout for the old artifact, omitted from new freezes.
 TK_OMITTED_NOTICE = 'Adobe-Glyph-List-NOTICE.txt'
 ZLIB_WINDOWS_NOTICE = 'zlib-1.3.1-LICENSE-README.txt'
 TCL_NOTICE_FILES = ('Tcl-8.6.15-Bison-NOTICE.txt', 'Tcl-8.6.15-regex-NOTICE.txt',
@@ -60,8 +59,6 @@ FROZEN_NOTICE_FILES = {
     'msys-2.0.dll': MSYS_NOTICE_FILES,
     'vendor/windows-x86_64/msys-2.0.dll': MSYS_NOTICE_FILES,
 }
-# Each measured stdlib extension needs the incorporated-software notices even
-# when a test package contains the extension without the core DLL.
 for _module in ('select', 'unicodedata', '_bz2', '_ctypes', '_decimal', '_hashlib',
                 '_lzma', '_queue', '_socket', '_tkinter', '_uuid', '_wmi'):
     FROZEN_NOTICE_FILES[_module + '.pyd'] = PYTHON_NOTICE_FILES
@@ -118,7 +115,6 @@ def tk_source_notices(source):
     for path in (source / 'win/rc').glob('*.rc'):
         files[str(path.relative_to(source))] = path.read_bytes()
     blocks = native_notice_blocks(files)
-    # Demos are not installed by either Windows runtime library target.
     for path in sorted((source / 'library').rglob('*.tcl')):
         if 'demos' in path.relative_to(source / 'library').parts:
             continue
@@ -239,8 +235,6 @@ def records(text, section):
 
 def frozen_runtime_notices(package, data):
     assert_unused_tk_data_absent(data)
-    # Preserve exact-install, wheel and incorporated-library notices.
-    # This checks shipped bytes, not unresolved source versions or provenance.
     required = {name for binary, names in FROZEN_NOTICE_FILES.items()
                 if (data / binary).is_file() for name in names}
     for pattern, names in FROZEN_NOTICE_PATTERNS.items():
@@ -261,7 +255,6 @@ def frozen_runtime_notices(package, data):
 
 def inventory(package, data):
     def locate(name):
-        # Sidecars are preferred; otherwise use retained onedir/onefile data.
         path = package / name
         return path if path.is_file() else data / name
 
@@ -348,7 +341,6 @@ class SignatureGate(unittest.TestCase):
             self.assertNotEqual(run.returncode, 0)
 
     def test_full_verifier_rejects_matching_hash_without_authentication(self):
-        # Substitute only sha256sum; the real main must still call the signature gate.
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)
             (path / SOURCE).write_bytes(b'fixture')
@@ -622,7 +614,6 @@ class ManifestGate(unittest.TestCase):
                 with self.subTest(dest=entry[0], kind=kind), self.assertRaisesRegex(
                         SystemExit, 'unused Tk data still collected'):
                     namespace['verify_windows_tk_data'](kept, [(entry[0], entry[1], kind)])
-        # Exercise the actual post-Analysis Windows block without running a build.
         block = next(n for n in tree.body if isinstance(n, ast.If) and any(
             isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
             and c.func.id == 'filter_windows_tk_data' for c in ast.walk(n)))
@@ -654,7 +645,6 @@ class ManifestGate(unittest.TestCase):
                     frozen_runtime_notices(Path(folder), data)
         with tempfile.TemporaryDirectory() as folder:
             data = Path(folder) / '_internal'
-            # Even an empty images directory is forbidden.
             (data / '_tk_data/images').mkdir(parents=True)
             with self.assertRaisesRegex(ValueError, 'Unused Tk data collected'):
                 frozen_runtime_notices(Path(folder), data)
@@ -710,7 +700,6 @@ class ManifestGate(unittest.TestCase):
             with mock.patch(__name__ + '.ROOT', repo):
                 for binary, notices in FROZEN_NOTICE_FILES.items():
                     selected = data / binary
-                    # Simulate the measured native inventory without creating executables.
                     def measured_file(path):
                         if path in {data / n for n in FROZEN_NOTICE_FILES}:
                             return path == selected
@@ -770,7 +759,6 @@ class ManifestGate(unittest.TestCase):
         self.assertEqual((ROOT / 'licenses/FTL-FreeType.txt').read_bytes(),
                          (freetype / 'docs/FTL.TXT').read_bytes())
         bsl = (ROOT / 'licenses/BSL-1.0-dlg.txt').read_bytes()
-        # Standard Boost Software License 1.0 text (matches upstream copies shipped in GCC libphobos and zlib).
         self.assertTrue(bsl.startswith(b'Boost Software License - Version 1.0 - August 17th, 2003\n'))
         self.assertEqual(hashlib.sha256(bsl).hexdigest(),
                          'c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566')
@@ -867,7 +855,6 @@ class ManifestGate(unittest.TestCase):
                                 inventory(package, data)
                         notice.write_bytes(original)
                         read_bytes = Path.read_bytes
-                        # Simulate an absent packaged notice without removing files.
                         def missing_notice(path):
                             if path in (notice, data / 'licenses' / name):
                                 raise FileNotFoundError(str(path))
@@ -898,8 +885,6 @@ class ManifestGate(unittest.TestCase):
                                 inventory(package, data)
                     inventory(package, data)
                     self.assertIn('--verify', verify.call_args.args[0])
-                    # Runtime verification must resolve the helper's hashed originals
-                    # from _internal, rather than from optional release sidecars.
                     from diskos_installer import bundle
                     with mock.patch.object(bundle, 'resource_root', return_value=str(data)), \
                             mock.patch.object(bundle, 'vendor_dir', return_value=str(native)), \

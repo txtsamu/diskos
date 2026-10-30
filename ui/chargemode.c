@@ -1,9 +1,3 @@
-/* Charging screen. The Disc wakes by itself when a charger is plugged into a switched-off unit (stock does the same),
- * so diskOS comes up fully. If it starts with a plain wall charger attached it shows this screen instead of the
- * normal UI: battery level, "Tap to continue". Unplugging while it is still showing powers the Disc off again.
- * A computer on the cable is NOT a charger: the USB gadget (USB DAC / Audio / Storage) state is "configured"
- * or similar rather than "not attached", and a remembered USB mode is never interrupted, so none of this ever
- * touches USB Audio. Charger presence comes from the SGM41513 charger IC (i2c-2, 0x1a, REG08 VBUS_STAT). */
 #include "screens.h"
 #include "theme_kit.h"
 #include "theme.h"
@@ -27,7 +21,6 @@ static lv_obj_t *g_ov, *g_pct, *g_sub;
 static int g_gone_polls;
 static uint32_t g_last_poll;
 
-/* 1 = charger IC reports VBUS present, 0 = not, -1 = could not read */
 static int vbus_present(void){
     int fd = open(CHG_BUS, O_RDWR | O_CLOEXEC);
     if(fd < 0) return -1;
@@ -36,7 +29,6 @@ static int vbus_present(void){
     close(fd);
     return ok ? ((val >> 5) & 7) != 0 : -1;
 }
-/* 1 only while no USB host is on the cable (UDC "not attached"): a wall charger, not a computer */
 static int plain_charger(void){
     glob_t g; int plain = 1;
     if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 1;
@@ -49,7 +41,6 @@ static int plain_charger(void){
     globfree(&g);
     return plain;
 }
-/* a USB mode is in use or was the remembered one: never show or act */
 static int usb_mode_involved(void){
     int sm = ui_get_source_mode();
     return modes_output_route() == OUT_USB || sm == 1 || sm == 3 ||
@@ -107,11 +98,10 @@ void chargemode_boot(void){
     fprintf(stderr, "chargemode: charger at boot, showing the charging screen\n"); fflush(stderr);
 }
 
-/* main loop, every iteration: refresh the level; unplug while showing = power off, unless a USB mode is involved */
 void chargemode_tick(void){
     if(!g_ov || lv_tick_elaps(g_last_poll) < 1000) return;
     g_last_poll = lv_tick_get();
-    if(usb_mode_involved() || !plain_charger()){ close_ov(); return; }   /* a computer/USB mode took over: just a normal UI */
+    if(usb_mode_involved() || !plain_charger()){ close_ov(); return; }
     paint();
     int v = vbus_present();
     if(v == 0){

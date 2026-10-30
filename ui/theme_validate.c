@@ -1,15 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* theme_validate.c - the ONE check a custom theme must pass before it is saved or used (both builders call it via
- * theme_validate_and_save). No LVGL. The contrast table is the same one the release test and the preset generator
- * use (test_ai compares them). */
 #include "theme_model.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
-/* JSON key per editable role: the role name in lower case. Fixed identity roles (brand, QR, splash, debug) have no
- * key: a custom theme cannot change them. */
 static const char *const KEYS[THEME_CLR_COUNT] = {
     [THEME_CLR_CANVAS]                      = "canvas",
     [THEME_CLR_SCRIM]                       = "scrim",
@@ -83,8 +78,6 @@ static const char *const KEYS[THEME_CLR_COUNT] = {
 };
 const char *theme_role_key(int role){ return (role >= 0 && role < THEME_CLR_COUNT) ? KEYS[role] : NULL; }
 
-/* foreground, background, the colour UNDER the background (-1 = opaque background), background alpha %, minimum
- * contrast x10 */
 static const struct { int fg, bg, under, alpha, min10; } RULES[] = {
     { THEME_CLR_TEXT_PRIMARY, THEME_CLR_CANVAS, -1, 100, 45 },
     { THEME_CLR_TEXT_PRIMARY, THEME_CLR_SURFACE, -1, 100, 45 },

@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* datetime.c - Settings > System > Set Date & Time (SCR_DATETIME): day / month / year and hour / minute rollers,
- * then Set: the system clock (settimeofday) and the battery-backed RTC (hwclock -w, off the UI thread). Parity with
- * stock, whose UI sets the time itself the same way. The time zone is chosen separately (Settings > Time Zone). */
 #include "theme.h"
 #include "theme_kit.h"
 #include "screens.h"
@@ -13,7 +10,7 @@
 #include <sys/time.h>
 
 #define YEAR0  2024
-#define YEARS  17                       /* 2024..2040 */
+#define YEARS  17
 
 static lv_obj_t *g_root, *r_day, *r_mon, *r_year, *r_hour, *r_min;
 
@@ -41,7 +38,7 @@ static lv_obj_t *roller(lv_obj_t *parent, const char *opts, int sel, int w, int 
     lv_obj_set_style_bg_color(r, TC(SURFACE_RAISED), LV_PART_SELECTED);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_PART_SELECTED);
     lv_obj_set_style_text_color(r, TC(TEXT_PRIMARY), LV_PART_SELECTED);
-    lv_roller_set_visible_row_count(r, 3);             /* after the font: the height is computed from it */
+    lv_roller_set_visible_row_count(r, 3);
     lv_roller_set_selected(r, sel, LV_ANIM_OFF);
     return r;
 }
@@ -52,15 +49,15 @@ static void set_cb(lv_event_t *e){
     tm.tm_year = YEAR0 + (int)lv_roller_get_selected(r_year) - 1900;
     tm.tm_mon  = (int)lv_roller_get_selected(r_mon);
     int dim = days_in(tm.tm_mon, tm.tm_year + 1900), d = (int)lv_roller_get_selected(r_day) + 1;
-    tm.tm_mday = d > dim ? dim : d;                    /* 31 Feb -> 28/29 Feb, never a roll into March */
+    tm.tm_mday = d > dim ? dim : d;
     tm.tm_hour = (int)lv_roller_get_selected(r_hour);
     tm.tm_min  = (int)lv_roller_get_selected(r_min);
-    tm.tm_isdst = -1;                                  /* the zone's own rule for that date */
+    tm.tm_isdst = -1;
     time_t t = mktime(&tm);
     struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
     if(t == (time_t)-1 || settimeofday(&tv, NULL) != 0){ ui_toast("Couldn't set the time"); return; }
-    ui_rtc_save_now();                                 /* keep it across power-off (hwclock -w, off the UI thread) */
-    ui_timekeep_save_now();                            /* and in the last-good-time file, which a wrong RTC cannot overwrite */
+    ui_rtc_save_now();
+    ui_timekeep_save_now();
     ui_clock_refresh();
     ui_toast(cfg_get_int("auto_time", 1) ? "Time set - Wi-Fi may correct it" : "Time set");
     screen_back();
@@ -70,7 +67,6 @@ static void back_cb(lv_event_t *e){ if(lv_event_get_code(e) == LV_EVENT_CLICKED)
 
 void datetime_create(lv_obj_t *root){ g_root = root; }
 
-/* rebuilt on every entry, starting from the current local time */
 void datetime_refresh(void){
     if(!g_root) return;
     lv_obj_clean(g_root);
@@ -83,7 +79,6 @@ void datetime_refresh(void){
     p = hours;        for(int i = 0; i < 24; i++) p += sprintf(p, i < 23 ? "%02d\n" : "%02d", i);
     p = mins;         for(int i = 0; i < 60; i++) p += sprintf(p, i < 59 ? "%02d\n" : "%02d", i);
     int y = lt.tm_year + 1900 - YEAR0; if(y < 0) y = 0; if(y >= YEARS) y = YEARS - 1;
-    /* rows laid out from the rollers' real height (it depends on the theme's font) */
     const int y0 = 66;
     r_day  = roller(g_root, days,   lt.tm_mday - 1, 62,  -80, y0);
     r_mon  = roller(g_root, MONTHS, lt.tm_mon,      74,    0, y0);

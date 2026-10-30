@@ -1,19 +1,6 @@
 #!/bin/bash
-# stage-release.sh - assemble the release tarball(s) into build/release/ and generate SHA256SUMS.
-#
-# The release ships as SOURCE (run with your own Python via ./install.sh) plus the native flash
-# tools for the target platform - NOT a bundled onefile binary. Each tarball is self-contained:
-# extract it, run ./install.sh once, then ./diskos-installer.
-#
-# Usage:
-#   build/stage-release.sh [--artifact NAME ...] [TAG ...]
-#   Windows requires --windows-zip PATH, --windows-sha256 HASH and --windows-source-commit COMMIT
-#   from the qualification record for that exact ZIP.
-# --artifact names existing build/release files in the COMPLETE release list.
-# Needs a git checkout with the release committed (git archive of DISKOS_REF, default HEAD).
-# Linux usbboot: build/build-usbboot-pinned.sh; macOS: vendor/setup-macos.sh.
 set -euo pipefail
-cd "$(dirname "$0")/.."                        # installer/
+cd "$(dirname "$0")/.."
 ROOT=$(pwd)
 REL="$ROOT/build/release"
 mkdir -p "$REL"
@@ -52,34 +39,25 @@ elif [ -n "$windows_zip$windows_sha$windows_commit" ]; then
   fail "Windows ZIP options require windows-x86_64"
 fi
 set -- "${tags[@]}"
-# default to the host platform tag if none given
 if [ "$#" -eq 0 ]; then
   _os=$(uname -s | tr '[:upper:]' '[:lower:]'); case "$_os" in darwin) _os=macos;; esac
   _arch=$(uname -m); case "$_arch" in amd64) _arch=x86_64;; aarch64|arm64) _arch=arm64;; esac
   set -- "${_os}-${_arch}"
 fi
 
-# The tarball is built from `git archive` of REF (default HEAD), never from the working tree, so untracked
-# local files (scratch tools, unused assets, signing keys) cannot leak in. Commit what belongs in the release
-# first; set DISKOS_REF=<tag|commit> to stage something other than HEAD.
 REF=${DISKOS_REF:-HEAD}
 REV=$(git -C "$ROOT" rev-parse --verify --quiet "$REF^{commit}") || { echo "bad ref: $REF" >&2; exit 1; }
 [ "$(git -C "$ROOT" rev-parse --show-toplevel)" = "$ROOT" ] || { echo "installer/ must be the git root" >&2; exit 1; }
 [ -z "$windows_zip" ] || [ "$REV" = "$windows_commit" ] || fail "archive revision differs from qualified Windows source commit: $REV != $windows_commit"
 
-# Paths that must NEVER appear in a tarball, even if someone commits them by mistake (checked after extract).
 FORBIDDEN=(signing '*.key' '*.squashfs' '*.sqfs' 'diskos_dev*.bin' 'diskos_public*.bin' '*_recovery.bin'
   payload/diskos-prefstat ui/tools/diskos_prefstat.c _retired_unlicensed flash/qual_lpddr3.sh flash/scan_check.sh
   flash/my_write5_scan_dram.bin)
-# Unused local screenshots: only these docs/assets images may ever ship if untracked ones appear.
 BLOCK_ASSETS=(audiobook-np.png books.png chapters.png quicksettings.png)
 
-# Host-side tools taken from vendor/<TAG>/ (untracked/ignored build outputs): an EXPLICIT allowlist only.
 REQ_VENDOR=(usbboot mksquashfs unsquashfs my_write6_dram.bin disc_spl_lpddr3.bin)
-# Payload that MUST exist in the archive (committed at REF); nothing else from the working tree is added.
 REQ_PAYLOAD=(mq_ui S96diskos_select S97diskos_install S98diskos_sshkey S99usbserial diskos-debug.sh dropbearmulti diskos-rmguard diskos-selected diskos-bootprobe diskos-artdec diskos-launch diskos-verify.sh diskos-root.pub.pem)
 MACOS_DYLIBS=(libusb-1.0.0.dylib liblzo2.2.dylib liblz4.1.10.0.dylib liblzma.5.dylib libzstd.1.5.7.dylib)
-# Other files that MUST be in the archive (writer + its build inputs, launcher source, verifier support).
 REQ_ARCHIVE=(flash/my_write6_dram.bin flash/my_write6.c flash/build_nand.sh flash/dram_head.bin flash/dram_head.S flash/dram_head.ld flash/dram.ld
   flash/sha256_min.h flash/disc_spl_lpddr3.bin src/launcher/diskos_launch.c build/build-launcher.sh
   diskos_installer/basegate.py diskos_installer/assets/wordmark.png diskos_installer/assets/wordmark@2x.png
@@ -115,7 +93,6 @@ if previous.exists():
 PYSUM
 }
 check_inventory preflight
-# Refuse every requested platform's device copies before writing any artifact.
 python3 - "$ROOT" "$REV" "$@" <<'PYBLOBS'
 import subprocess
 import sys
@@ -176,7 +153,6 @@ for TAG in "$@"; do
   mkdir -p "$dest"
   git -c core.autocrlf=false -c core.eol=lf -C "$ROOT" archive --format=tar "$REV" | tar -x -C "$dest"
 
-  # required files must be committed at REF (an untracked file is NOT in the archive)
   miss=()
   for f in "${REQ_ARCHIVE[@]}"; do [ -f "$dest/$f" ] || miss+=("$f"); done
   for f in "${REQ_PAYLOAD[@]}";  do [ -f "$dest/payload/$f" ] || miss+=("payload/$f"); done
@@ -192,7 +168,6 @@ for TAG in "$@"; do
     echo "  FAIL - archived payload/diskos-root.pub.pem must be a P-256 PUBLIC KEY PEM" >&2
     rm -rf "$stage"; exit 1
   fi
-  # the committed payload must be the same bytes as the working-tree build the tests ran against
   for f in "${REQ_PAYLOAD[@]}"; do
     if [ -f "payload/$f" ] && ! cmp -s "payload/$f" "$dest/payload/$f"; then
       echo "  FAIL - payload/$f differs between working tree and $REF (commit or revert it)" >&2
@@ -200,13 +175,11 @@ for TAG in "$@"; do
     fi
   done
 
-  # only this TAG's allowlisted vendor tools; drop any other vendor content from the archive
   find "$dest/vendor" -mindepth 1 -maxdepth 1 ! -name setup-macos.sh -exec rm -rf {} +
   mkdir -p "$dest/vendor/$TAG"
   for f in "${required_vendor[@]}"; do cp -a "vendor/$TAG/$f" "$dest/vendor/$TAG/$f"; done
   python3 "$ROOT/build/verify_git_blobs.py" "$ROOT" "$dest" "$TAG" --ref "$REV"
   if [[ "$TAG" == linux-* ]]; then
-    # Use the current validator, but compare inputs only with the archive export.
     python3 "$ROOT/build/usbboot_manifest.py" check "$dest" "$dest/vendor/$TAG" "$TAG"
   fi
   if [[ "$TAG" == macos-* ]]; then
@@ -228,7 +201,6 @@ for TAG in "$@"; do
       fi
       cp "$f" "$dest/vendor/$TAG/lib/$name"
     done
-    # Check staged Mach-O load commands, including rpaths. Linux hosts have no otool.
     for f in "$dest/vendor/$TAG/usbboot" "$dest/vendor/$TAG/mksquashfs" \
              "$dest/vendor/$TAG/unsquashfs" "$dest/vendor/$TAG/lib/"*.dylib; do
       if ! file -b "$f" | grep -q 'Mach-O'; then

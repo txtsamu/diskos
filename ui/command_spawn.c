@@ -19,14 +19,12 @@ int command_spawn_io(pid_t *pid, char *const argv[], int out_fd, int pass_fd){
     rc=posix_spawnattr_init(&at);
     if(rc){posix_spawn_file_actions_destroy(&fa);return rc;}
     rc=posix_spawn_file_actions_addopen(&fa,0,"/dev/null",O_RDONLY,0);
-    if(!rc && out_fd>=0)rc=posix_spawn_file_actions_adddup2(&fa,out_fd,1);        /* stdout into the caller's pipe */
-    if(!rc && pass_fd>=0){                                                         /* handed over as fd 3 */
-        if(pass_fd==3){ rc=posix_spawn_file_actions_adddup2(&fa,3,255);            /* dup2(3,3) would keep close-on-exec */
+    if(!rc && out_fd>=0)rc=posix_spawn_file_actions_adddup2(&fa,out_fd,1);
+    if(!rc && pass_fd>=0){
+        if(pass_fd==3){ rc=posix_spawn_file_actions_adddup2(&fa,3,255);
                         if(!rc)rc=posix_spawn_file_actions_adddup2(&fa,255,3); }
         else rc=posix_spawn_file_actions_adddup2(&fa,pass_fd,3);
     }
-    /* The legacy runner closed 3..255. Also close observed high descriptors.
-     * Prepared in the parent: no application code runs after a threaded fork. */
     for(int fd=pass_fd>=0?4:3;fd<256 && !rc;fd++)rc=posix_spawn_file_actions_addclose(&fa,fd);
     DIR *d=opendir("/proc/self/fd");
     if(d){struct dirent *e;while(!rc && (e=readdir(d))){

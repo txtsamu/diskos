@@ -10,58 +10,33 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Custom graphic EQ: 10 bands (32 Hz..16 kHz) + master, -12..+12 dB, matching the stock
- * player's PEQ. The stock player keeps TEN user slots, USER1..USER10 = STYLE_PRESET 11..20;
- * this editor lets you pick and edit any of them, each remembering its own curve. Values
- * persist to per-slot cfg keys (eqN_b0..9, eqN_master, where N = 1..10) AND apply live to
- * the audio engine: on each change we write the curve into that slot's PEQ row in stock
- * format and select it with 0689 (ui_apply_eq). Format captured live from the stock UI -
- * see RE_CATALOGUE section 3. The 10 bands scroll horizontally (round screen can't show
- * them all at once), like the stock editor.
- *
- * Kept the stock graphic-EQ model on purpose: fixed frequencies, peaking filter, fixed Q.
- * Full parametric editing (filterType/frequency/Q) is out of scope - the filterType enum
- * hasn't been reverse-engineered off the device yet. */
-
-int ui_apply_eq(int preset);             /* main.c: 0689 select; <0 = send failed */
+int ui_apply_eq(int preset);
 #define NBAND 10
-#define SLOT_MIN 11                      /* USER1  = STYLE_PRESET 11 */
-#define SLOT_MAX 20                      /* USER10 = STYLE_PRESET 20 */
+#define SLOT_MIN 11
+#define SLOT_MAX 20
 
 static const int         FREQHZ[NBAND] = { 32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 };
 static const char *const FREQLBL[NBAND]= { "32","64","125","250","500","1k","2k","4k","8k","16k" };
 
-static int       g_slot = SLOT_MIN;      /* currently-edited USER slot (11..20) */
-static lv_obj_t *g_band[NBAND];          /* band sliders */
-static lv_obj_t *g_bval[NBAND];          /* band value labels */
-static lv_obj_t *g_master;               /* master gain slider */
-static lv_obj_t *g_mval;                 /* master value label */
-static lv_obj_t *g_slotlbl;              /* "USER1" selector label */
-static int       g_curve_known = 1;      /* 0 after a FAILED slot read: the sliders show a placeholder-flat,
-                                          * NOT the real curve, so an edit must not persist over the stock one */
-static int       g_slot_parametric = 0;  /* 1 when the loaded stock slot uses parametric params (filterType/Q/
-                                          * fractional gain) the graphic editor can't represent: block edits so
-                                          * an accidental drag doesn't FLATTEN a real stock PEQ preset */
-static int       g_slot_foreign = 0;     /* 1 when a slot we own in cfg has DIVERGED from the live DB curve
-                                          * (the stock player changed it under us): select it, never overwrite -
-                                          * a plain re-select must not clobber the external change */
+static int       g_slot = SLOT_MIN;
+static lv_obj_t *g_band[NBAND];
+static lv_obj_t *g_bval[NBAND];
+static lv_obj_t *g_master;
+static lv_obj_t *g_mval;
+static lv_obj_t *g_slotlbl;
+static int       g_curve_known = 1;
+static int       g_slot_parametric = 0;
+static int       g_slot_foreign = 0;
 
-/* per-slot cfg keys: slot 11 (USER1) -> "eq1_b0".."eq1_b9" + "eq1_master", etc. So every
- * user slot keeps its own 10-band curve + master preamp independently. */
 static void band_key(char *buf, int n, int slot, int band){ snprintf(buf, n, "eq%d_b%d", slot-10, band); }
 static void master_key(char *buf, int n, int slot){ snprintf(buf, n, "eq%d_master", slot-10); }
 
-/* One-time upgrade: the old single-slot editor stored USER1's curve in the flat keys
- * eq_b0..eq_b9 + eq_master. Seed the new per-slot USER1 keys (eq1_*) from them so an
- * upgraded install keeps its Custom EQ curve. Never overwrites a value the user has already
- * saved under a new key (a new key that is present, even 0, is left alone). A sentinel well
- * outside the -12..12 range distinguishes "absent" from a real 0. */
 #define EQ_ABSENT (-1000)
 static void migrate_legacy_user1(void){
     int moved = 0;
     for(int i=0;i<NBAND;i++){
         char nk[24]; band_key(nk, sizeof nk, SLOT_MIN, i);
-        if(cfg_get_int(nk, EQ_ABSENT) != EQ_ABSENT) continue;   /* already has a new value */
+        if(cfg_get_int(nk, EQ_ABSENT) != EQ_ABSENT) continue;
         char ok[16]; snprintf(ok, sizeof ok, "eq_b%d", i);
         int lv = cfg_get_int(ok, EQ_ABSENT);
         if(lv != EQ_ABSENT){ cfg_set_int_deferred(nk, lv); moved = 1; }
@@ -71,17 +46,15 @@ static void migrate_legacy_user1(void){
         int lm = cfg_get_int("eq_master", EQ_ABSENT);
         if(lm != EQ_ABSENT){ cfg_set_int_deferred(nmk, lm); moved = 1; }
     }
-    if(moved) cfg_flush();   /* every migrated key in one rewrite */
+    if(moved) cfg_flush();
 }
 
-/* build the stock PARAMS_JSON from the current band values + write+select the current PEQ
- * slot. Returns 1 if the curve actually reached the player (DB write + select), 0 otherwise. */
 static int apply_now(void){
-    if(!fw_custom_peq_writable()) return 0;   /* view-only firmware: never write or select a PEQ slot */
+    if(!fw_custom_peq_writable()) return 0;
     char json[1100]; int n = 0;
     n += snprintf(json+n, sizeof json-n, "[");
     for(int i=0;i<NBAND;i++){
-        if(n < 0 || n > (int)sizeof json - 90) return 0;   /* truncation guard (never hit at 10 bands) */
+        if(n < 0 || n > (int)sizeof json - 90) return 0;
         int g = g_band[i] ? lv_slider_get_value(g_band[i]) : 0;
         n += snprintf(json+n, sizeof json-n,
             "%s{\"filterType\":0,\"frequency\":%d,\"position\":%d,\"gain\":\"%d.0\",\"qValue\":\"0.7\"}",
@@ -91,13 +64,12 @@ static int apply_now(void){
     n += snprintf(json+n, sizeof json-n, "]");
     int master = g_master ? lv_slider_get_value(g_master) : 0;
     if(mdb_set_peq(g_slot, (double)master, json)){
-        if(ui_eq_select(g_slot) < 0) return 0;   /* select + persist eq_preset/eq_last; failed = curve never reached the player */
+        if(ui_eq_select(g_slot) < 0) return 0;
         return 1;
     }
     return 0;
 }
 
-/* push explicit band + master values into the sliders and value labels (display only). */
 static void show_curve(const int *gains, int master){
     for(int i=0;i<NBAND;i++){
         int v = gains ? gains[i] : 0;
@@ -110,16 +82,12 @@ static void show_curve(const int *gains, int master){
     if(g_mval){ char b[8]; snprintf(b,sizeof b,"%+d", master); lv_label_set_text(g_mval, master?b:"0"); }
 }
 
-/* does diskOS already hold a saved curve for this slot? (any band or master key present) */
 static int slot_has_cfg(int slot){
     char k[24];
     for(int i=0;i<NBAND;i++){ band_key(k,sizeof k,slot,i); if(cfg_get_int(k,EQ_ABSENT)!=EQ_ABSENT) return 1; }
     master_key(k,sizeof k,slot); return cfg_get_int(k,EQ_ABSENT)!=EQ_ABSENT;
 }
 
-/* persist the WHOLE current curve to this slot's cfg keys (one flush). Persisting every band
- * (not just the touched one) captures a stock-derived slot in full the first time it is edited,
- * so its untouched bands keep their real values instead of snapping to 0 on the next select. */
 static void persist_slot(int slot){
     char k[24];
     for(int i=0;i<NBAND;i++){ int v=g_band[i]?lv_slider_get_value(g_band[i]):0; band_key(k,sizeof k,slot,i); cfg_set_int_deferred(k,v); }
@@ -127,9 +95,6 @@ static void persist_slot(int slot){
     cfg_flush();
 }
 
-/* pull a slot's curve into the sliders (no apply). A diskOS-owned slot comes from cfg; a slot we
- * have never edited shows the player's EXISTING (stock) PEQ curve, so selecting or first-editing
- * it never silently zeroes a stock USER preset. */
 static void load_slot(int slot){
     g_slot_parametric = 0;
     g_slot_foreign = 0;
@@ -138,42 +103,34 @@ static void load_slot(int slot){
         for(int i=0;i<NBAND;i++){ band_key(k,sizeof k,slot,i); cg[i]=cfg_get_int(k,0); }
         char mk[24]; master_key(mk,sizeof mk,slot);
         int cm = cfg_get_int(mk,0);
-        /* A slot we own in cfg can still be changed underneath us by the stock player (to a different
-         * graphic curve, or to a parametric one). Reconcile our cfg against the LIVE DB curve: only when
-         * they still agree is cfg authoritative and safe to write back on select. Otherwise treat the slot
-         * as foreign - show the DB's current curve and never let a plain re-select overwrite it. */
         int dg[NBAND] = {0}, dm = 0;
-        int r  = mdb_get_peq(slot, &dm, dg);           /* 1=found, 0=empty(flat), -1=read failed */
-        int gr = (r > 0) ? mdb_peq_is_graphic(slot)    /* 1 graphic / 0 parametric / -1 classify-failed */
-                         : (r == 0 ? 1 : -1);          /* empty = flat = graphic; read-fail = unknown */
+        int r  = mdb_get_peq(slot, &dm, dg);
+        int gr = (r > 0) ? mdb_peq_is_graphic(slot)
+                         : (r == 0 ? 1 : -1);
         if(r < 0 || gr < 0){
-            show_curve(cg, cm); g_curve_known = 0; g_slot_foreign = 1;  /* DB read/classify failed: block edit + overwrite */
+            show_curve(cg, cm); g_curve_known = 0; g_slot_foreign = 1;
         } else if(gr == 0){
-            show_curve(dg, dm); g_slot_parametric = 1;                  /* changed to PARAMETRIC in stock: show it, */
-            g_curve_known = 0;  g_slot_foreign = 1;                     /* block edit AND overwrite */
+            show_curve(dg, dm); g_slot_parametric = 1;
+            g_curve_known = 0;  g_slot_foreign = 1;
         } else if(dm == cm && memcmp(dg, cg, sizeof dg) == 0){
-            show_curve(cg, cm); g_curve_known = 1;                      /* cfg == DB: still ours, editable + safe to write back */
+            show_curve(cg, cm); g_curve_known = 1;
         } else {
-            show_curve(dg, dm); g_curve_known = 1; g_slot_foreign = 1;  /* different GRAPHIC curve in stock: show truth, select-only until an explicit edit adopts it */
+            show_curve(dg, dm); g_curve_known = 1; g_slot_foreign = 1;
         }
     } else {
         int g[NBAND], m=0;
-        int r = mdb_get_peq(slot,&m,g);     /* 1=found, 0=empty (flat is real), -1=read failed */
+        int r = mdb_get_peq(slot,&m,g);
         if(r > 0){
             show_curve(g, m);
-            int gr = mdb_peq_is_graphic(slot);   /* 1 = graphic, 0 = parametric, -1 = classify read failed */
+            int gr = mdb_peq_is_graphic(slot);
             g_slot_parametric = (gr == 0);
-            g_curve_known = (gr == 1);           /* ONLY a confirmed-graphic slot is editable; parametric OR a
-                                                  * failed classification blocks the edit (never flatten unverified) */
+            g_curve_known = (gr == 1);
         }
-        else if(r == 0) { show_curve(NULL, 0); g_curve_known = 1; }   /* genuinely empty slot: flat IS the curve */
-        else            { show_curve(NULL, 0); g_curve_known = 0; }   /* read FAILED: unknown curve, block edits */
+        else if(r == 0) { show_curve(NULL, 0); g_curve_known = 1; }
+        else            { show_curve(NULL, 0); g_curve_known = 0; }
     }
 }
 
-/* switch the edited slot: show its curve, then apply it live. A diskOS-owned slot is written
- * back + selected; a slot we have never edited is only SELECTED (0689) - never overwritten with
- * a flat curve, which would destroy a stock USER preset. */
 static void set_slot(int slot){
     if(slot < SLOT_MIN) slot = SLOT_MIN;
     if(slot > SLOT_MAX) slot = SLOT_MAX;
@@ -181,42 +138,33 @@ static void set_slot(int slot){
     cfg_set_int("eq_slot", g_slot);
     if(g_slotlbl){ char b[16]; snprintf(b,sizeof b,"USER%d", g_slot-10); lv_label_set_text(g_slotlbl, b); }
     load_slot(g_slot);
-    if(!fw_custom_peq_writable()) return;               /* view-only: show the slot's curve, select nothing */
+    if(!fw_custom_peq_writable()) return;
     if(slot_has_cfg(g_slot) && !g_slot_foreign){
-        if(!apply_now()) ui_toast("Couldn't apply EQ");   /* our curve, DB agrees -> write back + select */
+        if(!apply_now()) ui_toast("Couldn't apply EQ");
     } else if(ui_eq_select(g_slot) < 0){
-        ui_toast("Couldn't apply EQ");                    /* stock OR diverged slot -> select only, never overwrite */
+        ui_toast("Couldn't apply EQ");
     }
 }
 
 static void slot_dir_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int dir = (int)(intptr_t)lv_event_get_user_data(e);
-    set_slot(g_slot + dir);              /* clamps at USER1 / USER10 (no wrap) */
+    set_slot(g_slot + dir);
 }
 
-/* live preview of the value label (no persist/apply on every drag tick) */
 static void band_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     int v = lv_slider_get_value(lv_event_get_target(e));
     lv_obj_t *lbl = (i==NBAND) ? g_mval : (i>=0 && i<NBAND ? g_bval[i] : NULL);
     if(lbl){ char b[8]; snprintf(b,sizeof b,"%+d", v); lv_label_set_text(lbl, v?b:"0"); }
 }
-/* persist this control (to the current slot) + apply the whole curve when the finger lifts */
 static void band_release_cb(lv_event_t *e){
     (void)e;
     if(!fw_custom_peq_writable()){ ui_toast("Custom EQ: not on this firmware yet"); load_slot(g_slot); return; }
-    /* Blocked edit: either a stock PARAMETRIC preset (which the 10-band graphic editor would flatten), or a
-     * slot whose stock curve we FAILED to read (persisting the placeholder-flat would clobber it). Either
-     * way, drop the edit and reload the real curve rather than destroy it. */
     if(!g_curve_known){
         ui_toast(g_slot_parametric ? "Advanced preset - edit it on the stock player" : "EQ read failed, try again");
         load_slot(g_slot); return;
     }
-    /* apply first; persist the whole curve only once it actually reached the player, so a PEQ
-     * write/select failure can't leave cfg/UI showing a band the audio engine never received.
-     * Persisting every band (not just the touched one) captures a stock-derived slot in full on
-     * its first edit, so the untouched bands keep their real values. */
     if(apply_now()) persist_slot(g_slot);
     else ui_toast("Couldn't apply EQ");
 }
@@ -224,25 +172,17 @@ static void band_release_cb(lv_event_t *e){
 static void flat_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     if(!fw_custom_peq_writable()){ ui_toast("Custom EQ: not on this firmware yet"); return; }
-    /* LV_ANIM_OFF so the slider VALUES are actually 0 when apply_now() reads them below - with
-     * LV_ANIM_ON the sliders are still mid-animation and apply_now() would send the old/intermediate
-     * curve to the player while cfg + labels already said 0. */
     for(int i=0;i<NBAND;i++){
         lv_slider_set_value(g_band[i], 0, LV_ANIM_OFF);
         if(g_bval[i]) lv_label_set_text(g_bval[i], "0");
     }
     lv_slider_set_value(g_master, 0, LV_ANIM_OFF);
     if(g_mval) lv_label_set_text(g_mval, "0");
-    /* apply FIRST; persist the flat curve (to the current slot) only if it reached the player.
-     * Flat is an explicit user choice, so it is allowed even after a failed read - and it makes the
-     * slot's curve known again (flat), so a following band edit persists normally. */
     if(apply_now()){ persist_slot(g_slot); g_curve_known = 1; }
     else ui_toast("Couldn't apply EQ");
 }
 
-/* one EQ column: value label on top, vertical slider, freq label below. idx==NBAND = master.
- * Built inside the horizontal scroller. Slider starts at 0; load_slot() fills the real value. */
-static int g_eq_drop;   /* px the header's filled title cap pushes everything down (0 for a plain title) */
+static int g_eq_drop;
 static void make_col(lv_obj_t *parent, int idx, const char *flabel,
                      lv_obj_t **slot_slider, lv_obj_t **slot_val){
     lv_obj_t *col = lv_obj_create(parent);
@@ -261,7 +201,7 @@ static void make_col(lv_obj_t *parent, int idx, const char *flabel,
     lv_obj_set_size(sl, 16, 150 - g_eq_drop);
     lv_obj_set_ext_click_area(sl, 8);
     lv_obj_set_pos(sl, 13, 22);
-    lv_slider_set_mode(sl, LV_SLIDER_MODE_SYMMETRICAL);   /* fill from 0 dB centre */
+    lv_slider_set_mode(sl, LV_SLIDER_MODE_SYMMETRICAL);
     lv_slider_set_range(sl, -12, 12);
     lv_slider_set_value(sl, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(sl, TC(CONTROL_TRACK), LV_PART_MAIN);
@@ -282,8 +222,6 @@ static void make_col(lv_obj_t *parent, int idx, const char *flabel,
     *slot_val = val;
 }
 
-/* View-only firmware: a slider looks unavailable, and a tap on its column says why. The slider stops taking the
- * touch, so the tap lands on the column; a drag still scrolls the row of bands (no tap is sent after a scroll). */
 static void view_only_tap_cb(lv_event_t *e){
     if(lv_event_get_code(e) == LV_EVENT_CLICKED) ui_toast("Not on this firmware");
 }
@@ -297,11 +235,10 @@ static void view_only_slider(lv_obj_t *sl){
     ui_on(col, view_only_tap_cb, LV_EVENT_CLICKED, NULL, "eqcustom.view_only", UI_CORE);
 }
 
-/* small "< USERn >" slot selector; two 44px-touch arrows around a centred label. */
 static void make_slot_selector(lv_obj_t *root){
     lv_obj_t *sel = lv_obj_create(root);
     lv_obj_remove_style_all(sel);
-    lv_obj_set_pos(sel, 100, 48 + g_eq_drop); lv_obj_set_size(sel, 160, 32);   /* its arrows clear the back chevron's column */
+    lv_obj_set_pos(sel, 100, 48 + g_eq_drop); lv_obj_set_size(sel, 160, 32);
     lv_obj_clear_flag(sel, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *lb = lv_button_create(sel); lv_obj_remove_style_all(lb);
@@ -326,11 +263,8 @@ static void make_slot_selector(lv_obj_t *root){
     ui_on(rb, slot_dir_cb, LV_EVENT_CLICKED, (void*)(intptr_t)1, "eqcustom.slot_dir", UI_CORE);
 }
 
-/* Re-resolve the edited slot on every entry (display-only, no audio re-apply): if a USER slot is the
- * live preset, edit that one; else keep the last-edited slot. Without this the editor stays on the slot
- * it was BUILT with, so selecting a different USER slot via Tune/Settings would edit the wrong curve. */
 void eqcustom_refresh(void){
-    if(!g_slotlbl) return;   /* not built yet */
+    if(!g_slotlbl) return;
     int init = cfg_get_int("eq_slot", SLOT_MIN);
     int pre  = cfg_get_int("eq_preset", -1);
     if(pre >= SLOT_MIN && pre <= SLOT_MAX) init = pre;
@@ -338,17 +272,15 @@ void eqcustom_refresh(void){
     g_slot = init;
     cfg_set_int("eq_slot", g_slot);
     char b[16]; snprintf(b, sizeof b, "USER%d", g_slot-10); lv_label_set_text(g_slotlbl, b);
-    load_slot(g_slot);       /* pull the slot's curve into the sliders WITHOUT applying */
+    load_slot(g_slot);
 }
 
 void eqcustom_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    migrate_legacy_user1();   /* carry a pre-slots Custom EQ curve into USER1 (one-time, non-destructive) */
+    migrate_legacy_user1();
 
-    /* Resolve which slot to edit: if a USER slot is the live preset, edit that one; else fall
-     * back to the editor's last-edited slot; default USER1. */
     int init = cfg_get_int("eq_slot", SLOT_MIN);
     int pre  = cfg_get_int("eq_preset", -1);
     if(pre >= SLOT_MIN && pre <= SLOT_MAX) init = pre;
@@ -356,27 +288,21 @@ void eqcustom_create(lv_obj_t *root){
     g_slot = init;
     cfg_set_int("eq_slot", g_slot);
 
-    lv_obj_t *title = ui_header(root, "Custom EQ");   /* shared standard header */
-    /* the slot selector sits under the title as it does under Default's (whose title ends at y 56): a taller title
-     * face moves it down by the difference, a filled title cap puts it below the cap; the sliders give up the room */
+    lv_obj_t *title = ui_header(root, "Custom EQ");
     g_eq_drop = 0;
     lv_obj_update_layout(root);
     if(title){
         lv_area_t a; lv_obj_get_coords(title, &a);
         if(lv_obj_get_style_bg_opa(title, 0) > LV_OPA_50) g_eq_drop = a.y2 + 2 - 48;
-        else if(a.y2 > 56) g_eq_drop = a.y2 - 56 + 4;   /* and a little air: its faces are taller */
+        else if(a.y2 > 56) g_eq_drop = a.y2 - 56 + 4;
         if(g_eq_drop < 0) g_eq_drop = 0;
         if(g_eq_drop > 40) g_eq_drop = 40;
     }
 
     make_slot_selector(root);
 
-    /* horizontally-scrollable row of EQ columns (master + 10 bands) */
     lv_obj_t *scr = lv_obj_create(root);
     lv_obj_remove_style_all(scr);
-    /* exactly SIX columns wide (6 x 42 + 5 x 4 = 272, x 44..316): the next column is either fully in view or fully
-     * hidden, never cut by the round glass - a full-width strip left the 7th column's label sliced by the rim ("1k"
-     * read "1'"). x 44 still clears an edge back arrow; the label row (y ~262) is inside the circle across 44..316. */
     lv_obj_set_pos(scr, 44, 80 + g_eq_drop);
     lv_obj_set_size(scr, 272, 212 - g_eq_drop);
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_ROW);
@@ -385,18 +311,18 @@ void eqcustom_create(lv_obj_t *root){
     lv_obj_add_flag(scr, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_pad_column(scr, 4, 0);
-    lv_obj_set_scroll_snap_x(scr, LV_SCROLL_SNAP_START);   /* scrolling stops on a whole column */
+    lv_obj_set_scroll_snap_x(scr, LV_SCROLL_SNAP_START);
 
-    make_col(scr, NBAND, "MSTR", &g_master, &g_mval);    /* master first */
+    make_col(scr, NBAND, "MSTR", &g_master, &g_mval);
     for(int i=0;i<NBAND;i++)
         make_col(scr, i, FREQLBL[i], &g_band[i], &g_bval[i]);
 
-    load_slot(g_slot);   /* populate sliders from the resolved slot (no live apply on open) */
+    load_slot(g_slot);
 
     lv_obj_t *flat = lv_button_create(root);
     lv_obj_remove_style_all(flat);
-    lv_obj_set_size(flat, 120, 32); lv_obj_align(flat, LV_ALIGN_TOP_MID, 0, 288);   /* y288..320: corners r<=166 on the round glass */
-    lv_obj_set_ext_click_area(flat, 6);   /* 32px pill -> ~44px touch target */
+    lv_obj_set_size(flat, 120, 32); lv_obj_align(flat, LV_ALIGN_TOP_MID, 0, 288);
+    lv_obj_set_ext_click_area(flat, 6);
     lv_obj_set_style_radius(flat, 16, 0);
     lv_obj_set_style_bg_color(flat, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(flat, LV_OPA_COVER, 0);
@@ -406,10 +332,8 @@ void eqcustom_create(lv_obj_t *root){
     lv_obj_set_style_text_font(fll, TF(UI_14), 0);
     lv_obj_set_style_text_color(fll, TC(TEXT_PRIMARY), 0); lv_obj_center(fll);
     if(!fw_custom_peq_writable()){
-        /* View-only firmware: sliders and Flat are disabled (the slot arrows still browse curves), and the
-         * Flat pill says why instead of offering a change the player would reject or repair. */
         for(int i=0;i<=NBAND;i++) view_only_slider(i < NBAND ? g_band[i] : g_master);
-        lv_obj_set_width(flat, 180);   /* x90..270, y288..320: inside the round glass, square corners too */
+        lv_obj_set_width(flat, 180);
         lv_label_set_text(fll, "Not on this firmware");
         lv_obj_set_style_text_color(fll, TC(TEXT_MUTED), 0);
     }

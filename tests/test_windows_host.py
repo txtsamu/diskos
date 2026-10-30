@@ -152,7 +152,7 @@ class WindowsHostTests(unittest.TestCase):
             (root / 'PRIVATE.DLL').write_bytes(pe(['leaf.dll']))
             with self.assertRaises(FileNotFoundError): bundle._verify_windows_dlls(exe)
             (root / 'leaf.dll').write_bytes(pe(['private.dll']))
-            bundle._verify_windows_dlls(exe)  # Mixed case and a transitive cycle.
+            bundle._verify_windows_dlls(exe)
             for rva, size in ((0x1000, 32), (0x1000, 0), (0, 32), (0, 0)):
                 with self.subTest(delay_rva=rva, delay_size=size):
                     delayed = pe([])
@@ -183,14 +183,12 @@ class WindowsHostTests(unittest.TestCase):
                     with self.assertRaises(FileNotFoundError): bundle._verify_windows_dlls(exe)
                     if not name.endswith('.dll'):
                         continue
-                    # Unknown names, including API-set syntax, require private closure.
                     (root / name).write_bytes(pe(['missing-private.dll']))
                     with self.assertRaises(FileNotFoundError): bundle._verify_windows_dlls(exe)
                     (root / name).write_bytes(pe(['KERNEL32.dll']))
                     bundle._verify_windows_dlls(exe)
 
     def test_real_tool_import_graph(self):
-        # Import graph recorded from the built Windows squashfs tools.
         runtime_names = ('msys-2.0.dll', 'msys-gcc_s-seh-1.dll',
                          'msys-lzo2-2.dll', 'msys-z.dll')
         with tempfile.TemporaryDirectory() as tmp:
@@ -202,7 +200,6 @@ class WindowsHostTests(unittest.TestCase):
                 with self.subTest(tool=name):
                     exe = root / name
                     exe.write_bytes(pe(['KERNEL32.dll', *runtime_names]))
-                    # An explicit RVA 0 / size 0 entry is not a delay import.
                     bundle._verify_windows_dlls(exe)
 
     def test_ucrt_exemptions_are_usbboot_only(self):
@@ -241,7 +238,6 @@ class WindowsHostTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'win32', 'real Windows loader required')
     def test_real_loader_adjacent_transitive_dll_wins(self):
-        # Set DISKOS_WINDOWS_GCC to the MSYS2 ucrt64 gcc.exe absolute path.
         compiler = os.environ.get('DISKOS_WINDOWS_GCC')
         if not compiler:
             self.skipTest('set DISKOS_WINDOWS_GCC to build real PE loader fixtures')
@@ -318,7 +314,6 @@ class WindowsHostTests(unittest.TestCase):
             clean = bundle.native_env(str(exe))
             self.assertEqual(run(clean), 42)
 
-            # Preserve the file while removing its imported filename.
             (tools / 'fixture_leaf.dll').rename(tools / 'fixture_leaf.saved')
             with self.assertRaises(FileNotFoundError):
                 bundle._verify_windows_dlls(exe)
@@ -347,9 +342,8 @@ class WindowsHostTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 with _Lock(): pass
             proc.kill(); proc.wait(timeout=10)
-            # The observer keeps the kernel object alive through owner death.
             with _Lock(windows=True, api=ObservedAPI()):
-                self.assertEqual(results, [0x80])  # Raw WAIT_ABANDONED, handled by _Lock.
+                self.assertEqual(results, [0x80])
             self.assertEqual(api.WaitForSingleObject(observer, 0), 0)
             self.assertTrue(api.ReleaseMutex(observer))
         finally:
@@ -390,7 +384,7 @@ class WindowsHostTests(unittest.TestCase):
                 if not line:
                     self.fail('supervised child exited before printing both PIDs')
                 if not line.isdecimal():
-                    continue  # Private entry also writes supervision details to the log.
+                    continue
                 handle = api.OpenProcess(0x100000, False, int(line))
                 self.assertTrue(handle)
                 handles.append(handle)

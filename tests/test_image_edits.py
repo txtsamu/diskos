@@ -19,7 +19,6 @@ CFG = {'rootpub': b'offline-test-key\n', 'epochs': b'MIN_KEY_EPOCH=1\nMIN_UI_EPO
 
 class EditTests(unittest.TestCase):
     def setUp(self):
-        # Minimal script, explicitly test-pinned; the full comparison uses the real pin.
         self.pin = mock.patch.object(ib, 'KNOWN_FIIO_INIT_SHA256', {hashlib.sha256(RAW).hexdigest()})
         self.pin.start()
         self.addCleanup(self.pin.stop)
@@ -69,7 +68,6 @@ class EditTests(unittest.TestCase):
             for cfg in (None, CFG):
                 for fs in self.backends():
                     with self.subTest(backend=type(fs).__name__, variant=variant, ota=bool(cfg)):
-                        # Case collisions and a contained symlink parent remain distinct/safe.
                         fs.replace_file(b'Case', b'upper')
                         fs.replace_file(b'case', b'lower')
                         fs.mkdir(b'hooks')
@@ -122,8 +120,6 @@ class EditTests(unittest.TestCase):
             self.assertEqual(fs.read_bytes(BOOT), RAW)
 
     def test_missing_payload_is_preflight(self):
-        # A controlled payload folder with one file removed: the real bundle.data
-        # lookup must raise its E102 unchanged, not a build error.
         from diskos_installer.errors import PreflightError
         ui = bundle.data('mq_ui')
         source = bundle.payload_dir()

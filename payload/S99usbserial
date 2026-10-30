@@ -1,12 +1,4 @@
 #!/bin/sh
-# diskOS dev/recovery: USB CDC-ACM serial console on the device USB-C port.
-# Host enumerates 0525:a4a7 -> /dev/ttyACM0 -> root shell (raw, no login).
-#
-# Robust against the failure that killed the previous attempt: the stock
-# serial_config.sh binds the UDC exactly once and never retries, so a UDC that
-# registers (or a host that plugs in) a moment later was missed. This runs a
-# persistent supervisor: (re)bind whenever a UDC is present, keep a shell alive
-# on ttyGS0. All steps best-effort + logged to a persistent (rw) partition.
 
 LOG=/usr/data/fiio/usbserial.log
 G=/sys/kernel/config/usb_gadget/serial_demo
@@ -37,10 +29,6 @@ build_gadget() {
 	log "gadget built"
 }
 
-# Best-effort nudge into peripheral mode. dr_mode=otg already auto-switches to
-# device when plugged into a host (CC/pin), so this is only a safety net. Only
-# the unambiguous "device" token is written -- never anything that could select
-# host mode and break enumeration.
 force_device_mode() {
 	for f in /sys/devices/platform/*otg*/dwc2_mode \
 	         /sys/devices/platform/*otg*/dwc2_force_dr_mode \
@@ -59,10 +47,6 @@ bind_when_ready() {
 	return 1
 }
 
-# Delegate the ttyGS0 shell to diskos-debug (the SINGLE owner - fuser-guarded + self-respawning).
-# Two independent shell respawners on one tty is the classic "answers once then goes silent" wedge,
-# so this script no longer binds its own shell; it only builds the gadget and asks diskos-debug to
-# attach the one shell. Idempotent: serial-on is a no-op if a shell already owns ttyGS0.
 DEBUG=/usr/project/diskos-debug.sh
 ensure_shell() {
 	[ -c /dev/ttyGS0 ] || return 0

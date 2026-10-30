@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-static int g_lang = -1;   /* read once: a language change re-launches the UI */
+static int g_lang = -1;
 
 int i18n_lang(void){
     if(g_lang < 0){
@@ -34,8 +34,6 @@ const char *tr(const char *en){
 
 int i18n_needs_fallback_font(void){ return i18n_lang() != LANG_EN; }
 
-/* a glyph prefix + the translated text ("<symbol>  Play All"); a small ring of buffers, so a few calls per statement
- * are safe. Each result is copied by lv_label_set_text at once. */
 const char *tr_sym(const char *sym, const char *en){
     static char *ring[4]; static unsigned at;
     const char *prefix = sym ? sym : "";

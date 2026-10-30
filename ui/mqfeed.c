@@ -5,14 +5,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
-/* Inject synthetic a2 metadata + a1 position into /ui for UI testing without the real player.
-   usage: mqfeed <title> <artist> <album> <path> <dur_ms> <pos_ms> [state] */
 int main(int c,char**v){
     if(c<7){ printf("usage: mqfeed title artist album path dur_ms pos_ms [state]\n"); return 1; }
     mqd_t q=mq_open("/ui",O_WRONLY|O_NONBLOCK);
     if(q==(mqd_t)-1){ perror("mq_open /ui"); return 2; }
     int state = c>7 ? atoi(v[7]) : 1;
-    int srate = c>8 ? atoi(v[8]) : 44100;   /* optional sample rate */
+    int srate = c>8 ? atoi(v[8]) : 44100;
     char song[2048];
     snprintf(song,sizeof song,
       "{\"song_name\":\"%s\",\"song_artist_name\":\"%s\",\"song_album_name\":\"%s\",\"song_file_path\":\"%s\",\"song_duration_time\":%s,\"song_sample_rate\":%d,\"is_dsd\":false}",

@@ -1,5 +1,4 @@
 #!/bin/sh
-# Offline candidate build. Never installs into vendor/.
 set -eu
 export LC_ALL=C TZ=UTC
 umask 022
@@ -81,6 +80,5 @@ grep -q 'Usage: usbboot' /out/help.txt
 cd /out
 sha256sum usbboot > output-sha256.txt
 BUILD
-# Python is required on the host only; the build image needs no Python package.
 python3 "$root/build/usbboot_manifest.py" create "$root" "$out"
 printf 'Candidate and evidence: %s\n' "$out"

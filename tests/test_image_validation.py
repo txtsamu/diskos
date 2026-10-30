@@ -25,7 +25,6 @@ class ValidationTests(unittest.TestCase):
         systems = self.backends()
         for fs in systems:
             fs.replace_file(b'ui-input', b'UI')
-            # Keep synthetic builds small; UI ELF qualification is a separate gate.
             with tempfile.TemporaryDirectory(dir=os.environ.get('DISKOS_WIN_SCRATCH')) as td:
                 ui = Path(td, 'ui'); ui.write_bytes(b'UI')
                 expected = ib.edit_image(fs, str(ui), 'public', cfg)
@@ -52,7 +51,7 @@ class ValidationTests(unittest.TestCase):
                 if change == 'size' and path != b'opt/diskos/mq_ui':
                     continue
                 if change == 'mode' and path in (BOOT, b'etc/diskos_manifest', b'bin/busybox'):
-                    continue  # These retain the existing content-only contract.
+                    continue
                 for fs, expected in self.prepared():
                     with self.subTest(path=path, change=change, backend=type(fs).__name__):
                         self.validate(fs, expected)

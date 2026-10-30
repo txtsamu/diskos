@@ -10,7 +10,6 @@ import os
 from . import bundle, flasher, platform_probe
 from .errors import PreflightError
 
-# row states: True = ok, False = needs attention, None = not known yet / checked later
 STEPS = ("Power the Disc OFF.",
          "Hold Volume Down.",
          "Plug in USB. The screen stays black; that is expected.")
@@ -59,7 +58,7 @@ def probe(inventory=None):
         if out["count"] == 1:
             out["access"] = _linux_access(nodes)
     else:
-        out["count"] = platform_probe.maskrom_count()  # enumeration only; no open or claim
+        out["count"] = platform_probe.maskrom_count()
         if out["count"] == 1:
             out["access"] = ("unknown", "checked by preflight")
     try:

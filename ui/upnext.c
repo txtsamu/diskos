@@ -11,27 +11,23 @@
 #include <string.h>
 #include "ui_round.h"
 
-/* ---- Up Next (SCR_UPNEXT): reached from the Now Playing right-hub. The stock player owns the queue (LIST_SONG_0,
- * shuffle order in LIST_SONG_3); this screen only reads it (mdb_upnext) and jumps within it (ui_queue_jump). It
- * shows the current song and what plays after it, follows track changes while open, and never shows a guessed
- * order: while the player is rebuilding the queue it says so and retries. */
-#define UN_SHOW   100                  /* upcoming rows shown; the rest is summarised in a footer */
-#define UN_FIRST  12                   /* rows built at once (a screenful), the rest a few per tick */
-#define UN_RETRY  8                    /* 1 s retries while the queue is being rebuilt */
+#define UN_SHOW   100
+#define UN_FIRST  12
+#define UN_RETRY  8
 static lv_obj_t   *g_un_list, *g_un_title;
 static lv_timer_t *g_un_fill, *g_un_watch;
 static mdb_qrow_t  g_un_rows[UN_SHOW + 1];
-static int         g_un_n, g_un_fill_i, g_un_more, g_un_retries, g_un_retry;   /* g_un_retry: last read was transient */
-static int         g_un_mode = -1;     /* the play mode the list was read in */
-static char        g_un_path[256];     /* the song that was current when the list was read */
-static int         g_un_pos;           /* its pos_id then (0 = unknown) */
-static unsigned    g_un_seq;           /* its path_seq then: a track change since means the list is stale */
+static int         g_un_n, g_un_fill_i, g_un_more, g_un_retries, g_un_retry;
+static int         g_un_mode = -1;
+static char        g_un_path[256];
+static int         g_un_pos;
+static unsigned    g_un_seq;
 
 static void un_rebuild(void);
 
 static void un_fmt_dur(int ms, char *out, size_t n){
     if(ms <= 0){ out[0] = 0; return; }
-    long long t = ((long long)ms + 500) / 1000; snprintf(out, n, "%lld:%02lld", t / 60, t % 60);   /* no int overflow near INT32_MAX */
+    long long t = ((long long)ms + 500) / 1000; snprintf(out, n, "%lld:%02lld", t / 60, t % 60);
 }
 
 static lv_obj_t *un_note(const char *msg){
@@ -49,16 +45,12 @@ static void un_empty(const char *msg){
     theme_kit()->empty_state(KIT_EMPTY_UPNEXT, un_note(msg));
 }
 
-/* The list must still describe what is playing: same track (identity epoch), same queue row (an unknown pos_id on
- * either side counts only if it is unknown on both - a zero-to-known change means the list was read blind), same
- * play mode. */
 static int un_still_current(void){
     track_state_t st; ipc_get_state(&st);
     if(!st.have_track || st.path_seq != g_un_seq || strcmp(st.path, g_un_path) != 0) return 0;
     return st.pos_id == g_un_pos && ui_play_mode_now() == g_un_mode;
 }
 
-/* Only the current label follows live metadata; queue order and scroll stay intact. */
 static void un_update_title(const track_state_t *st){
     if(!g_un_title) return;
     const char *text = "";
@@ -72,9 +64,8 @@ static void un_row_cb(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     if(i < 0 || i >= g_un_n) return;
-    if(i == 0){ screen_show(SCR_NOWPLAYING); return; }             /* the current song */
-    if(!un_still_current()){ un_rebuild(); ui_toast("Queue changed"); return; }   /* never jump from a stale list */
-    /* and the target row itself must still be that song at that position (a rebuild can keep the current song) */
+    if(i == 0){ screen_show(SCR_NOWPLAYING); return; }
+    if(!un_still_current()){ un_rebuild(); ui_toast("Queue changed"); return; }
     int v = mdb_queue_row_valid(g_un_rows[i].base_id, g_un_rows[i].ord, g_un_rows[i].path);
     if(v < 0){ ui_toast("Queue is busy - try again"); return; }
     if(v == 0){ un_rebuild(); ui_toast("Queue changed"); return; }
@@ -94,7 +85,7 @@ static void un_add_row(int i){
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
     ui_on(r, un_row_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i, "upnext.un_row", UI_CORE);
 
-    lv_obj_t *t = lv_label_create(r);                           /* title (may be non-Latin) */
+    lv_obj_t *t = lv_label_create(r);
     if(cur){
         g_un_title = t;
         track_state_t st; ipc_get_state(&st); un_update_title(&st);
@@ -104,7 +95,7 @@ static void un_add_row(int i){
     lv_obj_set_style_text_font(t, TF(USER_16), 0);
     lv_obj_set_style_text_color(t, TC(TEXT_PRIMARY), 0);
 
-    lv_obj_t *s = lv_label_create(r);                           /* artist; "Now Playing" on the current row */
+    lv_obj_t *s = lv_label_create(r);
     lv_label_set_text(s, cur ? "Now Playing" : q->artist);
     lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(s, 14, 28); lv_obj_set_size(s, 186, 17);
@@ -113,7 +104,7 @@ static void un_add_row(int i){
 
     char dur[12]; un_fmt_dur(q->dur_ms, dur, sizeof dur);
     if(dur[0]){
-        lv_obj_t *d = lv_label_create(r);                       /* length, right-aligned */
+        lv_obj_t *d = lv_label_create(r);
         lv_label_set_text(d, dur);
         lv_obj_set_pos(d, 202, 17); lv_obj_set_size(d, 54, 18);
         lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_RIGHT, 0);
@@ -124,7 +115,7 @@ static void un_add_row(int i){
 }
 
 static void un_footer(void){
-    if(g_un_mode == 2) return;                                  /* Repeat One: the caption already says it */
+    if(g_un_mode == 2) return;
     if(g_un_n == 1 && !g_un_more){
         un_note(g_un_mode == 3 ? "End of the queue - then it starts again" : "Nothing after this song");
         return;
@@ -143,7 +134,6 @@ static void un_fill_cb(lv_timer_t *t){
     if(g_un_fill_i >= g_un_n){ un_fill_stop(); un_footer(); }
 }
 
-/* A caption for the play modes where "what plays next" is not simply the next row. */
 static void un_mode_caption(int mode){
     const char *c = mode == 1 ? "Shuffle is on - this is the shuffled order"
                   : mode == 2 ? "Repeat One - this song repeats"
@@ -162,14 +152,14 @@ static void un_rebuild(void){
     g_un_n = 0; g_un_more = 0; g_un_path[0] = 0; g_un_pos = 0; g_un_retry = 0; g_un_mode = -1;
     track_state_t st; ipc_get_state(&st);
     g_un_seq = st.path_seq;
-    g_un_pos = st.pos_id;                                        /* what the list was read against, even when empty, */
-    int mode = ui_play_mode_now();                               /* so the watcher only rebuilds on a real change   */
+    g_un_pos = st.pos_id;
+    int mode = ui_play_mode_now();
     g_un_mode = mode;
     if(!st.have_track || !st.path[0]){ un_empty("Nothing playing"); return; }
     if(mdb_is_book_path(st.path)){ un_empty("Audiobooks play one book at a time - use Chapters"); return; }
     snprintf(g_un_path, sizeof g_un_path, "%s", st.path);
     int n = mode < 0 ? MDB_UPNEXT_NOTFOUND : mdb_upnext(mode == 1, st.pos_id, st.path, g_un_rows, UN_SHOW + 1, &g_un_more);
-    if(n == MDB_UPNEXT_NOTFOUND || n == MDB_UPNEXT_BUSY){           /* transient: the watch timer retries */
+    if(n == MDB_UPNEXT_NOTFOUND || n == MDB_UPNEXT_BUSY){
         g_un_retry = 1;
         un_empty(g_un_retries < UN_RETRY ? "Queue updating..." : "The queue isn't available right now");
         return;
@@ -186,12 +176,10 @@ static void un_rebuild(void){
     else un_footer();
 }
 
-/* While open: follow track changes, and retry a queue that was being rebuilt. */
 static void un_watch_cb(lv_timer_t *t){
     (void)t;
     if(screen_current() != SCR_UPNEXT){ lv_timer_delete(g_un_watch); g_un_watch = NULL; return; }
     if(g_un_retry && g_un_retries < UN_RETRY){ g_un_retries++; un_rebuild(); return; }
-    /* a new track, a new queue row for the same file (CUE), a pos_id that became known, or a new play mode */
     track_state_t st; ipc_get_state(&st);
     if(st.path_seq != g_un_seq || st.pos_id != g_un_pos || ui_play_mode_now() != g_un_mode){ g_un_retries = 0; un_rebuild(); }
     else un_update_title(&st);
@@ -205,7 +193,7 @@ void upnext_create(lv_obj_t *root){
     g_un_list = lv_obj_create(root);
     lv_obj_remove_style_all(g_un_list);
     lv_obj_set_pos(g_un_list, UI_LIST_X, UI_LIST_Y); lv_obj_set_size(g_un_list, UI_LIST_W, UI_LIST_H);
-    lv_obj_set_style_pad_bottom(g_un_list, UI_LIST_PAD_BOTTOM, 0);                 /* last row scrolls clear of the round bezel */
+    lv_obj_set_style_pad_bottom(g_un_list, UI_LIST_PAD_BOTTOM, 0);
     lv_obj_set_style_bg_opa(g_un_list, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(g_un_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g_un_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -215,7 +203,6 @@ void upnext_create(lv_obj_t *root){
     lv_obj_add_flag(g_un_list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
 }
 
-/* Called on every SCR_UPNEXT show (screenmgr), so a deep link or a back-navigation also reads the queue fresh. */
 void upnext_refresh(void){
     g_un_retries = 0;
     un_rebuild();

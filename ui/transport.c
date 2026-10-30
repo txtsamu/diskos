@@ -9,21 +9,16 @@
 #include <stdint.h>
 #include <string.h>
 
-/* Optimistic play/pause icon hint. Play state is INFERRED from position advance with a grace period,
- * so the transport glyph lags ~1s when PAUSING (the position stops but the inference waits before it
- * flips to paused); resuming is instant because the position advances immediately. On a play/pause tap
- * we predict the new state and show it at once; the real inference reconciles a beat later. Main-thread
- * only (taps + the glyph refresh both run on the LVGL loop), so no locking. */
-static int      g_pp_hint = -1;          /* -1 none; 0 predict paused; 1 predict playing */
+static int      g_pp_hint = -1;
 static uint32_t g_pp_hint_until = 0;
-void ui_pp_tap_hint(void){               /* a toggle tap -> predict the opposite of the current state */
+void ui_pp_tap_hint(void){
     g_pp_hint = ui_pp_icon_playing(ui_is_playing()) ? 0 : 1;
-    g_pp_hint_until = lv_tick_get() + 2200; /* exceeds the 1600ms position-inference grace */
+    g_pp_hint_until = lv_tick_get() + 2200;
 }
 int ui_pp_icon_playing(int real_playing){
     if(g_pp_hint >= 0){
-        if((int32_t)(lv_tick_get() - g_pp_hint_until) >= 0){ g_pp_hint = -1; }        /* window lapsed -> trust real */
-        else return g_pp_hint;                                        /* still lagging -> show prediction */
+        if((int32_t)(lv_tick_get() - g_pp_hint_until) >= 0){ g_pp_hint = -1; }
+        else return g_pp_hint;
     }
     return real_playing;
 }
@@ -62,7 +57,7 @@ int ui_transport_command(const char *cmd)
 }
 
 void ui_rescan_library(void){
-    if(scanner_active()){ if(scanner_cancel()) ui_toast("Cancelling scan..."); return; }   /* refused once it is committing: completion reports */   /* the row reads "Stop" while a scan runs */
+    if(scanner_active()){ if(scanner_cancel()) ui_toast("Cancelling scan..."); return; }   
     if(admit_check(ADMIT_LOCAL_PLAYBACK)){ ui_toast("Return to local playback to scan"); return; }
     if(!sd_io_allowed()){ ui_toast("SD card is not ready"); return; }
     if(scanner_start() != 0){ ui_toast("Couldn't start library scan"); return; }

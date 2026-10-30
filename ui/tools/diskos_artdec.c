@@ -1,31 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* diskos-artdec: extract and decode album artwork without the stock ffmpeg tool.
- *
- * WHY: diskOS used to make every cover with the stock `ffmpeg` command. Stock V2.57 ships an ffmpeg with no image
- * decoders and no image outputs, so covers could not be made at all; stock itself decodes images inside its own
- * programs. This helper does the same job on every firmware, as a separate short-lived process: a hostile or broken
- * file can at worst kill this process, never the UI, and the UI's existing kill/timeout/cancel machinery applies.
- *
- * Usage:
- *   diskos-artdec art   <input> <outdir>   writes <outdir>/c.bmp (148x148), t.bmp (42x42), b.bmp (360x360 blurred)
- *   diskos-artdec saver <input> <outfile>  writes 360x360 top-down BGRA (518400 bytes), for the vinyl screensaver
- * <input> is an audio file with an embedded picture (MP3/ID3v2.2-2.4, FLAC, MP4/M4A, WAV with an ID3 chunk) or a
- * plain JPEG/PNG/BMP/GIF picture, recognised by content, not by name. <outdir> must be an existing directory made
- * for this request; outputs are created exclusively (never overwritten) and the caller validates them.
- *
- * Exit status: 0 done, 2 usage, 3 no picture, 4 unsupported picture format, 5 malformed input, 6 over a resource
- * limit, 7 I/O error. Nothing is written unless all outputs were produced; a partial output is removed.
- *
- * Limits (admission ceilings; a picture under them can still hit the allocation budget): picture <= 8 MiB
- * compressed, <= 4096 px per side, <= 4,194,304 px total, <= 32 MiB of live allocations for the whole run, plus a
- * process address-space limit. Metadata walking is bounded in bytes, frames/atoms/blocks and nesting depth.
- *
- * Output recipe: the picture is stretched to a square (as the old ffmpeg `scale=N:N` did), EXIF orientation is
- * applied, transparency is composited onto black, colour is taken as sRGB (ICC profiles ignored; CMYK/YCCK JPEGs
- * are converted by stb_image without colour management). Cover and thumb use exact area averaging; the backdrop
- * uses a triangle (bilinear) filter to 360x360 and then a Gaussian blur (sigma 19) approximated by three box
- * passes. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -47,16 +21,14 @@ enum { ST_OK = 0, ST_USAGE = 2, ST_NOPIC = 3, ST_UNSUPPORTED = 4, ST_MALFORMED =
 #define MAX_SIDE        4096
 #define MAX_PIXELS      4194304u
 #define BUDGET_BYTES    (32u << 20)
-#define MAX_TAG_READ    (9u << 20)       /* ID3 bytes read into memory: one max picture plus the frames around it */
+#define MAX_TAG_READ    (9u << 20)
 #define MAX_CANDIDATES  16
-#define MAX_WALK        4096             /* frames / atoms / metadata blocks visited per file */
-#define MAX_DEPTH       8                /* MP4 atom nesting */
+#define MAX_WALK        4096
+#define MAX_DEPTH       8
 
-/* ------------------------------------------------------------------ allocation budget (also used by stb_image) */
 static size_t g_live, g_peak;
 static int g_over_budget;
 typedef union { size_t n; max_align_t a; } bhdr;
-/* Every live allocation counts against the budget, including its bookkeeping header. */
 static void *bmalloc(size_t n){
     if(n > BUDGET_BYTES - sizeof(bhdr) || g_live + sizeof(bhdr) + n > BUDGET_BYTES){ g_over_budget = 1; return NULL; }
     bhdr *h = malloc(sizeof(bhdr) + n);
@@ -73,7 +45,6 @@ static void *brealloc(void *p, size_t n){
     if(!p) return bmalloc(n);
     bhdr *h = (bhdr *)p - 1;
     size_t old = h->n;
-    /* realloc peak: both blocks are live while copying; bmalloc enforces that sum */
     void *q = bmalloc(n);
     if(!q) return NULL;
     memcpy(q, p, old < n ? old : n);
@@ -106,14 +77,11 @@ static void *brealloc(void *p, size_t n){
 #pragma GCC diagnostic pop
 #endif
 
-/* ------------------------------------------------------------------ input file */
 static int g_fd = -1;
 static uint64_t g_fsize;
 
 static int g_ioerr;
 #ifdef ARTDEC_TESTING
-/* test builds only: ARTDEC_FAIL_READ=N makes the Nth read fail with EIO, to check that I/O errors are reported
- * as I/O errors wherever they happen */
 static ssize_t test_pread(int fd, void *b, size_t n, off_t o){
     static long left = -2;
     if(left == -2){ const char *e = getenv("ARTDEC_FAIL_READ"); left = e ? atol(e) : -1; }
@@ -122,12 +90,12 @@ static ssize_t test_pread(int fd, void *b, size_t n, off_t o){
 }
 #define pread test_pread
 #endif
-static int rd(uint64_t off, void *buf, size_t n){          /* exact read at off; 0 ok, -1 short or error */
+static int rd(uint64_t off, void *buf, size_t n){
     if(off > g_fsize || n > g_fsize - off) return -1;
     size_t got = 0;
     while(got < n){
         ssize_t k = pread(g_fd, (char *)buf + got, n - got, (off_t)(off + got));
-        if(k < 0){ if(errno == EINTR) continue; g_ioerr = 1; return -1; }   /* a real read error: I/O status */
+        if(k < 0){ if(errno == EINTR) continue; g_ioerr = 1; return -1; }
         if(k == 0) return -1;
         got += (size_t)k;
     }
@@ -143,11 +111,10 @@ static int syncsafe(const unsigned char *p, uint32_t *out){
     return 0;
 }
 
-/* ------------------------------------------------------------------ picture candidates */
 typedef struct {
-    int front;                  /* 1 = picture type 3 (front cover) */
-    const unsigned char *mem;   /* bytes already in memory (ID3), or NULL */
-    uint64_t off; uint32_t len; /* else: where they are in the file */
+    int front;
+    const unsigned char *mem;
+    uint64_t off; uint32_t len;
 } cand_t;
 static cand_t g_cand[MAX_CANDIDATES];
 static int g_ncand, g_saw_picture, g_malformed, g_limited;
@@ -156,12 +123,11 @@ static void add_cand(int front, const unsigned char *mem, uint64_t off, uint64_t
     g_saw_picture = 1;
     if(len == 0) return;
     if(g_ncand >= MAX_CANDIDATES) return;
-    if(len > MAX_PIC_BYTES){ g_cand[g_ncand++] = (cand_t){ front, NULL, 0, 0 }; return; }   /* len 0 = over the size limit */
+    if(len > MAX_PIC_BYTES){ g_cand[g_ncand++] = (cand_t){ front, NULL, 0, 0 }; return; }
     g_cand[g_ncand++] = (cand_t){ front, mem, off, (uint32_t)len };
 }
 
-/* ------------------------------------------------------------------ ID3v2 (2.2, 2.3, 2.4) */
-static size_t de_unsync(unsigned char *p, size_t n){       /* FF 00 -> FF, in place; returns the new length */
+static size_t de_unsync(unsigned char *p, size_t n){
     size_t o = 0;
     for(size_t i = 0; i < n; i++){
         p[o++] = p[i];
@@ -169,17 +135,14 @@ static size_t de_unsync(unsigned char *p, size_t n){       /* FF 00 -> FF, in pl
     }
     return o;
 }
-/* skip a NUL-terminated string in encoding enc starting at p; returns bytes consumed or 0 if unterminated */
 static size_t skip_text(const unsigned char *p, size_t n, int enc){
-    if(enc == 1 || enc == 2){                               /* UTF-16: 2-byte aligned 00 00 */
+    if(enc == 1 || enc == 2){
         for(size_t i = 0; i + 1 < n; i += 2) if(p[i] == 0 && p[i + 1] == 0) return i + 2;
         return 0;
     }
     for(size_t i = 0; i < n; i++) if(p[i] == 0) return i + 1;
     return 0;
 }
-/* ID3 tag bodies that candidates point into. A tag that yields no picture is freed at once, so padding-only or
- * repeated tags (a WAV may carry several) cannot use up the budget before a real picture is reached. */
 #define MAX_TAGS 4
 static unsigned char *g_tags[MAX_TAGS];
 static int g_ntags;
@@ -196,8 +159,8 @@ static int parse_id3_at(uint64_t base, uint64_t limit_end){
     uint64_t body_off = base + 10;
     uint64_t avail = (limit_end > body_off) ? limit_end - body_off : 0;
     uint64_t want = size;
-    if(want > avail){ g_malformed = 1; want = avail; }     /* lying size: read only what exists */
-    if(want > MAX_TAG_READ) want = MAX_TAG_READ;            /* pictures past this point are out of reach */
+    if(want > avail){ g_malformed = 1; want = avail; }
+    if(want > MAX_TAG_READ) want = MAX_TAG_READ;
     if(want == 0) return 0;
     if(g_ntags >= MAX_TAGS){ g_limited = 1; return -1; }
     unsigned char *g_tag = bmalloc((size_t)want);
@@ -205,7 +168,7 @@ static int parse_id3_at(uint64_t base, uint64_t limit_end){
     if(rd(body_off, g_tag, (size_t)want)){ bfree(g_tag); g_ioerr = 1; return -1; }
     int ncand0 = g_ncand;
     size_t n = (size_t)want, pos = 0;
-    if(ver < 4 && tag_unsync) n = de_unsync(g_tag, n);      /* v2.2/2.3: whole-tag unsynchronisation */
+    if(ver < 4 && tag_unsync) n = de_unsync(g_tag, n);
     if(ext){
         int bad = 0;
         if(ver == 3){
@@ -215,14 +178,14 @@ static int parse_id3_at(uint64_t base, uint64_t limit_end){
             uint32_t es;
             if(n < 4 || syncsafe(g_tag, &es) || es < 6 || es > n) bad = 1; else pos = es;
         }
-        else bad = 1;                                       /* v2.2 bit 6 = compression: whole tag unusable */
+        else bad = 1;
         if(bad){ g_malformed = 1; bfree(g_tag); return 0; }
     }
     int frames = 0;
     size_t hlen = (ver == 2) ? 6 : 10;
     while(pos + hlen <= n && frames++ < MAX_WALK){
         const unsigned char *f = g_tag + pos;
-        if(f[0] == 0) break;                                /* padding */
+        if(f[0] == 0) break;
         uint32_t fs; uint16_t fl = 0;
         if(ver == 2) fs = be24(f + 3);
         else if(ver == 3) fs = be32(f + 4);
@@ -235,21 +198,19 @@ static int parse_id3_at(uint64_t base, uint64_t limit_end){
         int is_pic = (ver == 2) ? !memcmp(f, "PIC", 3) : !memcmp(f, "APIC", 4);
         if(!is_pic) continue;
         if(ver == 3){
-            if(fl & 0x00C0) continue;                       /* compressed or encrypted: skip */
-            if(fl & 0x0020){ if(dl < 1) continue; d++; dl--; }   /* grouping id */
+            if(fl & 0x00C0) continue;
+            if(fl & 0x0020){ if(dl < 1) continue; d++; dl--; }
         } else if(ver == 4){
-            if(fl & 0x000C) continue;                       /* compressed or encrypted: skip */
-            /* v2.4 unsynchronisation covers everything after the frame header, INCLUDING the grouping id and the
-             * data length indicator, so it is reversed first and those fields are read from the result. */
+            if(fl & 0x000C) continue;
             if((fl & 0x0002) || tag_unsync) dl = de_unsync(d, dl);
-            if(fl & 0x0040){ if(dl < 1) continue; d++; dl--; }   /* grouping id */
-            if(fl & 0x0001){ if(dl < 4) continue; d += 4; dl -= 4; }   /* data length indicator: size only */
+            if(fl & 0x0040){ if(dl < 1) continue; d++; dl--; }
+            if(fl & 0x0001){ if(dl < 4) continue; d += 4; dl -= 4; }
         }
         if(dl < 2) continue;
         int enc = d[0];
         size_t p = 1;
-        if(ver == 2){ if(dl < 5) continue; p += 3; }         /* 3-char image format */
-        else { size_t m = skip_text(d + p, dl - p, 0); if(!m) continue; p += m; }   /* MIME, Latin-1 */
+        if(ver == 2){ if(dl < 5) continue; p += 3; }
+        else { size_t m = skip_text(d + p, dl - p, 0); if(!m) continue; p += m; }
         if(p >= dl) continue;
         int ptype = d[p++];
         size_t ds = skip_text(d + p, dl - p, enc);
@@ -258,12 +219,11 @@ static int parse_id3_at(uint64_t base, uint64_t limit_end){
         if(p >= dl) continue;
         add_cand(ptype == 3, d + p, 0, dl - p);
     }
-    if(g_ncand > ncand0) g_tags[g_ntags++] = g_tag;       /* keep: candidates point into it */
+    if(g_ncand > ncand0) g_tags[g_ntags++] = g_tag;
     else bfree(g_tag);
     return 0;
 }
 
-/* ------------------------------------------------------------------ FLAC */
 static int parse_flac(uint64_t off){
     unsigned char b[4];
     if(rd(off, b, 4) || memcmp(b, "fLaC", 4)) return -1;
@@ -275,7 +235,7 @@ static int parse_flac(uint64_t off){
         uint32_t len = be24(bh + 1);
         uint64_t data = off + 4;
         if(len > g_fsize - data){ g_malformed = 1; return 0; }
-        if(type == 6 && len >= 32){                         /* PICTURE */
+        if(type == 6 && len >= 32){
             unsigned char ph[8];
             if(rd(data, ph, 8)){ g_malformed = 1; return 0; }
             uint32_t ptype = be32(ph), mlen = be32(ph + 4);
@@ -283,14 +243,14 @@ static int parse_flac(uint64_t off){
             uint64_t end = data + len;
             if(mlen > end - q){ g_malformed = 1; goto next; }
             char mime[4] = {0};
-            if(mlen == 3 && rd(q, mime, 3) == 0 && !memcmp(mime, "-->", 3)){ g_saw_picture = 1; goto next; }  /* URL */
+            if(mlen == 3 && rd(q, mime, 3) == 0 && !memcmp(mime, "-->", 3)){ g_saw_picture = 1; goto next; }
             q += mlen;
             unsigned char dl4[4];
             if(end - q < 4 || rd(q, dl4, 4)){ g_malformed = 1; goto next; }
             uint32_t dlen = be32(dl4); q += 4;
             if(dlen > end - q){ g_malformed = 1; goto next; }
             q += dlen;
-            if(end - q < 20){ g_malformed = 1; goto next; }  /* width height depth colours + data length */
+            if(end - q < 20){ g_malformed = 1; goto next; }
             unsigned char tail[20];
             if(rd(q, tail, 20)){ g_malformed = 1; goto next; }
             uint32_t plen = be32(tail + 16); q += 20;
@@ -304,7 +264,6 @@ static int parse_flac(uint64_t off){
     return 0;
 }
 
-/* ------------------------------------------------------------------ MP4 / M4A */
 static int g_atoms;
 static void mp4_walk(uint64_t start, uint64_t end, int depth, int in_covr){
     uint64_t off = start;
@@ -315,7 +274,7 @@ static void mp4_walk(uint64_t start, uint64_t end, int depth, int in_covr){
         if(size == 1){
             if(rd(off + 8, h + 8, 8)){ g_malformed = 1; return; }
             size = be64(h + 8); hdr = 16;
-        } else if(size == 0) size = end - off;              /* to end of the enclosing box */
+        } else if(size == 0) size = end - off;
         if(size < hdr || size > end - off){ g_malformed = 1; return; }
         const unsigned char *t = h + 4;
         uint64_t body = off + hdr, bend = off + size;
@@ -323,7 +282,6 @@ static void mp4_walk(uint64_t start, uint64_t end, int depth, int in_covr){
             if(!memcmp(t, "moov", 4) || !memcmp(t, "udta", 4) || !memcmp(t, "ilst", 4))
                 mp4_walk(body, bend, depth + 1, 0);
             else if(!memcmp(t, "meta", 4)){
-                /* ISO meta is a full box (4 bytes version/flags); some QuickTime files omit them. */
                 unsigned char v[8];
                 uint64_t child = body;
                 if(bend - body >= 8 && rd(body, v, 8) == 0 && memcmp(v + 4, "hdlr", 4) != 0) child = body + 4;
@@ -333,17 +291,16 @@ static void mp4_walk(uint64_t start, uint64_t end, int depth, int in_covr){
             else if(in_covr && !memcmp(t, "data", 4) && bend - body >= 8){
                 unsigned char dh[8];
                 if(rd(body, dh, 8) == 0){
-                    uint32_t ty = be32(dh) & 0xFFFFFF;       /* 13 JPEG, 14 PNG, 27 BMP; decoder sniffs anyway */
+                    uint32_t ty = be32(dh) & 0xFFFFFF;
                     (void)ty;
                     add_cand(1, NULL, body + 8, bend - body - 8);
                 }
             }
         }
-        off = bend;                                          /* mdat and everything else: seek over, never read */
+        off = bend;
     }
 }
 
-/* ------------------------------------------------------------------ WAV (RIFF) with an "id3 " chunk */
 static int parse_wav(void){
     unsigned char h[12];
     if(rd(0, h, 12) || memcmp(h, "RIFF", 4) || memcmp(h + 8, "WAVE", 4)) return -1;
@@ -360,17 +317,13 @@ static int parse_wav(void){
     return 0;
 }
 
-/* ------------------------------------------------------------------ image helpers */
-static int img_sig(const unsigned char *p, size_t n){       /* 1 = something stb_image here can decode */
+static int img_sig(const unsigned char *p, size_t n){
     if(n >= 3 && p[0] == 0xFF && p[1] == 0xD8 && p[2] == 0xFF) return 1;
     if(n >= 8 && !memcmp(p, "\x89PNG\r\n\x1a\n", 8)) return 1;
     if(n >= 2 && p[0] == 'B' && p[1] == 'M') return 1;
     if(n >= 6 && (!memcmp(p, "GIF87a", 6) || !memcmp(p, "GIF89a", 6))) return 1;
     return 0;
 }
-/* Picture dimensions straight from the header, so an oversized picture is refused as a resource limit before any
- * decoder runs. (stbi_info cannot tell us: it tries every format and the last failure overwrites the reason.)
- * Returns 1 with *w,*h set (height may be negative for a top-down BMP), 0 if the header is unreadable. */
 static int header_dims(const unsigned char *p, size_t n, int64_t *w, int64_t *h){
     if(n >= 24 && !memcmp(p, "\x89PNG\r\n\x1a\n", 8) && !memcmp(p + 12, "IHDR", 4)){
         *w = be32(p + 16); *h = be32(p + 20); return 1;
@@ -388,12 +341,12 @@ static int header_dims(const unsigned char *p, size_t n, int64_t *w, int64_t *h)
         for(int seg = 0; seg < 256 && i + 4 <= n; seg++){
             if(p[i] != 0xFF){ i++; continue; }
             int m = p[i + 1];
-            if(m == 0xFF){ i++; continue; }                  /* fill byte */
+            if(m == 0xFF){ i++; continue; }
             if(m == 0xD8 || (m >= 0xD0 && m <= 0xD7) || m == 0x01){ i += 2; continue; }
-            if(m == 0xD9 || m == 0xDA) return 0;             /* no frame header before the scan */
+            if(m == 0xD9 || m == 0xDA) return 0;
             size_t L = (size_t)p[i + 2] << 8 | p[i + 3];
             if(L < 2 || L > n - i - 2) return 0;
-            if(m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC){   /* SOFn */
+            if(m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC){
                 if(L < 7) return 0;
                 *h = (int64_t)p[i + 5] << 8 | p[i + 6]; *w = (int64_t)p[i + 7] << 8 | p[i + 8]; return 1;
             }
@@ -403,7 +356,6 @@ static int header_dims(const unsigned char *p, size_t n, int64_t *w, int64_t *h)
     return 0;
 }
 
-/* EXIF orientation (1-8) from a JPEG's APP1 segment; 1 when absent or unreadable */
 static int exif_orientation(const unsigned char *p, size_t n){
     if(n < 4 || p[0] != 0xFF || p[1] != 0xD8) return 1;
     size_t i = 2;
@@ -411,7 +363,7 @@ static int exif_orientation(const unsigned char *p, size_t n){
         if(p[i] != 0xFF) return 1;
         int m = p[i + 1];
         if(m == 0xD8 || (m >= 0xD0 && m <= 0xD7) || m == 0x01){ i += 2; continue; }
-        if(m == 0xDA || m == 0xD9) return 1;                 /* image data or end: no EXIF before it */
+        if(m == 0xDA || m == 0xD9) return 1;
         size_t L = (size_t)p[i + 2] << 8 | p[i + 3];
         if(L < 2 || L > n - i - 2) return 1;
         const unsigned char *s = p + i + 4; size_t sl = L - 2;
@@ -442,16 +394,9 @@ static int exif_orientation(const unsigned char *p, size_t n){
     return 1;
 }
 
-/* ------------------------------------------------------------------ resampling (integer fixed point) */
-/* All pixel maths is integer: on this device floating point is emulated in the kernel and runs ~235x slower than
- * integer code (measured 2026-09-25: 2M float ops 3.5 s vs 2M integer ops 0.015 s), which made one cover take 46 s.
- * Working images are uint16 in 8.8 fixed point (value * 256). Filter weights are exact integer ratios scaled to
- * WSUM = 16384 and made to sum to exactly WSUM, so no light is gained or lost. */
 #define WBITS 14
 #define WSUM  (1 << WBITS)
 typedef struct { int first, count; uint16_t *w; } contrib_t;
-/* box=1: exact area averaging (downscale) / bilinear (upscale); box=0: triangle filter scaled like PIL BILINEAR.
- * Positions are kept as exact integers: source pixel j spans [j*2N, (j+1)*2N) in units of 1/(2N) pixel. */
 static contrib_t *make_contrib(int src, int dst, int box){
     contrib_t *c = bmalloc(sizeof(contrib_t) * (size_t)dst);
     if(!c) return NULL;
@@ -464,7 +409,6 @@ static contrib_t *make_contrib(int src, int dst, int box){
         c[i].w = pool + (size_t)i * maxw; c[i].count = 0;
         uint64_t tot = 0;
         if(box && S >= N){
-            /* output i covers [i*S, (i+1)*S) in units of 1/N pixel; pixel j covers [j*N, (j+1)*N) */
             int64_t a = i * S, b = (i + 1) * S;
             int j0 = (int)(a / N), j1 = (int)((b - 1) / N);
             if(j1 > src - 1) j1 = src - 1;
@@ -474,9 +418,8 @@ static contrib_t *make_contrib(int src, int dst, int box){
                 raw[c[i].count++] = (uint32_t)(hi > lo ? hi - lo : 0); tot += hi > lo ? (uint64_t)(hi - lo) : 0;
             }
         } else {
-            /* centre (i+0.5)*S/N - 0.5 and pixel centres j, all times 2N: C = (2i+1)*S - N, P = 2N*j */
             int64_t C = (2 * i + 1) * S - N;
-            int64_t sup = (!box && S > N) ? 2 * S : 2 * N;       /* filter half-width, same units */
+            int64_t sup = (!box && S > N) ? 2 * S : 2 * N;
             int64_t jlo = (C - sup) / (2 * N) - 1, jhi = (C + sup) / (2 * N) + 1;
             if(jlo < 0) jlo = 0;
             if(jhi > src - 1) jhi = src - 1;
@@ -486,12 +429,11 @@ static contrib_t *make_contrib(int src, int dst, int box){
                 uint32_t w = d < sup ? (uint32_t)(sup - d) : 0;
                 raw[c[i].count++] = w; tot += w;
             }
-            if(tot == 0){                                   /* degenerate: nearest pixel */
+            if(tot == 0){
                 int64_t j = (C + N) / (2 * N); if(j < 0) j = 0; if(j > src - 1) j = src - 1;
                 c[i].first = (int)j; c[i].count = 1; raw[0] = 1; tot = 1;
             }
         }
-        /* scale to WSUM with rounding; put the rounding remainder on the largest weight so the sum is exact */
         uint32_t sum = 0; int big = 0;
         for(int k = 0; k < c[i].count; k++){
             c[i].w[k] = (uint16_t)((raw[k] * (uint64_t)WSUM + tot / 2) / tot);
@@ -505,24 +447,22 @@ static contrib_t *make_contrib(int src, int dst, int box){
 }
 static void free_contrib(contrib_t *c){ if(c){ bfree(c[0].w); bfree(c); } }
 
-/* resample RGB8 src (sw x sh) to an N x N RGB image in 8.8 fixed point; NULL on budget failure */
 static uint16_t *resample(const unsigned char *src, int sw, int sh, int N, int box){
     contrib_t *cx = make_contrib(sw, N, box), *cy = make_contrib(sh, N, box);
     uint16_t *tmp = NULL, *out = NULL;
     if(!cx || !cy) goto fail;
-    tmp = bmalloc(sizeof(uint16_t) * (size_t)sh * N * 3);       /* horizontal pass: sh rows x N, 8.8 */
+    tmp = bmalloc(sizeof(uint16_t) * (size_t)sh * N * 3);
     out = bmalloc(sizeof(uint16_t) * (size_t)N * N * 3);
     if(!tmp || !out) goto fail;
     for(int y = 0; y < sh; y++){
         const unsigned char *row = src + (size_t)y * sw * 3;
         uint16_t *t = tmp + (size_t)y * N * 3;
         for(int x = 0; x < N; x++){
-            uint32_t r = 0, g = 0, b = 0;                        /* <= 255 * WSUM: fits */
+            uint32_t r = 0, g = 0, b = 0;
             const unsigned char *p = row + (size_t)cx[x].first * 3;
             for(int k = 0; k < cx[x].count; k++, p += 3){
                 uint32_t w = cx[x].w[k]; r += w * p[0]; g += w * p[1]; b += w * p[2];
             }
-            /* value * 256 = acc * 256 / WSUM, rounded */
             t[x * 3] = (uint16_t)((r + (1 << (WBITS - 9))) >> (WBITS - 8));
             t[x * 3 + 1] = (uint16_t)((g + (1 << (WBITS - 9))) >> (WBITS - 8));
             t[x * 3 + 2] = (uint16_t)((b + (1 << (WBITS - 9))) >> (WBITS - 8));
@@ -531,7 +471,7 @@ static uint16_t *resample(const unsigned char *src, int sw, int sh, int N, int b
     for(int y = 0; y < N; y++){
         uint16_t *o = out + (size_t)y * N * 3;
         for(int x = 0; x < N * 3; x++){
-            uint32_t v = 0;                                      /* <= 65280 * WSUM < 2^31 */
+            uint32_t v = 0;
             for(int k = 0; k < cy[y].count; k++) v += (uint32_t)cy[y].w[k] * tmp[(size_t)(cy[y].first + k) * N * 3 + x];
             o[x] = (uint16_t)((v + (WSUM / 2)) >> WBITS);
         }
@@ -543,13 +483,12 @@ fail:
     return NULL;
 }
 
-/* apply EXIF orientation to an N x N image (square, so dimensions do not change) */
 static int orient(uint16_t **img, int N, int o){
     if(o <= 1) return 0;
     uint16_t *src = *img, *dst = bmalloc(sizeof(uint16_t) * (size_t)N * N * 3);
     if(!dst) return -1;
     for(int y = 0; y < N; y++) for(int x = 0; x < N; x++){
-        int sx, sy;                                          /* displayed (x,y) comes from stored (sx,sy) */
+        int sx, sy;
         switch(o){
         case 2: sx = N - 1 - x; sy = y; break;
         case 3: sx = N - 1 - x; sy = N - 1 - y; break;
@@ -557,7 +496,7 @@ static int orient(uint16_t **img, int N, int o){
         case 5: sx = y; sy = x; break;
         case 6: sx = y; sy = N - 1 - x; break;
         case 7: sx = N - 1 - y; sy = N - 1 - x; break;
-        default: sx = N - 1 - y; sy = x; break;              /* 8 */
+        default: sx = N - 1 - y; sy = x; break;
         }
         memcpy(dst + ((size_t)y * N + x) * 3, src + ((size_t)sy * N + sx) * 3, sizeof(uint16_t) * 3);
     }
@@ -565,9 +504,7 @@ static int orient(uint16_t **img, int N, int o){
     return 0;
 }
 
-/* in-place Gaussian approximation: three box passes per axis, integer running sums. The box sizes for sigma 19
- * (standard n-box formula) are fixed at compile time so no floating point runs on the device. */
-static const int BLUR_BOXES_S19[3] = { 37, 37, 39 };   /* wl=37, wu=39, m=round((12*361-3*1369-12*37-9)/(-152))=2 */
+static const int BLUR_BOXES_S19[3] = { 37, 37, 39 };
 static int blur(uint16_t *img, int N){
     uint16_t *line = bmalloc(sizeof(uint16_t) * (size_t)N * 3);
     if(!line) return -1;
@@ -576,7 +513,7 @@ static int blur(uint16_t *img, int N){
         for(int axis = 0; axis < 2; axis++){
             for(int a = 0; a < N; a++){
                 for(int c = 0; c < 3; c++){
-                    uint32_t acc = 0;                        /* <= w * 65280 */
+                    uint32_t acc = 0;
 #define AT(i) (axis ? img[((size_t)(i) * N + a) * 3 + c] : img[((size_t)a * N + (i)) * 3 + c])
                     for(int k = -r; k <= r; k++){ int i = k < 0 ? 0 : (k > N - 1 ? N - 1 : k); acc += AT(i); }
                     for(int b = 0; b < N; b++){
@@ -601,12 +538,10 @@ static int blur(uint16_t *img, int N){
 
 static unsigned char px8(uint16_t v){ uint32_t q = ((uint32_t)v + 128) >> 8; return q > 255 ? 255 : (unsigned char)q; }
 
-/* ------------------------------------------------------------------ output */
 static int write_all(int fd, const unsigned char *p, size_t n){
     while(n){ ssize_t k = write(fd, p, n); if(k < 0){ if(errno == EINTR) continue; return -1; } p += k; n -= (size_t)k; }
     return 0;
 }
-/* 24-bit bottom-up BMP, BITMAPINFOHEADER, BI_RGB, 4-byte padded rows (the layout the old ffmpeg path wrote) */
 static int write_bmp(const char *path, const uint16_t *img, int N, int *created){
     size_t stride = ((size_t)N * 3 + 3) & ~(size_t)3, dsz = stride * N;
     unsigned char *buf = bmalloc(54 + dsz);
@@ -622,14 +557,14 @@ static int write_bmp(const char *path, const uint16_t *img, int N, int *created)
     h[26] = 1; h[28] = 24;
     memcpy(h + 34, (uint8_t[]){ dsz, dsz >> 8, dsz >> 16, dsz >> 24 }, 4);
     for(int y = 0; y < N; y++){
-        unsigned char *row = buf + 54 + (size_t)(N - 1 - y) * stride;   /* bottom-up */
+        unsigned char *row = buf + 54 + (size_t)(N - 1 - y) * stride;
         const uint16_t *s = img + (size_t)y * N * 3;
         for(int x = 0; x < N; x++){ row[x * 3] = px8(s[x * 3 + 2]); row[x * 3 + 1] = px8(s[x * 3 + 1]); row[x * 3 + 2] = px8(s[x * 3]); }
     }
     int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
     int rc = ST_IO;
     if(fd >= 0){
-        *created = 1;                                        /* only files we created may be removed on failure */
+        *created = 1;
         if(write_all(fd, buf, 54 + dsz) == 0) rc = ST_OK;
         if(close(fd) != 0) rc = ST_IO;
     }
@@ -654,10 +589,9 @@ static int write_bgra(const char *path, const uint16_t *img, int N, int *created
     return rc;
 }
 
-/* ------------------------------------------------------------------ decode one candidate */
 typedef struct { unsigned char *rgb; int w, h, orient; } pic_t;
 static int decode(const cand_t *c, pic_t *out){
-    if(c->len == 0) return ST_LIMIT;                          /* recorded as over MAX_PIC_BYTES */
+    if(c->len == 0) return ST_LIMIT;
     const unsigned char *bytes = c->mem;
     unsigned char *owned = NULL;
     if(!bytes){
@@ -669,9 +603,9 @@ static int decode(const cand_t *c, pic_t *out){
     int rc;
     int w, h, comp;
     if(!img_sig(bytes, c->len)){ rc = ST_UNSUPPORTED; goto done; }
-    int64_t hw, hh;                                           /* 64-bit: negating INT32_MIN cannot overflow */
+    int64_t hw, hh;
     if(header_dims(bytes, c->len, &hw, &hh)){
-        if(hh < 0) hh = -hh;                                  /* top-down BMP */
+        if(hh < 0) hh = -hh;
         if(hw > MAX_SIDE || hh > MAX_SIDE || (uint64_t)hw * (uint64_t)hh > MAX_PIXELS){ rc = ST_LIMIT; goto done; }
     }
     if(!stbi_info_from_memory(bytes, (int)c->len, &w, &h, &comp)){
@@ -679,7 +613,6 @@ static int decode(const cand_t *c, pic_t *out){
         rc = (why && !strcmp(why, "too large")) ? ST_LIMIT : ST_MALFORMED;
         goto done;
     }
-    /* stb reports a top-down BMP's height as stored (negative); normalise it without overflowing */
     if(h < 0 && bytes[0] == 'B' && bytes[1] == 'M'){
         if(h == INT_MIN){ rc = ST_MALFORMED; goto done; }
         h = -h;
@@ -694,7 +627,7 @@ static int decode(const cand_t *c, pic_t *out){
         rc = (g_over_budget || (why && (!strcmp(why, "too large") || !strcmp(why, "outofmem")))) ? ST_LIMIT : ST_MALFORMED;
         goto done;
     }
-    if(want == 4){                                            /* composite onto black, compact to RGB in place */
+    if(want == 4){
         for(size_t i = 0; i < (size_t)w * h; i++){
             unsigned a = px[i * 4 + 3];
             px[i * 3]     = (unsigned char)((px[i * 4]     * a + 127) / 255);
@@ -718,17 +651,15 @@ static int make(const pic_t *p, int N, int box, int blurred, uint16_t **res){
     return ST_OK;
 }
 
-/* Resource limits for this process. Returns -1 if any could not be applied: the helper then refuses to run
- * rather than decode untrusted input without them. */
 static int limits(void){
     int bad = 0;
 #ifndef ARTDEC_NO_RLIMIT
-    struct rlimit as = { 48u << 20, 48u << 20 };             /* address space: 32 MiB budget + code, stack, slack */
+    struct rlimit as = { 48u << 20, 48u << 20 };
     bad |= setrlimit(RLIMIT_AS, &as);
 #endif
     struct rlimit core = { 0, 0 }, fsz = { 1u << 20, 1u << 20 }, nofile = { 16, 16 };
     bad |= setrlimit(RLIMIT_CORE, &core);
-    bad |= setrlimit(RLIMIT_FSIZE, &fsz);                    /* outputs are at most 518,400 bytes */
+    bad |= setrlimit(RLIMIT_FSIZE, &fsz);
     bad |= setrlimit(RLIMIT_NOFILE, &nofile);
     return bad ? -1 : 0;
 }
@@ -744,7 +675,6 @@ int main(int argc, char **argv){
     if(fstat(g_fd, &st) || !S_ISREG(st.st_mode)) return ST_IO;
     g_fsize = (uint64_t)st.st_size;
 
-    /* container detection by content */
     unsigned char head[12] = {0};
     size_t hn = g_fsize < 12 ? (size_t)g_fsize : 12;
     if(hn && rd(0, head, hn)) return ST_IO;
@@ -753,7 +683,7 @@ int main(int argc, char **argv){
         uint32_t sz = 0;
         if(rd(0, h10, 10) == 0 && syncsafe(h10 + 6, &sz) == 0){
             parse_id3_at(0, g_fsize);
-            uint64_t after = 10 + (uint64_t)sz + ((h10[5] & 0x10) ? 10 : 0);   /* v2.4 footer */
+            uint64_t after = 10 + (uint64_t)sz + ((h10[5] & 0x10) ? 10 : 0);
             unsigned char f4[4];
             if(after + 4 <= g_fsize && rd(after, f4, 4) == 0 && !memcmp(f4, "fLaC", 4)) parse_flac(after);
         } else g_malformed = 1;
@@ -763,12 +693,11 @@ int main(int argc, char **argv){
     else if(hn >= 12 && !memcmp(head, "RIFF", 4) && !memcmp(head + 8, "WAVE", 4)) parse_wav();
     else if(img_sig(head, hn)) add_cand(1, NULL, 0, g_fsize);
     else if(hn == 0) return ST_MALFORMED;
-    else if(g_fsize > 3 && (head[0] == 0xFF && (head[1] & 0xE0) == 0xE0)) return ST_NOPIC;   /* bare MPEG audio */
+    else if(g_fsize > 3 && (head[0] == 0xFF && (head[1] & 0xE0) == 0xE0)) return ST_NOPIC;
     else return ST_UNSUPPORTED;
 
     if(g_ncand == 0) return g_ioerr ? ST_IO : g_limited ? ST_LIMIT : g_malformed ? ST_MALFORMED : ST_NOPIC;
 
-    /* front covers first, then the rest, each in file order; a bad candidate does not hide a later good one */
     int order[MAX_CANDIDATES], no = 0, best = ST_NOPIC;
     for(int pass = 0; pass < 2; pass++)
         for(int i = 0; i < g_ncand; i++) if(g_cand[i].front == !pass) order[no++] = i;
@@ -777,10 +706,10 @@ int main(int argc, char **argv){
     for(int k = 0; k < no && !got; k++){
         int rc = decode(&g_cand[order[k]], &pic);
         if(rc == ST_OK) got = 1;
-        else if(best == ST_NOPIC || rc == ST_LIMIT) best = rc;   /* report the most informative failure */
+        else if(best == ST_NOPIC || rc == ST_LIMIT) best = rc;
     }
     if(!got) return g_ioerr ? ST_IO : best;
-    free_tags();                                              /* compressed bytes no longer needed */
+    free_tags();
 
     int rc = ST_OK;
     if(saver){

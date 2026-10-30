@@ -48,7 +48,6 @@ class BlobGuard:
                 checked_stat(ancestor)
             if not stat.S_ISREG(checked_stat(target).st_mode):
                 raise ValueError('Expected a regular file: ' + str(target))
-            # Binary subprocess output: no PowerShell pipe, decoding or filters.
             expected = self.git('cat-file', 'blob', self.commit + ':' + name)
             if target.read_bytes() != expected:
                 raise ValueError('Committed blob mismatch: ' + str(target) + ' != ' + name)
@@ -57,7 +56,6 @@ class BlobGuard:
         data = Path(data)
         pairs = [(data / 'payload' / name, 'payload/' + name) for name in PAYLOAD]
         if not frozen:
-            # Source tarballs ship the complete tracked payload/ and flash/ trees.
             records = self.git('ls-tree', '-r', '-z', self.commit, '--', 'payload', 'flash')
             seen = set()
             for record in records.split(b'\0'):

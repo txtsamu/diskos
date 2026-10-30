@@ -1,8 +1,4 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Idle-CPU profiling (measurement build only: -DDISKOS_PROFILE). Every 60 s it writes one report to stderr: loop
- * wake-ups, how often the loop ran "busy" (5 ms cap), time inside lv_timer_handler and the rest of the loop, display
- * flushes and pixels, and every LVGL timer's call count + total time (callbacks are wrapped in a timing trampoline,
- * keyed by the original callback address - map it to a name with nm on the unstripped binary). */
 #ifdef DISKOS_PROFILE
 #include "prof.h"
 #include "lvgl/lvgl.h"
@@ -21,7 +17,7 @@ void prof_flush(int px){ g_flushes++; g_px += (unsigned long long)px; }
 static void tramp(lv_timer_t *t){
     for(int i = 0; i < npt; i++) if(pt[i].t == t){
         lv_timer_cb_t cb = pt[i].orig; unsigned long long a = now_ns();
-        cb(t);                                   /* may delete t: only the table entry is touched afterwards */
+        cb(t);
         pt[i].ns += now_ns() - a; pt[i].calls++;
         return;
     }
@@ -30,7 +26,7 @@ static void wrap_new_timers(void){
     for(lv_timer_t *t = lv_timer_get_next(NULL); t; t = lv_timer_get_next(t)){
         if(t->timer_cb == tramp) continue;
         int slot = -1;
-        for(int i = 0; i < npt; i++) if(pt[i].t == t){ slot = i; break; }   /* address reused by a new timer */
+        for(int i = 0; i < npt; i++) if(pt[i].t == t){ slot = i; break; }
         if(slot < 0){ if(npt >= PT_MAX) continue; slot = npt++; }
         pt[slot].t = t; pt[slot].orig = t->timer_cb;
         t->timer_cb = tramp;

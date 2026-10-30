@@ -22,16 +22,8 @@ from diskos_installer import (__version__, bundle, errors, flasher, imagebuild,
 from diskos_installer.reporter import CLIReporter
 
 
-# --- single-run lock so two installers can't touch the ONE physical device at once. It must be
-# SHARED across all users on the host (a GUI as your user and a CLI under sudo must not both flash),
-# so it lives at a FIXED /tmp path - NOT per-user. Advisory flock (auto-released on death -> no
-# stale-lock hazard). Opened READ-ONLY so any user can take the flock on a 0644 file, and O_NOFOLLOW
-# so a planted symlink can't redirect the open (we bail instead of following it). ---
 class _Lock:
     def __init__(self, windows=None, api=None):
-        # A FIXED absolute path, not tempfile.gettempdir(): $TMPDIR differs between a normal run and a
-        # sudo run (and per-user on macOS), which would hand them SEPARATE locks and defeat the whole
-        # point. /tmp is world-accessible on Linux/macOS; Windows uses a global mutex.
         self.path = "/tmp/diskos-installer.lock"
         self.fd = None
         self.windows = platform_probe.host()[0] == "windows" if windows is None else windows
@@ -41,14 +33,12 @@ class _Lock:
     def __enter__(self):
         if self.windows:
             self.api = self.api or bundle._windows_api()
-            # Global namespace spans login sessions. Everyone gets only wait/release
-            # rights, so the first user's default DACL cannot split the lock by user.
             from ctypes import wintypes as w
             class Security(ctypes.Structure):
                 _fields_ = [("length", w.DWORD), ("descriptor", ctypes.c_void_p), ("inherit", w.BOOL)]
             descriptor = ctypes.c_void_p()
             if hasattr(self.api, "mutex_security"):
-                security = self.api.mutex_security()  # injectable OS boundary
+                security = self.api.mutex_security()
             else:
                 adv = ctypes.WinDLL("advapi32", use_last_error=True)
                 convert = adv.ConvertStringSecurityDescriptorToSecurityDescriptorW
@@ -68,7 +58,7 @@ class _Lock:
             if not self.handle:
                 raise SystemExit("could not open the machine-wide installer mutex")
             result = self.api.WaitForSingleObject(self.handle, 0)
-            if result not in (0, 0x80):  # abandoned mutex is acquired after owner death
+            if result not in (0, 0x80):
                 self.api.CloseHandle(self.handle)
                 self.handle = None
                 raise SystemExit("another installer is running or the run-lock is unavailable")
@@ -82,7 +72,6 @@ class _Lock:
             raise SystemExit(ui.red(
                 f"could not open the run-lock at {self.path} ({e}). If it exists as a symlink, "
                 "remove it and retry."))
-        # A planted symlink is refused by O_NOFOLLOW above; also refuse a non-regular file.
         if not _stat.S_ISREG(os.fstat(self.fd).st_mode):
             os.close(self.fd); self.fd = None
             raise SystemExit(ui.red(f"run-lock {self.path} is not a regular file - refusing."))
@@ -147,7 +136,6 @@ def cmd_doctor(args):
         else:
             ui.err(f"  {name}: MISSING")
         all_ok = all_ok and ok
-    # squashfs tools may be bundled OR system copies - prove the actual pair can pack+extract LZO.
     mksq = bundle.native("mksquashfs", required=False)
     unsq = bundle.native("unsquashfs", required=False)
     if mksq and unsq:
@@ -160,7 +148,7 @@ def cmd_doctor(args):
     for name in ("mq_ui", "S97diskos_install", "S98diskos_sshkey", "S99usbserial", "diskos-debug.sh", "dropbearmulti"):
         p = bundle.data(name, required=False)
         (ui.ok if p else ui.err)(f"  {name}: {p or 'MISSING'}")
-        all_ok = all_ok and bool(p)   # payload files are required to build a flashable image
+        all_ok = all_ok and bool(p)
 
     if o == "windows":
         from diskos_installer import windows_usb
@@ -177,7 +165,7 @@ def cmd_doctor(args):
         ui.info("device: none in mask-ROM mode (normal unless you're about to flash)")
     else:
         (ui.ok if n == 1 else ui.warn)(f"device: {n} in mask-ROM mode")
-        access, where = platform_probe.maskrom_access()   # usbboot must be able to OPEN it, not just see it (#10)
+        access, where = platform_probe.maskrom_access()
         if access == "ok":
             ui.ok(f"device: can be opened by this user ({where})")
         elif access == "denied":
@@ -269,7 +257,7 @@ def cmd_remove(args):
             ui.info("Nothing was installed system-wide, so there is nothing else to clean up.")
         return 0
     if r.get("errors"):
-        return 1   # partial-removal errors already reported by the service
+        return 1
     ui.info("aborted; nothing removed.")
     return 3
 
@@ -278,7 +266,6 @@ def build_parser():
     p = argparse.ArgumentParser(prog="diskos-installer",
                                 description="Standalone diskOS installer for the FiiO Snowsky Disc.")
     p.add_argument("--version", action="version", version=f"diskos-installer {__version__}")
-    # no subcommand -> GUI (running ./diskos-installer with no arguments); subcommands = CLI
     sub = p.add_subparsers(dest="cmd", required=False)
 
     sub.add_parser("gui", help="launch the graphical installer (also the default with no arguments)")
@@ -336,22 +323,20 @@ def main(argv=None):
 def _main(argv=None):
     from diskos_installer import flash_child
     child_args = sys.argv[1:] if argv is None else argv
-    # Private dispatch enforces parent supervision and normal flash gates itself.
     if child_args and child_args[0] == flash_child.CHILD_MODE:
         return flash_child.main(child_args)
     args = build_parser().parse_args(argv)
-    # no subcommand, or 'gui' -> launch the graphical installer (under the lock)
     if getattr(args, "cmd", None) in (None, "gui"):
         from diskos_installer import gui
         with _Lock():
             return gui.main()
     try:
-        if args.cmd == "doctor":            # doctor is read-only; no lock needed
+        if args.cmd == "doctor":
             return args.func(args)
         with flasher.windows_dev_flash(getattr(args, "windows_dev_flash", False)):
             with _Lock():
                 return args.func(args)
-    except errors.DiskOSError as e:   # any coded installer error (Build/Flash/Preflight)
+    except errors.DiskOSError as e:
         ui.err(str(e))
         return 1
     except KeyboardInterrupt:

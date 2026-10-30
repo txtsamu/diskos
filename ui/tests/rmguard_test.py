@@ -19,7 +19,7 @@ class GuardTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="diskos-rmguard-tests-")
         cls.root = Path(cls.tmp.name)
-        cls.work = cls.root / "w"          # wiped before every case; the macros below point into it
+        cls.work = cls.root / "w"
         app = Path(__file__).resolve().parents[1]
         cls.exe = cls.root / "test"
         subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",

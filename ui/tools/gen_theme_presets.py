@@ -14,13 +14,10 @@ import re
 import sys
 from pathlib import Path
 
-APP = Path(__file__).resolve().parent.parent          # the UI source directory (theme.c lives here)
+APP = Path(__file__).resolve().parent.parent
 OUT = APP / 'theme_presets.inc'
 
-# name, hue (degrees) for the surface tint, tint strength dark/light, accent dark, accent light
-PRESETS = []   # recolour presets were dropped (owner, 2026-09-26): every theme is a hand-designed language (EXPLICIT)
-# Hand-designed presets: explicit colours over the default palettes (then fitted like the others). "something" is
-# sampled from the owner's mockups (assets/reference/something/): black / off-white canvases with a dot grid, one red.
+PRESETS = []
 EXPLICIT = [
     ('something', {
         'dark': dict(CANVAS=0x000000, SURFACE=0x0D0D0D, SURFACE_RAISED=0x1F1F1F, SURFACE_STRONG=0x2B2B2B,
@@ -66,40 +63,38 @@ def seed(bg, surf, rais, strong, txt, sec, muted, acc, on_acc, border, texture, 
                 INPUT_PLACEHOLDER=muted, FOLDER_ICON=sec, ART_WALL_FRONT=rais, ART_WALL_SIDE=surf)
 
 
-# The six unique themes. Each seed is that
-# concept's own colours; fit() then moves any foreground that misses a contrast rule.
 EXPLICIT += [
-    ('hi-fi', {   # 1980s hi-fi deck: warm brown case / cream faceplate, amber LCD
+    ('hi-fi', {
         'dark': seed(0x15120E, 0x1E1A15, 0x26221D, 0x3A342C, 0xF2E9DC, 0xC4B8A8, 0x9C8F80, 0xFFA630, 0x000000,
                      0x2E2922, 0x4A4238, 0x3A2A12, 0xE5533D, 0x4A3416, sw_knob=0x15120E, sw_off=0x9C8F80),
         'light': seed(0xE6E2DA, 0xEFEBE4, 0xD3CEC4, 0xB3ACA0, 0x1E1B17, 0x3E3932, 0x5C554C, 0xB8660A, 0xFFFFFF,
                       0xC5BFB3, 0xC5BFB3, 0xD8C9B2, 0xB83A26, 0xF0D9B8),
     }),
-    ('terminal', {   # command line: phosphor green on black / ink on paper; the selection is inverted
+    ('terminal', {
         'dark': seed(0x050A06, 0x07100A, 0x0C1A10, 0x0F3A1E, 0x3DFF7A, 0x2BD463, 0x1F9F4A, 0x3DFF7A, 0x050A06,
                      0x0F3A1E, 0x08140B, 0xD8FFE4, 0xFF4D4D, 0x0F3A1E, selected=0x0F3A1E),
         'light': seed(0xF2EFE4, 0xF7F5EE, 0xE6E2D4, 0xD8D3C2, 0x1B1B1B, 0x3A3A34, 0x55554C, 0x1B1B1B, 0xF2EFE4,
                       0xD8D3C2, 0xE9E5D8, 0x1F3FBF, 0xC0282D, 0xD8D3C2, selected=0xE6E2D4),
     }),
-    ('bauhaus', {   # poster geometry: black or paper, red / blue / yellow blocks
+    ('bauhaus', {
         'dark': seed(0x111111, 0x1A1A1A, 0x1E1E1E, 0x2E2E2E, 0xF5F1E6, 0xCFCABE, 0x9A968C, 0xD8412F, 0xFFFFFF,
                      0x2A2A2A, 0x111111, 0x2A5BD7, 0xF2C230, 0x5A1E16),
         'light': seed(0xF3EEE2, 0xEAE4D6, 0xE6DFD0, 0xD2CAB8, 0x111111, 0x3A3731, 0x5E5A52, 0xC8331F, 0xFFFFFF,
                       0xD2CAB8, 0x111111, 0x1F4FBF, 0xE8B400, 0xF1C9C2),
     }),
-    ('blueprint', {   # technical drawing: navy sheet with a cyan grid / white drafting sheet with blue lines
+    ('blueprint', {
         'dark': seed(0x0B1A2E, 0x0F2138, 0x11243F, 0x1A3558, 0xD9ECFF, 0xA9C7E6, 0x6F95BD, 0x5CC8FF, 0x0B1A2E,
                      0x1A3558, 0x11243F, 0xFFD24A, 0x5CC8FF, 0x1A3558, sw_knob=0x0B1A2E, sw_off=0x6F95BD),
         'light': seed(0xF4F8FC, 0xFFFFFF, 0xE2EBF5, 0xC7D7EA, 0x0B2545, 0x2C4A6E, 0x5B7797, 0x1565C0, 0xFFFFFF,
                       0xC7D7EA, 0xE2EBF5, 0xC96A00, 0x1565C0, 0xC7D7EA),
     }),
-    ('stone', {   # soft and tactile: raised rounded surfaces, mint / terracotta
+    ('stone', {
         'dark': seed(0x1C1F22, 0x2A2F34, 0x353B41, 0x40474E, 0xEEF1F4, 0xC7CED6, 0xA3ADB8, 0x7FE0B0, 0x0E2A1E,
                      0x2A2F34, 0x111315, 0x7FE0B0, 0x111315, 0x2D5A45, sw_knob=0x1C1F22, sw_off=0xA3ADB8),
         'light': seed(0xEFEDE8, 0xFFFFFF, 0xE4E1DA, 0xD6D2C9, 0x2B2F36, 0x4B5260, 0x6B7280, 0xD2603F, 0xFFFFFF,
                       0xE4E1DA, 0xD6D2C9, 0xD2603F, 0xD6D2C9, 0xF4D3C8),
     }),
-    ('zine', {   # photocopied music zine: black or paper, magenta ink, yellow highlighter
+    ('zine', {
         'dark': seed(0x0E0E0E, 0x161616, 0x1B1B1B, 0x2A2A2A, 0xEDEDED, 0xC4C4C4, 0x9A9A9A, 0xFF3DA5, 0x000000,
                      0x2A2A2A, 0x1B1B1B, 0xFFE600, 0x111111, 0x5A1638),
         'light': seed(0xF1EDE2, 0xFFFFFF, 0xE6E1D3, 0xD6D0BF, 0x111111, 0x333333, 0x555555, 0xE6007E, 0xFFFFFF,
@@ -108,7 +103,6 @@ EXPLICIT += [
 ]
 
 
-# neutral roles that take the preset's tint (backgrounds, surfaces, tracks, keys)
 TINTED = {'CANVAS', 'SURFACE', 'SURFACE_RAISED', 'SURFACE_STRONG', 'SURFACE_SELECTED', 'ART_PLACEHOLDER',
           'LIST_PRESSED', 'SURFACE_PRESSED', 'RAISED_PRESSED', 'BORDER', 'BORDER_STRONG', 'CONTROL_TRACK',
           'CONTROL_TRACK_STRONG', 'CONTROL_OFF', 'KEY_SURFACE', 'KEY_PRESSED', 'SWITCH_OFF', 'ART_WALL_FRONT',
@@ -231,7 +225,7 @@ def build(src):
             for role in ACCENT_ROLES:
                 p[role] = acc
             if var == 'dark':
-                p['ON_ACCENT'] = 0x000000     # dark presets use bright accents: black glyphs on them
+                p['ON_ACCENT'] = 0x000000
             pals[var] = fit(p)
         out.append((name, pals))
     for name, over in EXPLICIT:
@@ -243,7 +237,7 @@ def build(src):
                 raise SystemExit('%s %s: unknown roles %s' % (name, var, sorted(unknown)))
             p.update(over[var])
             pals[var] = fit(p)
-        out.append((name, pals))                        # hand-designed presets, in EXPLICIT order
+        out.append((name, pals))
     return base, out
 
 

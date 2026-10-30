@@ -8,15 +8,10 @@
 #include <stdio.h>
 #include <math.h>
 
-/* Accent colour picker: choose "Album Art" (dynamic) or ANY fixed colour via
- * Hue/Saturation/Brightness sliders with a live preview. Writes cfg accent_mode
- * (0=dynamic,1=static) + accent_color (0xRRGGBB as a decimal int) and applies live
- * through ui_set_accent_config(). */
-
-static lv_obj_t *g_hsl, *g_ssl, *g_vsl;   /* hue/sat/val sliders */
-static lv_obj_t *g_preview;                /* colour swatch */
-static lv_obj_t *g_dyn_btn;                /* "Album Art" (dynamic) button */
-static int g_loading = 0;                  /* suppress callbacks while seeding sliders */
+static lv_obj_t *g_hsl, *g_ssl, *g_vsl;
+static lv_obj_t *g_preview;
+static lv_obj_t *g_dyn_btn;
+static int g_loading = 0;
 
 static void hsv2rgb(int h,int s,int v,int*r,int*g,int*b){
     float S=s/100.0f, V=v/100.0f;
@@ -34,10 +29,9 @@ static void rgb2hsv(int r,int g,int b,int*h,int*s,int*v){
     *s=(int)((mx>0?d/mx:0)*100+0.5f); *v=(int)(mx*100+0.5f);
 }
 
-static int g_pending_rgb = 0xF23260;   /* last live colour; persisted on slider release */
+static int g_pending_rgb = 0xF23260;
 
 
-/* a slider moved -> recompute colour, preview + apply LIVE (no cfg write on drag). */
 static void slider_cb(lv_event_t *e){
     (void)e;
     if(g_loading) return;
@@ -48,10 +42,9 @@ static void slider_cb(lv_event_t *e){
     int rgb = (r<<16)|(gg<<8)|b;
     g_pending_rgb = rgb;
     if(g_preview) lv_obj_set_style_bg_color(g_preview, theme_color_from_rgb(rgb), 0);
-    if(g_dyn_btn) lv_obj_set_style_border_width(g_dyn_btn, 0, 0);   /* leaving dynamic */
+    if(g_dyn_btn) lv_obj_set_style_border_width(g_dyn_btn, 0, 0);
     ui_set_accent_config(1, rgb);
 }
-/* persist only when the finger lifts -> one durable cfg write per adjustment, not per tick. */
 static void slider_release_cb(lv_event_t *e){
     (void)e;
     if(g_loading) return;
@@ -63,10 +56,9 @@ static void dynamic_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     cfg_set_int("accent_mode", 0);
     ui_set_accent_config(0, 0);
-    if(g_dyn_btn) lv_obj_set_style_border_width(g_dyn_btn, 2, 0);   /* mark selected */
+    if(g_dyn_btn) lv_obj_set_style_border_width(g_dyn_btn, 2, 0);
 }
 
-/* seed the sliders + preview from the saved colour (called on open) */
 void colorpick_open(void){
     int mode = cfg_get_int("accent_mode", 0);
     int rgb  = cfg_get_int("accent_color", 0xF23260);
@@ -83,16 +75,14 @@ void colorpick_open(void){
 
 static lv_obj_t *mk_slider(lv_obj_t *root, int y, int max){
     lv_obj_t *sl = lv_slider_create(root);
-    lv_obj_set_pos(sl, 62, y); lv_obj_set_size(sl, 236, 12);   /* a knob at 0 lines up with its label, not over it */
-    lv_obj_set_ext_click_area(sl, 16);   /* 12px slider -> ~44px grab band on the capacitive panel */
+    lv_obj_set_pos(sl, 62, y); lv_obj_set_size(sl, 236, 12);
+    lv_obj_set_ext_click_area(sl, 16);
     lv_slider_set_range(sl, 0, max);
     lv_obj_set_style_bg_color(sl, TC(CONTROL_TRACK), LV_PART_MAIN);
     lv_obj_set_style_bg_color(sl, TC(CONTROL_FILL_MUTED), LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(sl, TC(CONTROL_KNOB), LV_PART_KNOB);
     ui_on(sl, slider_cb, LV_EVENT_VALUE_CHANGED, NULL, "colorpick.slider.value", UI_CORE);
     lv_obj_add_event_cb(sl, slider_release_cb, LV_EVENT_RELEASED, NULL);
-    /* a drag that ends in press-lost (finger slid off) must persist too, else the live
-     * static accent never gets written and reverts to dynamic on next boot. */
     lv_obj_add_event_cb(sl, slider_release_cb, LV_EVENT_PRESS_LOST, NULL);
     return sl;
 }
@@ -107,9 +97,8 @@ void colorpick_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    ui_header(root, "Accent");   /* shared standard header */
+    ui_header(root, "Accent");
 
-    /* preview swatch */
     g_preview = lv_obj_create(root);
     lv_obj_remove_style_all(g_preview);
     lv_obj_set_size(g_preview, 54, 54); lv_obj_set_pos(g_preview, 153, 74);
@@ -118,12 +107,10 @@ void colorpick_create(lv_obj_t *root){
     lv_obj_set_style_border_color(g_preview, TC(BORDER_STRONG), 0);
     lv_obj_set_style_border_width(g_preview, 2, 0);
 
-    /* label, then its track 26 px lower: the knob's overhang clears the label's line */
     mk_label(root, 134, "Hue");        g_hsl = mk_slider(root, 160, 359);
     mk_label(root, 180, "Saturation"); g_ssl = mk_slider(root, 206, 100);
     mk_label(root, 226, "Brightness"); g_vsl = mk_slider(root, 252, 100);
 
-    /* "Album Art" (dynamic) button */
     g_dyn_btn = lv_button_create(root);
     lv_obj_remove_style_all(g_dyn_btn);
     lv_obj_set_pos(g_dyn_btn, 100, 282); lv_obj_set_size(g_dyn_btn, 160, 40);

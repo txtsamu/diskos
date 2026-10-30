@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Driver for tests/rmguard_test.py: links the REAL rmguard.c. The python test compiles both with -DRMGUARD_ROOTFS=...,
- * -DRMGUARD_SYSTEM=..., -DRMGUARD_FALLBACK_PARENT=... and -DRMGUARD_FALLBACK=... pointing into a temp dir, so nothing
- * under /usr/data is touched. Usage: driver <case>; it sets the case up, calls rmguard_ensure() twice and prints
- *   <first result> <second result> <PATH unchanged by the second call>\n<PATH>\n */
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <stdio.h>

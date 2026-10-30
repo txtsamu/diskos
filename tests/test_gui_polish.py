@@ -47,7 +47,7 @@ class AssetFiles(unittest.TestCase):
 
     def test_assets_stay_small(self):
         total = sum(os.path.getsize(os.path.join(ASSETS, n)) for n in os.listdir(ASSETS) if n.endswith(".png"))
-        self.assertLess(total, 440 * 1024)         # 400 KB before the result-screen strings joined the sheet
+        self.assertLess(total, 440 * 1024)
 
 
 class DisplayWidgets(unittest.TestCase):
@@ -104,7 +104,7 @@ class DisplayWidgets(unittest.TestCase):
             self.assertEqual(str(lbl.cget("image")), "")
             k = gui_theme.kicker(root, "Variant")
             self.assertEqual(str(k.cget("text")), "VARIANT")
-            self.assertIsNotNone(gui_theme.hero_bleed(root, ttk.Frame(root), ttk.Frame(root)))   # drawn disc
+            self.assertIsNotNone(gui_theme.hero_bleed(root, ttk.Frame(root), ttk.Frame(root)))
 
     def test_unknown_display_string_falls_back_to_text(self):
         root = self._root()
@@ -126,7 +126,7 @@ class DisplayWidgets(unittest.TestCase):
         self.assertAlmostEqual(got["2"] / got["1"], 2, delta=0.25)
         root.tk.call("tk", "scaling", 96 / 72 * 1.25)
         self.assertFalse(gui_theme.dense(root))
-        self.assertIsNotNone(gui_theme.wordmark(root))     # no 1.5x wordmark: falls back to the nearest file
+        self.assertIsNotNone(gui_theme.wordmark(root))
 
     def test_hero_disc_hides_with_the_hero(self):
         app = self._app()
@@ -142,16 +142,16 @@ class DisplayWidgets(unittest.TestCase):
 
     def test_dev_is_under_advanced_and_opens_when_chosen(self):
         app = self._app()
-        self.assertEqual(app._adv.winfo_manager(), "")              # hidden by default
+        self.assertEqual(app._adv.winfo_manager(), "")
         app._toggle_advanced()
         self.assertEqual(app._adv.winfo_manager(), "pack")
         app._toggle_advanced()
         self.assertEqual(app._adv.winfo_manager(), "")
-        app.variant.set("dev")                                       # chosen any way: it shows, with the warning
+        app.variant.set("dev")
         app._variant_warn()
         self.assertEqual(app._adv.winfo_manager(), "pack")
         self.assertIn("always-on passwordless USB root", str(app.variant_warn_lbl.cget("text")))
-        app._toggle_advanced(False)                                  # never hides the selected choice
+        app._toggle_advanced(False)
         self.assertEqual(app._adv.winfo_manager(), "pack")
         app.variant.set("public")
         app._variant_warn()

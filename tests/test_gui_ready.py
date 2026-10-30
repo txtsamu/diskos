@@ -67,7 +67,6 @@ class RowLogic(unittest.TestCase):
 
     def test_firmware_rows(self):
         self.assertIs(rows(linux(1), firmware="")["firmware"]["ok"], False)
-        # Selection is a pure check; preflight/build validate the actual file.
         with mock.patch.object(readiness.os.path, "isfile", side_effect=AssertionError("filesystem read")):
             r = rows(linux(1), firmware="/chosen/firmware.zip")["firmware"]
         self.assertIs(r["ok"], True)
@@ -194,7 +193,7 @@ class GuiReady(unittest.TestCase):
             app._tick_device = lambda: None
             self._settle(app)
         self.assertNotIn(threading.get_ident(), threads)
-        self.assertEqual(app.ready_title.cget("text"), "1 to sort out - you can still continue")   # firmware not chosen yet
+        self.assertEqual(app.ready_title.cget("text"), "1 to sort out - you can still continue")
 
     def test_no_device_shows_help_and_warns_without_blocking_install(self):
         app = self._app(probe=linux(0))
@@ -206,7 +205,6 @@ class GuiReady(unittest.TestCase):
             self.assertIn(s, text)
         self.assertIn("to sort out - you can still continue", text)
         self.assertEqual(str(app.action_btn.cget("state")), "normal")
-        # empty firmware: Install is still clickable and only shows the inline message
         with mock.patch.object(gui.service, "do_install") as inst:
             app._on_action()
         inst.assert_not_called()
@@ -222,7 +220,7 @@ class GuiReady(unittest.TestCase):
             self._settle(app)
             self.assertEqual(app.ready_help.winfo_manager(), "")
             self.assertEqual(app.ready_title.cget("text"), "Ready - 1 Disc found in flash mode")
-            self.assertEqual(self._bad_rows(app), [])          # collapsed: one summary line only
+            self.assertEqual(self._bad_rows(app), [])
             self.assertEqual(str(app.action_btn.cget("state")), "normal")
 
     def test_linux_access_denied_shows_fix_and_install_stays_enabled(self):
@@ -239,7 +237,7 @@ class GuiReady(unittest.TestCase):
 
     def test_windows_driver_missing_then_present(self):
         app = self._app(host=("windows", "x86_64"), probe=win("driver"))
-        self.assertIsNone(app.driver_btn)          # the driver action lives in the checklist row
+        self.assertIsNone(app.driver_btn)
         self._settle(app)
         btns = [w for w in self._all(app.ready_rows) if w.winfo_class() == "TButton"]
         self.assertEqual([str(b.cget("text")) for b in btns], ["Set up USB driver..."])
@@ -358,7 +356,6 @@ class GuiReady(unittest.TestCase):
         app.root.update()
         self.assertTrue(app._scrolling)
         app._canvas.yview_moveto(0)
-        # Exercise Tk's Tab traversal and verify the final control is visible.
         app.ready_refresh.focus_force()
         app.root.update()
         for _ in range(40):
@@ -455,8 +452,7 @@ class GuiReady(unittest.TestCase):
         self.assertEqual(app.ready_frame.winfo_manager(), "pack")
         self.assertIn("No firmware chosen yet", " ".join(self._texts(app.ready_rows)))
 
-    # ---- window height budget -------------------------------------------------
-    BUDGET = 700            # 1366x768 laptop at 100% scaling, minus title bar and taskbar
+    BUDGET = 700
 
     def _measure(self, app):
         app.root.update_idletasks()
@@ -525,13 +521,12 @@ class GuiReady(unittest.TestCase):
         limit = app.max_window_height()
         self.assertEqual(limit, 768 - gui_theme.SCREEN_MARGIN)
         states, _ = self._states(app)
-        states[3][1]()                                   # access denied: the tallest checklist
+        states[3][1]()
         app.root.update()
         req = app.body.winfo_reqheight()
         self.assertLessEqual(int(app._canvas.cget("height")), limit)
         self.assertEqual(app._scrolling, req > limit)
         self.assertEqual(bool(app._vbar.winfo_manager()), req > limit)
-        # force a much smaller screen: the body must scroll rather than clip
         app.root.winfo_screenheight = lambda: 520
         app._fit_body()
         self.assertTrue(app._scrolling)

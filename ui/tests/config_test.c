@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Off-device host test for config.c. Compiled natively (x86-64) with the CFG_* paths overridden to
- * a temp dir (see tests/Makefile), under ASan/UBSan. Each case runs in a fork()ed child so config.c's
- * file-static state (g_cfg/g_n/g_dirty/g_save_err/g_loaded) starts fresh. This is the arch#5 harness
- * seed: pure-logic modules get tested off-device against the audit's failure sequences. */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,10 +20,6 @@ static int file_has(const char *needle){
 
 #define CHECK(cond, msg) do{ if(!(cond)){ fprintf(stderr, "    assert failed: %s (%s:%d)\n", msg, __FILE__, __LINE__); _exit(1); } }while(0)
 
-/* -- cases (each runs in its own child; a fresh diskos.conf is created by the first rewrite) -- */
-
-/* Completion evidence: every case ends with CASE_DONE(), and its forked child exits CASE_OK only then. An
- * early return - or even an early exit(0) - inside a case therefore fails instead of counting as a pass. */
 #define CASE_OK 42
 static int g_case_done;
 #define CASE_DONE() (g_case_done = 1)
@@ -44,19 +36,17 @@ static void c_basic(void){
 }
 
 static void c_reject_too_long(void){
-    char longkey[64]; memset(longkey, 'k', 40); longkey[40] = 0;   /* >= KLEN(28) */
+    char longkey[64]; memset(longkey, 'k', 40); longkey[40] = 0;
     CHECK(cfg_set_int(longkey, 1) == -1, "too-long key rejected");
     CHECK(cfg_take_save_error() == 1, "save error set on reject");
-    char longval[80]; memset(longval, 'v', 60); longval[60] = 0;   /* >= VLEN(48) */
+    char longval[80]; memset(longval, 'v', 60); longval[60] = 0;
     CHECK(cfg_set_str("k", longval) == -1, "too-long value rejected");
     CHECK(cfg_take_save_error() == 1, "save error set on value reject");
-    /* rejected sets must not have created a bogus entry */
     CHECK(cfg_get_int(longkey, -99) == -99, "rejected key not stored");
     CASE_DONE();
 }
 
 static void c_overflow(void){
-    /* CFG_MAX is 512 (config.c; was 256 until the Disco port); fill it with deferred sets (no per-key rewrite), then the next must be rejected. */
     char k[16];
     for(int i = 0; i < 512; i++){ snprintf(k, sizeof k, "k%d", i); CHECK(cfg_set_int_deferred(k, i) == 0, "fill within cap"); }
     CHECK(cfg_set_int_deferred("overflow", 1) == -1, "over-cap rejected");
@@ -65,9 +55,6 @@ static void c_overflow(void){
     CASE_DONE();
 }
 
-/* THE regression this fix targets: a failed persist followed by a same-value retry must RE-attempt the
- * write, not be masked by the unchanged-value shortcut. Before the fix, the 2nd set returned success
- * without writing, leaving the on-disk value stale. */
 static void c_failed_persist_retry(void){
     CHECK(cfg_set_int("x", 7) == 0, "initial set ok");
     CHECK(file_has("x=7"), "x=7 on disk");
@@ -76,12 +63,11 @@ static void c_failed_persist_retry(void){
     CHECK(cfg_take_save_error() == 1, "save error reported");
     CHECK(file_has("x=7") && !file_has("x=9"), "old value intact after failed write");
     CHECK(chmod(TDIR, 0700) == 0, "restore dir writable");
-    CHECK(cfg_set_int("x", 9) == 0, "same-value retry now succeeds");   /* <-- the fix */
+    CHECK(cfg_set_int("x", 9) == 0, "same-value retry now succeeds");
     CHECK(file_has("x=9"), "retry actually persisted x=9");
     CASE_DONE();
 }
 
-/* deferred string sets (credentials) stay in memory until one atomic flush - no partial creds file. */
 static void c_deferred_atomic(void){
     CHECK(cfg_set_int("base", 1) == 0, "seed file exists");
     CHECK(cfg_set_str_deferred("api", "KEY") == 0, "defer api");
@@ -93,8 +79,6 @@ static void c_deferred_atomic(void){
     CASE_DONE();
 }
 
-/* defect: a NEW key with value "" must mark the config dirty, else a later same-value set takes the
- * unchanged-value shortcut and the empty key never reaches disk. */
 static void c_new_empty_key_dirty(void){
     CHECK(cfg_set_int("x", 7) == 0, "seed clean");
     CHECK(cfg_set_str_deferred("empty", "") == 0, "add a new empty-valued key (deferred)");
@@ -103,8 +87,6 @@ static void c_new_empty_key_dirty(void){
     CASE_DONE();
 }
 
-/* an atomic batch that overflows the store mid-run must roll the WHOLE batch back, not persist a
- * partial set (the all-or-nothing guarantee for related keys). */
 static void c_txn_rollback(void){
     char k[16];
     for(int i = 0; i < 511; i++){ snprintf(k, sizeof k, "f%d", i); CHECK(cfg_set_int_deferred(k, i) == 0, "fill to 511"); }
@@ -120,7 +102,6 @@ static void c_txn_rollback(void){
 }
 
 int main(void){
-    /* clean slate */
     if(system("rm -rf " TDIR " && mkdir -p " TDIR) != 0){ fprintf(stderr, "setup failed\n"); return 2; }
     struct { const char *name; void (*fn)(void); } cases[] = {
         {"basic_roundtrip",       c_basic},

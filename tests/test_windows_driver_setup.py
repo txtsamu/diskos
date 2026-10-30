@@ -243,7 +243,7 @@ class SetupTests(unittest.TestCase):
             self.setup()
         self.assertEqual(caught.exception.code, 'E126')
         self.assertEqual([item[0] for item in events], ['inventory', 'inventory', 'opened'])
-        self.assertIs(attached, a)  # A is back before any final inventory could see B.
+        self.assertIs(attached, a)
         self.assertEqual(self.report.call_count, 1)
         self.assertNotIn('succeeded', self.report.call_args.args[0])
         self.install.assert_not_called()
@@ -449,17 +449,12 @@ class ElevationTests(unittest.TestCase):
 
     def test_pipe_grants_rehearsed_redirect_access_and_has_no_client_read_endpoint(self):
         usb._elevated_helper(r'C:\bundle\bind_winusb.exe')
-        # Windows rehearsal: GW fails cmd's redirect; GRGW succeeds. Keep the
-        # known working grant. Reject remote connections by pipe mode;
-        # local clients can legitimately carry the Network SID.
         convert = self.adv.ConvertStringSecurityDescriptorToSecurityDescriptorW
         self.assertEqual(convert.call_args.args[0],
                          'D:(D;;GA;;;AN)(A;;GRGW;;;WD)')
         args = self.kernel.CreateNamedPipeW.call_args.args
-        # An inbound pipe has only a write endpoint for clients, regardless of
-        # the DACL. A single instance prevents a second server from reading.
-        self.assertEqual(args[1], 0x40080001)  # OVERLAPPED | FIRST_PIPE_INSTANCE | INBOUND
-        self.assertEqual(args[2], 8)  # PIPE_REJECT_REMOTE_CLIENTS
+        self.assertEqual(args[1], 0x40080001)
+        self.assertEqual(args[2], 8)
         self.assertEqual(args[3], 1)
         self.assertFalse(args[7]._obj.inherit)
 
@@ -509,7 +504,7 @@ class GuiDriverTests(unittest.TestCase):
                 app.ttk = mock.Mock()
                 with mock.patch.object(gui.platform_probe, 'host', return_value=(host, 'x86_64')), \
                         mock.patch.object(gui.gui_theme, 'rule'), mock.patch.object(gui.gui_theme, 'kicker'):
-                    app._build_config()                 # hairline + kicker are real Tk widgets: stubbed here
+                    app._build_config()
                 text = app.ttk.Label.call_args.kwargs['text']
                 middle = ("The boot-mode driver choice stays. To undo: Device Manager > "
                           "boot-mode device > Uninstall device; leave the driver-package box unticked. "
@@ -684,7 +679,6 @@ class GuiDriverTests(unittest.TestCase):
                 app.driver_lbl.config.assert_called_once()
                 self.assertTrue(app._ready_running)
                 self.assertTrue(app._inventory_worker.is_alive())
-                # Inventory is drained, but readiness still owns the same worker.
                 for _ in range(3):
                     app._tick_device()
                     app._on_ready_refresh()
@@ -693,7 +687,7 @@ class GuiDriverTests(unittest.TestCase):
                 ready_release.set()
                 app._inventory_worker.join(2)
                 self.assertFalse(app._inventory_worker.is_alive())
-                app._tick_device()  # Completed but not drained: still no overlap.
+                app._tick_device()
                 app._on_ready_refresh()
                 self.assertEqual(scan.call_count, 1)
                 kind, payload = app.q.get(timeout=2)

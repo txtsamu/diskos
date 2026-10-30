@@ -73,7 +73,6 @@ def zip32_preflight(files):
     offset = directory_size = 0
     for name, path in files.items():
         size = checked_stat(path).st_size
-        # zipfile reserves 5% headroom even for ZIP_STORED in writestr().
         if size * 1.05 > zipfile.ZIP64_LIMIT:
             raise ValueError('Package file size would require ZIP64: ' + name)
         name_size = len((PREFIX + '/' + name).encode('utf-8'))
@@ -81,8 +80,6 @@ def zip32_preflight(files):
             raise ValueError('Package filename exceeds ZIP header limit: ' + name)
         offset += zipfile.sizeFileHeader + name_size + size
         directory_size += zipfile.sizeCentralDir + name_size
-    # The directory starts after all local headers and stored data. Bounding
-    # that offset also bounds each entry's local-header offset.
     if offset > zipfile.ZIP64_LIMIT:
         raise ValueError('Package central directory offset would require ZIP64')
     if directory_size > zipfile.ZIP64_LIMIT:
@@ -91,7 +88,6 @@ def zip32_preflight(files):
 
 def archive(package, output):
     package, output = Path(package).absolute(), Path(output).absolute()
-    # Inspect ancestors before resolving: a link to a tree is still a link.
     for path in (package, *package.parents):
         checked_stat(path)
     root = package.resolve()
@@ -101,7 +97,6 @@ def archive(package, output):
         raise ValueError('ZIP output must be outside the package')
     files, expected = inventory(root)
     zip32_preflight(files)
-    # Finish validation before creating output. Input must stay unchanged throughout.
     for name, path in files.items():
         with path.open('rb') as stream:
             if hashlib.file_digest(stream, 'sha256').hexdigest() != expected[name]:

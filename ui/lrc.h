@@ -1,21 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* LRC lyrics parser (header-only, no LVGL: the host tests compile it directly).
- *
- * A line may carry several time tags ("[01:02.50][02:10.00]text" = the same text at two times); each becomes its
- * own entry and the entries are sorted by time (stable, so equal times keep file order). Accepted time tags:
- * [m:ss] [mm:ss.x] [mm:ss.xx] [mm:ss.xxx] and [mm:ss:xx]; minutes may exceed 59. An [offset:+/-N] tag (ms) shifts
- * every time: positive = lyrics shown earlier (the LRC convention). Other [..] groups (ar/ti/al/by/length, section
- * names) are dropped. Enhanced word-timing tags "<mm:ss.xx>" inside the text are removed. Lines without a time tag
- * are kept only for the plain rendering. A file is "synced" when it yields at least two timed entries. */
 #ifndef DISKOS_LRC_H
 #define DISKOS_LRC_H
 #include <stddef.h>
 #include <string.h>
 
-typedef struct { long ms; int text; } lrc_line_t;   /* text = offset of its NUL-terminated text in the text buffer */
+typedef struct { long ms; int text; } lrc_line_t;
 
-/* "[mm:ss.xx]" at s (s[0] == '['): the time in ms, its length in *len; -1 if s is not a time tag */
 static long lrc_time_tag(const char *s, int *len){
     const char *p = s + 1;
     long mins = 0; int nd = 0;
@@ -28,7 +19,7 @@ static long lrc_time_tag(const char *s, int *len){
     long frac = 0;
     if(*p == '.' || *p == ':'){
         p++;
-        long scale = 100; nd = 0;                   /* first digit = 100 ms */
+        long scale = 100; nd = 0;
         while(*p >= '0' && *p <= '9'){
             if(nd < 3){ frac += (*p - '0') * scale; scale /= 10; }
             p++; nd++;
@@ -41,7 +32,6 @@ static long lrc_time_tag(const char *s, int *len){
     return mins * 60000L + secs * 1000L + frac;
 }
 
-/* "[offset:-250]": 1 and the value in *ms if s is an offset tag */
 static int lrc_offset_tag(const char *s, long *ms, int *len){
     if(strncmp(s, "[offset:", 8) != 0) return 0;
     const char *p = s + 8;
@@ -57,8 +47,6 @@ static int lrc_offset_tag(const char *s, long *ms, int *len){
     return 1;
 }
 
-/* Copy src[0..n) into the text buffer without "<mm:ss.xx>" word tags and with surrounding spaces trimmed.
- * Returns the text's offset, or -1 when the buffer is full. */
 static int lrc_put_text(const char *src, int n, char *text, int cap, int *used){
     while(n > 0 && (*src == ' ' || *src == '\t')){ src++; n--; }
     while(n > 0 && (src[n - 1] == ' ' || src[n - 1] == '\t')) n--;
@@ -72,7 +60,6 @@ static int lrc_put_text(const char *src, int n, char *text, int cap, int *used){
         if(o >= cap - 1) return -1;
         text[o++] = src[i++];
     }
-    /* word tags can leave doubled/edge spaces behind */
     int k = at, w = at;
     for(; k < o; k++){
         if(text[k] == ' ' && (w == at || text[w - 1] == ' ')) continue;
@@ -85,8 +72,6 @@ static int lrc_put_text(const char *src, int n, char *text, int cap, int *used){
     return at;
 }
 
-/* Parse LRC `src` into up to `maxl` timed entries (sorted) and a plain rendering (`plain`, lines without tags,
- * '\n'-separated; may be NULL). Returns the number of timed entries; *synced = 1 when there are at least two. */
 static int lrc_parse(const char *src, lrc_line_t *lines, int maxl, char *text, int tcap,
                      char *plain, int pcap, int *synced){
     int n = 0, used = 0, plen = 0;
@@ -94,7 +79,6 @@ static int lrc_parse(const char *src, lrc_line_t *lines, int maxl, char *text, i
     long times[16];
     if(plain && pcap > 0) plain[0] = 0;
     if(tcap > 0) text[0] = 0;
-    /* the offset tag applies to the whole file wherever it appears: find it first */
     for(const char *q = src; (q = strstr(q, "[offset:")) != NULL; q++){
         long v; int l;
         if(lrc_offset_tag(q, &v, &l)){ offset = v; break; }
@@ -127,7 +111,7 @@ static int lrc_parse(const char *src, lrc_line_t *lines, int maxl, char *text, i
             }
         }
         if(plain && (nt > 0 || !tagged || rest > 0)){
-            int save = used, o = lrc_put_text(p, rest, text, tcap, &used);   /* reuse the stripper; undo below */
+            int save = used, o = lrc_put_text(p, rest, text, tcap, &used);
             if(o >= 0){
                 int tl = (int)strlen(text + o);
                 if(tl > 0 && plen + tl + 2 < pcap){ memcpy(plain + plen, text + o, (size_t)tl); plen += tl; plain[plen++] = '\n'; plain[plen] = 0; }
@@ -137,7 +121,6 @@ static int lrc_parse(const char *src, lrc_line_t *lines, int maxl, char *text, i
         }
         s = *e ? e + 1 : e;
     }
-    /* stable insertion sort by time (a few hundred entries at most) */
     for(int i = 1; i < n; i++){
         lrc_line_t v = lines[i]; int j = i;
         while(j > 0 && lines[j - 1].ms > v.ms){ lines[j] = lines[j - 1]; j--; }
@@ -147,7 +130,6 @@ static int lrc_parse(const char *src, lrc_line_t *lines, int maxl, char *text, i
     return n;
 }
 
-/* The entry to highlight at playback position `ms`: the last entry whose time is <= ms, or -1 before the first. */
 static int lrc_index_at(const lrc_line_t *lines, int n, long ms){
     int lo = 0, hi = n - 1, best = -1;
     while(lo <= hi){
@@ -157,28 +139,18 @@ static int lrc_index_at(const lrc_line_t *lines, int n, long ms){
     return best;
 }
 
-/* ---- Lyrics stored inside the audio file (read only when there is no sibling .lrc) ----
- * lyr_embedded_read(f, out, cap, &synced) finds lyrics by the file's own magic and returns their UTF-8 text
- * (NUL-terminated, at most cap-1 bytes, CR/CRLF -> LF), or 0 when the file has none. *synced = 1 when the text is
- * LRC-timed (lrc_parse will show it line by line), 0 for plain text.
- *   MP3/AAC (leading ID3v2.3/2.4): SYLT in milliseconds is turned into "[mm:ss.xx]text" lines and preferred; else USLT.
- *   FLAC (also behind an ID3v2) / Ogg Vorbis / Ogg Opus: Vorbis comments LYRICS, UNSYNCEDLYRICS, UNSYNCED LYRICS,
- *   SYNCEDLYRICS. M4A/MP4: moov/udta/meta/ilst/(c)lyr/data.
- * Nothing is read whole: tags are walked with fseek and only the lyrics item (at most LYR_MAX_FRAME bytes, and at
- * most cap-1 of a Vorbis/MP4 value) is loaded. Every length is checked against its container before use. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 
-#define LYR_MAX_FRAME (256 * 1024)     /* largest ID3 lyrics frame that is loaded */
-#define LYR_MAX_TAG (2 * 1024 * 1024)  /* largest ID3v2.3 tag body de-unsynchronised as a whole */
-#define LYR_MAX_ATOMS 4096             /* bound on frames / atoms / comments walked per container */
+#define LYR_MAX_FRAME (256 * 1024)
+#define LYR_MAX_TAG (2 * 1024 * 1024)
+#define LYR_MAX_ATOMS 4096
 
 static uint32_t lyr_be32(const unsigned char *p){ return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3]; }
 static uint32_t lyr_le32(const unsigned char *p){ return ((uint32_t)p[3] << 24) | ((uint32_t)p[2] << 16) | ((uint32_t)p[1] << 8) | p[0]; }
 static uint32_t lyr_ss32(const unsigned char *p){ return ((uint32_t)p[0] << 21) | ((uint32_t)p[1] << 14) | ((uint32_t)p[2] << 7) | p[3]; }
 
-/* append codepoint cp as UTF-8 at out[*o] when it fits (keeping room for the NUL); 0 = no room */
 static int lyr_put(char *out, int cap, int *o, unsigned cp){
     int n = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
     if(*o + n > cap - 1) return 0;
@@ -191,7 +163,6 @@ static int lyr_put(char *out, int cap, int *o, unsigned cp){
     return 1;
 }
 
-/* CR / CRLF -> LF, other control characters and U+FEFF dropped, tabs -> space, trailing blanks trimmed */
 static int lyr_norm(char *s, int n){
     int w = 0;
     for(int i = 0; i < n; i++){
@@ -207,8 +178,6 @@ static int lyr_norm(char *s, int n){
     return w;
 }
 
-/* Decode text of ID3 encoding enc (0 Latin-1, 1 UTF-16 with BOM, 2 UTF-16BE, 3 UTF-8) into out; stops at a NUL
- * character. Bad UTF-8 bytes become '?', lone UTF-16 surrogates are dropped. Returns the length (0 for a bad enc). */
 static int lyr_dec(int enc, const unsigned char *s, int n, char *out, int cap){
     int o = 0, i = 0;
     out[0] = 0;
@@ -232,7 +201,7 @@ static int lyr_dec(int enc, const unsigned char *s, int n, char *out, int cap){
             i += 1 + extra;
         }
     } else if(enc == 1 || enc == 2){
-        int le = enc == 1;                                   /* policy: no BOM = little-endian (spec requires a BOM for enc 1); enc 2 = BE */
+        int le = enc == 1;
         if(enc == 1 && n >= 2){
             if(s[0] == 0xFF && s[1] == 0xFE){ le = 1; i = 2; }
             else if(s[0] == 0xFE && s[1] == 0xFF){ le = 0; i = 2; }
@@ -254,14 +223,12 @@ static int lyr_dec(int enc, const unsigned char *s, int n, char *out, int cap){
     return o;
 }
 
-/* index of the first string terminator of encoding enc in s[0..n) (2-byte aligned for UTF-16), -1 if none */
 static int lyr_term(int enc, const unsigned char *s, int n){
     if(enc == 1 || enc == 2){ for(int i = 0; i + 1 < n; i += 2) if(!s[i] && !s[i + 1]) return i; return -1; }
     for(int i = 0; i < n; i++) if(!s[i]) return i;
     return -1;
 }
 
-/* USLT body: enc, lang[3], descriptor + terminator, text */
 static int lyr_uslt(const unsigned char *b, int n, char *out, int cap){
     out[0] = 0;
     if(n < 5 || b[0] > 3) return 0;
@@ -272,9 +239,6 @@ static int lyr_uslt(const unsigned char *b, int n, char *out, int cap){
     return lyr_norm(out, len);
 }
 
-/* SYLT body: enc, lang[3], timestamp format (2 = ms; 1 = MPEG frames needs the frame rate, not supported), content type,
- * descriptor, then text+terminator+u32 time pairs. Writes "[mm:ss.xx]text" lines (or bare text when plain); *count =
- * the number of entries. */
 static int lyr_sylt(const unsigned char *b, int n, char *out, int cap, int plain, int *count){
     int o = 0; *count = 0; out[0] = 0;
     if(n < 7 || b[0] > 3 || b[4] != 2 || b[5] > 1) return 0;
@@ -289,7 +253,7 @@ static int lyr_sylt(const unsigned char *b, int n, char *out, int cap, int plain
         int tn = lyr_dec(enc, b + pos, t, tmp, sizeof tmp);
         uint32_t ms = lyr_be32(b + pos + t + tl);
         pos += t + tl + 4;
-        int a = 0, z = tn;                                  /* v2.3 writers start each line with a newline: trim */
+        int a = 0, z = tn;
         while(a < z && (tmp[a] == '\n' || tmp[a] == '\r' || tmp[a] == ' ')) a++;
         while(z > a && (tmp[z - 1] == '\n' || tmp[z - 1] == '\r' || tmp[z - 1] == ' ')) z--;
         for(int i = a; i < z; i++) if(tmp[i] == '\n' || tmp[i] == '\r') tmp[i] = ' ';
@@ -306,14 +270,12 @@ static int lyr_sylt(const unsigned char *b, int n, char *out, int cap, int plain
     return o;
 }
 
-/* de-unsynchronise in place (FF 00 -> FF); returns the new length */
 static int lyr_unsync(unsigned char *b, int n){
     int w = 0;
     for(int i = 0; i < n; i++){ b[w++] = b[i]; if(b[i] == 0xFF && i + 1 < n && b[i + 1] == 0) i++; }
     return w;
 }
 
-/* an ID3v2.3/2.4 tag at the start of f. Returns the lyrics length in out, 0 if none. */
 static int lyr_id3(FILE *f, char *out, int cap){
     unsigned char h[10];
     out[0] = 0;
@@ -324,8 +286,6 @@ static int lyr_id3(FILE *f, char *out, int cap){
     off_t pos = 10, end = 10 + (off_t)tsz;
     int tag_unsync = (h[5] & 0x80) != 0;
     if(ver == 3 && tag_unsync){
-        /* v2.3: unsynchronisation covers the whole tag body, so frame headers/sizes are only valid after undoing it.
-         * Work on a bounded de-unsynchronised copy (at most LYR_MAX_TAG bytes) presented as a plain tag. */
         uint32_t want = tsz < LYR_MAX_TAG ? tsz : LYR_MAX_TAG;
         unsigned char *cp = (unsigned char *)malloc((size_t)want + 10);
         if(!cp) return 0;
@@ -339,7 +299,7 @@ static int lyr_id3(FILE *f, char *out, int cap){
         free(cp);
         return r;
     }
-    if(h[5] & 0x40){                                        /* extended header: skip it */
+    if(h[5] & 0x40){
         unsigned char e[4];
         if(fread(e, 1, 4, f) != 4) return 0;
         uint32_t es = ver == 4 ? lyr_ss32(e) : lyr_be32(e) + 4;
@@ -352,7 +312,7 @@ static int lyr_id3(FILE *f, char *out, int cap){
         if(fseeko(f, pos, SEEK_SET) || fread(h, 1, 10, f) != 10) break;
         int ok = 1;
         for(int i = 0; i < 4; i++) if(!((h[i] >= 'A' && h[i] <= 'Z') || (h[i] >= '0' && h[i] <= '9'))) ok = 0;
-        if(!ok) break;                                     /* padding or garbage: the frames are over */
+        if(!ok) break;
         uint32_t fs;
         if(ver == 4){ if((h[4] | h[5] | h[6] | h[7]) & 0x80) break; fs = lyr_ss32(h + 4); } else fs = lyr_be32(h + 4);
         off_t body = pos + 10;
@@ -362,7 +322,7 @@ static int lyr_id3(FILE *f, char *out, int cap){
         if(!sylt && !uslt) continue;
         int f1 = h[8], f2 = h[9], skip = 0, unsync = tag_unsync;
         if(ver == 4){
-            if(f2 & 0x0C) continue;                        /* compressed / encrypted */
+            if(f2 & 0x0C) continue;
             if(f2 & 0x40) skip += 1;
             if(f2 & 0x01) skip += 4;
             if(f2 & 0x02) unsync = 1;
@@ -391,14 +351,10 @@ static int lyr_id3(FILE *f, char *out, int cap){
     return (int)strlen(out);
 }
 
-/* Byte source over one packet: a FLAC metadata block (mode 0) or an Ogg packet spread over pages (ogg = 1). */
 typedef struct {
     FILE *f; uint32_t left; int endflag, ogg, first, si, nseg, pages, lastfull; uint32_t serial; unsigned char segs[255];
 } lyr_src_t;
 
-/* Next page of our logical stream with at least one segment (empty pages and other streams' pages are skipped). The
- * continuation flag must be set exactly when the previous page ended inside a packet (last lacing 255): a packet that
- * starts on a fresh page has it clear (RFC 3533). */
 static int lyr_ogg_page(lyr_src_t *s){
     unsigned char h[27];
     for(;;){
@@ -406,7 +362,7 @@ static int lyr_ogg_page(lyr_src_t *s){
         uint32_t ser = lyr_le32(h + 14);
         int nseg = h[26];
         if(s->first){ s->serial = ser; }
-        else if(ser != s->serial || nseg == 0){                 /* someone else's page, or empty: step over it */
+        else if(ser != s->serial || nseg == 0){
             long body = 0;
             if(nseg && fread(s->segs, 1, (size_t)nseg, s->f) != (size_t)nseg) return 0;
             for(int i = 0; i < nseg; i++) body += s->segs[i];
@@ -418,7 +374,7 @@ static int lyr_ogg_page(lyr_src_t *s){
         s->nseg = nseg;
         if(nseg && fread(s->segs, 1, (size_t)nseg, s->f) != (size_t)nseg) return 0;
         s->si = 0;
-        if(nseg == 0) continue;                                 /* an empty first page */
+        if(nseg == 0) continue;
         return 1;
     }
 }
@@ -431,7 +387,7 @@ static int lyr_src_fill(lyr_src_t *s){
     }
     return 1;
 }
-static int lyr_src_get(lyr_src_t *s, unsigned char *dst, uint32_t n){    /* dst NULL = skip */
+static int lyr_src_get(lyr_src_t *s, unsigned char *dst, uint32_t n){
     while(n > 0){
         if(!lyr_src_fill(s)) return 0;
         uint32_t t = s->left < n ? s->left : n;
@@ -442,7 +398,6 @@ static int lyr_src_get(lyr_src_t *s, unsigned char *dst, uint32_t n){    /* dst 
     return 1;
 }
 
-/* the Vorbis comment list (vendor, count, entries) at the current source position */
 static int lyr_vc(lyr_src_t *s, char *out, int cap){
     static const char *const keys[] = { "LYRICS=", "UNSYNCEDLYRICS=", "UNSYNCED LYRICS=", "SYNCEDLYRICS=" };
     unsigned char w[4];
@@ -471,16 +426,16 @@ static int lyr_vc(lyr_src_t *s, char *out, int cap){
         if(!kl){ if(!lyr_src_get(s, NULL, len - m)) break; continue; }
         uint32_t vlen = len - (uint32_t)kl, have = m - (uint32_t)kl;
         uint32_t take = vlen < (uint32_t)(cap - 1) ? vlen : (uint32_t)(cap - 1);
-        uint32_t used = take < have ? take : have;             /* head bytes that fit the buffer (tiny caps) */
+        uint32_t used = take < have ? take : have;
         memcpy(raw, head + kl, used);
         if(take > have && !lyr_src_get(s, raw + have, take - have)) break;
-        (void)lyr_src_get(s, NULL, vlen - (take > have ? take : have));   /* the rest of an over-long value */
+        (void)lyr_src_get(s, NULL, vlen - (take > have ? take : have));
         int rn = (int)take, cut = take < vlen;
         int l = lyr_dec(3, raw, rn, out, cap);
         if(cut){ char *nl = strrchr(out, '\n'); if(nl){ nl[1] = 0; l = (int)strlen(out); } }
         l = lyr_norm(out, l);
         if(l > 0){ free(raw); return l; }
-        if(cut) break;                                     /* the stream is at an unknown place now */
+        if(cut) break;
     }
     free(raw);
     out[0] = 0;
@@ -499,7 +454,7 @@ static int lyr_flac(FILE *f, off_t base, char *out, int cap){
         if(type == 4){
             lyr_src_t s; memset(&s, 0, sizeof s);
             s.f = f; s.left = len; s.endflag = 1;
-            return lyr_vc(&s, out, cap);                   /* one comment block per file */
+            return lyr_vc(&s, out, cap);
         }
         if(fseeko(f, (off_t)len, SEEK_CUR)) return 0;
         if(last) return 0;
@@ -516,14 +471,13 @@ static int lyr_ogg(FILE *f, char *out, int cap){
     if(!lyr_src_get(&s, m, 8)) return 0;
     int opus = !memcmp(m, "OpusHead", 8);
     if(!opus && !(m[0] == 1 && !memcmp(m + 1, "vorbis", 6))) return 0;
-    while(lyr_src_fill(&s)){ if(fseeko(f, (off_t)s.left, SEEK_CUR)) return 0; s.left = 0; }   /* rest of packet 1 */
+    while(lyr_src_fill(&s)){ if(fseeko(f, (off_t)s.left, SEEK_CUR)) return 0; s.left = 0; }
     s.endflag = 0;
     if(opus){ if(!lyr_src_get(&s, m, 8) || memcmp(m, "OpusTags", 8)) return 0; }
     else { if(!lyr_src_get(&s, m, 7) || m[0] != 3 || memcmp(m + 1, "vorbis", 6)) return 0; }
     return lyr_vc(&s, out, cap);
 }
 
-/* the first child atom `name` of the atoms in [s, e): its payload range */
 static int lyr_mp4_find(FILE *f, off_t s, off_t e, const unsigned char *name, off_t *pay, off_t *pe){
     for(int g = 0; g < LYR_MAX_ATOMS && s + 8 <= e; g++){
         unsigned char h[16]; uint64_t sz; int hdr = 8;
@@ -572,7 +526,6 @@ static int lyr_mp4(FILE *f, char *out, int cap){
     return 0;
 }
 
-/* 1 when at least two lines start with a [mm:ss] time tag (what lrc_parse calls synced) */
 static int lrc_looks_synced(const char *t){
     int n = 0;
     for(const char *s = t; *s; ){

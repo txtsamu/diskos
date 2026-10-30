@@ -139,7 +139,6 @@ class WindowsFlashTests(unittest.TestCase):
         with self.assertRaises(flasher.FlashError): bundle.verify_windows_flash_bundle()
         write()
         bundle.verify_windows_flash_bundle()
-        # MSYS2 sha256sum writes the binary-mode form "<hash> *<name>" (seen on the Windows test box).
         star_input, star_output = good_input.replace('  ', ' *'), good_output.replace('  ', ' *')
         write(star_input, star_output)
         bundle.verify_windows_flash_bundle()
@@ -194,7 +193,6 @@ class WindowsFlashTests(unittest.TestCase):
                 flasher._WindowsChild([str(self.root / 'usbboot.exe'), '--help'], api=api, popen=popen)
         self.assertNotIn('gate', api.events)
         self.assertIn(('close', 11), api.events)
-        # Parent death before assignment closes the pipe; the native tool never starts.
         with mock.patch.object(sys, 'stdin', mock.Mock(buffer=io.BytesIO(b''))), \
                 mock.patch.object(subprocess, 'call') as native:
             self.assertEqual(flash_child.main(popen.call_args.args[0][3:]), 1)

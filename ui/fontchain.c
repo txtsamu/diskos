@@ -1,19 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "fontchain.h"
-#include "theme.h"        /* theme_font_base */
-#include "fontft.h"       /* fontft_font */
-#include "fonts_intl.h"   /* Cyrillic/Greek/Latin-ext fallback (issue #3) */
+#include "theme.h"
+#include "fontft.h"
+#include "fonts_intl.h"
 
-/* Montserrat covers Latin + Latin-Extended only; it has no Cyrillic/Greek (issue #3:
- * "Cyrillic metadata" rendered as boxes) and no CJK ("CJK metadata"). Build a per-size fallback chain:
- *   Montserrat(size) -> font_intl(size) [Cyrillic/Greek/Latin-ext, Noto, uncompressed]
- *                    -> stock TTC [CJK, matched size] -> Source Han 16 -> supplement.
- * The intl fonts are generated at matched ascent/descent (base_line 4/5/6 == Montserrat's)
- * so fallback glyphs sit on the same baseline; LVGL uses the PRIMARY font's line-height, and
- * each intl line-height (20/23/28) fits within Montserrat's (20/24/28) so nothing clips.
- * We keep mutable copies because .fallback must be set on non-const fonts. */
-static lv_font_t s_cjk; /* existing subset plus the small music-metadata supplement */
+static lv_font_t s_cjk;
 static lv_font_t s_ft[41], s_font[41], s_intl[41];
 static const lv_font_t *ui_intl_font(int px)
 {
@@ -31,13 +23,10 @@ void ui_fonts_init(void)
     s_cjk = lv_font_source_han_16_cjk; s_cjk.fallback = &font_cjk_extra_16;
 }
 
-/* Public accessor for the fallback-chained text font (Montserrat -> intl -> CJK) so other screens
- * render user text (track/album/artist names) with full glyph coverage. */
 const lv_font_t *ui_text_font(int px){
     return ui_font_cjk(px);
 }
 
-/* Shared CJK-capable chain at each available Montserrat role size. */
 const lv_font_t *ui_font_cjk(int size)
 {
     ui_fonts_init();

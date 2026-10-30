@@ -61,6 +61,22 @@ See `docs/HARDWARE.md` for the full map and the reproducible probe commands.
   after the host tool stops. Then follow [RECOVERY.txt](../RECOVERY.txt); do not resume at a
   guessed NAND block or bypass an installer refusal.
 
+## No comments in source
+
+The source tree carries **no comments**. Do not add `//`, `/* */`, `#` or `<!-- -->` comments to code, scripts,
+Makefiles, tests or web files. Say what the code does with names, small functions and tests instead.
+
+- Knowledge that used to live in comments is kept in [`comments.md`](../comments.md), grouped by file. If a change
+  needs an explanation, add it there (under the file's heading) or to `docs/`, not next to the code.
+- Allowed in source: the shebang line, SPDX / copyright / licence notices, and comments a tool reads
+  (`# noqa`, `/* NOLINT */`, `/* fall through */`, `# shellcheck disable=`, Dockerfile parser directives).
+- Never anchor a test on comment text (markers such as `# BEGIN ...`); key it on code.
+- Text inside a string, heredoc or Python docstring is data, not a comment. A script embedded byte for byte in
+  another file (the rm guard in `ui/rmguard.c` and `payload/diskos-rmguard`) must stay identical in both.
+- Not covered: vendored and third-party code (`ui/lvgl`, `ui/third_party`, `src/usbboot`, `ui/sqlite3.*`, `ui/jsmn.h`,
+  `ui/md5.c`, `ui/lv_conf.h`), generated files (fonts, `ui/i18n_tables.c`, `ui/theme_presets.inc`, `ui/theme_fonts.h`),
+  Markdown/text docs and config/data files.
+
 ## Working habits
 
 - **Honest limitations.** When something is blocked by hardware (no 5 GHz, no GPU, DAC ioctls

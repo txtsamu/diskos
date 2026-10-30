@@ -1,9 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 diskOS contributors
-# Off-device host tests for diskOS pure-logic modules (arch#5 harness).
-# Native x86-64 build with sanitizers + CFG_* paths pointed at a temp dir. Does NOT touch the
-# device build (separate dir, separate Makefile). Run: make -C tests run (C tests), make -C tests run-py (Python tests),
-# make -C tests check (both). Every test links or includes the real module sources; none slices a file by marker text.
 CC ?= cc
 CFLAGS := -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
 TDIR := /tmp/diskos_cfgtest
@@ -22,8 +18,6 @@ outseq_test: ../outseq.c outseq_test.c ../outseq.h
 session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
 
-# srcswitch.c, session.c, outseq.c and sdio.c are the real modules; ipc, cfg and the environment table are faked in the test.
-# The USB card node, the card glob and the SD handoff marker point at the temp dir.
 srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../modes.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
@@ -50,8 +44,6 @@ keyssh_test: ../procnet.c keyssh_test.c ../procnet.h
 radio_test: ../radio.c radio_test.c ../radio.h
 	$(CC) $(CFLAGS) -I.. ../radio.c radio_test.c -o $@
 
-# ipc.c is the real module; ipc_guard_test links it, ipc_tx_test compiles all of it into the test (it reads ipc.c's statics)
-# and fakes only mq_*.
 ipc_guard_test: ../ipc.c ipc_guard_test.c ../ipc.h
 	$(CC) $(CFLAGS) -pthread -I.. ../ipc.c ipc_guard_test.c -o $@
 
@@ -91,10 +83,6 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 clean:
 	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
 
-# The Python tests: thin drivers that compile and run the real modules (and, for boot_select, the shipped shell helper),
-# plus source-policy guards. Each one that prints a final "COMPLETE <name>" line must reach it, so an early clean exit fails.
-# CC is passed through (the tests read $CC). `make run` already includes outseq_guard_test.py; it is repeated here so this
-# target is the whole Python set.
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard
 run-py:
@@ -106,5 +94,4 @@ run-py:
 	done; \
 	for t in $(PY_UNITTEST); do echo "--- $$t (python) ---"; CC="$(CC)" python3 -I $${t}_test.py; done
 
-# Everything: the C tests, then the Python tests.
 check: run run-py

@@ -1,9 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 diskOS contributors
-# Build the read-only boot launcher payload/diskos-launch (static 32-bit little-endian MIPS).
-#   CROSS=/path/to/mipsel-linux-musl-  build/build-launcher.sh
-# The shipped binary uses the compiled-in device paths; never pass -D overrides for a release build.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 SRC="$HERE/../src/launcher/diskos_launch.c"

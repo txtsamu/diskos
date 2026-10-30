@@ -22,12 +22,7 @@ import time
 from . import errors
 
 APP = "diskos-installer"
-# A marker file dropped in our state dir. wipe_all() refuses to recursively delete any directory
-# that does not contain it, so a mis-set DISKOS_INSTALLER_HOME can never delete an arbitrary tree.
 SENTINEL = ".diskos-installer-state"
-# The diskOS install/restore lifecycle values written to state.json["phase"]. Used to recognise a
-# legacy (pre-sentinel) state dir by CONTENT, specifically enough that a foreign project's state.json
-# cannot masquerade as ours. Keep in sync with service.py.
 _KNOWN_PHASES = {"prepared", "flash-started", "flash-verified", "restore-started", "restore-verified"}
 
 
@@ -91,10 +86,6 @@ def state_dir():
     """A single, per-user, non-system directory for all tool state (created on first use)."""
     base = _state_base()
     marker = os.path.join(base, SENTINEL)
-    # SAFETY, only for an EXPLICITLY-set home: refuse to adopt a pre-existing, non-empty directory
-    # that shows NO sign of being ours, so a mis-set DISKOS_INSTALLER_HOME (e.g. $HOME) can't be
-    # tagged here and later wiped by 'remove'. The DEFAULT XDG/APP path is always ours; and an
-    # existing state dir (even one predating the sentinel) is recognised by its contents.
     if (os.environ.get("DISKOS_INSTALLER_HOME") and os.path.isdir(base)
             and not _is_our_statedir(base)):
         try:
@@ -162,17 +153,6 @@ def sha256_file(path, progress=None):
     return h.hexdigest()
 
 
-# ---- saved stock backups ------------------------------------------------------------------------------------------
-# Layout under <state>/stock/:
-#   current.json            {"gen": "g0003"} - the committed backup (atomically replaced; the only commit point)
-#   g0003/stock.bin         the padded stock rootfs image restore-stock flashes
-#   g0003/stock.sha256      its SHA-256
-#   g0003/stock.json        manifest: firmware version, the Disc base it needs, image/rootfs hashes, catalogue + writer
-#                           identity, status ("pending" until a flash's base gate passed)
-#   stock.bin + stock.sha256 (no current.json) = a backup from an older installer ("legacy"); still valid.
-# A new backup is STAGED as a new generation and only becomes current when a flash run proves the Disc is on its base,
-# so an interrupted or refused install never replaces a good recovery image.
-
 def _stock_root():
     d = os.path.join(state_dir(), "stock")
     os.makedirs(d, exist_ok=True)
@@ -230,7 +210,7 @@ def stock_paths():
         b, sh, _ = generation_paths(gen)
         return b, sh
     d = _stock_root()
-    if st == "damaged":                                  # nothing usable: never fall back to the legacy pair
+    if st == "damaged":
         return os.path.join(d, "damaged-pointer", "stock.bin"), os.path.join(d, "damaged-pointer", "stock.sha256")
     return os.path.join(d, "stock.bin"), os.path.join(d, "stock.sha256")
 
@@ -319,7 +299,7 @@ def prune_generations(keep):
     cur = current_generation()
     others = [g for g in _gen_names() if g not in (cur, keep)]
     removed = []
-    for g in others[:-1]:                                # all but the newest other one
+    for g in others[:-1]:
         if discard_generation(g):
             removed.append(g)
     return removed
@@ -359,10 +339,8 @@ def wipe_all():
     """Delete the entire tool state directory (the full uninstall footprint).
     Returns (path, errors): errors is a list of (path, message) for anything that
     could NOT be removed, so the caller reports the truth instead of a false success."""
-    d = _state_base()   # PATH only - never re-create the sentinel we are about to verify
+    d = _state_base()
     errs = []
-    # SAFETY: only ever recursively delete a directory we can PROVE is our own state dir. This
-    # guards against DISKOS_INSTALLER_HOME being set to '/', '$HOME', the cwd, or any other tree.
     real = os.path.realpath(d)
     forbidden = {os.path.realpath(os.sep), os.path.realpath(os.path.expanduser("~"))}
     try:
@@ -378,9 +356,6 @@ def wipe_all():
             return d, [(d, "state dir is not owned by you - refusing to delete")]
     except OSError as e:
         return d, [(d, str(e))]
-    # A leftover case-sensitive scratch mount from a macOS build must be detached BEFORE we
-    # recurse: rmtree traversing a live mount could delete the mounted contents or the backing
-    # image. Detach a stale one (bounded retries), and refuse to delete while it is still mounted.
     scratch = os.path.join(d, "build", ".cs-scratch")
     if os.path.ismount(scratch):
         import subprocess, time

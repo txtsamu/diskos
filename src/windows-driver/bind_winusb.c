@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: MIT */
-/* Fixed, elevated, one-instance in-box binding prototype. No command-line options. */
 #include <stddef.h>
 #ifdef BIND_MOCK
 #include <stdio.h>
@@ -13,7 +12,6 @@
 #elif _WIN32_WINNT < 0x0a00
 #error Requires the Windows 10 SDK API level
 #endif
-/* DiInstallDevice uses the generic SP_DRVINFO_DATA type; our driver nodes are W. */
 #ifndef UNICODE
 #define UNICODE 1
 #endif
@@ -24,8 +22,6 @@
 #include <devpkey.h>
 #endif
 
-/* Kernel32 is the sole static KnownDLL import. No CRT startup runs before this
- * policy; non-KnownDLL APIs and their dependencies resolve only from System32. */
 #define SETUP_APIS(X) \
     X(SetupDiGetDevicePropertyW) X(SetupDiGetDeviceRegistryPropertyW) \
     X(SetupDiGetDeviceInstanceIdW) X(SetupDiGetClassDevsW) X(SetupDiEnumDeviceInfo) \
@@ -51,7 +47,6 @@ static int load_system_apis(void)
     if (!token) return 0;
     HMODULE newdev = LoadLibraryExW(L"newdev.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!newdev) return 0;
-    /* Keep modules loaded until process exit, including on partial failure. */
 #define RESOLVE(module, name) \
     p_##name = (__typeof__(&name))(void *)GetProcAddress(module, #name); if (!p_##name) return 0;
 #define SETUP(name) RESOLVE(setup, name)
@@ -84,8 +79,6 @@ static int load_system_apis(void)
 #define CM_Get_DevNode_Status p_CM_Get_DevNode_Status
 
 #if !defined(BIND_MOCK) || defined(BIND_NOCRT)
-/* The CRT-free entry uses Kernel32 string APIs; supply the byte operations the
- * compiler may also emit for aggregate initialisation. */
 void *memset(void *dst, int value, size_t n)
 {
     unsigned char *p = dst;
@@ -130,7 +123,6 @@ static int full_compare(const wchar_t *a, const wchar_t *b)
 
 #define CAP 4096
 static const wchar_t hardware[] = L"USB\\VID_A108&PID_EAEF";
-/* Avoid a dependency on a separate GUID definition library. */
 static const DEVPROPKEY inf_key = {{0xa8b865dd,0x2e3d,0x4094,
     {0xad,0x97,0xe5,0x93,0xa7,0x0c,0x75,0xd6}},5};
 static const DEVPROPKEY provider_key = {{0xa8b865dd,0x2e3d,0x4094,
@@ -140,8 +132,6 @@ struct target {
     DWORD problem, devinst;
 };
 
-/* Reject truncated, mistyped, empty or unterminated properties. Optional absence
- * is permitted only for the three driver fields, never identity fields. */
 static int property(HDEVINFO set, SP_DEVINFO_DATA *dev, DWORD reg,
                     const DEVPROPKEY *key, wchar_t *buf, int multi, int optional)
 {
@@ -163,7 +153,6 @@ static int property(HDEVINFO set, SP_DEVINFO_DATA *dev, DWORD reg,
         size < (DWORD)((multi ? 3 : 2) * sizeof(*buf))) return 0;
     size /= sizeof(*buf);
     if (!buf[0] || buf[size - 1] || (multi && buf[size - 2])) return 0;
-    /* A string must have exactly one terminator; a list exactly two. */
     for (DWORD i = 0; i < size - 1; ++i)
         if (!buf[i] && (!multi || i == 0 || !buf[i - 1])) return 0;
     return 1;
@@ -176,9 +165,8 @@ static int snapshot(HDEVINFO set, SP_DEVINFO_DATA *dev, struct target *t)
     if (!SetupDiGetDeviceInstanceIdW(set, dev, t->instance, CAP, NULL) ||
         !wmemchr(t->instance, 0, CAP)) return 0;
     size_t n = wcslen(hardware);
-    /* Parent USB device only: no MI interfaces, REV selectors or prefix matches. */
     if (_wcsnicmp(t->instance, hardware, n) || t->instance[n] != L'\\' ||
-        !t->instance[n + 1]) return 2; /* unrelated */
+        !t->instance[n + 1]) return 2;
     if (!property(set, dev, SPDRP_HARDWAREID, NULL, t->ids, 1, 0) ||
         !property(set, dev, SPDRP_LOCATION_PATHS, NULL, t->location, 1, 0) ||
         !property(set, dev, SPDRP_SERVICE, NULL, t->service, 0, 1) ||
@@ -186,8 +174,6 @@ static int snapshot(HDEVINFO set, SP_DEVINFO_DATA *dev, struct target *t)
         !property(set, dev, 0, &provider_key, t->provider, 0, 1) ||
         CM_Get_DevNode_Status(&status, &t->problem, dev->DevInst, 0) != CR_SUCCESS)
         return 0;
-    /* Windows USB IDs may include the revision-specific ID before the base ID.
-     * Every ID must be this parent device; the exact base ID must be present. */
     int base = 0;
     for (wchar_t *p = t->ids; *p; p += wcslen(p) + 1) {
         if (!_wcsicmp(p, hardware)) base = 1;
@@ -202,7 +188,6 @@ static int snapshot(HDEVINFO set, SP_DEVINFO_DATA *dev, struct target *t)
     return base ? 1 : 0;
 }
 
-/* The present-only inventory itself owns the selected SP_DEVINFO_DATA. */
 static int unique(HDEVINFO *set, SP_DEVINFO_DATA *chosen, struct target *t,
                   const char **reason)
 {
@@ -227,14 +212,11 @@ static int unique(HDEVINFO *set, SP_DEVINFO_DATA *chosen, struct target *t,
     }
 }
 
-/* HardwareID is one string; only CompatIDsLength characters form a MULTI_SZ.
- * Both offsets are character counts relative to HardwareID, not byte counts. */
 static int winusb_ids(const SP_DRVINFO_DETAIL_DATA_W *detail, size_t count)
 {
     size_t offset = detail->CompatIDsOffset, length = detail->CompatIDsLength;
     if (offset > count || length > count - offset || (!offset && length)) return -1;
     const wchar_t *ids = detail->HardwareID;
-    /* Offset 0 means no compatible IDs; 1 permits an empty hardware ID. */
     size_t hardware_count = offset > 1 ? offset : count;
     const wchar_t *end = wmemchr(ids, 0, hardware_count);
     if (!end || (!*ids && (offset != 1 || !length))) return -1;
@@ -319,8 +301,6 @@ static int run(int argc)
                 if (GetLastError() != ERROR_NO_MORE_ITEMS) goto api_error;
                 break;
             }
-            /* A bounded, aligned buffer includes hardware and compatible IDs.
-             * Insufficient buffer is a refusal: partial IDs cannot select a node. */
             union {
                 SP_DRVINFO_DETAIL_DATA_W detail;
                 BYTE bytes[sizeof(SP_DRVINFO_DETAIL_DATA_W) + CAP * sizeof(wchar_t)];
@@ -353,23 +333,15 @@ static int run(int argc)
         reason = "select_driver_failed";
         if (!SetupDiSetSelectedDriverW(set, &dev, &selected)) goto api_error;
     }
-    /* No caller-provided identity: preserve the sole observed instance, devnode,
-     * all hardware IDs, physical location paths and existing binding. */
     if (!unique(&fresh, &other, &after, &reason) || !driver_state(&after) ||
         memcmp(&before, &after, sizeof(before))) { reason = state = "target_changed"; goto done; }
     if (driver_state(&after) == 2) { reason = "none"; state = "already_bound"; error = 0; rc = 0; goto done; }
     if (snapshot(set, &dev, &after) != 1 || !driver_state(&after) ||
         memcmp(&before, &after, sizeof(before))) { reason = state = "target_changed"; goto done; }
-    /* There is no atomic compare-and-install operation. A concurrent
-     * change during this final property read or before DiInstallDevice can
-     * still race us; this re-read narrows, but cannot eliminate, that interval. */
     reason = "install_failed";
-    /* Supply the validated class-driver node explicitly: its WINUSB compatible
-     * ID does not match this device, so automatic driver ranking cannot bind it. */
     if (!DiInstallDevice(NULL, set, &dev, &selected, 0, &need_reboot)) goto api_error;
     installed = 1;
     if (!SetupDiGetDeviceInstallParamsW(set, &dev, &params)) {
-        /* Installation occurred, but reboot status is unknown. Require a reboot. */
         reboot = 1; reason = state = "installed_status_unknown"; goto api_error_keep_state;
     }
     reboot = need_reboot || !!(params.Flags & (DI_NEEDREBOOT | DI_NEEDRESTART));
@@ -405,8 +377,6 @@ done:
 #if defined(BIND_MOCK) && !defined(BIND_NOCRT)
 int main(int argc, char **argv) { (void)argv; return run(argc); }
 #else
-/* Windows treats the executable token specially: quotes group spaces, and the
- * first unquoted space/tab ends it. Any subsequent token is an argument. */
 void mainCRTStartup(void)
 {
     const wchar_t *p = GetCommandLineW(); int quoted = 0;

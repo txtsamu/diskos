@@ -9,65 +9,64 @@
 #include <time.h>
 #include <unistd.h>
 
-/* ---- tuning: every game number lives here (all times in simulated minutes) ---- */
-#define EGG_MIN            3      /* egg hatches into a baby after this long */
-#define BABY_MIN           60     /* baby grows into a child */
-#define CHILD_MIN          180    /* child grows into a teen */
-#define TEEN_MIN           360    /* teen grows into an adult (the form is picked from care) */
-#define FORM1_CARE         34     /* care below this gives adult form 0 */
-#define FORM2_CARE         67     /* care below this gives form 1, otherwise form 2 */
-#define HUNGER_EVERY       4      /* awake: hunger -1 every this many minutes (empty in ~6.7 h) */
-#define HAPPY_EVERY        5      /* awake: happy -1 every this many minutes */
-#define HAPPY_FAST_MUL     2      /* happy drops this many times faster when hungry, messy or sick */
-#define ENERGY_EVERY       8      /* awake: energy -1 every this many minutes */
-#define SLEEP_ENERGY_EVERY 2      /* asleep: energy +1 every this many minutes */
-#define SLEEP_HUNGER_EVERY 12     /* asleep: hunger -1 every this many minutes (slow) */
-#define SLEEP_MAX_MIN      600    /* a pet is woken after this many minutes of sleep within one catch-up (10 h) */
-#define POOP_ODDS          90     /* awake: a mess appears with chance 1 in this per minute (~every 90 min) */
-#define SICK_ODDS          600    /* a healthy pet gets sick with chance 1 in this per minute */
-#define SICK_ODDS_RISK     120    /* same, when poop >= SICK_POOP, starving or overweight */
-#define SICK_POOP          2      /* this many messes lying around raise the sickness risk (and drain happy) */
-#define SICK_WEIGHT        80     /* heavier than this raises the sickness risk (snacks) */
-#define HUNGRY_FAST        25     /* below this hunger, happy drains at the fast rate */
-#define STARVE_DEATH_MIN   720    /* hunger 0 for this long (12 h) and the pet is gone */
-#define SICK_DEATH_MIN     1440   /* sick for this long (24 h) and the pet is gone */
-#define CARE_EVERY         10     /* care is re-scored every this many minutes */
-#define CARE_GOOD_STAT     50     /* hunger and happy at least this, no mess, not sick: care +1 */
-#define CARE_BAD_HUNGER    25     /* hunger below this ... */
-#define CARE_BAD_POOP      3      /* ... or this many messes, or sick: care -1 */
-#define MEAL_HUNGER        40     /* a meal fills this much */
-#define MEAL_HAPPY         2      /* a meal cheers this much */
-#define MEAL_WEIGHT        1      /* a meal weighs this much */
-#define FULL_HUNGER        90     /* a meal is refused at or above this hunger */
-#define SNACK_HUNGER       10     /* a snack fills this much */
-#define SNACK_HAPPY        15     /* a snack cheers this much */
-#define SNACK_WEIGHT       3      /* a snack weighs this much */
-#define PLAY_WIN_HAPPY     20     /* happy gained by winning the mini-game */
-#define PLAY_LOSE_HAPPY    8      /* happy gained by losing it */
-#define PLAY_ENERGY        10     /* energy spent by playing */
-#define PLAY_TIRED         15     /* below this energy the pet is too tired to play */
-#define PLAY_WEIGHT        1      /* weight lost by playing */
-#define PLAY_WIN_CARE      1      /* care gained by a win */
-#define CLEAN_HAPPY        3      /* happy gained by cleaning up */
-#define CLEAN_CARE         2      /* care gained by cleaning up */
-#define HEAL_HAPPY         5      /* happy lost to the medicine */
-#define MOOD_HUNGRY        30     /* hunger below this shows as hungry */
-#define MOOD_SLEEPY        25     /* energy below this shows as sleepy */
-#define MOOD_SAD           30     /* happy below this shows as sad */
-#define MOOD_HAPPY         70     /* happy at least this (and hunger >= MOOD_HAPPY_FED) shows as happy */
-#define MOOD_HAPPY_FED     50     /* see above */
-#define START_WEIGHT       20     /* weight of a new egg */
-#define START_CARE         50     /* care of a new egg */
-#define MAX_MESS           4      /* messes never pile up beyond this */
+#define EGG_MIN            3
+#define BABY_MIN           60
+#define CHILD_MIN          180
+#define TEEN_MIN           360
+#define FORM1_CARE         34
+#define FORM2_CARE         67
+#define HUNGER_EVERY       4
+#define HAPPY_EVERY        5
+#define HAPPY_FAST_MUL     2
+#define ENERGY_EVERY       8
+#define SLEEP_ENERGY_EVERY 2
+#define SLEEP_HUNGER_EVERY 12
+#define SLEEP_MAX_MIN      600
+#define POOP_ODDS          90
+#define SICK_ODDS          600
+#define SICK_ODDS_RISK     120
+#define SICK_POOP          2
+#define SICK_WEIGHT        80
+#define HUNGRY_FAST        25
+#define STARVE_DEATH_MIN   720
+#define SICK_DEATH_MIN     1440
+#define CARE_EVERY         10
+#define CARE_GOOD_STAT     50
+#define CARE_BAD_HUNGER    25
+#define CARE_BAD_POOP      3
+#define MEAL_HUNGER        40
+#define MEAL_HAPPY         2
+#define MEAL_WEIGHT        1
+#define FULL_HUNGER        90
+#define SNACK_HUNGER       10
+#define SNACK_HAPPY        15
+#define SNACK_WEIGHT       3
+#define PLAY_WIN_HAPPY     20
+#define PLAY_LOSE_HAPPY    8
+#define PLAY_ENERGY        10
+#define PLAY_TIRED         15
+#define PLAY_WEIGHT        1
+#define PLAY_WIN_CARE      1
+#define CLEAN_HAPPY        3
+#define CLEAN_CARE         2
+#define HEAL_HAPPY         5
+#define MOOD_HUNGRY        30
+#define MOOD_SLEEPY        25
+#define MOOD_SAD           30
+#define MOOD_HAPPY         70
+#define MOOD_HAPPY_FED     50
+#define START_WEIGHT       20
+#define START_CARE         50
+#define MAX_MESS           4
 
-#define MAX_MIN   100000000L      /* sanity limit for any minute counter in a file (~190 years) */
-#define MAX_TIME  ((long long)(sizeof(time_t) > 4 ? 4102444800LL : 2147483647LL))   /* year 2100: sanity limit for born/last */
-#define MAX_FILE  1024            /* a state file bigger than this is not ours */
+#define MAX_MIN   100000000L
+#define MAX_TIME  ((long long)(sizeof(time_t) > 4 ? 4102444800LL : 2147483647LL))
+#define MAX_FILE  1024
 
 static int clampi(int v, int lo, int hi){ return v < lo ? lo : v > hi ? hi : v; }
 
 unsigned tama_rand(tama_t *t, unsigned n){
-    unsigned x = t->rng ? t->rng : 1;     /* xorshift32 sticks at 0, so 0 is mapped to a valid state */
+    unsigned x = t->rng ? t->rng : 1;
     x ^= x << 13; x ^= x >> 17; x ^= x << 5;
     t->rng = x;
     return n ? x % n : 0;
@@ -84,7 +83,6 @@ void tama_new(tama_t *t, time_t now, unsigned seed){
     t->rng = seed ? seed : 1;
 }
 
-/* Move to the next life stage when the time in this one is up. */
 static void grow(tama_t *t){
     static const long need[] = { EGG_MIN, BABY_MIN, CHILD_MIN, TEEN_MIN };
     if(t->stage < TAMA_EGG || t->stage > TAMA_TEEN || t->stage_min < need[t->stage]) return;
@@ -93,11 +91,10 @@ static void grow(tama_t *t){
     t->stage_min = 0;
 }
 
-/* One simulated minute. `slept` counts the asleep minutes of this catch-up. Returns 0 once the pet has passed away. */
 static int step(tama_t *t, long *slept){
     if(t->age_min < MAX_MIN) t->age_min++;
     if(t->stage_min < MAX_MIN) t->stage_min++;
-    if(t->stage == TAMA_EGG){ grow(t); return 1; }          /* an egg does not decay */
+    if(t->stage == TAMA_EGG){ grow(t); return 1; }
     long m = t->age_min;
 
     if(t->asleep){
@@ -135,10 +132,10 @@ static int step(tama_t *t, long *slept){
 }
 
 void tama_advance(tama_t *t, time_t now){
-    if(t->stage == TAMA_GONE || now <= t->last) return;      /* a gone pet is frozen; a clock that went backwards advances nothing */
+    if(t->stage == TAMA_GONE || now <= t->last) return;
     long long gap = (long long)now - (long long)t->last;
     long long mins = gap / 60;
-    if(mins == 0) return;                                    /* less than a minute: keep `last`, the seconds are not lost */
+    if(mins == 0) return;
     int capped = mins > TAMA_MAX_OFFLINE_MIN;
     if(capped) mins = TAMA_MAX_OFFLINE_MIN;
     long slept = 0;
@@ -146,7 +143,6 @@ void tama_advance(tama_t *t, time_t now){
     t->last = capped ? now : (time_t)((long long)t->last + mins * 60);
 }
 
-/* DEAD (gone or still an egg) first, then ASLEEP: the order every action shares. */
 static tama_rc gate(const tama_t *t){
     if(t->stage == TAMA_GONE || t->stage == TAMA_EGG) return TAMA_REFUSED_DEAD;
     if(t->asleep) return TAMA_REFUSED_ASLEEP;
@@ -231,7 +227,6 @@ const char *tama_mood_name(tama_mood_t m){
     return (int)m >= 0 && (int)m <= TAMA_MOOD_DEAD ? n[m] : "?";
 }
 
-/* ---- save / load: `key=value` lines, the field table below is the single source of names and ranges ---- */
 enum { F_VERSION, F_STAGE, F_FORM, F_HUNGER, F_HAPPY, F_ENERGY, F_WEIGHT, F_POOP, F_SICK, F_ASLEEP, F_CARE,
        F_AGE, F_STAGE_MIN, F_STARVE, F_SICK_MIN, F_RNG, F_BORN, F_LAST, F_COUNT };
 
@@ -291,7 +286,7 @@ static int valid(const tama_t *t){
 }
 
 int tama_save(const tama_t *t, const char *path){
-    if(!valid(t)) return -1;                                 /* never persist garbage */
+    if(!valid(t)) return -1;
     char tmp[256];
     if(snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int)sizeof tmp) return -1;
     char b[MAX_FILE];
@@ -309,7 +304,6 @@ int tama_save(const tama_t *t, const char *path){
     return 0;
 }
 
-/* Strict decimal: optional '-', then digits only, nothing else (no spaces, '+', or trailing bytes). */
 static int parse_num(const char *s, size_t len, long long *out){
     if(len == 0 || len > 20) return 0;
     size_t i = s[0] == '-' ? 1 : 0;
@@ -341,7 +335,7 @@ int tama_load(tama_t *t, const char *path){
     while(pos < n){
         const char *line = b + pos;
         const char *nl = memchr(line, '\n', n - pos);
-        size_t len = nl ? (size_t)(nl - line) : n - pos;     /* a missing final newline is fine */
+        size_t len = nl ? (size_t)(nl - line) : n - pos;
         pos += len + (nl ? 1 : 0);
         const char *eq = memchr(line, '=', len);
         if(!eq) return -1;
@@ -350,13 +344,13 @@ int tama_load(tama_t *t, const char *path){
         for(int i = 0; i < F_COUNT; i++)
             if(strlen(fields[i].key) == klen && memcmp(fields[i].key, line, klen) == 0){ idx = i; break; }
         long long val;
-        if(idx < 0 || (seen & (1u << idx))) return -1;       /* unknown or duplicate key */
+        if(idx < 0 || (seen & (1u << idx))) return -1;
         if(!parse_num(eq + 1, len - klen - 1, &val)) return -1;
         if(val < fields[idx].lo || val > fields[idx].hi) return -1;
         set_field(&v, idx, val);
         seen |= 1u << idx;
     }
-    if(seen != (1u << F_COUNT) - 1) return -1;               /* a key is missing */
+    if(seen != (1u << F_COUNT) - 1) return -1;
     if(!valid(&v)) return -1;
     *t = v;
     return 0;

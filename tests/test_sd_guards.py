@@ -128,7 +128,6 @@ class ShellGuardTests(unittest.TestCase):
         self.assertEqual(self.track.read_bytes(), b'precious-music')
 
     def test_failed_unmount_cleanup_keeps_music(self):
-        # Deliberately failed unmount followed by the actual shell wrapper; no mount privileges needed.
         subprocess.run(['/bin/sh', '-c', 'false; "$1" -rf "$2"', 'test', str(self.guard), str(self.mount)],
                        check=True, capture_output=True, timeout=5)
         self.assertEqual(self.track.read_bytes(), b'precious-music')
@@ -183,12 +182,12 @@ def _alive(pid):
 def _supervisor_wrapper(text):
     """Lift the REAL supervisor out of the shipped hook, with only its deadline shortened.
 
-    Keyed on explicit markers in the script: if someone edits the supervisor, these tests keep
-    testing the edited version rather than silently slicing the wrong region.
+    Keyed on the supervisor's first statement and on the first statement after it: if someone edits the
+    supervisor, these tests keep testing the edited version rather than silently slicing the wrong region.
     """
     import re
-    begin = text.index('# >>> SUPERVISOR BEGIN')
-    end = text.index('# <<< SUPERVISOR END')
+    begin = text.index('if [ "$1" != "__worker" ]; then')
+    end = text.index('SIGS="TERM HUP INT')
     return re.sub(r'\b180\b', '2', text[begin:end])
 
 
@@ -218,7 +217,6 @@ class InstallHookSupervisorTests(unittest.TestCase):
             try:
                 rc = subprocess.run([str(script), 'start'], env=_diskos_selected(temp), timeout=30).returncode
                 elapsed = time.monotonic() - start
-                # without this witness, a worker that never started would pass every assertion below
                 self.assertTrue(started.exists(), 'the worker never started - the test would pass vacuously')
                 worker = int(started.read_text())
                 time.sleep(0.5)
@@ -226,7 +224,7 @@ class InstallHookSupervisorTests(unittest.TestCase):
                 self.assertFalse(marker.exists(), 'the hung worker should have been killed, not completed')
             finally:
                 try:
-                    os.kill(int(started.read_text()), 9)   # failure path: never leave the worker behind
+                    os.kill(int(started.read_text()), 9)
                 except (OSError, ValueError):
                     pass
         self.assertEqual(rc, 0, 'the boot must never wait on our verdict')
@@ -259,8 +257,6 @@ class InstallHookSupervisorTests(unittest.TestCase):
             child = Path(temp) / 'descendant.pid'
             worker = Path(temp) / 'worker.pid'
             script = Path(temp) / 'S97test'
-            # the descendant records its pid, then becomes a long sleep with that same pid; the worker
-            # records its own pid and becomes a long sleep too, so cleanup can find both
             script.write_text('#!/bin/sh\n' + wrapper +
                               '/bin/sh -c \'echo $$ > "%s"; exec sleep 300\' &\n'
                               'echo $$ > "%s"\nexec sleep 60\n' % (child, worker))
@@ -272,7 +268,6 @@ class InstallHookSupervisorTests(unittest.TestCase):
                 time.sleep(0.5)
                 return _alive(pid)
             finally:
-                # read the witnesses HERE, so a timeout or failed assertion above still finds them
                 for w in (child, worker):
                     try:
                         os.kill(int(w.read_text()), 9)
@@ -289,7 +284,6 @@ class ReadinessGateTests(unittest.TestCase):
         self.assertIn('    : > /tmp/.diskos_ready 2>/dev/null', text)
         self.assertIn('    override_on || return 1', text)
         self.assertIn('disarm() { ready;', text)
-        # the marker must live on tmpfs, so that it can only ever mean "this boot"
         self.assertNotIn('/usr/data/.diskos_ready', text)
 
 
@@ -423,7 +417,6 @@ class DecisionFileCheckTests(unittest.TestCase):
 
 
 
-# Hosts that restrict unprivileged user namespaces (e.g. Ubuntu with AppArmor) can point this at an allowed unshare.
 UNSHARE = os.environ.get('DISKOS_UNSHARE') or 'unshare'
 
 
@@ -464,7 +457,7 @@ class BootHookExecutionTests(unittest.TestCase):
         return text[a:b]
 
     def boot(self, record, ready=True, helper=True, coredump='0', data_files=('mq_ui', 'mq_player'), block=None):
-        with tempfile.TemporaryDirectory(prefix='diskos-hookexec-', dir='/var/tmp') as t:   # /tmp is replaced inside the namespace
+        with tempfile.TemporaryDirectory(prefix='diskos-hookexec-', dir='/var/tmp') as t:
             t = Path(t)
             data = t / 'usrdata'
             data.mkdir()
@@ -480,14 +473,10 @@ class BootHookExecutionTests(unittest.TestCase):
                     d.write_text(f'#!/bin/sh\necho DISKOS_{name} >> {log}\n')
                     d.chmod(0o755)
             block = (block or self.launch_block()).replace('/usr/data/', str(data) + '/')
-            # the witnesses exit at once; a real UI stays up. Disable the ran-normally window (covered by
-            # test_ota_boot.HookFallbackTests, which runs the same block with UIs that stay up).
             block = block.replace('-ge %d ]' % imagebuild._NORMAL_RUN_SECS, '-ge 0 ]')
             self.assertNotIn('/usr/data/', block)
             (t / 'block.sh').write_text('sleep() { :; }\nCOREDUMP_FLAG=' + coredump + '\n' + block + 'wait\n')
             setup = ['mount -t tmpfs none /tmp', 'mount -t tmpfs none /opt', 'mkdir -p /opt/diskos/bin',
-                     # stand-in for the read-only launcher (a MIPS binary that cannot run on this host): it just
-                     # execs its first argument, so the launch witnesses below still prove WHICH build was chosen
                      "printf '#!/bin/sh\\nexec \"$@\"\\n' > /opt/diskos/bin/diskos-launch",
                      'chmod 755 /opt/diskos/bin/diskos-launch']
             if helper:
@@ -519,7 +508,6 @@ class BootHookExecutionTests(unittest.TestCase):
             ('coredump flag, record stock', dict(record='stock\n', coredump='1'), stock),
             ('coredump flag, not ready', dict(record='diskos\n', ready=False, coredump='1'), stock),
             ('coredump flag, diskos + ready', dict(record='diskos\n', coredump='1'), diskos),
-            # mq_player absent from /usr/data makes the PRIMARY condition false, so these reach the elif:
             ('COREDUMP BRANCH taken: diskos + ready', dict(record='diskos\n', coredump='1', data_files=('mq_ui',)),
              ['DISKOS_mq_ui']),
             ('coredump branch: record stock', dict(record='stock\n', coredump='1', data_files=('mq_ui',)), stock),

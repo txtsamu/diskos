@@ -5,7 +5,6 @@ saved log stays readable."""
 import sys
 import time
 
-# --- colour (only on a TTY that isn't dumb) ---------------------------------
 _TTY = sys.stdout.isatty()
 
 
@@ -31,7 +30,6 @@ def output_text(text, encoding):
                 return char
             except UnicodeEncodeError:
                 replacement = _ASCII_SYMBOLS.get(char, char.encode("ascii", "backslashreplace").decode("ascii"))
-                # Even ASCII can be absent from a codec (for example, cp864's %).
                 return replacement.encode(encoding, "replace").decode(encoding)
         return "".join(fallback(char) for char in text)
 
@@ -50,7 +48,6 @@ class SafeOutput:
         try:
             self.stream.write(rendered)
         except UnicodeEncodeError as exc:
-            # Some stream adapters report a different encoding from their writer.
             self.stream.write(output_text(text, exc.encoding))
         return len(text)
 
@@ -133,7 +130,6 @@ class Bar:
             sys.stdout.flush()
             self.last_len = len(line)
         else:
-            # non-TTY: emit occasional milestone lines, not a live bar
             pct = int(frac * 100)
             if pct in (0, 25, 50, 75, 100) and pct != getattr(self, "_last_pct", -1):
                 self._last_pct = pct
@@ -177,7 +173,6 @@ class Heartbeat:
             sys.stdout.flush()
             self.last_len = len(line)
         else:
-            # non-TTY: a line every ~30s so a log shows liveness without spamming
             if int(elapsed) % 30 == 0 and int(elapsed) != getattr(self, "_last_log", -1):
                 self._last_log = int(elapsed)
                 _print(f"  {self.label}: {fmt_dur(elapsed)} elapsed ({self.reminder})")

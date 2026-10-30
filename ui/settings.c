@@ -18,7 +18,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/mman.h>   /* Restart to Flash Mode: write the boot-ROM SWB register via /dev/mem */
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -33,13 +33,10 @@
 #include "i18n.h"
 #include "ui_round.h"
 
-/* Killed children are always collected, so none is left a zombie: kill_and_reap() waits up to 300 ms (a SIGKILLed
- * child normally exits at once), and anything still unreaped (e.g. stuck in kernel I/O) is parked and swept by a
- * small self-deleting timer until it has been collected - also after the restart attempt that killed it has ended. */
 #define RST_REAP_MAX 8
 static pid_t g_rst_reap[RST_REAP_MAX];
 static lv_timer_t *g_rst_reaper;
-static int rst_reap_sweep(void){                     /* returns how many are still parked */
+static int rst_reap_sweep(void){
     int left = 0;
     for(int i = 0; i < RST_REAP_MAX; i++)
         if(g_rst_reap[i] > 0){
@@ -49,8 +46,6 @@ static int rst_reap_sweep(void){                     /* returns how many are sti
     return left;
 }
 static void rst_reaper_cb(lv_timer_t *t){ if(rst_reap_sweep() == 0){ lv_timer_delete(t); g_rst_reaper = NULL; } }
-/* Free parking slots after a sweep. Every caller that may later kill children checks it has enough BEFORE forking,
- * so kill_and_reap() can always park - a killed child is never forgotten unreaped. */
 static int rst_reap_free(void){ rst_reap_sweep(); int n = 0; for(int i = 0; i < RST_REAP_MAX; i++) if(g_rst_reap[i] <= 0) n++; return n; }
 static void kill_and_reap(pid_t p){
     if(p <= 0) return;
@@ -64,10 +59,8 @@ static void kill_and_reap(pid_t p){
     if(!g_rst_reaper) g_rst_reaper = lv_timer_create(rst_reaper_cb, 1000, NULL);
 }
 
-/* Run a shell command as a bounded child in its OWN process group, and NEVER blocking-reap it: a child
- * stuck in kernel I/O must not be able to hold the UI thread - or a restart - even for a moment. */
 static void bounded_detached(const char *cmd, int ms){
-    pid_t p = 0;                                   /* posix_spawn, not fork(): a fork of the big UI can fail for memory */
+    pid_t p = 0;
     char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
     if(command_spawn(&p, argv) != 0 || p <= 0) return;
     for(int i = 0; i < ms/100; i++){
@@ -77,36 +70,34 @@ static void bounded_detached(const char *cmd, int ms){
     kill_and_reap(p);
 }
 
-/* ---- setting model ------------------------------------------------------ */
-typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE } st_type_t;   /* CHOICE: pick from a list */
+typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE } st_type_t;
 
 typedef struct setting_s {
     const char *group;
     const char *label;
     st_type_t   type;
     const char *cfg_key;
-    int         min, max, step;            /* slider */
-    const char *const *opts; int nopts;    /* cycler */
-    const char *ro_val;                    /* readonly */
-    void (*apply)(int v);                  /* optional apply hook / decode seam */
+    int         min, max, step;
+    const char *const *opts; int nopts;
+    const char *ro_val;
+    void (*apply)(int v);
     int  def;
-    const char *desc;                      /* detail-page description */
-    const char *const *opt_descs;          /* per-option descriptions (cyclers) */
+    const char *desc;
+    const char *const *opt_descs;
 } setting_t;
 
-/* apply hooks (decode seams live in main.c) */
 void screen_set_anim(int on);
 void ui_set_workmode(int mode);
 int ui_apply_eq(int preset);
 void ui_clock_refresh(void);
-void ui_set_accent_config(int mode, int rgb);   /* accent: 0=dynamic / 1=static(rgb) */
-void ui_set_prewarm_mode(int m);                /* art cache: 0=covers only 1=+sweep idle 2=+sweep idle&charging */
-void ui_set_dre(int on);                        /* audio cluster (main.c) */
+void ui_set_accent_config(int mode, int rgb);
+void ui_set_prewarm_mode(int m);
+void ui_set_dre(int on);
 void ui_set_gain(int high);
-int  ui_set_artist_class(int album_artist);      /* 0648; 0 sent, -1 not (main.c) */
+int  ui_set_artist_class(int album_artist);
 #include "netart.h"
-int  ui_set_folder_jump(int on);                 /* 0687; 0 sent, -1 not (main.c) */
-void ui_set_track_display(int on);               /* 064d where the player has it (main.c) */
+int  ui_set_folder_jump(int on);
+void ui_set_track_display(int on);
 void ui_set_output(int spdif);
 void ui_set_dac_filter(int idx);
 void ui_set_gapless(int on);
@@ -114,26 +105,23 @@ void ui_set_memory(int mode);
 void ui_set_maxvol(int v);
 void ui_set_balance(int v);
 
-static void apply_open_colorpick(int v){ (void)v; colorpick_open(); }   /* seed sliders from cfg + open */
-static void apply_debug_mode(int v){ (void)v; debug_open(); }           /* Settings -> System -> Debug Mode */
-static void apply_artcache(int v){ ui_set_prewarm_mode(v); }   /* every mode preloads album covers; the mode picks the per-track sweep */
-void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);   /* main.c: Restart card drain */
+static void apply_open_colorpick(int v){ (void)v; colorpick_open(); }
+static void apply_debug_mode(int v){ (void)v; debug_open(); }
+static void apply_artcache(int v){ ui_set_prewarm_mode(v); }
+void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
-static void apply_swipe(int v){ ui_apply_swipe_thresh(v); }   /* live; persisted on slider release */
+static void apply_swipe(int v){ ui_apply_swipe_thresh(v); }
 static void apply_anim(int v){ screen_set_anim(v); }
 static void apply_weather(int v){ weather_set_enabled(v); }
-static void apply_mode(int v){ if(ui_book_active()) return; ui_set_workmode(v); }   /* an active book stays in Single; cfg still updates for later music */
-static void apply_eq(int v){ ui_eq_select(v); }   /* central: also records eq_last so the drawer A/B stays in sync */
-/* audio cluster: v<0 = "System default" (unmanaged) -> ui_set_* no-ops, leaving the player's
- * own state untouched. A real value sends the live command; persistence is via cfg + the
- * player-ready re-apply in main.c (ui_reapply_audio). */
+static void apply_mode(int v){ if(ui_book_active()) return; ui_set_workmode(v); }
+static void apply_eq(int v){ ui_eq_select(v); }
 static void apply_dre(int v){ ui_set_dre(v); }
 static void apply_replay_gain(int v){ ui_set_replay_gain(v); }
 static void apply_gain(int v){ ui_set_gain(v); }
 static void apply_dac_filter(int v){ ui_set_dac_filter(v); }
 static void apply_gapless(int v){ ui_set_gapless(v); }
 #ifdef DISKOS_TEST_OUTPUTS
-static void apply_spdif(int v){ ui_set_output(v); }   /* SPDIF: stock toggle form: pause -> silent -> 0666 -> 0657 8 -> resume (srcswitch.c); the toggle then mirrors the real route */
+static void apply_spdif(int v){ ui_set_output(v); }
 #endif
 static void apply_memory(int v){ ui_set_memory(v); }
 static void apply_maxvol(int v){ ui_set_maxvol(v); }
@@ -144,20 +132,16 @@ static void apply_sleep(int idx){
     ui_set_sleep_timer((idx>=0 && idx<6) ? M[idx] : 0);
 }
 static void apply_np_style(int v){ ui_set_np_style(v); }
-/* Theme settings apply by re-launching the UI (palette + Outdoor backlight are read at startup). set_val has already
- * saved the new value; if the reload is refused (a library scan is running) the old value goes back, and the detail
- * view is rebuilt after this event finishes (it cannot be deleted from inside its own switch/button callback). */
-static int g_set_prev;                                  /* the value set_val replaced */
+static int g_set_prev;
 static void detail_refresh_async(void *u){ (void)u; setting_detail_refresh(); }
 static void theme_reload_or_revert(const char *key){
-    if(ui_theme_reload("settings") == 0) return;        /* not reached on success: the exec replaced us */
+    if(ui_theme_reload("settings") == 0) return;
     cfg_set_int(key, g_set_prev);
     lv_async_call(detail_refresh_async, NULL);
 }
 static void apply_appearance(int v){ (void)v; theme_reload_or_revert("theme_variant"); }
 static void apply_outdoor(int v){ (void)v; theme_reload_or_revert("outdoor"); }
 static void apply_theme_preset(int v){ (void)v; theme_reload_or_revert("theme_preset"); }
-/* Font Size and Language change every screen's text: like a theme change, the UI re-launches and re-reads them */
 static void apply_font_size(int v){ (void)v; theme_reload_or_revert("font_size"); }
 static void apply_language(int v){ (void)v; theme_reload_or_revert("language"); }
 
@@ -168,7 +152,6 @@ static void apply_old_tags(int v){
 static void old_tags_rescan_cb(lv_event_t *e){
     if(lv_event_get_code(e) == LV_EVENT_CLICKED && !scanner_active()) ui_rescan_library();
 }
-/* The button owns this timer; cleaning or deleting the page deletes it too. */
 static void old_tags_rescan_tick(lv_timer_t *t){
     lv_obj_t *bt = lv_timer_get_user_data(t);
     if(scanner_active()) lv_obj_add_state(bt, LV_STATE_DISABLED);
@@ -186,19 +169,16 @@ static void apply_rescan(int v){ (void)v;
     ui_rescan_library();
 }
 
-/* ---- Date & Time (parity with stock: automatic time switch, set by hand, time zone) ---------------------------- */
 static void apply_auto_time(int v){
-    if(mdb_sysconfig_set_auto_time(v) != 0){           /* the player may hold its database: put the switch back */
+    if(mdb_sysconfig_set_auto_time(v) != 0){
         cfg_set_int("auto_time", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
         return;
     }
-    ui_toast("Applies after the next restart");        /* the player reads it only when it starts (see musicdb.c) */
+    ui_toast("Applies after the next restart");
 }
-static void apply_block_fiio(int v){ (void)v; phonehome_apply(); }   /* set_val has already saved cfg block_fiio_checks */
-/* Artists grouping (stock "Artist / Album Artist", ARTIST_CLASS_TYPE via 0648): the player owns the value (mirrored
- * at startup); a send that fails puts the choice back so the menu never shows a grouping the player isn't using. */
+static void apply_block_fiio(int v){ (void)v; phonehome_apply(); }
 static void apply_artist_class(int v){
     if(ui_set_artist_class(v) != 0){
         cfg_set_int("artist_class", g_set_prev);
@@ -206,8 +186,6 @@ static void apply_artist_class(int v){
         lv_async_call(detail_refresh_async, NULL);
     }
 }
-/* Play Through Folders (stock FOLDER_JUMP via 0687): the player owns the value (mirrored at startup); a failed send
- * puts the switch back. */
 static void apply_folder_jump(int v){
     if(ui_set_folder_jump(v) != 0){
         cfg_set_int("folder_jump", g_set_prev);
@@ -215,18 +193,13 @@ static void apply_folder_jump(int v){
         lv_async_call(detail_refresh_async, NULL);
     }
 }
-/* Charging optimization (stock 0808, SYSCONFIG.CHARGE_PROTECT): the player owns it (mirrored at startup, power.c); a
- * failed send puts the choice back. Idle Power-off has NO apply hook on purpose: diskOS runs that timer itself (power.c)
- * and keeps the player's own idle power-off (0664) off, because the player's path powers off without syncing the card. */
-/* Screen Rotation and the volume keys' actions (stock 0646 / 0820-0822, controls.c): the player stores them; a refused
- * send puts the choice back so the menu never shows what the player isn't using. */
 static void apply_screen_rot(int v){
     if(ui_set_screen_rot(v) != 0){
         cfg_set_int(CTL_CFG_ROT, g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
     } else if(ctl_rotation_pending())
-        cfg_set_int(CTL_CFG_ROT, g_set_prev);   /* stored only when the user taps Keep (controls.c); the row keeps the old one till then */
+        cfg_set_int(CTL_CFG_ROT, g_set_prev);
 }
 static void key_act_apply(int key, const char *cfg_key, int v){
     if(ui_set_volume_key(key, v) != 0){
@@ -245,15 +218,9 @@ static void apply_charge_protect(int v){
         lv_async_call(detail_refresh_async, NULL);
     }
 }
-/* Track Numbers: album song lists show each song's track number (stock "TRACK_DISPLAY", drawn by diskOS) */
 static void apply_track_numbers(int v){ ui_set_track_display(v); library_refresh(); }
-/* Online Album Art (stock "Online cover", done by diskOS - netart.c): on tries the current song now; off drops any
- * queued lookup and redraws the current cover without an online picture */
 static void apply_online_art(int v){ if(!v) netart_cancel(); ui_art_redo(); }
 static void apply_open_datetime(int v){ (void)v; screen_show(SCR_DATETIME); }
-/* Time Zone: "Automatic" leaves the zone to the player (looked up online when Wi-Fi connects, with Automatic Time
- * on); any other entry copies that zone's rules to /usr/data/localtime (what /etc/localtime points at, for every
- * process), atomically, then re-launches the UI so its clock uses them. */
 static const char *const TZ_LABEL[] = { "Automatic", "UTC", "London", "Paris / Berlin", "Athens / Helsinki",
     "Moscow", "Cairo", "Johannesburg", "Dubai", "Karachi", "India", "Bangkok / Jakarta", "China / Singapore",
     "Hong Kong", "Tokyo", "Seoul", "Perth", "Adelaide", "Darwin", "Brisbane", "Sydney / Melbourne", "Hobart",
@@ -268,7 +235,6 @@ static const char *const TZ_ZONE[] = { NULL, "UTC", "Europe/London", "Europe/Ber
     "America/Sao_Paulo", "America/Argentina/Buenos_Aires" };
 #define TZ_COUNT ((int)(sizeof TZ_LABEL / sizeof TZ_LABEL[0]))
 _Static_assert(sizeof TZ_LABEL / sizeof TZ_LABEL[0] == sizeof TZ_ZONE / sizeof TZ_ZONE[0], "time zone tables");
-/* write n bytes over /usr/data/localtime: temp + fsync + rename + directory fsync */
 static int tz_write(const unsigned char *buf, size_t n){
     const char *tmp = "/usr/data/localtime.diskos-tmp", *dst = "/usr/data/localtime";
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
@@ -280,7 +246,7 @@ static int tz_write(const unsigned char *buf, size_t n){
     if(dfd >= 0){ fsync(dfd); close(dfd); }
     return 0;
 }
-static size_t tz_read(const char *path, unsigned char *buf, size_t cap){   /* 0 = unreadable, too big, or not TZif */
+static size_t tz_read(const char *path, unsigned char *buf, size_t cap){
     FILE *in = fopen(path, "rb");
     if(!in) return 0;
     size_t n = fread(buf, 1, cap, in);
@@ -288,10 +254,6 @@ static size_t tz_read(const char *path, unsigned char *buf, size_t cap){   /* 0 
     fclose(in);
     return (more || n < 44 || memcmp(buf, "TZif", 4)) ? 0 : n;
 }
-/* Install a zone. This firmware keeps the RTC in LOCAL time and every UI start reloads the clock from it (hwclock -s),
- * so the RTC is rewritten in the NEW zone's local time straight away (hwclock -w, bounded); if that fails the old
- * zone goes back - a relaunch would otherwise read the old local time as the new zone's and shift the clock by the
- * zones' difference (device-verified 2026-09-26: +10 h going Sydney -> UTC without it). */
 static int tz_install(const char *zone){
     static unsigned char nbuf[65536], obuf[65536];
     char src[160]; snprintf(src, sizeof src, "/usr/share/zoneinfo/%s", zone);
@@ -301,7 +263,7 @@ static int tz_install(const char *zone){
     if(tz_write(nbuf, n) != 0) return -1;
     char *a[] = { "hwclock", "-w", NULL };
     if(ui_run_bounded(a, 4000) != 0){
-        if(on) tz_write(obuf, on);                     /* back to the zone the RTC still matches */
+        if(on) tz_write(obuf, on);
         return -1;
     }
     return 0;
@@ -313,70 +275,47 @@ static void apply_timezone(int v){
         lv_async_call(detail_refresh_async, NULL);
         return;
     }
-    theme_reload_or_revert("tz_idx");                  /* the UI re-reads the zone rules at start */
+    theme_reload_or_revert("tz_idx");
 }
 static void apply_import_m3u(int v){ (void)v;
-    int n = mdb_import_m3u_sd("/tmp/sdcard");   /* every folder on the card (bounded walk), like stock V2.57 */
+    int n = mdb_import_m3u_sd("/tmp/sdcard");
     char b[48];
     if(n <= 0) snprintf(b, sizeof b, "No new playlists found");
     else       snprintf(b, sizeof b, "Imported %d playlist%s", n, n==1 ? "" : "s");
     ui_toast(b);
 }
-static void apply_wifi(int v){ (void)v; wifi_open(); }   /* opens SCR_WIFI */
-static void apply_bt(int v){ (void)v; bt_open(); }       /* opens SCR_BT */
-static void apply_workmode(int v){ (void)v; modes_open(); }  /* opens SCR_WORKMODE (source-mode picker) */
-static void apply_eq_custom(int v){ (void)v; screen_show(SCR_EQ); }  /* opens Custom EQ */
-static void apply_qsconfig(int v){ (void)v; screen_show(SCR_QSCONFIG); }  /* opens Quick Settings tile picker */
+static void apply_wifi(int v){ (void)v; wifi_open(); }
+static void apply_bt(int v){ (void)v; bt_open(); }
+static void apply_workmode(int v){ (void)v; modes_open(); }
+static void apply_eq_custom(int v){ (void)v; screen_show(SCR_EQ); }
+static void apply_qsconfig(int v){ (void)v; screen_show(SCR_QSCONFIG); }
 
-/* ---- Default-UI preference + Restart ------------------------------------- *
- * Boot model: the user picks a persistent default UI (diskOS or Stock) here;
- * holding Vol-Up at power-on boots the OTHER one for that boot. The boot hook
- * (fiio_init.sh) reads a flag file: /usr/data/boot_default_stock present => the
- * default is Stock; absent => the default is diskOS. We mirror the cycler value
- * to that flag so the choice persists across reboots. */
-/* This is the user's route to the STOCK firmware, so it must not be able to hang. It used to shell out
- * to `touch|rm && sync`: a full filesystem sync can block indefinitely on a stuck device, and it ran
- * after the boot watchdog was already disarmed. Done natively now - create/remove the flag and fsync only
- * the directory holding it, which is what actually makes the choice durable - with no shell and no
- * global sync. Failure is reported rather than silently diverging from the shown setting. */
 static void apply_boot_default(int v){
     const char *flag = "/usr/data/boot_default_stock";
-    /* The whole persistence operation runs in a BOUNDED child, pathname operations included. fsync is
-     * the obvious blocker, but open() and unlink() on a stalled device block too, and this is the screen
-     * the user needs in order to select stock - it must never be the thing that freezes. The child's exit
-     * status tells us whether the choice was actually recorded: EVERY step that makes it durable (file
-     * create/fsync/close or unlink, then directory open/fsync/close) must succeed, or it exits nonzero. */
 
-    /* A child that times out is killed and collected by the shared reaper (kill_and_reap), never waited on. Make
-     * sure it can be parked BEFORE forking: with every slot held by a stuck child, refuse rather than start another. */
     if(rst_reap_free() < 1){ ui_toast("Couldn't change boot UI"); return; }
 
     int ok = 0;
     pid_t p = fork();
     if(p == 0){
-        setsid();                                  /* best effort: the parent also kills the pid directly */
-        /* Drop the UI's identity BEFORE any storage I/O. A child forked from the UI still carries its argv
-         * ("mq_ui"), which is what fiio_init's watchdog looks for, so a child stuck in storage I/O would look
-         * like a live UI and could hide a dead one. The kernel reports /proc/<pid>/cmdline from
-         * [arg_start, arg_end) - ordinary writable memory of this process - so overwrite it. /proc is read
-         * with stdio, not with the storage calls below. */
+        setsid();
         {
-            int renamed = 0;                           /* identity removal is MANDATORY (see above) */
+            int renamed = 0;
             FILE *sf = fopen("/proc/self/stat", "r");
             if(sf){
                 char buf[1024];
                 size_t n = fread(buf, 1, sizeof buf - 1, sf);
                 fclose(sf);
                 buf[n] = 0;
-                char *q = strrchr(buf, ')');       /* comm may contain spaces; fields resume after ')' */
+                char *q = strrchr(buf, ')');
                 unsigned long long field[64] = {0};
                 if(q){
-                    int i = 3;                     /* the first field after ')' is field 3 (state) */
+                    int i = 3;
                     char *save = NULL;
                     for(char *t = strtok_r(q + 2, " ", &save); t && i < 60; t = strtok_r(NULL, " ", &save), i++)
                         field[i] = strtoull(t, NULL, 10);
                 }
-                unsigned long long start = field[48], end = field[49];   /* arg_start, arg_end (Linux >= 3.5) */
+                unsigned long long start = field[48], end = field[49];
                 if(start && end > start && end - start <= 65536){
                     static const char name[] = "diskos-pref";
                     size_t len = (size_t)(end - start);
@@ -385,8 +324,6 @@ static void apply_boot_default(int v){
                     renamed = 1;
                 }
             }
-            /* If the identity could not be dropped, touch no storage at all: a child that might block while
-             * still looking like "mq_ui" is exactly what this protects against. Report failure instead. */
             if(!renamed) _exit(2);
         }
         int r = 0;
@@ -412,11 +349,11 @@ static void apply_boot_default(int v){
     }
     if(p > 0){
         int st = 0;
-        for(int i = 0; i < 30; i++){                    /* ~3s */
+        for(int i = 0; i < 30; i++){
             if(waitpid(p, &st, WNOHANG) == p){ ok = WIFEXITED(st) && WEXITSTATUS(st) == 0; p = -1; break; }
             usleep(100000);
         }
-        if(p > 0) kill_and_reap(p);   /* timed out: kill it (group + pid) and have it collected, never blocking */
+        if(p > 0) kill_and_reap(p);
     }
     if(!ok) ui_toast("Couldn't change boot UI");
 }
@@ -424,44 +361,32 @@ static void apply_boot_default(int v){
 static lv_obj_t *g_boot_modal;
 static void boot_modal_close(void){ if(g_boot_modal){ lv_obj_delete_async(g_boot_modal); g_boot_modal = NULL; } }
 static lv_timer_t *g_rst_timer;
-static int g_rst_flash;   /* this restart should land in flash mode (Restart to Flash Mode); only its modal sets it */
-static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && !g_rst_timer){ g_rst_flash = 0; boot_modal_close(); } }   /* no cancel once a restart is under way */
-/* Restart: only reboots once every admitted SD writer has finished AND a full `sync` has SUCCEEDED; otherwise it
- * refuses, reopens card access and says so. (v1.1.3 withheld it: it gave the flush 2 s, then rebooted regardless.)
- * Runs as a timer state machine, so the UI never blocks while it waits. */
-#define RESTART_WRITERS_MS 10000   /* admitted writers must drain within this */
-#define RESTART_SYNC_MS    15000   /* and the flush must complete within this */
-static int         g_rst_phase;    /* 0 = waiting for writers, 1 = waiting for sync */
+static int g_rst_flash;
+static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && !g_rst_timer){ g_rst_flash = 0; boot_modal_close(); } }
+#define RESTART_WRITERS_MS 10000
+#define RESTART_SYNC_MS    15000
+static int         g_rst_phase;
 static uint32_t    g_rst_t0;
 static pid_t       g_rst_sync, g_rst_clock;
-static pid_t spawn_detached(const char *cmd){      /* own process group; posix_spawn (see bounded_detached) */
+static pid_t spawn_detached(const char *cmd){
     pid_t p = 0;
     char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
     return command_spawn(&p, argv) == 0 ? p : -1;
 }
 static void stop_child(pid_t *p){ kill_and_reap(*p); *p = 0; }
 static void restart_fail(const char *why){
-    g_rst_flash = 0;               /* a failed attempt never leaves a later plain restart armed for flash mode */
+    g_rst_flash = 0;
     fprintf(stderr, "restart: not done: %s\n", why); fflush(stderr);
     stop_child(&g_rst_sync); stop_child(&g_rst_clock);
     if(g_rst_timer){ lv_timer_delete(g_rst_timer); g_rst_timer = NULL; }
-    ui_sd_quiesce_end();           /* reopen card access (readers + writers) if the card is still local */
+    ui_sd_quiesce_end();
     boot_modal_close();
     ui_toast(why);
 }
-/* Restart to Flash Mode is built only with -DDISKOS_SWB_FLASHMODE. Entering USB boot via SWB works (a108:eaef in 5 s),
- * but the NAND writer (flash/my_write6.c base gate) then refuses with E320: Linux leaves the SPI-NAND unprotected,
- * a SoC reset keeps it so, RESET (0xFF) does not restore BP bits on GD5F2GM7, and FiiO's kernel has no MTD lock ops.
- * Next step (untested): let the writer accept an unlocked NAND only when the boot ROM was entered via SWB. */
-#ifdef DISKOS_SWB_FLASHMODE   /* SWB register write; see flash-mode note below */
-/* "Restart to Flash Mode": Ingenic X2000 boot-ROM software boot (SWB). Writing "SWB" + boot-mode byte 0x02 (USB)
- * to CPM_SLPC (0x100000cc) before a reboot makes the boot ROM come up in USB boot (a108:eaef) - the same state as
- * holding Vol-Down at power-on - so the installer can flash without the button. Ingenic's own X2000 vendor tree
- * does exactly this (smartpen softburn: "devmem 0x100000cc 32 0x42575302; reboot"). If the ROM ignored it, the
- * device just restarts normally; Vol-Down stays the fallback. */
+#ifdef DISKOS_SWB_FLASHMODE
 #define SWB_REG_PAGE 0x10000000u
 #define SWB_REG_OFF  0xCCu
-#define SWB_USB_BOOT 0x42575302u   /* little-endian bytes: 02 'S' 'W' 'B' */
+#define SWB_USB_BOOT 0x42575302u
 static int swb_arm(void){
     int mem = open("/dev/mem", O_RDWR | O_SYNC);
     if(mem < 0) return -1;
@@ -479,7 +404,7 @@ static void restart_tick(lv_timer_t *t){
     (void)t;
     rst_reap_sweep();
     if(g_rst_phase == 0){
-        if(ui_sd_quiesce_drained()){                           /* every admitted reader AND writer has finished */
+        if(ui_sd_quiesce_drained()){
             g_rst_sync = spawn_detached("sync");
             if(g_rst_sync <= 0){ g_rst_sync = 0; restart_fail("Couldn't restart - try again"); return; }
             g_rst_phase = 1; g_rst_t0 = lv_tick_get();
@@ -493,13 +418,13 @@ static void restart_tick(lv_timer_t *t){
     if(w == g_rst_sync){
         g_rst_sync = 0;
         if(!WIFEXITED(st) || WEXITSTATUS(st) != 0){ restart_fail("Couldn't restart - card flush failed"); return; }
-        stop_child(&g_rst_clock);   /* the RTC save had the whole wait; a still-running one is stuck */
+        stop_child(&g_rst_clock);
 #ifdef DISKOS_SWB_FLASHMODE
         if(g_rst_flash && swb_arm() != 0){ g_rst_flash = 0; restart_fail("Couldn't set flash mode - not restarted"); return; }
 #endif
-        fprintf(stderr, "restart: card drained and synced, rebooting the Disc now\n"); fflush(stderr);   /* the last line a UI-requested reboot leaves */
-        reboot(RB_AUTOBOOT);        /* direct syscall: no shell, no PATH, no binary on disk */
-        bounded_detached("reboot", 5000);   /* only reached if the syscall was refused */
+        fprintf(stderr, "restart: card drained and synced, rebooting the Disc now\n"); fflush(stderr);
+        reboot(RB_AUTOBOOT);
+        bounded_detached("reboot", 5000);
         restart_fail("Couldn't restart - try again");
         return;
     }
@@ -510,23 +435,18 @@ static void boot_confirm_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     restart_begin();
 }
-/* Restart without the confirm modal (same drain + sync + reboot path as the Restart button). */
 void settings_restart_now(void){ restart_begin(); }
 static void restart_begin(void){
-    if(g_rst_timer) return;                         /* already restarting */
-    if(rst_reap_free() < 3){ ui_toast("Couldn't restart - try again"); return; }   /* sync + clock + reboot fallback */
-    /* Stop our own SD work: closing admission alone is not enough - a scan holds one lease for its whole walk and
-     * the prewarm decoder is non-cancellable, so both are stopped explicitly. Then wait for the rest to drain. */
-    ui_sd_quiesce_begin();          /* closes sd_io leases AND sd_write_begin writers; storage_tick won't reopen them */
+    if(g_rst_timer) return;
+    if(rst_reap_free() < 3){ ui_toast("Couldn't restart - try again"); return; }
+    ui_sd_quiesce_begin();
     scanner_abort();
     art_kill_all();
-    /* Save the (NTP-corrected) clock to the RTC alongside - the periodic save runs only every 5 min and the stock
-     * player saves the RTC only on ITS power-off path. Best effort, its own process group, never waited on. */
     ui_timekeep_save_now();
     g_rst_clock = spawn_detached("hwclock -w 2>/dev/null");
     if(g_rst_clock < 0) g_rst_clock = 0;
     g_rst_phase = 0; g_rst_t0 = lv_tick_get();
-    fprintf(stderr, "restart: requested (flash mode %d), draining the card\n", g_rst_flash); fflush(stderr);   /* a reboot with no such line did not come from the UI */
+    fprintf(stderr, "restart: requested (flash mode %d), draining the card\n", g_rst_flash); fflush(stderr);
     g_rst_timer = lv_timer_create(restart_tick, 100, NULL);
     if(!g_rst_timer){ restart_fail("Couldn't restart - try again"); return; }
     ui_toast("Restarting...");
@@ -535,7 +455,7 @@ static void boot_modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_
     lv_obj_t *b = lv_button_create(card);
     lv_obj_remove_style_all(b);
     lv_obj_set_size(b, 108, 42); lv_obj_align(b, LV_ALIGN_BOTTOM_MID, x, -16);
-    lv_obj_set_ext_click_area(b, 4);   /* 42px pill -> ~50px touch target */
+    lv_obj_set_ext_click_area(b, 4);
     lv_obj_set_style_radius(b, 12, 0);
     lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
@@ -547,11 +467,11 @@ static void boot_modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_
     lv_obj_center(l);
 }
 #ifdef DISKOS_SWB_FLASHMODE
-static void apply_restart_flash(int v);   /* settings row below; defined after the table */
+static void apply_restart_flash(int v);
 #endif
-static const char *g_restart_note;   /* one-shot subtitle for the next restart modal (settings_restart_prompt) */
+static const char *g_restart_note;
 static void apply_restart(int v){ (void)v;
-    g_rst_flash = 0;   /* plain Restart (and settings_restart_prompt); apply_restart_flash re-arms after */
+    g_rst_flash = 0;
     boot_modal_close();
     g_boot_modal = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(g_boot_modal);
@@ -559,8 +479,8 @@ static void apply_restart(int v){ (void)v;
     lv_obj_set_style_bg_color(g_boot_modal, TC(SCRIM), 0);
     lv_obj_set_style_bg_opa(g_boot_modal, LV_OPA_70, 0);
     lv_obj_clear_flag(g_boot_modal, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(g_boot_modal, LV_OBJ_FLAG_CLICKABLE);                       /* absorb taps */
-    ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);  /* tap outside = cancel */
+    lv_obj_add_flag(g_boot_modal, LV_OBJ_FLAG_CLICKABLE);
+    ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);
     lv_obj_t *card = lv_obj_create(g_boot_modal);
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 268, 180); lv_obj_center(card);
@@ -585,15 +505,13 @@ static void apply_restart(int v){ (void)v;
     boot_modal_pill(card, -58, "Cancel",  THEME_CLR_TEXT_SECONDARY, boot_cancel_cb);
     boot_modal_pill(card,  58, "Restart", THEME_CLR_ACCENT_EMPHASIS, boot_confirm_cb);
 }
-/* Power off: the SD-safe shutdown (power.c power_shutdown_request: close the card, sync, then the player's own power-off) behind a
- * confirm card, same look as Restart. The shutdown paints its own themed "Shutting down" screen. */
 static void poweroff_confirm_cb(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     boot_modal_close();
     (void)power_shutdown_request();
 }
 static void apply_poweroff(int v);
-void settings_poweroff_prompt(void){ apply_poweroff(0); }   /* also used by the Quick Settings 'Power off' tile */
+void settings_poweroff_prompt(void){ apply_poweroff(0); }
 static void apply_poweroff(int v){ (void)v;
     boot_modal_close();
     g_boot_modal = lv_obj_create(lv_layer_top());
@@ -602,8 +520,8 @@ static void apply_poweroff(int v){ (void)v;
     lv_obj_set_style_bg_color(g_boot_modal, TC(SCRIM), 0);
     lv_obj_set_style_bg_opa(g_boot_modal, LV_OPA_70, 0);
     lv_obj_clear_flag(g_boot_modal, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(g_boot_modal, LV_OBJ_FLAG_CLICKABLE);                       /* absorb taps */
-    ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);  /* tap outside = cancel */
+    lv_obj_add_flag(g_boot_modal, LV_OBJ_FLAG_CLICKABLE);
+    ui_on(g_boot_modal, boot_cancel_cb, LV_EVENT_CLICKED, NULL, "settings.boot_cancel", UI_CORE);
     lv_obj_t *card = lv_obj_create(g_boot_modal);
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 268, 180); lv_obj_center(card);
@@ -627,16 +545,12 @@ static void apply_poweroff(int v){ (void)v;
     boot_modal_pill(card, -58, "Cancel",    THEME_CLR_TEXT_SECONDARY, boot_cancel_cb);
     boot_modal_pill(card,  58, "Power off", THEME_CLR_ACCENT_EMPHASIS, poweroff_confirm_cb);
 }
-/* write the backlight sysfs only (no config change) - used for transient dimming.
- * v==0 fully powers the panel backlight DOWN: writing brightness 0 alone leaves the
- * LED driver enabled at its minimum (screen looks black but the backlight glows), so
- * we also toggle bl_power (0 = FB_BLANK_UNBLANK on, 4 = FB_BLANK_POWERDOWN off). */
-static int g_bl_written = -1;   /* the brightness diskOS itself last wrote (-1 = none yet) */
-static unsigned g_bl_write_seq; /* bumps on every brightness diskOS writes (equal values stay distinguishable) */
+static int g_bl_written = -1;
+static unsigned g_bl_write_seq;
 unsigned ui_backlight_write_seq(void){ return g_bl_write_seq; }
-static int g_bl_foreign = -1;   /* a player value (a power press) our write is about to overwrite, for the poll */
-static int g_bl_foreign_dark;   /* the panel was off (rail down) when that press landed */
-static unsigned g_bl_foreign_seq; /* diskOS's write count when it landed (before the write that overwrote it) */
+static int g_bl_foreign = -1;
+static int g_bl_foreign_dark;
+static unsigned g_bl_foreign_seq;
 int ui_backlight_written(void){ return g_bl_written; }
 int ui_backlight_take_foreign(int *dark, unsigned *seq){
     int v = g_bl_foreign; g_bl_foreign = -1;
@@ -645,7 +559,7 @@ int ui_backlight_take_foreign(int *dark, unsigned *seq){
     return v;
 }
 static void backlight_write(int v){
-    if(v > 0){                     /* set target level first, then power on (no flash) */
+    if(v > 0){
         FILE *r = fopen("/sys/class/backlight/backlight/brightness", "r");
         if(r){ int cur = -1;
                if(fscanf(r, "%d", &cur) == 1 && cur >= 0 && cur != g_bl_written && cur != v){
@@ -662,17 +576,14 @@ static void backlight_write(int v){
     if(p){ fprintf(p, "%d", v ? 0 : 4); fclose(p); }
     else  fprintf(stderr, "backlight bl_power open failed: %s\n", strerror(errno));
 }
-/* Every brightness write passes here. While main.c holds drawing (screen off, until the wake's full repaint) a
- * positive level only replaces the deferred one - a callback, a Settings row, a wake or a player-level correction
- * alike - and the release lights the latest. Zero still goes out at once (screen off is immediate). */
-static int g_bl_hold, g_bl_held;   /* UI thread */
+static int g_bl_hold, g_bl_held;
 void ui_backlight(int v){
     if(v < 0) v = 0; if(v > 40) v = 40;
     if(g_bl_hold){ g_bl_held = v; if(v > 0) return; }
     backlight_write(v);
 }
 void ui_backlight_hold(void){ g_bl_hold = 1; g_bl_held = 0; }
-void ui_backlight_release(int fallback){   /* after the repaint: the latest level, else fallback */
+void ui_backlight_release(int fallback){
     if(!g_bl_hold) return;
     g_bl_hold = 0;
     ui_backlight(g_bl_held > 0 ? g_bl_held : fallback);
@@ -681,23 +592,21 @@ static void apply_brightness(int v){ if(v < 1) v = 1; ui_backlight(v); }
 void settings_apply_startup(int restore_brightness){
     scanner_set_old_tags(cfg_get_int("old_tags", OLD_TAGS_AUTO));
     if(restore_brightness) apply_brightness(ui_effective_brightness());
-    { int at = mdb_sysconfig_auto_time();              /* mirror the player's switch (it owns the value) */
+    { int at = mdb_sysconfig_auto_time();
       if(at >= 0 && at != cfg_get_int("auto_time", 1)) cfg_set_int("auto_time", at); }
-    { int ac = mdb_artist_class_type();                 /* the player's Artist / Album Artist grouping (it owns it) */
+    { int ac = mdb_artist_class_type();
       if(ac >= 0 && ac != cfg_get_int("artist_class", 0)) cfg_set_int("artist_class", ac);
-      mdb_set_artist_mode(ac == 1); }                   /* unknown -> by artist, as the player's queue can't be matched */
-    { int fj = mdb_sysconfig_folder_jump();             /* the player's Play Through Folders switch (it owns it) */
+      mdb_set_artist_mode(ac == 1); }
+    { int fj = mdb_sysconfig_folder_jump();
       if(fj >= 0 && fj != cfg_get_int("folder_jump", 0)) cfg_set_int("folder_jump", fj); }
-    power_startup_mirror();        /* the player's own Idle poweroff / Charging optimization values */
-    controls_startup_mirror();     /* the player's Screen rotation and volume-key actions */
-    cfg_set_int("sleep_idx", 0);   /* never auto-arm a sleep timer across reboots */
-    apply_boot_default(cfg_get_int("boot_default", 0));  /* keep the boot-hook flag in sync */
+    power_startup_mirror();
+    controls_startup_mirror();
+    cfg_set_int("sleep_idx", 0);
+    apply_boot_default(cfg_get_int("boot_default", 0));
     ui_set_accent_config(cfg_get_int("accent_mode", 0), cfg_get_int("accent_color", 0xF23260));
-    ui_set_prewarm_mode(cfg_get_int("artcache", 0));     /* default "Covers only". Mode only: the boot album walk
-                                                          * starts later, behind the SD-features gate (main.c) */
+    ui_set_prewarm_mode(cfg_get_int("artcache", 0));
 }
 
-/* shared brightness API (used by Quick Settings too) - persists the value */
 void ui_set_brightness(int v){
     if(v < 1) v = 1; if(v > 40) v = 40;
     apply_brightness(v);
@@ -705,23 +614,18 @@ void ui_set_brightness(int v){
 }
 int ui_get_brightness(void){
     int v = cfg_get_int("brightness", 16);
-    return v < 1 ? 16 : v;   /* never 0/negative: wake paths pass this to ui_backlight,
-                              * and 0 would power the panel DOWN while logically awake */
+    return v < 1 ? 16 : v;
 }
-/* the level the screen actually runs at: full in Outdoor mode, else the user's. The user's own level stays saved
- * and comes back when Outdoor mode is turned off. */
 int ui_effective_brightness(void){ return theme_outdoor() ? 40 : ui_get_brightness(); }
-static void apply_brightness_row(int v){ if(!theme_outdoor()) apply_brightness(v); }   /* Outdoor holds full */
+static void apply_brightness_row(int v){ if(!theme_outdoor()) apply_brightness(v); }
 
 static const char *const OPT_MODE[] = { "Sequential", "Shuffle", "Repeat One", "Repeat All", "Single" };
-/* 0..10 = built-in presets; 11..20 = the ten user PEQ slots (USER1..USER10), edited in Custom EQ.
- * Index here maps 1:1 to STYLE_PRESET, so the cycler value is exactly what ui_apply_eq() selects. */
 static const char *const OPT_EQ[]   = { "Off","Jazz","Rock","R&B","Hip-Hop","Pop","Dance","Classical","Retro","Sibilance 1","Sibilance 2",
                                         "USER1","USER2","USER3","USER4","USER5","USER6","USER7","USER8","USER9","USER10" };
 static const char *const OPT_SLEEP[] = { "Off","15 min","30 min","45 min","60 min","90 min" };
 static const char *const OPT_SLEEP_ACT[] = { "Pause","Shut down" };
 static const char *const OPT_IDLE_OFF[POWER_IDLE_N] = { "Off","5 min","10 min","30 min","60 min","90 min","120 min" };
-static const char *const OPT_POWER[] = { "Off","30 sec","1 min","2 min","5 min" };  /* idx->TMAP secs in main.c */
+static const char *const OPT_POWER[] = { "Off","30 sec","1 min","2 min","5 min" };
 static const char *const OPT_NPSTYLE[] = { "Cover", "Vinyl" };
 static const char *const OPT_APPEARANCE[] = { "Dark", "Light" };
 static const char *const OPT_FONTSIZE[] = { "Small", "Medium", "Large" };
@@ -731,16 +635,14 @@ static const char *const OPT_OLDTAGS[] = { "Auto", "Western", "Cyrillic" };
 static const char *const OPT_BOOTDEF[] = { "diskOS", "Stock" };
 static const char *const OPT_ARTCACHE[] = { "Covers only","When Idle","Idle & Charging" };
 
-/* Public EQ preset name lookup (Quick Settings drawer toast, etc.); mirrors OPT_EQ indexing 0..20. */
 const char *ui_eq_name(int i){ return (i >= 0 && i < 21) ? OPT_EQ[i] : "Off"; }
-/* audio cluster cyclers - all use min=-1 so the value can be "System default" (unmanaged) */
 static const char *const OPT_DRE[]    = { "Off", "On" };
 static const char *const OPT_REPLAYGAIN[] = { "Off", "Track", "Album" };
 static const char *const OPT_GAIN[]   = { "Low", "High" };
 static const char *const OPT_DFILTER[]= { "Fast LL","Slow LL","Slow PC","Fast PC","NOS","Wideband" };
 static const char *const OPT_MEMORY[] = { "Off", "Position", "Song" };
 static const char *const OPT_ARTISTCLASS[] = { "By Artist", "By Album Artist" };
-static const char *const OPT_ROTATION[] = { "Normal", "Turn 90", "Turn 180", "Turn 270" };   /* stock values 0..3 */
+static const char *const OPT_ROTATION[] = { "Normal", "Turn 90", "Turn 180", "Turn 270" };
 static const char *const OPT_VOLKEY[] = { "Switch Track", "Adjust Volume" };
 static const char *const D_ARTCACHE[] = {
     "Album covers preload in the background so browsing stays smooth. Per-track art is decoded only as you play it (default).",
@@ -748,7 +650,6 @@ static const char *const D_ARTCACHE[] = {
     "Covers preload, plus every track's art is pre-decoded while idle AND charging. Decoding can warm the player; it pauses automatically if it gets hot.",
 };
 
-/* per-option descriptions for the cyclers (parallel to the OPT_ arrays) */
 static const char *const D_MODE[] = {
     "Play through the list in order, then stop.",
     "Play tracks in a random order.",
@@ -776,8 +677,6 @@ static const setting_t TABLE[] = {
       "Group the Artists list by each song's artist, or by its album artist - the same choice as the stock player.", NULL },
     { "Playback", "Play Through Folders", ST_TOGGLE, "folder_jump", 0,1,1, NULL, 0, NULL, apply_folder_jump, 0,
       "When an album, artist, genre or folder finishes, keep playing the next one. Works with Sequential, Shuffle and Loop All.", NULL },
-    /* Audio/DAC cluster - cyclers with min=-1 so they can read "System default" (unmanaged):
-     * until you pick a value diskOS sends nothing + the player keeps its own setting. */
     { "Audio",    "Working Mode", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_workmode, 0,
       "Switch the audio source: local playback, USB DAC, Bluetooth receiving, or USB storage.", NULL },
     { "Audio",    "Gain",        ST_CYCLER, "audio_gain",   0,0,0, OPT_GAIN, 2, NULL, apply_gain, 0,
@@ -794,7 +693,7 @@ static const setting_t TABLE[] = {
       "Cap the maximum volume level (protects your ears / headphones).", NULL },
     { "Audio",    "Balance",     ST_SLIDER, "balance",      -10,10,1, NULL,0, NULL, apply_balance, 0,
       "Left/right channel balance. 0 = centred; negative = left, positive = right.", NULL },
-#ifdef DISKOS_TEST_OUTPUTS   /* device-unverified: test builds only */
+#ifdef DISKOS_TEST_OUTPUTS
     { "Audio",    "SPDIF Output", ST_TOGGLE, "spdif",   0,1,1, NULL,0, NULL, apply_spdif, 0,
       "Send audio to the digital SPDIF output instead of the internal DAC. Playback pauses for a moment while it switches.", NULL },
 #endif
@@ -907,15 +806,10 @@ static const setting_t TABLE[] = {
 
 static int  get_val(const setting_t *s){ return s->cfg_key ? cfg_get_int(s->cfg_key, s->def) : 0; }
 static void set_val(const setting_t *s, int v){
-    /* EQ persists itself only on a successful send (apply_eq -> ui_eq_select), so a failed send never
-     * leaves a stale eq_preset; every other setting persists up front here. */
     g_set_prev = get_val(s);
     if(s->cfg_key && strcmp(s->cfg_key, "eq_preset")) cfg_set_int(s->cfg_key, v);
     if(s->apply) s->apply(v);
 }
-/* battery/board temp from the fuel gauge; power-supply ABI = tenths of a degree C */
-/* "1.2.0 (8c29ecbf)": the release plus the first 8 hex of the RUNNING binary's md5 - the build id used in every
- * test record, and true even for a hand-deployed build. Hashed once (the binary is ~2.5 MB), then cached. */
 static void read_about(char *buf, int n){
     static char id[9];
     if(!id[0]){
@@ -938,8 +832,8 @@ static void read_about(char *buf, int n){
     }
     snprintf(buf, n, "%s (%s)", DISKOS_VERSION, id);
 }
-void settings_diskos_id(char *buf, int n){ read_about(buf, n); }   /* system.c About */
-#ifdef DISKOS_SWB_FLASHMODE   /* Restart to Flash Mode row handler */
+void settings_diskos_id(char *buf, int n){ read_about(buf, n); }
+#ifdef DISKOS_SWB_FLASHMODE
 static void apply_restart_flash(int v){
     g_restart_note = "Restarts into flash mode for the diskOS installer. The screen stays black; hold the power key to leave.";
     apply_restart(v);
@@ -951,20 +845,15 @@ static void read_batt_temp(char *buf, int n){
     FILE *f = fopen("/sys/class/power_supply/cw221X-bat/temp", "r");
     int t;
     if(f && fscanf(f, "%d", &t) == 1){ fclose(f);
-        unsigned at = t<0 ? 0u-(unsigned)t : (unsigned)t;   /* unsigned negate: INT_MIN-safe; sign explicit */
-        snprintf(buf, n, "%s%u.%u\xC2\xB0""C", t<0?"-":"", at/10, at%10);   /* 305->"30.5 degrees C", -5->"-0.5 degrees C" */
+        unsigned at = t<0 ? 0u-(unsigned)t : (unsigned)t;
+        snprintf(buf, n, "%s%u.%u\xC2\xB0""C", t<0?"-":"", at/10, at%10);
     } else { if(f) fclose(f); snprintf(buf, n, "--"); }
 }
-/* Format a slider value WITH its unit - shared by val_text (committed value) and the live drag
- * callback (uncommitted value) so brightness shows "%" and swipe-thresh "px" while dragging too. */
 static void fmt_slider(const setting_t *s, int v, char *buf, int n){
     if(s->cfg_key && !strcmp(s->cfg_key, "swipe_thresh"))    snprintf(buf,n, "%d px", v);
-    else if(s->cfg_key && !strcmp(s->cfg_key, "brightness")) snprintf(buf,n, "%d%%", v*100/40);  /* 4..40 -> 10..100% */
+    else if(s->cfg_key && !strcmp(s->cfg_key, "brightness")) snprintf(buf,n, "%d%%", v*100/40);
     else                                                    snprintf(buf,n, "%d", v);
 }
-/* A setting the running firmware cannot apply (only Gain today: its player command is mapped per verified
- * firmware in fwcaps.c, and an unmapped firmware gets no command). The row stays visible so it is not a mystery,
- * but says so and is not editable - otherwise the menu would show a choice that silently does nothing. */
 static int setting_unavailable(const setting_t *s){
     return s->cfg_key && ((!strcmp(s->cfg_key, "audio_gain") && fw_gain_tag() == NULL)
                        || (!strcmp(s->cfg_key, "artist_class") && !fw_artist_class_settable())
@@ -978,8 +867,6 @@ static int setting_unavailable(const setting_t *s){
 }
 static const char *val_text(const setting_t *s, char *buf, int n){
     if(setting_unavailable(s)) return tr(s->cfg_key && !strcmp(s->cfg_key, "ota_allow") ? "Not supported on this install" : "Not on this firmware");
-    /* Outdoor Mode overrides these two while it is on: show what is really in effect, not the saved choice (which
-     * stays untouched and comes back when Outdoor Mode is turned off) */
     if(theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "theme_variant")) return "Light (Outdoor)";
     if(theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "brightness")) return "Full (Outdoor)";
     int v = get_val(s);
@@ -997,12 +884,8 @@ static const char *val_text(const setting_t *s, char *buf, int n){
     return buf;
 }
 
-/* ---- shared widgets ----------------------------------------------------- */
+static lv_obj_t *g_list_rows[N_SETTINGS];
 
-static lv_obj_t *g_list_rows[N_SETTINGS];   /* value labels, to refresh in place */
-
-/* Rescan Library row: title shows "Scanning... N songs" and the action word reads "Stop" ("Cancel" is cut off in the 96 px box) while the scanner thread
- * runs. The timer lives and dies with the row, so leaving the screen and coming back rebuilds it from the counter. */
 typedef struct { lv_obj_t *lbl, *vl; lv_timer_t *tm; } rescan_row_t;
 static void rescan_row_tick(lv_timer_t *t){
     rescan_row_t *rr = lv_timer_get_user_data(t);
@@ -1023,39 +906,34 @@ static void rescan_row_del_cb(lv_event_t *e){
     lv_timer_delete(rr->tm);
     free(rr);
 }
-static const setting_t *g_active;           /* setting shown in the detail screen */
+static const setting_t *g_active;
 static lv_obj_t *g_detail_root;
-static lv_obj_t *g_setlist_root;            /* SCR_SETLIST root: one category's rows, rebuilt per entry */
-static const char *g_active_group;          /* which category SCR_SETLIST is currently showing */
-/* Category order for the top-level Settings screen (must match the group strings used in TABLE). */
+static lv_obj_t *g_setlist_root;
+static const char *g_active_group;
 static const char *const GROUPS[] = { "Playback", "Audio", "Display", "Network", "System" };
 #define N_GROUPS ((int)(sizeof(GROUPS)/sizeof(GROUPS[0])))
 
 
 
-/* ---- detail screen ------------------------------------------------------ */
 static void detail_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
 
-/* VALUE_CHANGED: apply live only (no flash write); RELEASED persists once. This
- * avoids rewriting the whole config file on every pixel of a slider drag. */
 static void detail_slider_cb(lv_event_t *e){
     lv_obj_t *sl = lv_event_get_target(e);
     int v = lv_slider_get_value(sl);
     if(g_active->apply) g_active->apply(v);
     lv_obj_t *vl = lv_event_get_user_data(e);
-    if(vl){ char b[16]; fmt_slider(g_active, v, b, sizeof b); lv_label_set_text(vl, b); }   /* keep %/px unit while dragging */
+    if(vl){ char b[16]; fmt_slider(g_active, v, b, sizeof b); lv_label_set_text(vl, b); }
 }
 static int outdoor_holds(const setting_t *s){ return theme_outdoor() && s->cfg_key && !strcmp(s->cfg_key, "brightness"); }
 static void detail_slider_release_cb(lv_event_t *e){
     lv_obj_t *sl = lv_event_get_target(e);
-    if(outdoor_holds(g_active)) return;                 /* Outdoor keeps the user's own level untouched */
-    /* brightness is applied again: a wake during the drag lit the saved level */
+    if(outdoor_holds(g_active)) return;
     if(g_active->apply == apply_brightness_row) ui_set_brightness(lv_slider_get_value(sl));
     else if(g_active->cfg_key) cfg_set_int(g_active->cfg_key, lv_slider_get_value(sl));
 }
 static void detail_cycle_cb(lv_event_t *e){
     if(theme_outdoor() && g_active->cfg_key && !strcmp(g_active->cfg_key, "theme_variant")){
-        ui_toast("Outdoor Mode keeps Light on");   /* a Dark/Light change could not show until Outdoor Mode is off */
+        ui_toast("Outdoor Mode keeps Light on");
         return;
     }
     int dir = (int)(uintptr_t)lv_event_get_user_data(e);
@@ -1063,7 +941,6 @@ static void detail_cycle_cb(lv_event_t *e){
     if(v < 0) v = g_active->nopts-1;
     if(v >= g_active->nopts) v = 0;
     set_val(g_active, v);
-    /* rebuild detail body to reflect new value */
     void setting_detail_refresh(void); setting_detail_refresh();
 }
 static void detail_toggle_cb(lv_event_t *e){
@@ -1076,8 +953,8 @@ static void detail_choice_async(void *u){ (void)u; setting_detail_refresh(); }
 static void detail_choice_cb(lv_event_t *e){
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     if(!g_active || i == get_val(g_active)) return;
-    set_val(g_active, i);                               /* a theme re-launches the UI from here */
-    lv_async_call(detail_choice_async, NULL);           /* the tick moves after this event (rows can't delete themselves) */
+    set_val(g_active, i);
+    lv_async_call(detail_choice_async, NULL);
 }
 
 void setting_detail_refresh(void){
@@ -1085,7 +962,7 @@ void setting_detail_refresh(void){
     lv_obj_clean(g_detail_root);
     lv_obj_set_style_bg_color(g_detail_root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(g_detail_root, LV_OPA_COVER, 0);
-    ui_header_cb(g_detail_root, g_active->label, detail_back_cb);   /* shared header */
+    ui_header_cb(g_detail_root, g_active->label, detail_back_cb);
 
     const setting_t *s = g_active;
     int v = get_val(s);
@@ -1117,8 +994,6 @@ void setting_detail_refresh(void){
         if(v) lv_obj_add_state(sw, LV_STATE_CHECKED);
         ui_on(sw, detail_toggle_cb, LV_EVENT_VALUE_CHANGED, NULL, "settings.detail_toggle.value", UI_CORE);
     } else if(s->type == ST_CHOICE){
-        /* every option as a row; the current one ticked. Themes also show three colour dots (background, surface,
-         * accent) in the current Dark/Light variant, so each can be judged before picking. */
         lv_obj_t *list = make_list(g_detail_root);
         if(s->opts == i18n_lang_names) lv_obj_set_height(list, 215);
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
@@ -1148,7 +1023,7 @@ void setting_detail_refresh(void){
             lv_obj_t *lbl = lv_label_create(row);
             lv_label_set_text(lbl, tr(s->opts[i]));
             lv_obj_align(lbl, LV_ALIGN_LEFT_MID, x, 0);
-            lv_obj_set_style_text_font(lbl, s->opts == i18n_lang_names ? TF(USER_16) : TF(UI_16), 0);   /* native names: any script */
+            lv_obj_set_style_text_font(lbl, s->opts == i18n_lang_names ? TF(USER_16) : TF(UI_16), 0);
             lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
             if(cur){
                 lv_obj_t *ck = lv_label_create(row);
@@ -1159,7 +1034,6 @@ void setting_detail_refresh(void){
             theme_list_row(row);
         }
     } else if(s->type == ST_CYCLER){
-        /* < value > stepper */
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[24]; lv_label_set_text(vl, val_text(s,b,sizeof b));
         lv_obj_set_size(vl, 220, 32); lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
@@ -1179,7 +1053,7 @@ void setting_detail_refresh(void){
         lv_obj_t *ri = lv_label_create(rb); lv_label_set_text(ri, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(ri, TC(TEXT_PRIMARY), 0); lv_obj_center(ri);
         ui_on(rb, detail_cycle_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)1, "settings.detail_cycle", UI_CORE);
-    } else { /* readonly */
+    } else {
         lv_obj_t *vl = lv_label_create(g_detail_root);
         lv_label_set_text(vl, s->ro_val?s->ro_val:"");
         lv_obj_set_width(vl, 360); lv_obj_align(vl, LV_ALIGN_CENTER, 0, 0);
@@ -1188,7 +1062,6 @@ void setting_detail_refresh(void){
         lv_obj_set_style_text_font(vl, TF(UI_20), 0);
     }
 
-    /* Offer the existing scan action here; choosing a decoder never starts or cancels a scan. */
     if(s->apply == apply_old_tags){
         lv_obj_t *bt = lv_button_create(g_detail_root);
         lv_obj_set_size(bt, 240, 36);
@@ -1201,7 +1074,6 @@ void setting_detail_refresh(void){
         ui_on(bt, old_tags_rescan_cb, LV_EVENT_CLICKED, NULL, "settings.old_tags_rescan", UI_CORE);
     }
 
-    /* description at the bottom - per-option for cyclers (refreshes on change) */
     const char *desc = s->desc;
     if(s->type==ST_CYCLER && s->opt_descs && v>=0 && v<s->nopts) desc = s->opt_descs[v];
     if(s->type == ST_CHOICE) desc = (s->opts == i18n_lang_names) ? "Screen redraws after selection." : NULL;
@@ -1220,7 +1092,6 @@ void setting_detail_refresh(void){
 
 void setting_detail_create(lv_obj_t *root){ g_detail_root = root; }
 
-/* open a specific setting's detail page directly (verification / deep-link) */
 void settings_open_detail(int idx){
     if(idx<0 || idx>=N_SETTINGS) return;
     g_active = &TABLE[idx];
@@ -1228,7 +1099,6 @@ void settings_open_detail(int idx){
     setting_detail_refresh();
 }
 
-/* open a setting's detail page by its cfg key (robust to TABLE reordering). No-op if not found. */
 void settings_open_key(const char *key){
     if(!key) return;
     for(int i=0;i<N_SETTINGS;i++)
@@ -1238,7 +1108,6 @@ void settings_open_key(const char *key){
         }
 }
 
-/* ---- master list -------------------------------------------------------- */
 static void list_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
 
 static void row_cb(lv_event_t *e){
@@ -1246,48 +1115,43 @@ static void row_cb(lv_event_t *e){
     int idx = (int)(uintptr_t)lv_event_get_user_data(e);
     const setting_t *s = &TABLE[idx];
     if(s->type == ST_TOGGLE){
-        if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }   /* only Allow diskOS Updates is a toggle that can be unavailable */
+        if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }
         int nv = !get_val(s); set_val(s, nv);
         char b[16];
         if(g_list_rows[idx]) lv_label_set_text(g_list_rows[idx], val_text(s,b,sizeof b));
         return;
     }
     if(s->type == ST_ACTION){
-        /* Actions provide their own completion feedback via ui_toast (in-place
-         * actions like Rescan/Import) or by navigating to a screen (Wi-Fi/BT).
-         * No permanent "Working..." label (it never resolved). */
         if(s->apply) s->apply(0);
         return;
     }
-    if(s->type == ST_READONLY) return;   /* info rows (Temperature/About) aren't tappable */
+    if(s->type == ST_READONLY) return;
     if(setting_unavailable(s)){ ui_toast("Not supported on this firmware yet"); return; }
     g_active = s;
     screen_show(SCR_SETTING_DETAIL);
     setting_detail_refresh();
 }
 
-/* the scrolling column that holds setting rows, positioned in the round screen's safe area */
 static lv_obj_t *make_list(lv_obj_t *root){
     lv_obj_t *list = lv_obj_create(root);
     lv_obj_remove_style_all(list);
     lv_obj_set_pos(list, UI_LIST_X, UI_LIST_Y);
     lv_obj_set_size(list, UI_LIST_W, UI_LIST_H);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_pad_row(list, 8, 0);       /* small gap between cards (matches the design) */
-    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);   /* round bottom bezel: last row must scroll fully clear */
+    lv_obj_set_style_pad_row(list, 8, 0);
+    lv_obj_set_style_pad_bottom(list, UI_LIST_PAD_BOTTOM, 0);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* rows on the centre line */
+    lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     return list;
 }
 
-/* one row card: a plain dark rounded pill (no accent bar - kept clean). */
 static lv_obj_t *setting_card(lv_obj_t *list){
     lv_obj_t *row = lv_button_create(list);
     lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, 268, 50);   /* every list's rows are 268 wide (Library's): one margin everywhere */
+    lv_obj_set_size(row, 268, 50);
     lv_obj_set_style_radius(row, 12, 0);
     lv_obj_set_style_bg_color(row, TC(SURFACE), 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_70, 0);
@@ -1296,16 +1160,14 @@ static lv_obj_t *setting_card(lv_obj_t *list){
     return row;
 }
 
-/* ---- top-level category list (SCR_SETTINGS): Playback / Audio / Display / Network / System ---- */
 static void cat_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int gi = (int)(uintptr_t)lv_event_get_user_data(e);
     if(gi<0 || gi>=N_GROUPS) return;
     g_active_group = GROUPS[gi];
-    screen_show(SCR_SETLIST);   /* transition() rebuilds the rows via setlist_refresh */
+    screen_show(SCR_SETLIST);
 }
 
-/* open one category's rows by its name (deep links, host tests); no-op for an unknown name */
 void setlist_open(const char *group){
     for(int gi = 0; group && gi < N_GROUPS; gi++)
         if(!strcmp(GROUPS[gi], group)){ g_active_group = GROUPS[gi]; screen_show(SCR_SETLIST); return; }
@@ -1314,7 +1176,7 @@ void setlist_open(const char *group){
 void settings_create(lv_obj_t *root){
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
-    ui_header_cb(root, "Settings", list_back_cb);   /* shared header */
+    ui_header_cb(root, "Settings", list_back_cb);
 
     lv_obj_t *list = make_list(root);
     for(int g=0; g<N_GROUPS; g++){
@@ -1327,25 +1189,23 @@ void settings_create(lv_obj_t *root){
         lv_obj_set_style_text_font(lbl, TF(UI_16), 0);
         lv_obj_set_style_text_color(lbl, TC(TEXT_PRIMARY), 0);
 
-        lv_obj_t *ch = lv_label_create(row);   /* drill-down chevron */
+        lv_obj_t *ch = lv_label_create(row);
         lv_obj_clear_flag(ch, LV_OBJ_FLAG_CLICKABLE);
         lv_label_set_text(ch, LV_SYMBOL_RIGHT);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -14, 0);
         lv_obj_set_style_text_font(ch, TF(UI_16), 0);
         lv_obj_set_style_text_color(ch, TC(TEXT_MUTED), 0);
-        if(theme_trait(THEME_TRAIT_FLAT_LISTS)) lv_obj_set_style_text_font(lbl, TF(UI_20), 0);   /* big mono rows */
+        if(theme_trait(THEME_TRAIT_FLAT_LISTS)) lv_obj_set_style_text_font(lbl, TF(UI_20), 0);
         theme_list_row(row);
     }
 }
 
-/* Category list is static; nothing to re-sync when SCR_SETTINGS is (re)shown. */
 void settings_refresh_list(void){ }
 void settings_row_values_refresh(void){
     char b[40];
     for(int i=0;i<N_SETTINGS;i++) if(g_list_rows[i] && lv_obj_is_valid(g_list_rows[i])) lv_label_set_text(g_list_rows[i], val_text(&TABLE[i],b,sizeof b));
 }
 
-/* ---- one category's rows (SCR_SETLIST), rebuilt on every entry so values are always live ---- */
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 
 void setlist_refresh(void){
@@ -1353,12 +1213,12 @@ void setlist_refresh(void){
     lv_obj_clean(g_setlist_root);
     lv_obj_set_style_bg_color(g_setlist_root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(g_setlist_root, LV_OPA_COVER, 0);
-    ui_header_cb(g_setlist_root, g_active_group, list_back_cb);   /* title = category; back pops to categories */
+    ui_header_cb(g_setlist_root, g_active_group, list_back_cb);
 
     lv_obj_t *list = make_list(g_setlist_root);
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(strcmp(s->group, g_active_group)) continue;   /* only rows in this category */
+        if(strcmp(s->group, g_active_group)) continue;
 
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
@@ -1381,8 +1241,6 @@ void setlist_refresh(void){
         lv_obj_set_style_text_font(vl, s->opts == i18n_lang_names ? TF(USER_14) : TF(UI_14), 0);
         lv_obj_set_style_text_color(vl, (s->type==ST_READONLY || setting_unavailable(s)) ? TC(TEXT_MUTED) : TC(TEXT_SECONDARY), 0);
         if(s->type == ST_ACTION){
-            /* the action word gets the width it needs (46..96 px, measured in this theme's face: "Import" was cut to
-             * "Imp..." in a fixed 46 px box), right-aligned at x 250; the label takes the rest */
             lv_point_t sz;
             lv_text_get_size(&sz, value, TF(UI_14), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
             int32_t vw = sz.x + 4; if(vw < 46) vw = 46; if(vw > 96) vw = 96;
@@ -1393,7 +1251,7 @@ void setlist_refresh(void){
             lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_RIGHT, 0);
         }
         g_list_rows[i] = vl;
-        if(s->apply == apply_rescan){                  /* live scan progress on this row while a scan runs */
+        if(s->apply == apply_rescan){
             rescan_row_t *rr = malloc(sizeof *rr);
             if(rr){
                 rr->lbl = lbl; rr->vl = vl;

@@ -1,21 +1,11 @@
 #!/bin/bash
-# build.sh - produce the standalone `diskos-installer` executable for THIS host
-# (Linux or macOS). PyInstaller can't cross-build, so run this on each target OS.
-#
-# Prereqs: python3. Everything else is created in a local venv; nothing is
-# installed system-wide.
-#
-# Before building, populate vendor/<os>-<arch>/ with the native tools for this
-# host (see build/NATIVE_TOOLS.md): usbboot, mksquashfs, unsquashfs,
-# my_write6_dram.bin, disc_spl_lpddr3.bin (+ lib/ for any bundled .so/.dylib).
 set -euo pipefail
-cd "$(dirname "$0")/.."          # installer/
+cd "$(dirname "$0")/.."
 
 VENV=build/venv
 [ -d "$VENV" ] || python3 -m venv "$VENV"
 "$VENV/bin/pip" install --quiet --upgrade pip pyinstaller -r requirements.txt
 
-# sanity: the vendor dir for this host must exist
 tag=$("$VENV/bin/python" - <<'PY'
 import platform
 s=platform.system().lower(); o={"darwin":"macos","linux":"linux"}.get(s,s)

@@ -10,14 +10,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/* ---- stock-player launcher prep + SD guard ---------------------------------
- * The stock mount routine ignores failed unmounts before recursive cleanup.
- * Rebuilt images guard /bin/rm itself, plus the first PATH entry, including stock
- * fallback/watchdog launches. Hand-deploys can establish a verified NAND fallback.
- * The launcher verifies protection and resets/reads back persisted local mode
- * itself before exec; a failure is published for the UI and never holds the launcher (launcher.c).
- */
-/* Where the guard lives, in order of preference. Overridable so a host test can point them at a temp dir. */
 #ifndef RMGUARD_ROOTFS
 #define RMGUARD_ROOTFS     "/opt/diskos/bin"
 #endif
@@ -32,19 +24,6 @@
 #endif
 static const char RMGUARD_SCRIPT[] =
     "#!/bin/sh\n"
-    "# diskOS SD guard - installed read-only at /opt/diskos/bin/rm and put FIRST in PATH by the boot hook.\n"
-    "#\n"
-    "# The stock player prepares the card with \"umount /tmp/sdcard\" followed by \"rm -rf /tmp/sdcard\" and never\n"
-    "# checks whether the umount succeeded. When the card is busy (still mounted) the delete runs on the\n"
-    "# mounted card and empties it. This wrapper refuses any rm whose operand is the card mountpoint or\n"
-    "# anything under it; the exact mountpoint gets the stock's legitimate \"remove a stale empty dir\" via a\n"
-    "# NON-recursive rmdir (EBUSY while mounted, fine when empty and unmounted). Everything else is passed to\n"
-    "# the real rm unchanged. The decision is made before any logging; logging is best-effort and can never\n"
-    "# fall through to the real rm. Canonical paths also cover relative paths, repeated slashes,\n"
-    "# dot components and symlink aliases. This is a guard for rm, not a block-device write filter.\n"
-    "# Logging is evidence, not a prerequisite: it writes to NAND, and the caller here is the stock player\n"
-    "# performing its mount cleanup, so a stalled write would stall THAT. Detached and size-capped, it can\n"
-    "# never delay the decision above, which has already been made by the time this runs.\n"
     "log_bg() {\n"
     "    { [ -f /usr/data/diskos_rmguard.log ] && [ \"$(/bin/busybox wc -c < /usr/data/diskos_rmguard.log 2>/dev/null)\" -gt 65536 ]; } \\\n"
     "        || echo \"$(/bin/busybox date '+%F %T' 2>/dev/null) $1\" >> /usr/data/diskos_rmguard.log 2>/dev/null\n"
@@ -74,8 +53,6 @@ int rmguard_dir_ok(const char *dir){
     char p[256];
     int n = snprintf(p, sizeof p, "%s/rm", dir);
     if(n < 0 || n >= (int)sizeof p) return 0;
-    /* An executable called rm may be the real destructive command. Verify the complete
-     * wrapper, including existing fallback copies; a header alone is not sufficient. */
     int fd = open(p, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
     if(fd < 0) return 0;
     struct stat sb;
@@ -95,7 +72,6 @@ int rmguard_dir_ok(const char *dir){
     close(fd);
     return ok && pos == len;
 }
-/* Publish the fallback guard on /usr/data (tmp + fsync + rename) and VERIFY it (exact content + exec bit). */
 static int rmguard_write_fallback(void){
     mkdir(RMGUARD_FALLBACK_PARENT, 0755); mkdir(RMGUARD_FALLBACK, 0755);
     const size_t len = sizeof RMGUARD_SCRIPT - 1;
@@ -103,8 +79,6 @@ static int rmguard_write_fallback(void){
     int nt = snprintf(tmp, sizeof tmp, "%s/.rm.XXXXXX", RMGUARD_FALLBACK);
     int nd = snprintf(dst, sizeof dst, "%s/rm", RMGUARD_FALLBACK);
     if(nt < 0 || nt >= (int)sizeof tmp || nd < 0 || nd >= (int)sizeof dst) return 0;
-    /* UI startup and the player launcher may publish concurrently. Each owns its
-     * temporary file, then atomically replaces the same verified destination. */
     int fd = mkstemp(tmp);
     if(fd < 0) return 0;
     int ok = fcntl(fd, F_SETFD, FD_CLOEXEC) == 0;
@@ -124,9 +98,6 @@ static int rmguard_write_fallback(void){
     close(dfd);
     return ok && rmguard_dir_ok(RMGUARD_FALLBACK);
 }
-/* Ensure an executable guard exists and PATH starts with its directory. Returns 1 if guarded, 0 if NO
- * guard could be established (caller decides the fail policy). Idempotent; safe to call from the UI and
- * from the launcher. Only mutates PATH of THIS process (and, for the launcher, the exec'd player). */
 int rmguard_ensure(void){
     const char *cur = getenv("PATH");
     if(!cur || !*cur) cur = "/bin:/sbin:/usr/bin:/usr/sbin";

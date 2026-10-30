@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: MIT */
-/* SetupAPI mock compiled with the complete production helper. No device access. */
 #include <stdint.h>
 #include <stdlib.h>
 #include <wctype.h>
@@ -201,7 +200,6 @@ static BOOL SetupDiGetDriverInfoDetailW(HDEVINFO s, SP_DEVINFO_DATA *d, SP_DRVIN
     if(is("hardware_padding") || is("compat_padding")) total+=sizeof(L"USB\\MS_COMP_WINUSB")/sizeof(wchar_t);
     *needed=(DWORD)(offsetof(SP_DRVINFO_DETAIL_DATA_W,HardwareID)+total*sizeof(wchar_t));
     if(*needed>cap) { last_error=ERROR_INSUFFICIENT_BUFFER; return 0; }
-    /* Poison unused capacity so a terminator outside RequiredSize cannot help. */
     size_t capacity=(cap - offsetof(SP_DRVINFO_DETAIL_DATA_W, HardwareID))/sizeof(wchar_t);
     for(size_t j=0;j<capacity;++j) detail->HardwareID[j]=L'X';
     memcpy(detail->HardwareID,ids,n*sizeof(wchar_t));
@@ -294,7 +292,6 @@ static void *GetProcAddress(HMODULE module, const char *name) {
 }
 
 #ifdef BIND_NOCRT
-/* Kernel32 boundary for exercising the production entry, strings and JSON. */
 #define TRUE 1
 #define CSTR_EQUAL 2
 #define STD_OUTPUT_HANDLE ((DWORD)-11)

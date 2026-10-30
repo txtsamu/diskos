@@ -1,41 +1,4 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Per-identity state table, processed by decide() on the caller thread.
- * P = either PENDING_EVIDENCE or PENDING_READ. Rows are ordered by priority.
- * Input / state                         Next state / output
- * identity_end, changed generation / *  NONE / cancel, advance identity epoch
- * submit new IDs/path / *               NONE, then first-submit rows below
- * library epoch / NONE, COMMITTED       unchanged / remember epoch for next item
- * library epoch / P                     P / invalidate job, keep deadline;
- *                                      redispatch only in PENDING_READ
- * submit same / COMMITTED               COMMITTED / ignore title and evidence
- * poll / NONE, delivered COMMITTED      unchanged / no output
- * rejected publication / delivered COMMITTED
- *                                      PENDING_EVIDENCE / invalidate selection, keep original/deadline
- * poll / undelivered COMMITTED          COMMITTED / deliver exactly once
- * submit or poll at/after deadline / P  COMMITTED / original title, TIMEOUT
- * first submit / NONE                   initialize identity, original, deadline;
- *                                      then apply the submit rows below
- * submit genuine nonempty title / P     COMMITTED / player title immediately,
- *                                      regardless of known/unknown/changed flags
- * submit basename or empty / P:
- *   changed flags                       invalidate job, keep identity/deadline
- *   unknown kind                        PENDING_EVIDENCE / no read
- *   known virtual/unsupported path      COMMITTED / original player title
- *   known plain supported, empty title  PENDING_EVIDENCE / no read
- *   known plain supported, basename     PENDING_READ / dispatch or retry dispatch
- *   same evidence                       same rules, no duplicate dispatch
- *   eligible but worker unavailable     COMMITTED / original title, WORKER
- * poll before deadline / PENDING_EVIDENCE unchanged / discard mailbox, no read
- * poll before deadline / PENDING_READ:
- *   current result FOUND                COMMITTED / reader title
- *   current ABSENT, ERROR               COMMITTED / original, retain outcome
- *   current NOT_APPLICABLE              COMMITTED / original (stock title)
- *   stale result or no result           PENDING_READ / discard, retry dispatch
- * All commits cancel the token; late results cannot publish. A genuine title
- * cannot remain waiting at expiry: it already committed on its submit event.
- * Original means the first submitted player title, even if it was empty.
- * Titles are complete, successfully decoded strings supplied by the caller.
- */
 #include "opustitle_worker.h"
 #include "sdio.h"
 #include <pthread.h>
@@ -56,7 +19,6 @@ struct opus_title_worker {
     otw_commit mail;
     uint64_t (*clock)(void *);
     void *ctx;
-    /* Caller-owned state: worker NEVER reads these fields. */
     otw_commit current;
     uint64_t epoch, serial, media, generation, deadline;
     unsigned dispatched;
@@ -83,7 +45,6 @@ static void *worker(void *ctx){
         read_context r={w,w->queued}; w->pending=0;
         pthread_mutex_unlock(&w->mu);
         otw_commit c={.key=r.j.key,.result={.outcome=OPUS_TITLE_ERROR,.reason=OPUS_TITLE_CANCELLED}};
-        /* No controller/mailbox lock spans lease calls, opening, parsing or closing. */
         if(!cancelled(&r) && sd_io_begin()){
             for(int attempt=0;attempt<2;attempt++){
                 c.result=opus_title_read(r.j.key.path,cancelled,&r);
@@ -141,8 +102,6 @@ static void select_title(opus_title_worker *w,opus_title_result result,unsigned 
     w->state=COMMITTED; atomic_fetch_add(&w->token,1);
 }
 typedef enum { SUBMIT, POLL, IDENTITY_END, GENERATION, LIBRARY } decision_input;
-/* One run-to-completion transition function owns every controller decision.
- * SUBMIT inputs have already passed the public API's size/NULL checks. */
 static int decide(opus_title_worker *w,decision_input input,otw_identity id,
                   const char *path,const char *title,unsigned flags,uint64_t value,otw_commit *out){
     if(input==IDENTITY_END || (input==GENERATION && w->generation!=value)){
@@ -171,7 +130,6 @@ static int decide(opus_title_worker *w,decision_input input,otw_identity id,
             w->current=(otw_commit){.key={.identity=id,.identity_epoch=w->epoch,
                 .serial=++w->serial,.media_epoch=w->media,.flags=flags}};
             strcpy(w->current.key.path,path); strcpy(w->original,title);
-            /* Header reads run off-thread; allow cold SD latency without delaying transport. */
             w->deadline=value+5000; w->delivered=0; w->state=PENDING_EVIDENCE;
             atomic_fetch_add(&w->token,1);
         }

@@ -27,11 +27,9 @@ class WindowsSources(unittest.TestCase):
             (Path(folder) / (path.name + '.sig')).write_bytes(b'offline signature')
             path.write_bytes(b'offline fixture, not runtime source')
             code = 'runtime_sha256=' + PIN + '\n' + function('verify_runtime_source')
-            # Real fixture digest refuses a substituted archive without network.
             run = subprocess.run(['bash', '-c', code + 'verify_runtime_source "$1"',
                                   'test', str(path)], capture_output=True)
             self.assertNotEqual(run.returncode, 0)
-            # Simulate the trusted checksum tool returning the pinned digest.
             mock = 'sha256sum() { printf "%s  %s\\n" "$runtime_sha256" "$2"; }\n'
             run = subprocess.run(['bash', '-c', code + mock + 'verify_runtime_source "$1"',
                                   'test', str(path)], capture_output=True)

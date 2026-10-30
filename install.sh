@@ -1,33 +1,18 @@
 #!/bin/sh
-# diskOS installer - one-time setup.
-#
-# Creates a local Python virtual environment (.venv) next to this script and installs the two
-# pip dependencies (pyusb, pycryptodome) into it. After this you run the tool with ./diskos-installer.
-#
-# What this does NOT install (they come from your system, not from us):
-#   - Python 3 itself            (install via your OS package manager if missing)
-#   - Tk/tkinter                 (only needed for the GRAPHICAL installer; CLI works without it)
-#   - libusb-1.0                 (needed if no bundled copy is present)
-# The script checks for these and tells you exactly what to install if any are missing.
 set -eu
 
 HERE=$(CDPATH= cd "$(dirname "$0")" && pwd)
 cd "$HERE"
 
-# Do NOT run this as root. The installer keeps per-user state and a saved recovery image under your
-# home directory; running setup as root would create them root-owned and in the wrong place.
 if [ "$(id -u)" = "0" ]; then
     echo "error: don't run install.sh as root (no sudo). Run it as your normal user;" >&2
     echo "       only the one-time udev rule needs root (see README, 'USB permissions')." >&2
     exit 1
 fi
 
-# Scratch file for capturing venv-creation errors: created private + removed on exit, never a
-# fixed /tmp path (a predictable name in a world-writable dir invites a symlink attack).
 ERRTMP=$(mktemp "${TMPDIR:-/tmp}/diskos_venv.XXXXXX") || { echo "error: mktemp failed" >&2; exit 1; }
 trap 'rm -f "$ERRTMP"' EXIT INT TERM
 
-# ---- locate a usable Python 3 -------------------------------------------------
 PY=""
 for c in python3 python; do
     if command -v "$c" >/dev/null 2>&1; then
@@ -46,7 +31,6 @@ if [ -z "$PY" ]; then
 fi
 echo "==> using $("$PY" --version 2>&1) at $PY"
 
-# ---- create the venv ----------------------------------------------------------
 if [ ! -x "$HERE/.venv/bin/python" ] && [ ! -x "$HERE/.venv/Scripts/python.exe" ]; then
     echo "==> creating virtual environment in .venv/"
     if ! "$PY" -m venv "$HERE/.venv" 2>"$ERRTMP"; then
@@ -60,17 +44,14 @@ else
     echo "==> reusing existing .venv/"
 fi
 VENV_PY="$HERE/.venv/bin/python"
-[ -x "$VENV_PY" ] || VENV_PY="$HERE/.venv/Scripts/python.exe"   # windows layout
+[ -x "$VENV_PY" ] || VENV_PY="$HERE/.venv/Scripts/python.exe"
 
-# ---- install pinned dependencies ---------------------------------------------
 echo "==> installing dependencies (pyusb, pycryptodome)"
 "$VENV_PY" -m pip install --upgrade pip >/dev/null 2>&1 || true
 "$VENV_PY" -m pip install -r "$HERE/requirements.txt"
 
-# ---- capability checks (warn, do not fail) -----------------------------------
 echo "==> checking optional system components"
 
-# Tk (GUI only). A venv inherits the base interpreter's tkinter, so this reflects the system Python.
 if "$VENV_PY" -c 'import tkinter' 2>/dev/null; then
     echo "  ok: tkinter present - the graphical installer will work"
 else
@@ -83,7 +64,6 @@ else
     echo "                         (or use python.org's Python, which bundles Tk)"
 fi
 
-# libusb-1.0 backend for pyusb (needed to see the device in mask-ROM mode).
 TAG=$("$VENV_PY" -c 'from diskos_installer import platform_probe; print(platform_probe.host_tag())' 2>/dev/null || true)
 BUNDLED_LIBUSB=0
 for f in "$HERE/vendor/$TAG/lib/"libusb-1.0*.dylib "$HERE/vendor/$TAG/lib/"libusb-1.0.so*; do
@@ -101,7 +81,6 @@ else
     echo "          macOS:         brew install libusb"
 fi
 
-# squashfs-tools (needed to unpack and build firmware images)
 if [ -n "$TAG" ] && [ -x "$HERE/vendor/$TAG/mksquashfs" ] && [ -x "$HERE/vendor/$TAG/unsquashfs" ]; then
     echo "  ok: bundled squashfs-tools present"
 elif command -v mksquashfs >/dev/null 2>&1 && command -v unsquashfs >/dev/null 2>&1; then
@@ -114,7 +93,6 @@ else
     echo "          macOS:         brew install squashfs"
 fi
 
-# usbboot (custom Ingenic mask-ROM uploader)
 if [ -n "$TAG" ] && [ -x "$HERE/vendor/$TAG/usbboot" ]; then
     echo "  ok: bundled usbboot present"
 else

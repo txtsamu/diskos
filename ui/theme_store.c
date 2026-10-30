@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* theme_store.c - the custom theme document: strict parsing (bounded size, no unknown or duplicate keys, every
- * editable role in both variants, six hex digits per colour), serialising, and the atomic save both builders use.
- * No LVGL. A document that fails any check is refused whole; the file on disk is never repaired or half-written. */
 #include "theme_model.h"
 #include <errno.h>
 #include <pthread.h>
@@ -13,7 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#define JSMN_STATIC                 /* a private strict copy; ipc.c keeps its own lenient one */
+#define JSMN_STATIC
 #define JSMN_STRICT
 #include "jsmn.h"
 
@@ -23,7 +20,6 @@ static int tok_is(const char *js, const jsmntok_t *t, const char *s){
     int n = t->end - t->start;
     return t->type == JSMN_STRING && (int)strlen(s) == n && !strncmp(js + t->start, s, n);
 }
-/* index just past the value that starts at token i (skips a whole object/array) */
 static int skip(const jsmntok_t *t, int i, int ntok){
     int end = t[i].end;
     i++;
@@ -47,7 +43,7 @@ static int hex6(const char *js, const jsmntok_t *t, uint32_t *out){
 static int small_int(const char *js, const jsmntok_t *t, int *out){
     if(t->type != JSMN_PRIMITIVE) return 0;
     int n = t->end - t->start;
-    if(n < 1 || n > 10) return 0;                      /* up to THEME_REV_MAX (10 digits); range-checked by the caller */
+    if(n < 1 || n > 10) return 0;
     long long v = 0;
     for(int i = t->start; i < t->end; i++){ if(js[i] < '0' || js[i] > '9') return 0; v = v * 10 + (js[i] - '0'); }
     if(v > THEME_REV_MAX) return 0;
@@ -55,7 +51,6 @@ static int small_int(const char *js, const jsmntok_t *t, int *out){
     return 1;
 }
 
-/* one palette object: exactly the editable roles, each once */
 static int parse_palette(const char *js, const jsmntok_t *t, int i, int ntok, uint32_t *pal, const char *which,
                          char *err, int errcap){
     if(t[i].type != JSMN_OBJECT) E("%s must be an object", which);
@@ -73,8 +68,6 @@ static int parse_palette(const char *js, const jsmntok_t *t, int i, int ntok, ui
     return THEME_OK;
 }
 
-/* jsmn (even in strict mode) accepts some non-JSON (trailing or doubled commas, leading-zero numbers), so the whole
- * text is first checked against the JSON grammar here; jsmn then only tokenises text already known to be valid. */
 typedef struct { const char *s; int n, i, depth; } jg_t;
 static void jg_ws(jg_t *g){ while(g->i < g->n && (g->s[g->i] == ' ' || g->s[g->i] == '\t' || g->s[g->i] == '\n' || g->s[g->i] == '\r')) g->i++; }
 static int jg_value(jg_t *g);
@@ -147,7 +140,7 @@ int theme_model_parse(const char *js, int len, theme_model_t *m, char *err, int 
     for(int i = 0; i < len; i++) if(!js[i]) E("document contains a NUL byte");
     if(!json_strict_ok(js, len)) E("not valid JSON");
     enum { NT = 400 };
-    jsmntok_t t[NT];                 /* per call: parsing is reentrant */
+    jsmntok_t t[NT];
     jsmn_parser p; jsmn_init(&p);
     int ntok = jsmn_parse(&p, js, (size_t)len, t, NT);
     if(ntok < 1 || t[0].type != JSMN_OBJECT) E("not a JSON object");
@@ -173,7 +166,6 @@ int theme_model_parse(const char *js, int len, theme_model_t *m, char *err, int 
             else if(tok_is(js, val, "allow_album")) m->accent_fixed = 0;
             else E("accent_policy must be fixed or allow_album");
         } else if(tok_is(js, key, "traits")){
-            /* only the standard look exists today; any other trait value is refused, never ignored */
             if(have_tr++ || val->type != JSMN_OBJECT || val->size != 3) E("traits must name background, now_playing and quick_settings");
             int seen_bg = 0, seen_np = 0, seen_qs = 0, j = k + 2;
             for(int f = 0; f < val->size; f++){
@@ -218,7 +210,7 @@ int theme_model_serialize(const theme_model_t *m, char *out, int cap){
 }
 
 static int read_file(const char *path, char *buf, int cap, int *len){
-    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);   /* NONBLOCK: a FIFO can't hang us */
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
     if(fd < 0) return errno == ENOENT ? 1 : -1;
     struct stat st;
     if(fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size > cap){ close(fd); return -1; }
@@ -241,9 +233,6 @@ int theme_model_load(const char *path, theme_model_t *m, char *err, int errcap){
     return r;
 }
 
-/* write `data` to `path` atomically: open the directory first (so a missing directory fails BEFORE any change),
- * exclusive new temp file next to it, fsync, rename, fsync the directory. -1 = nothing changed; -4 = renamed into place
- * but the directory sync failed. */
 static int atomic_write(const char *path, const char *data, int len){
     char tmp[300], dir[300];
     if(snprintf(tmp, sizeof tmp, "%s.XXXXXX", path) >= (int)sizeof tmp) return -1;
@@ -253,7 +242,7 @@ static int atomic_write(const char *path, const char *data, int len){
     if(slash == dir) slash[1] = 0; else *slash = 0;
     int dfd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if(dfd < 0) return -1;
-    int fd = mkstemp(tmp);                 /* O_CREAT|O_EXCL: never follows or reuses an existing name */
+    int fd = mkstemp(tmp);
     if(fd < 0){ close(dfd); return -1; }
     int ok = fchmod(fd, 0644) == 0;
     for(int done = 0; ok && done < len; ){ ssize_t w = write(fd, data + done, (size_t)(len - done)); if(w <= 0) ok = 0; else done += (int)w; }
@@ -265,8 +254,6 @@ static int atomic_write(const char *path, const char *data, int len){
     return dr == 0 ? 0 : -4;
 }
 
-/* one save at a time: a mutex for threads in this process, an flock on a sibling lock file for other processes; the
- * lock spans loading the current file, the revision check and the replace, so two editors can't both pass the check */
 static pthread_mutex_t g_save_mu = PTHREAD_MUTEX_INITIALIZER;
 
 int theme_validate_and_save(const char *json, int len, int expect_revision, const char *path, char *err, int errcap){
@@ -277,7 +264,7 @@ int theme_validate_and_save(const char *json, int len, int expect_revision, cons
     if(!m || !cur || !out){ snprintf(err, errcap, "out of memory"); goto done; }
     rc = theme_model_parse(json, len, m, err, errcap);
     if(rc) goto done;
-    int n = theme_model_serialize(m, out, THEME_CUSTOM_MAX + 1);   /* canonical form: exactly what was validated */
+    int n = theme_model_serialize(m, out, THEME_CUSTOM_MAX + 1);
     if(n < 0 || n > THEME_CUSTOM_MAX){ snprintf(err, errcap, "theme too large to store"); rc = THEME_E_INVALID; goto done; }
     pthread_mutex_lock(&g_save_mu); locked = 1;
     snprintf(lockp, sizeof lockp, "%s.lock", path);
@@ -285,10 +272,10 @@ int theme_validate_and_save(const char *json, int len, int expect_revision, cons
     if(lfd < 0 || flock(lfd, LOCK_EX) != 0){ snprintf(err, errcap, "could not lock the theme file"); rc = THEME_E_IO; goto done; }
     char e2[160];
     int st = theme_model_load(path, cur, e2, sizeof e2);
-    int current;                                      /* the revision on disk: 0 = nothing saved */
+    int current;
     if(st == THEME_OK) current = cur->revision;
     else if(st == THEME_E_ABSENT) current = 0;
-    else if(expect_revision == THEME_REV_REPLACE_DAMAGED) current = 0;   /* explicit reset of an unusable file */
+    else if(expect_revision == THEME_REV_REPLACE_DAMAGED) current = 0;
     else { snprintf(err, errcap, "the saved theme can't be read (%s); nothing was changed", e2); rc = THEME_E_CONFLICT; goto done; }
     if(expect_revision == THEME_REV_REPLACE_DAMAGED ? st == THEME_OK || st == THEME_E_ABSENT : expect_revision != current){
         snprintf(err, errcap, "the theme was changed elsewhere (saved revision %d, editor started from %d)", current, expect_revision);
@@ -300,7 +287,7 @@ int theme_validate_and_save(const char *json, int len, int expect_revision, cons
     if(w != 0){ snprintf(err, errcap, "could not save the theme; nothing was changed"); rc = THEME_E_IO; goto done; }
     rc = THEME_OK;
 done:
-    if(lfd >= 0) close(lfd);                          /* closing releases the flock */
+    if(lfd >= 0) close(lfd);
     if(locked) pthread_mutex_unlock(&g_save_mu);
     free(m); free(cur); free(out);
     return rc;

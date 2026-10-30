@@ -111,7 +111,6 @@ class UsbbootManifest(unittest.TestCase):
             self.check()
 
     def test_dynamic_interp_needed_and_invalid_elf(self):
-        # PT_DYNAMIC is rejected even before examining its DT_NEEDED records.
         for data in (elf(3), elf(2), b'not ELF', elf()[:100]):
             with self.subTest(data=data[:8]):
                 (self.vendor / 'usbboot').write_bytes(data)

@@ -3,8 +3,6 @@
 #include "opustitle.h"
 #include <stdio.h>
 #include <errno.h>
-/* Capture the failing parser operation before callbacks/free/stat/close can
- * change errno. Thread-local storage keeps independent readers isolated. */
 static _Thread_local int ot_io_error;
 static size_t ot_read(void *p, size_t size, size_t n, FILE *f){
     errno=0;
@@ -46,9 +44,6 @@ static int ot_same(const struct stat *a, const struct stat *b){
     return a->st_dev==b->st_dev && a->st_ino==b->st_ino && a->st_size==b->st_size &&
            a->st_mtim.tv_sec==b->st_mtim.tv_sec && a->st_mtim.tv_nsec==b->st_mtim.tv_nsec;
 }
-/* Qualify content before ad_opus (which deliberately maps malformed/non-Opus to 0).
- * For Ogg, only a CRC-checked, complete first BOS packet with a different codec
- * signature proves NOT_APPLICABLE. Unknown/damaged Ogg stays an error. */
 static int ot_format(FILE *f, ad_cancel_fn cancel, void *ctx){
     unsigned char page[27+255+65025];
     int r=ad_opus_read(f,page,4,cancel,ctx);

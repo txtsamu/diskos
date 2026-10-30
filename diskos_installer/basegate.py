@@ -15,8 +15,6 @@ Catalogue: every component reassembled from the official update packages and che
 import hashlib
 import struct
 
-# MAIN_OS_VER -> base. Lengths in bytes; each is what the component's own header gives (uImage size+64, squashfs
-# bytes_used rounded up to 4 KiB), which is how the writer finds it on the NAND.
 CATALOGUE = {
     "209": {"id": "v209-r17a", "name": "V2.09 (recovery 17, early build)",
             "main_kernel": (4415552, "f843cfcc28fe3c0d26bf27e35a2d8d595aa200ef82750200c888af5348f4f033"),
@@ -49,8 +47,7 @@ def catalogue_fingerprint():
     return h.digest()
 
 
-# ---- the flash plan the writer reads at BLOB (0xa0b00000) --------------------------------------------------------------
-BLOB_MAGIC = 0x42534744      # "DGSB"
+BLOB_MAGIC = 0x42534744
 BLOB_SCHEMA = 1
 BLOB_WORDS = 68
 
@@ -81,14 +78,13 @@ def build_plan(main_os_ver, image_path):
         w += [length] + _digest_words(sha)
     w += [size] + _digest_words(h.hexdigest())
     w += list(struct.unpack(">8I", catalogue_fingerprint()))
-    w += [0] * 8                                          # reserved, must be zero
+    w += [0] * 8
     body = struct.pack("<60I", *w)
     w += list(struct.unpack(">8I", hashlib.sha256(body).digest()))
     assert len(w) == BLOB_WORDS
     return struct.pack("<%dI" % BLOB_WORDS, *w)
 
 
-# ---- reading the writer's verdict ------------------------------------------------------------------------------------
 G_RESULT, G_A0, G_B0, G_PART, G_ECC_CORR, G_ECC_BAD, G_IMG_SHA, G_SUBCODE, G_ERASING, G_VARIANT, G_BADPOS = \
     128, 129, 130, 131, 161, 162, 163, 171, 172, 173, 200
 
@@ -122,7 +118,7 @@ def read_verdict(dbg):
     for i, p in enumerate(PARTS):
         o = w[G_PART + 10 * i:G_PART + 10 * i + 10]
         if o[0]:
-            obs[p] = (o[0], _hex(o[1:9]) if any(o[1:9]) else None, o[9])   # (len, sha or None, bad blocks)
+            obs[p] = (o[0], _hex(o[1:9]) if any(o[1:9]) else None, o[9])
         bad_pos[p] = [b for b in w[G_BADPOS + 8 * i:G_BADPOS + 8 * i + min(o[9], 8)]]
     matched = None
     if all(p in obs and obs[p][1] for p in PARTS):

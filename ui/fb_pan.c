@@ -16,13 +16,11 @@
 #include <linux/fb.h>
 #include "lvgl/src/drivers/evdev/lv_evdev.h"
 
-/* The panel is mounted 180 degrees turned; we render upright into LVGL draw buffers and copy each dirty area into the
-   visible fb page through ctl_blit (180 by default; stock's Screen rotation can turn it 0/90/180/270). */
 typedef struct {
     int fd;
     uint8_t *map;
     size_t frame_bytes;
-    size_t visible_off;     /* byte offset of the page actually on screen */
+    size_t visible_off;
     int npages;
     int next_page;
     struct fb_var_screeninfo vinfo;
@@ -34,17 +32,10 @@ static uint32_t tick_cb(void){
     return (uint32_t)(t.tv_sec*1000u + t.tv_nsec/1000000u);
 }
 
-/* PARTIAL mode: LVGL hands us only the dirty rectangle(s); we rotate-copy each
- * one into the single persistent visible page (page 0, panned once at init). Cost is
- * proportional to the dirty area, not the whole 360x360 frame - a 1Hz time/arc update
- * touches a few KB instead of ~1MB. Direct write to the shown page can tear on huge
- * (full-screen) updates, but those are rare (screen changes) and already flash. */
 static void fbpan_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map){
     fbpan_t *f = lv_display_get_driver_data(disp);
-    uint8_t *base = f->map + f->visible_off;         /* the page actually on screen */
-    /* Turn the logical (upright) area into the raw frame: 180 by default (the panel's mounting), or the rotation
-     * the player has stored (controls.c, stock's Screen rotation). */
-    if(ctl_rot_get() == 0)      /* the default: the original flush loop, untouched */
+    uint8_t *base = f->map + f->visible_off;
+    if(ctl_rot_get() == 0)
         ctl_flush_default(base, f->finfo.line_length, (int)f->vinfo.xres, (int)f->vinfo.yres,
                           (const uint32_t*)px_map, area->x1, area->y1, area->x2, area->y2);
     else
@@ -56,7 +47,6 @@ static void fbpan_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *p
     lv_display_flush_ready(disp);
 }
 
-/* Touch follows the picture: the evdev swap + calibration is the inverse of the frame's rotation (controls.c). */
 static lv_indev_t *g_touch_indev;
 static void fbpan_touch_cal(void){
     if(!g_touch_indev) return;
@@ -69,7 +59,7 @@ void fbpan_bind_touch(lv_indev_t *indev){ g_touch_indev = indev; fbpan_touch_cal
 void fbpan_set_rotation(int v){
     ctl_rot_set(v);
     fbpan_touch_cal();
-    if(lv_display_get_default()){                     /* redraw everything through the new mapping */
+    if(lv_display_get_default()){
         lv_obj_invalidate(lv_screen_active());
         lv_obj_invalidate(lv_layer_top());
         lv_obj_invalidate(lv_layer_sys());
@@ -89,18 +79,11 @@ lv_display_t *fbpan_create(const char *dev){
     f->next_page = 0;
     f->map = mmap(NULL, f->finfo.smem_len, PROT_READ|PROT_WRITE, MAP_SHARED, f->fd, 0);
     if(f->map == MAP_FAILED){ perror("mmap"); close(f->fd); free(f); return NULL; }
-    /* Clear the WHOLE framebuffer (all pages) to black up front. On a switch from stock (or our
-     * own relaunch) the fb still holds the stock boot splash; partial rendering only touches
-     * widget-dirty areas, so background regions would show the stale splash until a full redraw.
-     * Starting black means any not-yet-rendered pixel is black, not leftover splash. */
     memset(f->map, 0, f->finfo.smem_len);
-    controls_boot_rotation();                       /* the player's stored Screen rotation, from the first frame */
+    controls_boot_rotation();
     fprintf(stderr,"fbpan: %ux%u bpp=%u frame=%zu pages=%d (rot=%d, PARTIAL)\n",
             f->vinfo.xres,f->vinfo.yres,f->vinfo.bits_per_pixel,f->frame_bytes,f->npages,ctl_rot_get());
 
-    /* Render into ONE persistent visible page (no page flipping). Try to pan to page 0
-     * for determinism, then re-read vinfo and use whatever page is ACTUALLY visible -
-     * so even if the pan is rejected we write the page on screen, not a hidden one. */
     f->next_page = 0;
     f->vinfo.xoffset = 0; f->vinfo.yoffset = 0; f->vinfo.activate = FB_ACTIVATE_NOW;
     if(ioctl(f->fd, FBIOPAN_DISPLAY, &f->vinfo) < 0) perror("fbpan: pan to 0");
@@ -109,8 +92,6 @@ lv_display_t *fbpan_create(const char *dev){
     fprintf(stderr,"fbpan: visible yoffset=%u off=%zu line=%u\n",
             f->vinfo.yoffset, f->visible_off, f->finfo.line_length);
 
-    /* PARTIAL mode: two small banded draw buffers (~60 rows) instead of two full
-     * 518KB frames - ~1MB less RAM and the renderer only touches dirty regions. */
     #define FBPAN_BAND_ROWS 60
     size_t bufsz = (size_t)f->vinfo.xres * FBPAN_BAND_ROWS * 4;
     uint8_t *b1 = aligned_alloc(64, bufsz);

@@ -14,6 +14,9 @@ Contributions are welcome. Follow these rules for device safety and licensing.
    `F1xx` device-writer aborts, `F2xx` firmware-base refusals) and document it in [`docs/INSTALL.md`](docs/INSTALL.md#error-codes).
 4. **Keep the honest-limitations tone.** If something is blocked by hardware or a toolchain gap, say
    so plainly.
+5. **No comments in source.** Do not add code comments; explanations go in [`comments.md`](comments.md) or `docs/`.
+   SPDX/copyright headers, shebangs and tool directives (`noqa`, `NOLINT`, fall-through markers) stay. Details in
+   [`agents/AGENTS.md`](agents/AGENTS.md#no-comments-in-source).
 
 ## Licensing and provenance
 

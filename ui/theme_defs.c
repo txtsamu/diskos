@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* theme_defs.c - the unique themes' definitions: fonts per role, texture, title case, component kit.
- * Colours are in theme_presets.inc (tools/gen_theme_presets.py); fonts in font_<theme>_*.c
- * (tools/gen_theme_fonts.py). Roles a theme leaves NULL keep Default's font (mostly the icon-bearing sizes 22+). */
 #include "theme.h"
 #include "theme_kit.h"
 #include "theme_fonts.h"
@@ -33,7 +30,7 @@ static const theme_def_t DEFS[] = {
                 F(HEADER_SM, diskos_dot_18, 18) },
       .traits = TRAIT(DOT_TITLES) | TRAIT(MATRIX_CLOCK) | TRAIT(QS_RING) | TRAIT(FLAT_LISTS) | TRAIT(NP_BIG_PLAY),
       .texture = THEME_TEX_DOTS, .title_case = THEME_CASE_UPPER, .fixed_accent = 1, .kit = &theme_kit_something,
-      .plain = THEME_PLAIN_HOME | THEME_PLAIN_LIBRARY | THEME_PLAIN_NOWPLAYING },   /* its mockups: plain black */
+      .plain = THEME_PLAIN_HOME | THEME_PLAIN_LIBRARY | THEME_PLAIN_NOWPLAYING },
     { .name = "hi-fi",
       .font = { F(UI_12, diskos_hifi_ui_12, 12), F(UI_14, diskos_hifi_ui_14, 14), F(USER_14, diskos_hifi_ui_14, 14),
                 F(UI_16, diskos_hifi_ui_16, 16), F(USER_16, diskos_hifi_ui_16, 16), F(UI_18, diskos_hifi_ui_18, 18),

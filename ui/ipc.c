@@ -19,55 +19,27 @@ static mqd_t g_rx=(mqd_t)-1, g_tx=(mqd_t)-1;
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static track_state_t g_state;
 
-/* ---- player-restart recovery ---------------------------
- * The stock player can unlink+recreate /ui and /player on restart, orphaning any
- * descriptor we still hold (reads/writes on the old queue object keep succeeding, so
- * failure alone can't detect it). We detect recreation by comparing the fstat()
- * identity (dev,ino) of our descriptor against a fresh probe open - verified stable on
- * this device even though /dev/mqueue isn't mounted. All recovery actions are gated
- * behind positive identity-change evidence, so they are INERT during normal operation.
- * Only the RX thread may replace/close g_rx; the health timer only requests. */
-/* g_recov_mu guards the RX-side state shared between the RX thread and the main thread
- * (identity + signal flags): dev_t/ino_t can be 64-bit (torn on 32-bit MIPS) and volatile
- * is not synchronization, so a real lock with defined ordering is required. The TX-side
- * state (g_tx, g_tx_dev/ino, g_tx_stale) is touched ONLY on the main thread (both senders
- * and the health timer run there), so it needs no lock. g_rx itself is touched only by the
- * RX thread (+ single-threaded startup), so it too is unlocked. */
 static pthread_mutex_t g_recov_mu = PTHREAD_MUTEX_INITIALIZER;
-static dev_t g_rx_dev = 0;  static ino_t g_rx_ino = 0;   /* [g_recov_mu] identity of /ui g_rx consumes */
-static int g_rx_ready    = 0;   /* [g_recov_mu] 1 once g_rx is open + being consumed */
-static int g_rx_reopen   = 0;   /* [g_recov_mu] health timer -> RX thread: /ui recreated, reopen it */
-static int g_reconnected = 0;   /* [g_recov_mu] RX thread -> main thread: recovery done, run resync */
-static unsigned g_rx_frames = 0; /* [g_recov_mu] count of /ui frames received FROM the player. /ui is the
-                                  * player->UI queue (we O_RDONLY it), so any frame proves the player is up
-                                  * and responding - a positive-readiness signal that does NOT depend on the
-                                  * cold-boot /ui reopen firing (see ipc_rx_frames / main.c initial apply). */
-static unsigned g_generation = 0; /* [g_recov_mu] bumps each time /ui is (re)attached to a new player queue
-                                   * (rx_do_reopen) = a new player generation. Lets the v2.40 work-mode
-                                   * one-shot re-arm after a player restart. See ipc_generation(). */
-static int g_player_mode = -1;   /* [g_recov_mu] last a607 external-mode announced by the player (8=LOCALPLAYER).
-                                  * -1 = none received THIS player generation. NOTE (RE-verified vs v2.57): a607 is
-                                  * NOT a reliable *solicited* readiness oracle - a 0607 query's reply goes to the
-                                  * /player queue, not /ui; the player only announces a607 to /ui after a 0657 mode
-                                  * CHANGE. Readiness is established by the a2 probe + settle (main.c); when an a607
-                                  * does arrive here, mode==8 is a valid "LOCALPLAYER set" confirmation.
-                                  * Reset to -1 on /ui reopen (new player generation). See ipc_player_mode(). */
-static dev_t g_tx_dev = 0;  static ino_t g_tx_ino = 0;   /* [main-thread only] identity of /player g_tx sends to */
-static int g_tx_stale    = 0;   /* [main-thread only] health -> sender: /player recreated, drop g_tx */
-static int g_thread_started = 0;         /* idempotency for ipc_start (NOT g_rx, which recovery swaps) */
+static dev_t g_rx_dev = 0;  static ino_t g_rx_ino = 0;
+static int g_rx_ready    = 0;
+static int g_rx_reopen   = 0;
+static int g_reconnected = 0;
+static unsigned g_rx_frames = 0;
+static unsigned g_generation = 0;
+static int g_player_mode = -1;
+static dev_t g_tx_dev = 0;  static ino_t g_tx_ino = 0;
+static int g_tx_stale    = 0;
+static int g_thread_started = 0;
 
-/* Record the (dev,ino) identity of an open queue descriptor. Returns 0 on success. */
 static int mq_identity(mqd_t q, dev_t *dev, ino_t *ino){
     struct stat s;
     if(q==(mqd_t)-1 || fstat((int)q, &s) != 0) return -1;
     *dev = s.st_dev; *ino = s.st_ino; return 0;
 }
 
-/* ---- helpers ---- */
 static char g_stock_title[IPC_TITLE_CAPACITY];
 static int g_title_frozen, g_title_stock;
 static uint64_t g_title_revision;
-/* Strict unsigned raw identifiers, including zero; display pos_id is separate. */
 static int raw_id(const char *js, const jsmntok_t *t, uint64_t *out){
     uint64_t n=0;
     if(t->type!=JSMN_PRIMITIVE || t->end==t->start) return 0;
@@ -97,10 +69,6 @@ static int tok_eq(const char*js, jsmntok_t*t, const char*s){
     return t->type==JSMN_STRING && (int)strlen(s)==n && strncmp(js+t->start,s,n)==0;
 }
 static int find_val(const char*js, jsmntok_t*tk, int ntok, const char*key){
-    /* Match only OBJECT KEYS, not string values: in jsmn a key string has size!=0
-     * (it owns its value), a plain value string has size==0 (same test jsmn itself
-     * uses at parse time). Without this, a value like a song titled "seq"/"state"
-     * could be mistaken for the key and return the wrong following token. */
     for(int i=0;i+1<ntok;i++) if(tk[i].size!=0 && tok_eq(js,&tk[i],key)) return i+1;
     return -1;
 }
@@ -114,14 +82,10 @@ static long tok_long(const char*js, jsmntok_t*t){
 static int tok_bool(const char*js, jsmntok_t*t){
     char b[8]; copy_tok(js,t,b,sizeof b); return (b[0]=='t'||b[0]=='1'||b[0]=='T');
 }
-/* JSON string unescape (handles \" \\ \/ \n \t \r and \uXXXX -> UTF-8 BMP).
- * Returns the decoded length on success, or -1 if the input did not fit dst
- * (truncated). A silently-truncated path can alias a DIFFERENT real file, so
- * callers that key off the result (e.g. song_file_path) must drop a -1. */
 static int unescape(const char*s,int n,char*dst,int dstsz){
     int o=0, i=0;
     for(;i<n && o<dstsz-4;i++){
-        if(s[i]!=2 && s[i]==92 && i+1<n){ /* backslash */
+        if(s[i]!=2 && s[i]==92 && i+1<n){
             char c=s[++i];
             if(c==110) dst[o++]=10; else if(c==116) dst[o++]=9; else if(c==114) dst[o++]=13;
             else if(c==117 && i+4<n){
@@ -130,14 +94,13 @@ static int unescape(const char*s,int n,char*dst,int dstsz){
                 if(cp<0x80) dst[o++]=cp;
                 else if(cp<0x800){ dst[o++]=0xC0|(cp>>6); dst[o++]=0x80|(cp&0x3F); }
                 else { dst[o++]=0xE0|(cp>>12); dst[o++]=0x80|((cp>>6)&0x3F); dst[o++]=0x80|(cp&0x3F); }
-            } else dst[o++]=c; /* \" \\ \/ and others -> literal */
+            } else dst[o++]=c;
         } else dst[o++]=s[i];
     }
     dst[o]=0;
-    return (i<n) ? -1 : o;   /* i<n -> stopped on the o limit, input left over = truncated */
+    return (i<n) ? -1 : o;
 }
 
-/* Zero the current-track fields. Caller must hold g_mu. */
 static void clear_track(void){
     if(g_state.player_confirmed) g_state.playback_token++;
     g_state.player_confirmed=0; g_state.provisional=0; g_state.title_ready=0;
@@ -151,12 +114,7 @@ static void clear_track(void){
     g_state.sample_rate=0; g_state.is_dsd=0;
 }
 
-/* Stock snprintf metadata can be RAW text or transport-escaped strings.
- * Verified mq_player format VAs: V2.09 0x64f3bc/0x650200/0x65057c/0x66006c,
- * V2.28 0x6bb2b4, V2.40 0x6ccfc8, V2.57 0x6d7c78 (call 0x4d87b4).
- * Normalize before JSON decoding; refuse duplicate boundaries rather than guess. */
 static int stock_a2_space(char c){ return c==' ' || c=='\t' || c=='\r' || c=='\n'; }
-/* Whitespace between fields is present in the older firmware formats. */
 static int stock_a2_match(const char *src, int len, int at, const char *pattern){
     for(int i=0;pattern[i];i++){
         if(at>=len || src[at++]!=pattern[i]) return -1;
@@ -171,8 +129,6 @@ static int stock_a2_scalar(const char *src, int n, int boolean){
     for(;i<n;i++) if(src[i]<'0' || src[i]>'9') return 0;
     return 1;
 }
-/* jsmn tokenizes primitives without validating their JSON type. Validate every
- * suffix field here, including the closing brace and exact end of input. */
 static int stock_a2_suffix(const char *src, int len, int at){
     static const char *keys[]={"love","playerflag","state","playing_num","work_mode"};
     for(int k=0;k<5;k++){
@@ -199,16 +155,13 @@ static int stock_a2_append(char *out, int *used, int cap, const char *s, int n){
     if(n<0 || n>=cap-*used) return 0;
     memcpy(out+*used,s,n); *used+=n; out[*used]=0; return 1;
 }
-/* The leading path slash distinguishes raw, one-layer and two-layer paths. */
 static int stock_a2_depth(const char *s, int n){
     int i=0;
     while(i<n && s[i]=='\\') i++;
-    if(i==0) return 0;   /* raw path bytes stay unchanged */
+    if(i==0) return 0;
     if(i>=n || s[i]!='/') return -1;
     return i==1 ? 1 : i==3 ? 2 : -1;
 }
-/* Decode only stock's slash, quote and backslash escapes, then protect the real
- * bytes for the two JSON decoders. Unknown escapes are never interpreted. */
 static int stock_a2_string(const char *s, int n, int depth, int path,
                            char *out, int *used, int cap){
     int unit=1<<depth, bytes=0;
@@ -224,7 +177,7 @@ static int stock_a2_string(const char *s, int n, int depth, int path,
             } else {
                 if(depth && tail && path) return 0;
                 if(!tail) slashes/=unit;
-                c=0;   /* leave the following byte for the next iteration */
+                c=0;
             }
         }
         bytes+=slashes+(c!=0);
@@ -246,7 +199,6 @@ static int stock_a2_normalize(const char *src, int len, char *out, int cap){
         "song_file_path","song_sample_rate","song_encoding_rate","song_bit_rate",
         "song_artist_name","song_album_name","song_style_name","song_track",
         "song_channel","is_sacd","is_cue","is_dsd","is_m3u","m3u_file_path"};
-    /* 0 = integer, 1 = raw string, 2 = boolean. */
     static const unsigned char types[]={0,0,1,0,1,0,0,0,1,1,1,0,0,2,2,2,2,1};
     const char *prefix="{\"song\":\"{";
     int used=0, at=(int)strlen(prefix), starts[18], ends[18], count=0, depth=0;
@@ -257,7 +209,6 @@ static int stock_a2_normalize(const char *src, int len, char *out, int cap){
         int next=stock_a2_match(src,len,at,head);
         if(next<0) return 0;
         at=next;
-        /* V2.09 ends immediately after is_dsd; newer layouts carry m3u. */
         int last=(k==17 || (k==15 &&
             (stock_a2_match(src,len,at,"true}\"")>=0 ||
              stock_a2_match(src,len,at,"false}\"")>=0)));
@@ -267,7 +218,7 @@ static int stock_a2_normalize(const char *src, int len, char *out, int cap){
         int end=-1;
         for(int i=at;i+bn<=len;i++){
             if(stock_a2_match(src,len,i,boundary)>=0){
-                if(end>=0) return 0;   /* ambiguous raw data: refuse to invent an identity */
+                if(end>=0) return 0;
                 end=i;
             }
         }
@@ -302,8 +253,6 @@ static void parse_a2(const char*payload,int len){
     jsmn_parser p; jsmntok_t tk[64];
     static char repaired[8192], song[8192];
     jsmntok_t st[96]; int nt, n2=0, v;
-    /* An id-first song object identifies the stock layout. A recognized but
-     * malformed/ambiguous frame must never fall through to permissive JSON. */
     const char *stock_head="{\"song\":\"{\\\"id\\\":";
     int head_len=(int)strlen(stock_head);
     if(len>=head_len && !memcmp(payload,stock_head,head_len)){
@@ -320,13 +269,12 @@ static void parse_a2(const char*payload,int len){
         n2=decoded>=0 ? jsmn_parse(&p2,song,decoded,st,96) : -1;
     }
     if(nt<1 || n2<0) return;
-    /* A truncated title cannot be used as eligibility evidence. Reject before publication. */
     if(n2>0){
         char title[sizeof g_state.title]; int sv=find_val(song,st,n2,"song_name");
         if(sv>=0 && unescape(song+st[sv].start,st[sv].end-st[sv].start,title,sizeof title)<0) return;
     }
     pthread_mutex_lock(&g_mu);
-    char oldpath[256]; snprintf(oldpath, sizeof oldpath, "%s", g_state.path);   /* detect a track-identity change */
+    char oldpath[256]; snprintf(oldpath, sizeof oldpath, "%s", g_state.path);
     v=find_val(payload,tk,nt,"state");        if(v>=0) g_state.state=(int)tok_long(payload,&tk[v]);
     v=find_val(payload,tk,nt,"playing_num");  if(v>=0) copy_tok(payload,&tk[v],g_state.playing_num,sizeof g_state.playing_num);
     v=find_val(payload,tk,nt,"work_mode");    if(v>=0) copy_tok(payload,&tk[v],g_state.work_mode,sizeof g_state.work_mode);
@@ -334,11 +282,6 @@ static void parse_a2(const char*payload,int len){
     v=find_val(payload,tk,nt,"song");
     if(v>=0 && tk[v].type==JSMN_STRING && (tk[v].end-tk[v].start)>2){
         if(n2>0){
-            /* Parse into TEMP state and publish only when the song carries a complete IDENTITY (a valid
-             * path). song_name alone must NOT make it a "track": an omitted song_file_path would otherwise
-             * leave the PREVIOUS path (and path_seq) intact while the title changes, so the new song's
-             * positions would bind to the old track and corrupt its bookmark. unescape (not copy_tok) every
-             * string: the inner song JSON still carries \/ \" \uXXXX after the outer unescape. */
             char t_title[sizeof g_state.title]={0}, t_artist[sizeof g_state.artist]={0};
             char t_album[sizeof g_state.album]={0}, t_path[sizeof g_state.path]={0};
             long t_dur=-1; int t_sr=-1, t_dsd=-1, have_path=0, sv;
@@ -351,18 +294,16 @@ static void parse_a2(const char*payload,int len){
             sv=find_val(song,st,n2,"song_artist_name");   if(sv>=0) unescape(song+st[sv].start, st[sv].end-st[sv].start, t_artist, sizeof t_artist);
             sv=find_val(song,st,n2,"song_album_name");    if(sv>=0) unescape(song+st[sv].start, st[sv].end-st[sv].start, t_album,  sizeof t_album);
             sv=find_val(song,st,n2,"song_file_path");
-            /* a truncated path can alias a DIFFERENT real file -> unescape overflow means NO usable identity */
             if(sv>=0 && unescape(song+st[sv].start, st[sv].end-st[sv].start, t_path, sizeof t_path) >= 0 && t_path[0]) have_path=1;
             sv=find_val(song,st,n2,"song_duration_time"); if(sv>=0) t_dur=tok_long(song,&st[sv]);
             sv=find_val(song,st,n2,"song_sample_rate");   if(sv>=0) t_sr=(int)tok_long(song,&st[sv]);
             sv=find_val(song,st,n2,"is_dsd");             if(sv>=0) t_dsd=tok_bool(song,&st[sv]);
-            if(have_path){                 /* complete identity -> publish the whole track atomically */
+            if(have_path){
                 int changed=!g_state.player_confirmed || strcmp(g_state.path,t_path) ||
                     g_state.song_id_valid!=(unsigned)sid_ok || g_state.pos_id_valid!=(unsigned)pid_ok ||
                     g_state.song_id_raw!=song_id || g_state.pos_id_raw!=pos_id;
                 if(changed){
                     g_state.playback_token++; g_title_frozen=g_title_stock=0;
-                    /* The previous position does not belong to this identity. */
                     g_state.position_ms=0; g_state.pos_seq=0;
                 }
                 g_state.player_confirmed=1; g_state.provisional=0;
@@ -385,30 +326,17 @@ static void parse_a2(const char*payload,int len){
                 if(t_dur>=0) g_state.duration_ms=t_dur;
                 if(t_sr>=0)  g_state.sample_rate=t_sr;
                 if(t_dsd>=0) g_state.is_dsd=t_dsd;
-                g_state.pos_id = (pid_ok && pos_id>0 && pos_id<=0x7FFFFFFF) ? (int)pos_id : 0;   /* per track: never carried over from the previous one */
+                g_state.pos_id = (pid_ok && pos_id>0 && pos_id<=0x7FFFFFFF) ? (int)pos_id : 0;
                 g_state.have_track=1;
             } else {
-                /* a present song with NO usable path can't establish identity -> clear rather than bind new
-                 * positions to the previous track (which would corrupt its bookmark). */
                 clear_track();
             }
         }
     } else if(v>=0 && tk[v].type==JSMN_STRING){
-        /* "song" present as an empty/short STRING ("{}"/"" -> len<=2): the player is
-         * reporting no current track (playback stopped/ended) -> clear so the UI
-         * doesn't keep showing the song that just ended.
-         * Restricted to STRING tokens on purpose:
-         *   - an ABSENT key (v<0) is a partial state update (love/work_mode change)
-         *     and must NOT wipe the track (short frames like {"state":1} exist);
-         *   - a bare-object "song":{...} (non-string) would be a VALID track in any
-         *     encoder that doesn't stringify it, so we never clear on a non-string.
-         * NB: this only handles the present-but-empty stop encoding. If the player
-         * ever signals stop via a song-ABSENT short frame, that needs a captured
-         * stop frame to confirm + a state-based oracle. */
         clear_track();
     }
     g_state.seq++;
-    if(strcmp(oldpath, g_state.path) != 0) g_state.path_seq = g_state.seq;   /* track changed -> new identity epoch */
+    if(strcmp(oldpath, g_state.path) != 0) g_state.path_seq = g_state.seq;
     pthread_mutex_unlock(&g_mu);
 }
 
@@ -419,10 +347,7 @@ static int all_hex(const char*s,int n){
     return 1;
 }
 
-/* the player's screen sleep/wake ("aa23000C0000" / "...0001", echo_sys_control.c V2.57) and power-off ("aa03"):
- * counters so the main loop sees every event (the latest value wins between its polls) */
 static unsigned g_scr_seq, g_aa03_seq; static int g_scr_on = -1;
-/* Called under g_recov_mu: frame state belongs only to this queue generation. */
 static void screen_new_generation(void){
     g_generation++; g_scr_on = -1; g_scr_seq = g_aa03_seq = 0;
 }
@@ -438,71 +363,54 @@ static void parse_frame(const char*buf,int n){
         pthread_mutex_lock(&g_recov_mu); g_aa03_seq++; pthread_mutex_unlock(&g_recov_mu);
         return;
     }
-    if(buf[0]==97 && buf[1]==49){ /* "a1<type2><len4><payload>" position, e.g. a1030010 + 8-hex ms */
+    if(buf[0]==97 && buf[1]==49){
         if(n<8) return;
         char lh[5]={buf[4],buf[5],buf[6],buf[7],0};
-        if(!all_hex(lh,4)) return;               /* no valid length field -> reject */
-        int flen=(int)strtol(lh,0,16);           /* advertised TOTAL frame length (chars) */
-        if(flen<9 || n<flen) return;             /* TRUNCATED (fewer chars than advertised) -> keep last position,
-                                                  * never publish a short/bogus value that could corrupt a bookmark */
-        int pn=flen-8; if(pn>15) return;         /* payload wider than a position value -> not a position frame */
+        if(!all_hex(lh,4)) return;
+        int flen=(int)strtol(lh,0,16);
+        if(flen<9 || n<flen) return;
+        int pn=flen-8; if(pn>15) return;
         char h[16]={0}; memcpy(h,buf+8,pn);
-        if(!all_hex(h,pn)) return;               /* malformed payload -> keep last position */
+        if(!all_hex(h,pn)) return;
         errno=0; long ms=strtol(h,0,16);
-        if(errno==ERANGE || ms<0) return;        /* overflow/negative -> reject, don't publish garbage */
+        if(errno==ERANGE || ms<0) return;
         pthread_mutex_lock(&g_mu); g_state.position_ms=ms; g_state.seq++; g_state.pos_seq=g_state.seq; pthread_mutex_unlock(&g_mu);
-    } else if(buf[0]==97 && buf[1]==50){ /* "a2" state/metadata JSON */
+    } else if(buf[0]==97 && buf[1]==50){
         parse_a2(buf+8, n-8);
     } else if(buf[0]=='a'&&buf[1]=='7'&&buf[2]=='1'&&buf[3]=='4' && n>=12){
-        /* "a714000C00<VV><pos16>" - VV (hex chars 10-11) = volume level */
         char h[3]={buf[10],buf[11],0};
-        if(!all_hex(h,2)) return;    /* malformed -> keep last volume, don't reset to 0 */
+        if(!all_hex(h,2)) return;
         int v=(int)strtol(h,0,16);
         pthread_mutex_lock(&g_mu); g_state.volume=v; g_state.volume_seq++; pthread_mutex_unlock(&g_mu);
     } else if(buf[0]=='a'&&buf[1]=='6'&&buf[2]=='0'&&buf[3]=='7' && n>=12){
-        /* "a607000C<MODE>" - the player's external/input mode, announced to /ui after a 0657 mode CHANGE.
-         * (A 0607 query's reply goes to the /player queue, NOT here, so we do NOT rely on soliciting it - see
-         * g_player_mode.) MODE 0008 = LOCALPLAYER; when this arrives, ==8 confirms LOCALPLAYER is set. VALUE is
-         * the 4 hex chars after the 000C length (buf[8..11]). */
         char h[5]={buf[8],buf[9],buf[10],buf[11],0};
         if(!all_hex(h,4)) return;
         int mode=(int)strtol(h,0,16);
         pthread_mutex_lock(&g_recov_mu); g_player_mode=mode; pthread_mutex_unlock(&g_recov_mu);
     }
-    /* NB: for playback the player emits a1/a2/a714 to /ui (a2=state/love/work_mode/track, a1=position,
-     * a714=volume) - no a622/a639/a704 completion replies. SEPARATELY, a 0657 mode CHANGE makes it announce
-     * a607 (external/input mode) to /ui, parsed above (a bare 0607 query replies on /player, not /ui). */
 }
 
 static char  *g_rxbuf = NULL;
 static size_t g_rxbufsz = 0;
 
-/* RX thread only: reattach g_rx to the CURRENT named /ui after the player recreated it.
- * Open-before-close so there's never a descriptor-less gap; no O_CREAT (the player owns
- * recreation - if it's momentarily absent we retry on the next wake). */
-/* Returns 0 once g_rx holds a fresh valid descriptor, -1 if the reopen could not complete
- * (queue transiently absent / new msgsize won't fit) - g_rx is then UNCHANGED and still
- * invalid, so the caller MUST back off rather than immediately re-receiving (else 100% CPU). */
 static int rx_do_reopen(void){
     pthread_mutex_lock(&g_recov_mu); g_rx_reopen = 0; pthread_mutex_unlock(&g_recov_mu);
     mqd_t nw = mq_open("/ui", O_RDONLY);
-    if(nw==(mqd_t)-1){   /* transient ENOENT (player mid-recreate) -> retry next wake */
+    if(nw==(mqd_t)-1){
         pthread_mutex_lock(&g_recov_mu); g_rx_reopen = 1; pthread_mutex_unlock(&g_recov_mu); return -1;
     }
     struct mq_attr at;
     if(mq_getattr(nw,&at)==0 && at.mq_msgsize>0 && (size_t)at.mq_msgsize > g_rxbufsz){
         char *nb = malloc((size_t)at.mq_msgsize);
         if(nb){ free(g_rxbuf); g_rxbuf = nb; g_rxbufsz = (size_t)at.mq_msgsize; }
-        else {   /* can't fit the new queue's msgsize: installing it would EMSGSIZE-loop and never
-                  * drain. Keep the old descriptor, retry next wake. (Unreached on the 8192-byte
-                  * queue vs the 8200 buffer floor, but must not silently install an unreadable fd.) */
+        else {
             mq_close(nw);
             pthread_mutex_lock(&g_recov_mu); g_rx_reopen = 1; pthread_mutex_unlock(&g_recov_mu);
             return -1;
         }
     }
     mqd_t old = g_rx;
-    g_rx = nw;                              /* g_rx is RX-thread-only; publish the fresh descriptor */
+    g_rx = nw;
     dev_t d=0; ino_t io=0; mq_identity(nw, &d, &io);
     pthread_mutex_lock(&g_recov_mu);
     g_rx_dev = d; g_rx_ino = io; g_rx_ready = 1; g_reconnected = 1; g_player_mode = -1; screen_new_generation();
@@ -513,44 +421,31 @@ static int rx_do_reopen(void){
     clear_track(); g_state.playback_token++; g_state.player_generation=generation; g_state.seq++;
     if(had_path) g_state.path_seq=g_state.seq;
     pthread_mutex_unlock(&g_mu);
-    if(old!=(mqd_t)-1 && old!=nw) mq_close(old);   /* open-before-close, but NEVER close a descriptor number
-                                                    * the new mq_open reused (EBADF path: the old fd was dead,
-                                                    * so its number can come back as nw - closing it kills the
-                                                    * fresh queue and re-spins EBADF). */
+    if(old!=(mqd_t)-1 && old!=nw) mq_close(old);
     fprintf(stderr,"ipc: /ui reattached after player restart\n");
     return 0;
 }
 
 static void *ipc_thread(void*arg){
     (void)arg;
-    /* Wait (up to 1s) for a /ui frame - mq_timedreceive instead of a permanent block so a
-     * player-restart recovery request can't be starved by silence OR steady traffic (checked
-     * before every receive). ~1 idle wake/sec, no busy-loop. Commands go out directly from
-     * ipc_send_cmd() on the caller thread, so no command ring to drain here. The buffer MUST
-     * be >= the queue's mq_msgsize or receive fails EMSGSIZE without removing the message. */
     for(;;){
         pthread_mutex_lock(&g_recov_mu); int want = g_rx_reopen; pthread_mutex_unlock(&g_recov_mu);
         if(want) rx_do_reopen();
         struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_sec += 1;
         ssize_t n = mq_timedreceive(g_rx, g_rxbuf, g_rxbufsz, NULL, &ts);
         if(n>=0){ pthread_mutex_lock(&g_recov_mu); g_rx_frames++; pthread_mutex_unlock(&g_recov_mu); parse_frame(g_rxbuf,(int)n); }
-        else if(errno==ETIMEDOUT) continue;   /* normal idle wake */
+        else if(errno==ETIMEDOUT) continue;
         else if(errno==EINTR) continue;
-        else if(errno==EBADF){ if(rx_do_reopen()!=0) usleep(50000); }  /* lost fd -> reattach now (we're on the RX thread); if the queue is still absent, back off 50ms instead of busy-spinning on the dead fd */
-        else usleep(50000);                   /* unexpected error: back off rather than spin */
+        else if(errno==EBADF){ if(rx_do_reopen()!=0) usleep(50000); }
+        else usleep(50000);
     }
     return 0;
 }
 
 int ipc_start(void){
-    if(g_thread_started) return 0;   /* idempotent: recovery swaps g_rx, so guard on the thread, not the fd */
-    /* Prefer the player's /ui queue (so we inherit its exact attrs); but at cold
-     * boot the player can be slow to create it, so create it ourselves if absent
-     * - we're the receiver, the player just opens it O_WRONLY to send. */
-    g_rx=mq_open("/ui", O_RDONLY);   /* blocking: thread sleeps until a frame arrives */
+    if(g_thread_started) return 0;
+    g_rx=mq_open("/ui", O_RDONLY);
     if(g_rx==(mqd_t)-1){
-        /* 32 deep like the stock UI (the player sends with O_NONBLOCK and DROPS a frame on a full queue, no retry); fall back to the
-         * system default of 10 if the kernel refuses (not root / msg_max). */
         struct mq_attr ca; ca.mq_flags=0; ca.mq_maxmsg=32; ca.mq_msgsize=8192; ca.mq_curmsgs=0;
         g_rx=mq_open("/ui", O_RDONLY|O_CREAT, 0666, &ca);
         if(g_rx==(mqd_t)-1){ ca.mq_maxmsg=10; g_rx=mq_open("/ui", O_RDONLY|O_CREAT, 0666, &ca); }
@@ -562,7 +457,7 @@ int ipc_start(void){
     g_rxbuf = malloc(g_rxbufsz);
     if(!g_rxbuf){
         fprintf(stderr,"ipc rxbuf alloc %zu failed\n",g_rxbufsz);
-        mq_close(g_rx); g_rx=(mqd_t)-1;        /* don't leak the open /ui queue */
+        mq_close(g_rx); g_rx=(mqd_t)-1;
         return -1;
     }
     g_tx=mq_open("/player", O_WRONLY|O_NONBLOCK);
@@ -571,7 +466,7 @@ int ipc_start(void){
     mq_identity(g_rx, &g_rx_dev, &g_rx_ino);
     memset(&g_state,0,sizeof g_state);
     pthread_t t;
-    if(pthread_create(&t,0,ipc_thread,0)!=0){   /* no rx thread -> tear down, don't half-init */
+    if(pthread_create(&t,0,ipc_thread,0)!=0){
         fprintf(stderr,"ipc_thread create failed: %s\n",strerror(errno));
         mq_close(g_rx); g_rx=(mqd_t)-1;
         if(g_tx!=(mqd_t)-1){ mq_close(g_tx); g_tx=(mqd_t)-1; }
@@ -579,28 +474,22 @@ int ipc_start(void){
         return -1;
     }
     pthread_detach(t);
-    g_thread_started = 1;   /* main-thread-only (ipc_start caller) */
+    g_thread_started = 1;
     pthread_mutex_lock(&g_recov_mu); g_rx_ready = 1; pthread_mutex_unlock(&g_recov_mu);
     return 0;
 }
-/* Health probe (main thread, ~30s): non-destructively compare the CURRENT named queues'
- * fstat identity to what g_rx/g_tx point at; a mismatch means the player recreated them.
- * We only REQUEST recovery here - the RX thread swaps g_rx; the next send swaps g_tx. */
 void ipc_health_check(void){
     mqd_t p = mq_open("/ui", O_RDONLY);
     if(p!=(mqd_t)-1){
         struct stat s;
         if(fstat((int)p,&s)==0){
             pthread_mutex_lock(&g_recov_mu);
-            /* (g_rx_dev||g_rx_ino): only compare when identity was actually captured - a failed
-             * fstat at open leaves (0,0), and a real queue ino is nonzero, so this skips false
-             * mismatches from a transient capture failure rather than forcing a spurious reopen. */
             if(g_rx_ready && (g_rx_dev||g_rx_ino) && (s.st_dev!=g_rx_dev || s.st_ino!=g_rx_ino)) g_rx_reopen = 1;
             pthread_mutex_unlock(&g_recov_mu);
         }
         mq_close(p);
     }
-    mqd_t q = mq_open("/player", O_WRONLY|O_NONBLOCK);   /* TX state is main-thread-only: no lock */
+    mqd_t q = mq_open("/player", O_WRONLY|O_NONBLOCK);
     if(q!=(mqd_t)-1){
         struct stat s;
         if(g_tx!=(mqd_t)-1 && (g_tx_dev||g_tx_ino) && fstat((int)q,&s)==0 &&
@@ -609,25 +498,18 @@ void ipc_health_check(void){
         mq_close(q);
     }
 }
-/* 1 (and clears) once after a recovery reattach - main thread resyncs UI-owned state. */
 int ipc_take_reconnected(void){
     pthread_mutex_lock(&g_recov_mu); int r=g_reconnected; g_reconnected=0; pthread_mutex_unlock(&g_recov_mu);
     return r;
 }
-/* Number of /ui frames received from the player so far (>0 => the player is up and responding). Used by
- * the main loop to guarantee the initial audio apply even if the cold-boot /ui reopen never fired. */
 unsigned ipc_rx_frames(void){
     pthread_mutex_lock(&g_recov_mu); unsigned r=g_rx_frames; pthread_mutex_unlock(&g_recov_mu);
     return r;
 }
-/* Last a607 external-mode reported by the player THIS generation: -1 = none yet (player not confirmed at
- * its command dispatcher), else the mode (8 = LOCALPLAYER). The v2.40 work-mode handshake oracle. */
 int ipc_player_mode(void){
     pthread_mutex_lock(&g_recov_mu); int r=g_player_mode; pthread_mutex_unlock(&g_recov_mu);
     return r;
 }
-/* Player generation: bumps on each /ui reattach (player restart). The v2.40 work-mode one-shot uses this
- * to re-arm after a restart (send the init once per generation). */
 void ipc_screen_snapshot(int *on, unsigned *scr_seq, unsigned *poweroff_seq, unsigned *generation){
     pthread_mutex_lock(&g_recov_mu);
     if(on) *on=g_scr_on; if(scr_seq) *scr_seq=g_scr_seq; if(poweroff_seq) *poweroff_seq=g_aa03_seq;
@@ -651,7 +533,6 @@ int ipc_publish_title(ipc_title_event *event, const char *title, int freeze){
     int accepted=g_state.player_confirmed && g_state.playback_token==event->state.playback_token &&
         g_title_revision==event->evidence_revision;
     if(accepted){
-        /* Change presentation only: retain newer position, volume and metadata. */
         snprintf(g_state.title,sizeof g_state.title,"%s",freeze ? title : g_stock_title);
         g_title_frozen=freeze; g_title_stock=!freeze; g_state.title_ready=1; g_state.seq++;
     } else {
@@ -661,9 +542,6 @@ int ipc_publish_title(ipc_title_event *event, const char *title, int freeze){
     pthread_mutex_unlock(&g_mu);
     return accepted;
 }
-/* Seed the track fields at startup (from the DB resume state) so the UI shows
- * the current song before the player sends its first a2 frame.  Guarded: a real
- * a2 frame (have_track already set) is never overwritten. */
 void ipc_seed_state(const track_state_t *s){
     if(!s) return;
     pthread_mutex_lock(&g_mu);
@@ -682,18 +560,14 @@ void ipc_seed_state(const track_state_t *s){
     }
     pthread_mutex_unlock(&g_mu);
 }
-/* Send a command frame straight to /player. g_tx is O_NONBLOCK so this can never
- * stall the caller or the player; mq_send is thread-safe. */
-static volatile int g_send_err = 0;   /* sticky until ipc_take_send_error() reads it */
+static volatile int g_send_err = 0;
 
-/* One delivery attempt: 0 sent, 1 /player is full (EAGAIN: the player is busy - booting, rebuilding a list), -1 no
- * player / another error. g_tx is O_NONBLOCK, so this never blocks the UI. */
 static int tx_open(void){
-    if(g_tx_stale && g_tx!=(mqd_t)-1){ mq_close(g_tx); g_tx=(mqd_t)-1; }  /* health saw /player recreated */
+    if(g_tx_stale && g_tx!=(mqd_t)-1){ mq_close(g_tx); g_tx=(mqd_t)-1; }
     g_tx_stale = 0;
     if(g_tx==(mqd_t)-1){
-        g_tx=mq_open("/player", O_WRONLY|O_NONBLOCK);  /* (re)open if absent/healed */
-        g_tx_dev = 0; g_tx_ino = 0;   /* clear first: a failed capture must not leave a stale identity */
+        g_tx=mq_open("/player", O_WRONLY|O_NONBLOCK);
+        g_tx_dev = 0; g_tx_ino = 0;
         if(g_tx!=(mqd_t)-1) mq_identity(g_tx, &g_tx_dev, &g_tx_ino);
     }
     return g_tx!=(mqd_t)-1;
@@ -703,36 +577,23 @@ static int tx_try(const char *frame, int *err){
     if(mq_send(g_tx, frame, strlen(frame), 0) == 0) return 0;
     *err = errno;
     if(*err == EAGAIN) return 1;
-    mq_close(g_tx); g_tx=(mqd_t)-1;   /* the player went away: reopen the CURRENT named /player next time */
+    mq_close(g_tx); g_tx=(mqd_t)-1;
     return -1;
 }
-/* How many frames are waiting in /player right now (-1 unknown). A deep queue means the player is busy, and more
- * probes would only fill it up for the frames that matter. */
 static long tx_depth(void){
     struct mq_attr a;
     if(!tx_open() || mq_getattr(g_tx, &a) != 0) return -1;
     return a.mq_curmsgs;
 }
 
-/* ---- the outbound line --------------------------------------------------------------------------------------------
- * /player holds 20 frames. While the player is busy (cold boot, a playlist rebuild) it stops reading, and a send used to
- * be dropped after ~15 ms of EAGAIN ("Player didn't respond", or half of a play sequence). Now a frame that doesn't fit
- * waits here, IN ORDER (every later frame queues behind it), and goes out as soon as the player reads again. Only a
- * frame still undeliverable after TX_HOLD_MS fails (and toasts). */
 #define TX_MAX 48
 #define TX_HOLD_MS 6000
-#define TX_HOLD_BOOT_MS 30000                                          /* before the player has ever answered (cold boot) */
-/* At cold boot there is no /player mailbox yet (ENOENT): "not yet", not "gone" - such a frame waits too. */
+#define TX_HOLD_BOOT_MS 30000
 static int tx_not_yet(int err){ return err == ENOENT; }
 static uint32_t tx_hold(void){ return ipc_rx_frames() ? TX_HOLD_MS : TX_HOLD_BOOT_MS; }
-/* A restarted player unlinks and recreates /player, orphaning g_tx: nothing reads the old queue, so it fills (EAGAIN) and
- * stays full - indistinguishable from a busy player. The health check only notices after up to 30 s, so a head frame
- * stuck on EAGAIN this long drops g_tx and reopens the CURRENT /player (a healthy queue is the same object: nothing is
- * lost, the stuck frame was never sent). Well past the ~6 ms brief wait and a normal drain, well inside TX_HOLD_MS so the
- * frame still gets its retry on the new queue. The frame's stall clock restarts at each reopen, so a busy player is not hammered. */
 #define TX_REOPEN_MS 2000
 static int tx_stall_reopen(uint32_t now, uint32_t stall0){ return (uint32_t)(now - stall0) >= TX_REOPEN_MS; }
-typedef struct { char f[448]; uint32_t t0, s0; int quiet; } txe_t;   /* a play frame is up to ~420; t0 queued at, s0 stall clock */
+typedef struct { char f[448]; uint32_t t0, s0; int quiet; } txe_t;
 static txe_t g_txq[TX_MAX];
 static int g_txh, g_txn;
 static pthread_mutex_t g_txmu = PTHREAD_MUTEX_INITIALIZER;
@@ -740,18 +601,17 @@ static uint32_t tx_ms(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &
 static void tx_fail(const txe_t *e, int err){
     if(!e->quiet){ g_send_err = 1; fprintf(stderr,"ipc_send_cmd '%s' failed: %s\n", e->f, strerror(err)); }
 }
-/* deliver as much of the line as the player takes now (caller holds g_txmu) */
 static void tx_drain_locked(void){
     while(g_txn > 0){
         txe_t *e = &g_txq[g_txh]; int err = 0;
         int r = tx_try(e->f, &err);
-        if(r == 1 && tx_stall_reopen(tx_ms(), e->s0)){                     /* stuck on a full queue: maybe an orphan */
+        if(r == 1 && tx_stall_reopen(tx_ms(), e->s0)){
             e->s0 = tx_ms();
             if(g_tx != (mqd_t)-1){ mq_close(g_tx); g_tx = (mqd_t)-1; }
             fprintf(stderr,"ipc: /player full for %ums, reopening\n", (unsigned)(e->s0 - e->t0));
-            r = tx_try(e->f, &err);                                        /* same frame, same place in line, new queue */
+            r = tx_try(e->f, &err);
         }
-        if(r == 1 || (r < 0 && tx_not_yet(err))){                         /* still full, or no player yet */
+        if(r == 1 || (r < 0 && tx_not_yet(err))){
             if(tx_ms() - e->t0 < tx_hold()) return;
             r = -1; if(!err) err = EAGAIN;
         }
@@ -759,13 +619,6 @@ static void tx_drain_locked(void){
         g_txh = (g_txh + 1) % TX_MAX; g_txn--;
     }
 }
-/* ---- safety guard: destructive player opcodes diskOS must never send (stock firmware, see ipc catalogue) ----
- *   0800        FACTORY RESET (wipes Wi-Fi + DBs + ~40 settings, then reboot)
- *   0621        drops SONG/MY_LOVE/PLAY_LIST tables (library + favourites)
- *   0724 v1=2   starts the firmware-upgrade thread
- *   0722 v1=2   starts an OTA download
- *   0720 v1!=0  starts an OTA check (v1=0 only stops it, harmless)
- * v1 is the first payload word: frame chars 8..11. Pure function, hex case-insensitive, NULL/short safe. */
 int ipc_frame_is_dangerous(const char *frame){
     if(!frame) return 0;
     size_t n = strlen(frame);
@@ -776,7 +629,7 @@ int ipc_frame_is_dangerous(const char *frame){
     if(!strcmp(op, "0800") || !strcmp(op, "0621")) return 1;
     int isv = !strcmp(op, "0724") || !strcmp(op, "0722") || !strcmp(op, "0720");
     if(!isv) return 0;
-    if(n < 12) return 1;                                   /* no parsable argument: refuse to be safe */
+    if(n < 12) return 1;
     char *end; char v[5] = { frame[8], frame[9], frame[10], frame[11], 0 };
     unsigned long v1 = strtoul(v, &end, 16);
     if(*end) return 1;
@@ -784,7 +637,6 @@ int ipc_frame_is_dangerous(const char *frame){
     return v1 == 2;
 }
 static int ipc_send_raw(const char*frame, int quiet);
-/* quiet=1 -> never set the user-facing error flag (background state-sync / health probes). */
 static int ipc_send_internal(const char*frame, int quiet){
     if(ipc_frame_is_dangerous(frame)){ fprintf(stderr, "ipc: refused dangerous frame %.4s\n", frame); return -1; }
     return ipc_send_raw(frame, quiet);
@@ -794,9 +646,9 @@ static int ipc_send_raw(const char*frame, int quiet){
     pthread_mutex_lock(&g_txmu);
     tx_drain_locked();
     int rc = 0;
-    if(g_txn == 0){                                                        /* nothing waiting: straight out */
+    if(g_txn == 0){
         int err = 0, r = tx_try(frame, &err);
-        for(int a = 0; r == 1 && a < 3; a++){ usleep(2000); r = tx_try(frame, &err); }   /* a brief wait first */
+        for(int a = 0; r == 1 && a < 3; a++){ usleep(2000); r = tx_try(frame, &err); }
         if(r == 0){ pthread_mutex_unlock(&g_txmu); return 0; }
         if(r < 0 && !tx_not_yet(err)){ txe_t e; snprintf(e.f, sizeof e.f, "%s", frame); e.quiet = quiet; tx_fail(&e, err);
                    pthread_mutex_unlock(&g_txmu); return -1; }
@@ -808,48 +660,36 @@ static int ipc_send_raw(const char*frame, int quiet){
         fprintf(stderr,"ipc: player busy, '%.12s' waits (%d in line)\n", frame, g_txn);
     }
     pthread_mutex_unlock(&g_txmu);
-    return rc;                                                             /* accepted: it goes out in order */
+    return rc;
 }
-/* main loop, every pass: cheap when the line is empty */
 void ipc_tx_pump(void){
     if(!g_txn) return;
     pthread_mutex_lock(&g_txmu); tx_drain_locked(); pthread_mutex_unlock(&g_txmu);
 }
 int ipc_tx_waiting(void){ return g_txn; }
-/* A quiet window (UI thread): sends inside it never raise the toast; failures are counted for the caller instead
- * (the settings re-sync after a player (re)start floods a just-woken player whose queue can be briefly full). */
 static int g_quiet_n, g_quiet_fails;
 void ipc_quiet_begin(void){ g_quiet_n++; }
 int  ipc_quiet_end(void){ if(g_quiet_n > 0) g_quiet_n--; int f = g_quiet_fails; if(!g_quiet_n) g_quiet_fails = 0; return f; }
-/* user-action send: a real failure raises the toast flag. */
-static unsigned g_transport_seq; /* main-thread sends and recovery only */
+static unsigned g_transport_seq;
 unsigned ipc_transport_seq(void){ return g_transport_seq; }
 int ipc_send_cmd(const char*frame){
     if(!strncmp(frame,"0100",4) || !strncmp(frame,"0103",4) || !strncmp(frame,"0201",4))
-        g_transport_seq++; /* cancel recovery even if the transport send fails */
+        g_transport_seq++;
     if(g_quiet_n > 0){ int r = ipc_send_internal(frame, 1); if(r < 0) g_quiet_fails++; return r; }
     return ipc_send_internal(frame, 0);
 }
-/* ESCAPE HATCH: bypasses the deny-list. NOTHING in the UI may call this today (factory reset / DB drop / OTA are
- * deliberately unreachable). Any future caller needs an explicit user-confirmed flow and review. */
 int ipc_send_cmd_unsafe(const char*frame){ return ipc_send_raw(frame, 0); }
-/* a background command that retries itself: waits in line like any command, but a failure is silent. */
 int ipc_send_quiet(const char*frame){ return ipc_send_internal(frame, 1); }
-/* background send (state-sync / health probe): silent, never toasts. A probe only asks "what's playing?": if the player
- * already has unread frames (or our own line is waiting) it adds nothing. */
 int ipc_send_probe(const char*frame){
     long d = tx_depth();
     if(g_txn > 0 || d >= 2) return 0;
     return ipc_send_internal(frame, 1);
 }
-/* 1 once the /ui receive queue is open (i.e. ipc_start() succeeded). */
 int ipc_is_ready(void){
     pthread_mutex_lock(&g_recov_mu); int r=g_rx_ready; pthread_mutex_unlock(&g_recov_mu); return r;
 }
-/* 1 (and clears) if a command send failed since the last call - UI surfaces a toast. */
 int ipc_take_send_error(void){ int e=g_send_err; g_send_err=0; return e; }
 
-/* Separate mailbox: scanner never enters the controller or holds IPC's state lock. */
 static pthread_mutex_t g_library_mu = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t g_library_epoch;
 void ipc_note_library_commit(void){

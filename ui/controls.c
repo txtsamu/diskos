@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Screen rotation and volume-key actions (see controls.h for the stock facts this is built on). */
 #include "controls.h"
 #include <stdio.h>
 #include <string.h>
@@ -9,16 +8,13 @@
 
 int ctl_supported_ver(int os_ver){ return os_ver == 257; }
 
-/* ---- rotation ---------------------------------------------------------------------------------------------------- */
-/* Stock value -> clockwise degrees (mq_ui 0x420e24: value 0,1,2,3 -> lv rotation 2,3,0,1). */
 static const int ROT_DEG[CTL_ROT_N] = { 180, 270, 0, 90 };
-static int g_rot;   /* the value the display is using; 0 = the panel's mounting, as before this setting existed */
+static int g_rot;
 
 int ctl_rot_deg(int v){ return (v >= 0 && v < CTL_ROT_N) ? ROT_DEG[v] : 180; }
 int ctl_rot_get(void){ return g_rot; }
 void ctl_rot_set(int v){ if(v >= 0 && v < CTL_ROT_N) g_rot = v; }
 
-/* A frame turned d degrees clockwise: logical (x,y) lands on raw (rx,ry). */
 void ctl_rot_map(int v, int w, int h, int x, int y, int *rx, int *ry){
     int d = ctl_rot_deg(v);
     if(w != h && (d == 90 || d == 270)) d = 180;
@@ -30,14 +26,13 @@ void ctl_rot_map(int v, int w, int h, int x, int y, int *rx, int *ry){
     }
 }
 
-/* The inverse of ctl_rot_map, expressed as evdev swap + calibration (raw range 0..size-1 -> logical 0..size-1). */
 void ctl_rot_touch_cal(int v, int size, int *swap, int *min_x, int *min_y, int *max_x, int *max_y){
     int e = size - 1;
     switch(ctl_rot_deg(v)){
-        case 0:   *swap = 0; *min_x = 0; *min_y = 0; *max_x = e; *max_y = e; break;   /* x = rx,     y = ry     */
-        case 90:  *swap = 1; *min_x = 0; *min_y = e; *max_x = e; *max_y = 0; break;   /* x = ry,     y = e - rx */
-        case 270: *swap = 1; *min_x = e; *min_y = 0; *max_x = 0; *max_y = e; break;   /* x = e - ry, y = rx     */
-        default:  *swap = 0; *min_x = e; *min_y = e; *max_x = 0; *max_y = 0; break;   /* x = e - rx, y = e - ry */
+        case 0:   *swap = 0; *min_x = 0; *min_y = 0; *max_x = e; *max_y = e; break;
+        case 90:  *swap = 1; *min_x = 0; *min_y = e; *max_x = e; *max_y = 0; break;
+        case 270: *swap = 1; *min_x = e; *min_y = 0; *max_x = 0; *max_y = e; break;
+        default:  *swap = 0; *min_x = e; *min_y = e; *max_x = 0; *max_y = 0; break;
     }
 }
 
@@ -46,7 +41,6 @@ void ctl_blit(uint8_t *base, uint32_t line_bytes, int w, int h, int v, const uin
     int d = ctl_rot_deg(v);
     if(w != h && (d == 90 || d == 270)) d = 180;
     const int aw = x2 - x1 + 1;
-    /* The turn is chosen once per call, not per row; each loop indexes the real start of its source row. */
     switch(d){
         case 0:
             for(int sy = y1; sy <= y2; sy++)
@@ -66,19 +60,18 @@ void ctl_blit(uint8_t *base, uint32_t line_bytes, int w, int h, int v, const uin
                     ((uint32_t*)(base + (size_t)(w - 1 - sx) * line_bytes))[sy] = row[sx - x1];
             }
             break;
-        default:   /* 180, the panel's mounting and the default: the old flush's loop, row flip + column flip */
+        default:
             for(int sy = y1; sy <= y2; sy++){
                 const uint32_t *row = src + (size_t)(sy - y1) * aw;
                 uint32_t *dst = (uint32_t*)(base + (size_t)(h - 1 - sy) * line_bytes);
-                for(int sx = x1; sx <= x2; sx++) dst[w - 1 - sx] = row[sx - x1];   /* the old flush's loop */
+                for(int sx = x1; sx <= x2; sx++) dst[w - 1 - sx] = row[sx - x1];
             }
             break;
     }
 }
 
-/* ---- rotation rollback: a new orientation stays only if confirmed ----------------------------------------------- */
 void ctl_rb_begin(ctl_rb_t *r, int prev, int cur, uint32_t now){
-    if(!r->pending) r->prev = prev;          /* a second change while waiting still rolls back to the confirmed one */
+    if(!r->pending) r->prev = prev;
     r->cur = cur; r->start = now; r->pending = 1;
 }
 int ctl_rb_left_ms(const ctl_rb_t *r, uint32_t now){
@@ -94,14 +87,12 @@ int ctl_rb_expired(ctl_rb_t *r, uint32_t now, int *revert_to){
 int ctl_rb_keep(ctl_rb_t *r, int *value){ if(!r->pending) return 0; r->pending = 0; if(value) *value = r->cur; return 1; }
 int ctl_rb_revert(ctl_rb_t *r, int *value){ if(!r->pending) return 0; r->pending = 0; if(value) *value = r->prev; return 1; }
 
-/* ---- keys -------------------------------------------------------------------------------------------------------- */
 static const char *const KEY_TAG[CTL_KEY_N] = { "0820", "0821", "0822" };
 static const char *const KEY_COL[CTL_KEY_N] = { "KEY_SINGLE_CLICK_SLE", "KEY_DOUBLE_CLICK_SLE", "KEY_LONG_PRESS_SLE" };
 const char *ctl_key_tag(int key){ return (key >= 0 && key < CTL_KEY_N) ? KEY_TAG[key] : NULL; }
 const char *ctl_key_column(int key){ return (key >= 0 && key < CTL_KEY_N) ? KEY_COL[key] : NULL; }
 ctl_effect_t ctl_key_effect(int action){ return action == CTL_ACT_VOLUME ? CTL_DO_VOLUME : CTL_DO_TRACK; }
 
-/* ---- frames and writes ------------------------------------------------------------------------------------------- */
 int ctl_frame_rot(char *buf, size_t n, int v){
     if(v < 0 || v >= CTL_ROT_N) return -1;
     return snprintf(buf, n, "0646000C%04X", (unsigned)v) > 0 ? 0 : -1;
@@ -122,7 +113,6 @@ int ctl_apply_key_via(int (*send)(const char *), int key, int act){
     return send(f) == 0 ? 0 : -1;
 }
 
-/* ---- the player's stored values ---------------------------------------------------------------------------------- */
 int ctl_read_state(const char *db_path, ctl_state_t *st){
     if(!st) return -1;
     st->rot = -1; for(int i = 0; i < CTL_KEY_N; i++) st->key[i] = -1;
@@ -148,8 +138,8 @@ int ctl_read_state(const char *db_path, ctl_state_t *st){
 void ctl_mirror_via(const ctl_state_t *st, void (*set_int)(const char *key, int v)){
     static const char *const CFG[CTL_KEY_N] = { "key_single", "key_double", "key_long" };
     if(!st || !set_int) return;
-    set_int(CTL_CFG_ROT, g_rot);   /* what is applied (the stored value, or the default when it could not be read) */
-    for(int i = 0; i < CTL_KEY_N; i++)   /* the player treats exactly 1 as volume: any other stored value is not shown as a choice */
+    set_int(CTL_CFG_ROT, g_rot);
+    for(int i = 0; i < CTL_KEY_N; i++)
         if(st->key[i] == CTL_ACT_TRACK || st->key[i] == CTL_ACT_VOLUME) set_int(CFG[i], st->key[i]);
 }
 
@@ -168,13 +158,10 @@ static void cfg_put(const char *key, int v){ if(cfg_get_int(key, -1) != v) cfg_s
 void controls_startup_mirror(void){
     if(!ctl_supported()) return;
     ctl_state_t st;
-    ctl_read_state(CTL_SYSCONFIG, &st);   /* unreadable values stay -1: the rotation shown is the one applied */
+    ctl_read_state(CTL_SYSCONFIG, &st);
     ctl_mirror_via(&st, cfg_put);
 }
 
-/* Screen Rotation: the picture and touch turn at once, but nothing is stored until the user taps Keep. A prompt drawn in
- * the NEW orientation counts down; on timeout or Revert the old rotation comes back. The player's
- * stored value (0646) is only written on Keep, so a crash or reboot while the prompt is up also lands on the old one. */
 static void ctl_prompt_show(void);
 static void ctl_prompt_hide(void);
 static uint32_t ctl_now(void);
@@ -191,7 +178,7 @@ void ctl_prompt_keep(void){
     int v;
     if(!ctl_rb_keep(&g_rb, &v)) return;
     ctl_prompt_hide();
-    if(ctl_apply_rot_via(ipc_send_cmd, v) != 0){      /* the player refused: don't leave a picture it won't remember */
+    if(ctl_apply_rot_via(ipc_send_cmd, v) != 0){
         fbpan_set_rotation(g_rb.prev);
         cfg_set_int(CTL_CFG_ROT, g_rb.prev);
         return;
@@ -252,7 +239,7 @@ static lv_obj_t *pr_button(lv_obj_t *par, const char *txt, int dx, lv_event_cb_t
     lv_obj_align(b, LV_ALIGN_CENTER, dx, 60);
     lv_obj_set_style_bg_color(b, TC(SURFACE_RAISED), 0);
     lv_obj_set_style_radius(b, 24, 0);
-    ui_on(b, cb, LV_EVENT_CLICKED, NULL, "controls.rotation_prompt", UI_CORE);   /* ui_on: a back swipe starting on Keep (x 63) must not click it */
+    ui_on(b, cb, LV_EVENT_CLICKED, NULL, "controls.rotation_prompt", UI_CORE);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, tr(txt));
     lv_obj_set_style_text_font(l, TF(USER_16), 0);

@@ -230,7 +230,6 @@ class ChildContractTests(unittest.TestCase):
                 mock.patch.object(platform_probe, 'windows_dev_runtime', return_value=True):
             child = flasher._WindowsChild(capability()['cmd'], api=api, popen=lambda *a, **kw: process)
         self.assertTrue(all(tree.values()))
-        # Model the OS closing the sole, non-inherited job handle on parent exit.
         api.CloseHandle(child.job)
         self.assertFalse(any(tree.values()))
         self.assertEqual(api.events.count(('job', None, None)), 1)
@@ -347,7 +346,6 @@ class BundleAuthorizationTests(unittest.TestCase):
             link.symlink_to(self.tool)
             with self.assertRaises(ValueError): flash_child.checked_path(str(link), str(self.root))
         else:
-            # A real symlink requires privileges on some Windows test boxes.
             with mock.patch.object(os, 'lstat', return_value=types.SimpleNamespace(st_mode=0o120777)):
                 with self.assertRaises(ValueError): flash_child.checked_path(str(self.tool), str(self.root))
         with self.assertRaises(ValueError): flash_child.checked_path(str(self.root.parent), str(self.root))

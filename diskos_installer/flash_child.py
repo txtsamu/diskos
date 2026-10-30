@@ -154,7 +154,7 @@ def bundled_tool():
             if entry.name.lower().endswith(".dll"):
                 checked_path(entry.path, root)
     bundle.verify_windows_flash_bundle()
-    return tool, bundle.native_env(tool)  # existing recursive PE/DLL closure
+    return tool, bundle.native_env(tool)
 
 
 def authorized_command(request):
@@ -162,7 +162,6 @@ def authorized_command(request):
     from diskos_installer import basegate, bundle, flasher
     cmd = validate_command(request["cmd"])
     tool, env = bundled_tool()
-    # Never execute a caller's path, even when it happens to have the right name.
     if cmd[0] != tool:
         raise ValueError("caller executable is not the bundled usbboot")
     target = request["target"]
@@ -221,12 +220,10 @@ def main(argv=None):
         print(f"Windows flash child: refused: {exc}", file=sys.stderr, flush=True)
         return 1
     except Exception as exc:
-        # Coded bundle/preflight errors must also fail closed in private dispatch.
         print(f"Windows flash child: validation failed: {exc}", file=sys.stderr, flush=True)
         return 1
 
 
 if __name__ == "__main__":
-    # Isolated source launch: import only this installer's package, never cwd/PATH.
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sys.exit(main())

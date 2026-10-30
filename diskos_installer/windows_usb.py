@@ -97,7 +97,7 @@ class SetupAPI:
         fn = self.setup.SetupDiGetDevicePropertyW
         if not fn(handle, C.byref(info), C.byref(key), C.byref(kind), None, 0, C.byref(size), 0):
             error = C.get_last_error()
-            if error == 1168:  # ERROR_NOT_FOUND: unbound devices lack driver properties
+            if error == 1168:
                 return None
             if error != 122:
                 raise OSError(error, "SetupDiGetDevicePropertyW")
@@ -107,7 +107,7 @@ class SetupAPI:
         if not fn(handle, C.byref(info), C.byref(key), C.byref(kind), buf, size,
                   C.byref(size), 0):
             raise C.WinError(C.get_last_error())
-        if kind.value not in (18, 0x2012):  # DEVPROP_TYPE_STRING / STRING_LIST
+        if kind.value not in (18, 0x2012):
             raise OSError("unexpected device property type")
         values = bytes(buf)[:size.value].decode("utf-16-le").rstrip("\0").split("\0")
         return values if kind.value == 0x2012 else values[0]
@@ -148,7 +148,6 @@ class SetupAPI:
 
 def inventory(api=None):
     api = api or SetupAPI()
-    # All first, then present: never count a phantom as an attached target.
     all_rows = api.devices(False)
     present = [r for r in api.devices(True) if TARGET.match(r["instance_id"])]
     ids = {r["instance_id"].upper() for r in present}
@@ -333,15 +332,9 @@ def _elevated_helper(tool):
         length = kernel.GetSystemDirectoryW(system, len(system))
         if not 0 < length < len(system):
             raise OSError("Windows system directory is unavailable")
-        # cmd redirection fails with GW; GRGW succeeded in Windows rehearsal.
-        # Allow other administrator credentials; deny anonymous tokens.
-        # PIPE_REJECT_REMOTE_CLIENTS below rejects remote pipe connections.
-        # The inbound pipe gives clients no read endpoint, and one instance
-        # prevents another server reader. Verify the writer's PID below.
         check(convert("D:(D;;GA;;;AN)(A;;GRGW;;;WD)", 1, C.byref(descriptor), None))
         security = Security(C.sizeof(Security), descriptor, False)
         name = "\\\\.\\pipe\\diskos-driver-" + uuid.uuid4().hex
-        # Byte stream preserves all stdout writes for the single-line validation.
         pipe = kernel.CreateNamedPipeW(name, 0x40080001, 8, 1, 4096, 4096, 0, C.byref(security))
         if pipe == C.c_void_p(-1).value:
             pipe = None
@@ -379,7 +372,6 @@ def _elevated_helper(tool):
     finally:
         if pipe:
             kernel.CancelIoEx(pipe, None)
-            # Keep OVERLAPPED storage alive until cancellation has completed.
             kernel.GetOverlappedResult(pipe, C.byref(ov), C.byref(DWORD()), True)
             kernel.CloseHandle(pipe)
         for handle in (event, info.hProcess):
@@ -440,8 +432,6 @@ def setup_driver(report, confirm):
     bundle.verify_windows_flash_bundle()
     tool = bundle.native("usbboot")
     env = bundle.native_env(tool)
-    # Inventories still check attachment and driver state around access. Only the
-    # native opened-path identity can exclude an A -> B -> A swap between them.
     same_target(driver_inventory())
     try:
         access = diagnostic(tool, lambda args, **kw: subprocess.run(args, env=env, **kw),

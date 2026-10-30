@@ -35,35 +35,27 @@ with tempfile.TemporaryDirectory(prefix='diskos-launcher-test-') as temp:
     card = root / 'card'
     exe, status, blog = build(root, 'test', card)
     subprocess.run([str(exe)], check=True)
-    # OWNER CONSTRAINT: diskOS must never deny the stock player. EVERY failure reaches the exec,
-    # promptly, and records why - it must never hold, and must never depend on the deadline firing.
     for case, expect in [('guard', 'guard=0'), ('host', 'local=0'), ('reset', 'local=0'), ('late', 'local=0')]:
         if status.exists(): status.unlink()
         out = subprocess.check_output([str(exe), case], timeout=10)
         assert out == b'PLAYER_EXEC_REACHED\n', (case, out)
         got = status.read_text()
         assert expect in got, (case, got)
-    # a healthy boot, a transient database lock and a fresh first run all reach it too, fully confirmed
     for case in ['ok', 'transient', 'fresh']:
         if status.exists(): status.unlink()
         assert subprocess.check_output([str(exe), case], timeout=10) == b'PLAYER_EXEC_REACHED\n'
         assert status.read_text().startswith('guard=1 local=1'), (case, status.read_text())
     assert 'UNPROTECTED' in blog.read_text()
 
-    # A hung preparation step must still reach the player: the deadline covers preparation itself.
     if status.exists(): status.unlink()
     assert subprocess.check_output([str(exe), 'hang'], timeout=20) == b'PLAYER_EXEC_REACHED\n'
 
-    # ...and so must a BLOCKED diagnostic. boot_note() writes to NAND; if that write stalls, the old
-    # code never reached the exec. Here the log is a FIFO with no reader, so the write blocks forever.
     blog.unlink(); os.mkfifo(blog)
     if status.exists(): status.unlink()
     assert subprocess.check_output([str(exe), 'blockedlog'], timeout=20) == b'PLAYER_EXEC_REACHED\n'
     print('PASS a hung preparation step and a blocked log both still reach the stock player')
     print('PASS every failure still reaches the stock player exec, with its reason published')
 
-# Exercise the real first-run predicate on real disposable paths, including
-# a dangling parent error (ENOTDIR must not count as an absent card).
 with tempfile.TemporaryDirectory(prefix='diskos-first-run-test-') as temp:
     root = Path(temp)
     parent = root / 'not-a-directory'
@@ -80,4 +72,4 @@ with tempfile.TemporaryDirectory(prefix='diskos-first-run-test-') as temp:
     parent.touch(); check(0, behind_file)
     print('PASS first-run initialization requires both absent config and confirmed absent card')
 
-print('COMPLETE launcher_test.py')   # last line: the runner requires it, so an early clean exit cannot pass
+print('COMPLETE launcher_test.py')

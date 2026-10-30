@@ -18,7 +18,6 @@ class BindWinUSBTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Keep the harness as evidence; no cleanup/deletion is needed.
         cls.work = Path(tempfile.mkdtemp(prefix='win-s5-'))
         cls.exe = cls.work / 'bind-mock'
         subprocess.run(['gcc', '-std=c99', '-O2', '-Wall', '-Wextra', '-Werror',
@@ -379,7 +378,6 @@ class BindBundleTests(unittest.TestCase):
             write()
             (vendor / 'bind_winusb.exe').write_bytes(b'changed')
             with self.assertRaises(FlashError): bundle.verify_windows_driver_bundle()
-            # Matching source/output hashes cannot authorize pre-entry DLL loads.
             (vendor / 'bind_winusb.exe').write_bytes(self.helper_pe(['kernel32.dll', 'setupapi.dll']))
             lines['bind_winusb.exe'] = hashlib.sha256((vendor / 'bind_winusb.exe').read_bytes()).hexdigest() + '  bind_winusb.exe\n'
             write()

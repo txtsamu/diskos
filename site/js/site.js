@@ -1,8 +1,3 @@
-/* diskOS v6 / v1 - the scroll show.
-   One sticky theatre holds three layers (the pressed disc, the eight worlds, the lit stage).
-   Scroll position drives which layer is on and how it hands over to the next; the only things
-   that move on their own are the light on the disc and the orbit, and both stop with the pause
-   control, off screen, in a hidden tab, or on a device that cannot keep up. */
 (function () {
   'use strict';
   var root = document.documentElement;
@@ -10,7 +5,7 @@
   var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
   var fineMQ = window.matchMedia('(pointer: fine)');
   var savedPaused = false;
-  try { savedPaused = localStorage.getItem('diskos-motion-paused') === '1'; } catch (e) { /* use the session default */ }
+  try { savedPaused = localStorage.getItem('diskos-motion-paused') === '1'; } catch (e) { }
   root.classList.toggle('full', !reduceMQ.matches);
   root.classList.toggle('calm', reduceMQ.matches);
   root.classList.toggle('intro', !reduceMQ.matches && !savedPaused);
@@ -39,7 +34,6 @@
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
 
-  /* Resolve the initial fragment only after the final layout and fonts are ready. */
   function restoreInitialHash() {
     var hash = location.hash, id;
     if (!hash || hash === '#main') return;
@@ -82,13 +76,6 @@
     else window.addEventListener('load', ready, { once: true });
   }
 
-  /* ------------------------------------------------------------------
-     The pressed-disc shader. A disc splits light by its track pitch; for each
-     point we work out which wavelengths reach the eye from a light above the
-     disc and colour the point with them (orders 1 and 2). The disc is drawn
-     into a viewport-sized canvas from a centre and radius in pixels, so it can
-     grow, shrink and travel without rescaling any bitmap.
-     ------------------------------------------------------------------ */
   var VERT = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
   var FRAG = [
     'precision highp float;',
@@ -179,7 +166,6 @@
       if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
       gl.viewport(0, 0, pw, ph);
     };
-    /* s: cx, cy, R in CSS pixels from the canvas top-left */
     d.draw = function (s) {
       var k = d.dpr;
       gl.uniform2f(U.uC, s.cx * k, (d.h - s.cy) * k);
@@ -197,9 +183,6 @@
     return d;
   }
 
-  /* ------------------------------------------------------------------
-     Still layout (reduced motion): one still frame of the disc, nothing moves.
-     ------------------------------------------------------------------ */
   var stillPainted = false;
   function paintStill() {
     if (stillPainted) return;
@@ -217,7 +200,7 @@
         c.parentNode.classList.remove('gl-on');
         stillPainted = false;
       }, { once: true });
-    } catch (e) { /* the CSS disc stays */ }
+    } catch (e) { }
   }
 
   if (!root.classList.contains('full')) {
@@ -227,9 +210,6 @@
     return;
   }
 
-  /* ==================================================================
-     THE SHOW
-     ================================================================== */
   var theatre = $('.theatre');
   var press = $('.press', theatre), worldsL = $('.worlds', theatre), stage = $('.stage', theatre);
   var canvas = $('.gl', press), discCss = $('.disc-css', press), etch = $('.etch', press);
@@ -246,9 +226,8 @@
   var stScreenLive = $('.st-live .st-screen', stage), stScreenMir = $('.st-mirror .st-screen', stage);
   var stNow = $('.st-now', stage);
   var NT = THEMES.length;
-  var HOLD = .6; /* segments of scroll that halo is held whole before the first sweep (css .th-run adds the same) */
+  var HOLD = .6;
 
-  /* build the eight records twice: the live orbit and its reflection in the lacquer floor */
   var recs = [], mrecs = [];
   function buildRecs(host, list, live) {
     THEMES.forEach(function (t, i) {
@@ -274,7 +253,6 @@
     kick();
   });
 
-  /* ---------------- state ---------------- */
   var W = 0, H = 0, phone = false, G = null, M = null;
   var paused = savedPaused, still = false, snap = false, pageVisible = !document.hidden;
   var layoutStill = false, theatreVisible = true;
@@ -293,7 +271,6 @@
     roomRGB = rgb; root.style.setProperty('--room', rgb);
   }
 
-  /* ---------------- geometry for every act ---------------- */
   function computeGeo() {
     var g = {};
     if (!phone) {
@@ -311,7 +288,7 @@
     } else {
       var R = Math.min(.66 * W, 290);
       g.hero = { cx: .5 * W, cy: 62 + .78 * R, R: R, hub: .46, b0: .5, b1: .56 };
-      var Rd = Math.min(.46 * W, .24 * H, 200); /* as wide as the gutters allow, so the screen at the hub reads */
+      var Rd = Math.min(.46 * W, .24 * H, 200);
       g.deck = { cx: .5 * W, cy: 64 + Rd, R: Rd, hub: .6, b0: .64, b1: .72 };
       var sdp = Math.min(.84 * W, .46 * H);
       g.sweep = { cx: .5 * W, cy: 84 + sdp / 2, d: sdp };
@@ -340,7 +317,6 @@
     stage.style.setProperty('--ay', a.cy.toFixed(1) + 'px');
     stage.style.setProperty('--ad', a.d.toFixed(1) + 'px');
     stage.style.setProperty('--floorY', a.floorY.toFixed(1) + 'px');
-    /* where the text sits so it never covers the screen */
     var h = G.hero, dk = G.deck;
     root.style.setProperty('--heroTop', Math.round(h.cy + h.R * .74) + 'px');
     root.style.setProperty('--pBot', Math.round(dk.cy + dk.R) + 'px');
@@ -357,14 +333,12 @@
     var bt = docTop(thBridge);
     M.bridgeStart = bt - H;
     M.bridgeEnd = bt + thBridge.offsetHeight - H;
-    /* Hand over before the theme layer and bridge glow begin at t2 = .2. */
     M.trackEnd = M.bridgeStart + .2 * (M.bridgeEnd - M.bridgeStart);
     M.sweepLen = Math.max(1, thRun.offsetHeight);
     M.sweepEnd = M.bridgeEnd + M.sweepLen;
     M.b34Len = Math.max(1, clBridge.offsetHeight);
     M.showEnd = docTop(show) + show.offsetHeight;
     M.docMax = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-    /* The hero can scroll; only the pinned captions and controls must fit. */
     var captionH = Math.max.apply(Math, M.items.map(function (m) { return m[2]; }));
     var infoH = Math.max.apply(Math, worlds.map(function (w) { return $('.info', w).offsetHeight; }));
     var headerH = $('.bar').offsetHeight;
@@ -383,13 +357,12 @@
     lastDraw = ''; scrollDirty = true;
   }
 
-  /* ---------------- hub: each new screen opens from the centre out ---------------- */
   function setHub(name, immediate) {
     var src = 'img/' + name + '.webp';
     if (immediate) {
       if (name === hubSrc && hubA.getAttribute('src') === src &&
           hubB.getAttribute('src') === src && !hubB.classList.contains('in')) return;
-      ++hubBusy; /* Cancel pending decodes and reveal timers before the bridge. */
+      ++hubBusy;
       hubSrc = name;
       hubA.src = src; hubB.src = src;
       hubB.classList.remove('in');
@@ -410,7 +383,6 @@
     (pre.decode ? pre.decode() : Promise.resolve()).then(go, go);
   }
 
-  /* ---------------- act 4: which theme is on the screen ---------------- */
   var swapState = false, showToken = 0;
   function showTheme(i) {
     if (i === shown) return;
@@ -445,7 +417,6 @@
     kick();
   }
 
-  /* ---------------- the frame ---------------- */
   function running() { return !paused && !still && pageVisible && theatreVisible && !layoutStill; }
 
   function frame(now) {
@@ -458,7 +429,6 @@
     if (y !== lastScrollY) { lastScrollY = y; scrollDirty = true; }
     var keep = false;
 
-    /* progress through the acts */
     var t1 = c01(y / M.heroLen), e1 = inOut(t1);
     var t2 = c01((y - M.bridgeStart) / (M.bridgeEnd - M.bridgeStart));
     var q = c01((y - M.bridgeEnd) / M.sweepLen) * (NT - 1 + HOLD), p = Math.max(0, q - HOLD);
@@ -469,10 +439,8 @@
     if (worldsOn !== lastOn.worlds) { worldsL.classList.toggle('on', worldsOn); lastOn.worlds = worldsOn; }
     if (stageOn !== lastOn.stage) { stage.classList.toggle('on', stageOn); lastOn.stage = stageOn; }
 
-    /* page progress around the pause control */
     if (scrollDirty) motionBtn.style.setProperty('--prog', (106.8 * (1 - c01(y / M.docMax))).toFixed(1));
 
-    /* ================= ACTS 1 + 2: the pressed disc ================= */
     if (pressOn) {
       var intro = introT0 ? c01((now - introT0) / 1600) : 1;
       if (intro < 1) keep = true;
@@ -489,7 +457,6 @@
       }
       var fade = outCubic(intro) * (1 - sstep(.28, .82, t2));
 
-      /* active track: whichever item holds the reading line */
       var k = -1;
       if (t1 > .55) {
         if (!phone) {
@@ -497,7 +464,6 @@
           for (var j = 0; j < M.items.length; j++) if (line >= M.items[j][0] && line < M.items[j][1]) { k = j; break; }
           if (k < 0 && M.items.length && line >= M.items[M.items.length - 1][1]) k = M.items.length - 1;
         } else {
-          /* phones: each caption holds under the disc; it shows only while it is parked there */
           for (var j2 = 0; j2 < M.items.length; j2++) {
             var T = M.items[j2][0] - y, lh = M.items[j2][1] - M.items[j2][0];
             if (T <= G.capTop + 40 && T > G.capTop + M.items[j2][2] - lh + 24) { k = j2; break; }
@@ -506,7 +472,6 @@
       }
       var leftTracks = phone ? t2 > .02 : y >= M.trackEnd;
       if (leftTracks) k = -1;
-      /* The hero's links remain readable and focusable as they scroll away. */
       heroCopy.style.opacity = '1';
       if (k !== curK) {
         items.forEach(function (li, j) { li.classList.toggle('on', j === k); });
@@ -517,8 +482,6 @@
         root.style.setProperty('--headOp', firstT > G.capTop + 60 ? '1' : '0');
         root.style.setProperty('--alsoOp', (lastB < G.capTop + 140 && t2 < .08) ? '1' : '0');
       }
-      /* the screen keeps the last feature while the reading line crosses the gap to the next one;
-         it shows the default only before the first feature and at the hand-over to themes */
       var beforeFirst = t1 <= .55 || !M.items.length ||
         (phone ? M.items[0][0] - y > G.capTop + 40 : y + H * .5 < M.items[0][0]);
       if (k >= 0) hubK = k;
@@ -526,7 +489,6 @@
       var want = hubK >= 0 ? items[hubK].dataset.img : 'np-default-dark';
       setHub(want, !phone && leftTracks);
 
-      /* the light: follows the pointer, otherwise drifts; scrolling turns it */
       if (disc && running() && intro >= 1) { drift += dt * .00016; keep = true; }
       var target = -2.2 + drift + y * (phone ? .0035 : .0011) + lerp(0, 1.1, e1) + (k >= 0 ? k * .18 : 0);
       if (pointerAng !== null && now - pointerAt < 2600) {
@@ -541,7 +503,6 @@
       if (disc && Math.abs(da) > .0008) keep = true;
       var dist = lerp(2.4, 1.55, e1), hz = lerp(.95, 1.3, e1);
 
-      /* laser and the band it lights */
       var lOn = k >= 0 && t2 < .1;
       var lt = k >= 0 ? R * (r1 + (k + .5) / 8 * (.985 - r1)) : R * (r1 + .5 * (.985 - r1));
       if (laserR < 0) laserR = lt;
@@ -552,7 +513,6 @@
       var th = G.laserDeg * Math.PI / 180;
       laser.style.transform = 'translate3d(' + (cx + Math.sin(th) * laserR).toFixed(1) + 'px,' + (cy - Math.cos(th) * laserR).toFixed(1) + 'px,0)';
 
-      /* place the screen, the etching and the CSS stand-in */
       var hd = hubPx * 2;
       hub.style.width = hub.style.height = hd.toFixed(1) + 'px';
       hub.style.transform = 'translate3d(' + (cx - hubPx).toFixed(1) + 'px,' + (cy - hubPx).toFixed(1) + 'px,0)';
@@ -578,7 +538,6 @@
       }
     }
 
-    /* ================= ACT 3: eight worlds ================= */
     var introOp = 1 - c01((q - .04) / .3);
     if (thIntro) thIntro.style.opacity = t2 > 0 ? introOp.toFixed(3) : '1';
     indexNav.classList.toggle('on', t2 > .92 && t3 < .3);
@@ -591,11 +550,9 @@
       if (i !== worldCur) {
         worlds.forEach(function (w, n) { w.classList.toggle('is-cur', n === i); w.classList.toggle('is-next', n === i + 1); });
         worldCur = i;
-        /* the images two worlds ahead start loading now */
         [i + 2, i + 3].forEach(function (n) { var im = worlds[n] && $('.disc', worlds[n]); if (im && im.loading === 'lazy') im.loading = 'eager'; });
       }
       worlds[i + 1].style.setProperty('--sweep', (s >= .999 ? 362 : s * 360).toFixed(2) + 'deg');
-      /* each theme's words leave before the edge reaches them, and the next ones arrive after it has passed */
       worlds[i].style.setProperty('--infoOp', c01(1 - (s - .1) * 2.8).toFixed(3));
       worlds[i + 1].style.setProperty('--infoOp', c01((s - .55) * 2.4).toFixed(3));
       worldsL.classList.toggle('bridging', t2 < 1);
@@ -611,7 +568,6 @@
       if (t2 <= .5) setRoom(ROSE);
     }
 
-    /* ================= ACT 4: the lit stage ================= */
     if (stageOn) {
       var wa = inOut(c01(t3 / .55)) * 360;
       var masked = t3 < .55;
@@ -634,7 +590,6 @@
       if (stageReady && !wasReady) setRoom(THEMES[shown >= 0 ? shown : 7].rgb);
       if (!stageReady && !masked) setRoom(THEMES[7].rgb);
 
-      /* orbit: the records fly out from behind the screen, then keep turning */
       if (spinTween) {
         var q = c01((now - spinTween.t0) / spinTween.dur), ee = 1 - Math.pow(2, -10 * q);
         spin = spinTween.from + (spinTween.to - spinTween.from) * (q === 1 ? 1 : ee);
@@ -668,7 +623,6 @@
 
     scrollDirty = false;
 
-    /* a device that cannot keep up gets stills: first the autonomous motion stops, then the disc becomes a picture */
     if (running() && (pressOn || stageReady) && dt < 200) {
       samples.push(dt);
       if (samples.length >= 90) {
@@ -700,7 +654,6 @@
     still = true; root.classList.add('still-mode');
     if (disc) disc.resize(W, H, 1);
     lastDraw = '';
-    /* if even scroll-driven frames are slow, swap the live disc for one rendered picture of it */
     var slow = [], t0 = 0;
     function watch(now) {
       if (t0) slow.push(now - t0);
@@ -723,12 +676,11 @@
       d.lose();
       snap = true; press.classList.add('snap'); disc.lose(); disc = null;
       kick();
-    } catch (e) { /* keep the live disc */ }
+    } catch (e) { }
   }
 
   function kick() { if (!raf) { raf = requestAnimationFrame(frame); } }
 
-  /* ---------------- input ---------------- */
   window.addEventListener('scroll', function () { scrollDirty = true; kick(); }, { passive: true });
   var rzT = 0;
   window.addEventListener('resize', function () {
@@ -758,7 +710,7 @@
   motionLabel.textContent = paused ? 'Resume motion' : 'Pause motion';
   motionBtn.addEventListener('click', function () {
     paused = !paused;
-    try { localStorage.setItem('diskos-motion-paused', paused ? '1' : '0'); } catch (e) { /* keep this page's choice */ }
+    try { localStorage.setItem('diskos-motion-paused', paused ? '1' : '0'); } catch (e) { }
     if (paused) { spinTween = null; introT0 = 0; root.classList.remove('intro'); }
     motionBtn.setAttribute('aria-pressed', String(paused));
     motionLabel.textContent = paused ? 'Resume motion' : 'Pause motion';
@@ -766,7 +718,6 @@
     kick();
   });
 
-  /* theme index: land just after the sweep into theme k has finished */
   function themeTop(k) {
     return M.bridgeEnd + M.sweepLen * (k === 0 ? HOLD * .7 : HOLD + k - 1 + .9) / (NT - 1 + HOLD);
   }
@@ -778,7 +729,6 @@
     });
   });
 
-  /* in-page links land on the frame that tells that part best */
   function jump(hash) {
     if (layoutStill) return false;
     var y = null, focus = null;
@@ -803,11 +753,9 @@
     });
   });
 
-  /* ---------------- go ---------------- */
   measure();
   introT0 = paused || layoutStill ? 0 : performance.now();
   setTimeout(function () { root.classList.remove('intro'); }, 2600);
-  /* fonts and late images can move the text: measure again once they settle */
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measure(); kick(); });
   window.addEventListener('load', function () { measure(); kick(); });
   restoreInitialHash();
@@ -817,7 +765,6 @@
   else start();
 })();
 
-/* phone: the header Get diskOS appears once the hero's own button has scrolled out above the viewport (css .cta-on) */
 (function () {
   'use strict';
   function startHeader() {
@@ -832,7 +779,6 @@
     update();
   }
   function scheduleMeasure() { if (!measureRaf) measureRaf = requestAnimationFrame(measureHero); }
-  /* A jump can skip the intersecting state; scroll updates use the cached document position. */
   new IntersectionObserver(scheduleMeasure, { rootMargin: '-56px 0px 0px 0px' }).observe(hero);
   window.addEventListener('scroll', update, { passive: true });
   window.addEventListener('resize', scheduleMeasure);

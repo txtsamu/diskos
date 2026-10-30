@@ -1,6 +1,4 @@
 #!/bin/sh
-# Network-enabled preparation, separate from the offline build.
-# Requires rootless Podman, curl, gpgv, and the host ubuntu-keyring package.
 set -eu
 export LC_ALL=C TZ=UTC
 umask 022
@@ -45,7 +43,6 @@ sha256sum -c rootfs.sha256
 podman import --arch amd64 --os linux "$rootfs" > base-image.id
 container="diskos-usbboot-env-$(id -u)-$$"
 printf '%s\n' "$container" > container-name.txt
-# Keep the container and all evidence for inspection, including on failure.
 podman run --interactive --name "$container" --pull=never --network=host --user 0 \
     -e SNAPSHOT="$snapshot" -e LC_ALL=C -e TZ=UTC -e DEBIAN_FRONTEND=noninteractive \
     -v "$out:/evidence:rw" -v /etc/ssl/certs/ca-certificates.crt:/run/host-ca.crt:ro \

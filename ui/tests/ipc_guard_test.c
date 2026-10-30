@@ -1,4 +1,3 @@
-/* Host test for ipc_frame_is_dangerous (pure), linked from the real ipc.c. Build: make -C tests ipc_guard_test */
 #include <stdio.h>
 #include <string.h>
 #include "ipc.h"

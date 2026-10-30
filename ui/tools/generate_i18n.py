@@ -8,9 +8,8 @@ Columns: en zh tw ja ko es pt it de fr ru = the LANG_* order of i18n.h with Engl
 import sys
 from pathlib import Path
 app = Path(__file__).resolve().parents[1]
-COLS = ['zh', 'tw', 'en', 'ja', 'ko', 'es', 'pt', 'it', 'de', 'fr', 'ru']   # i18n_lang_t order
+COLS = ['zh', 'tw', 'en', 'ja', 'ko', 'es', 'pt', 'it', 'de', 'fr', 'ru']
 IDS = ['LANG_ZH', 'LANG_TW', 'LANG_EN', 'LANG_JA', 'LANG_KO', 'LANG_ES', 'LANG_PT', 'LANG_IT', 'LANG_DE', 'LANG_FR', 'LANG_RU']
-# each language's name in its own script; stock resource variants set the list
 NAMES = ['\u7b80\u4f53\u4e2d\u6587', '\u7e41\u9ad4\u4e2d\u6587', 'English', '\u65e5\u672c\u8a9e', '\ud55c\uad6d\uc5b4', 'Espa\xf1ol', 'Portugu\xeas', 'Italiano', 'Deutsch', 'Fran\xe7ais', '\u0420\u0443\u0441\u0441\u043a\u0438\u0439']
 
 

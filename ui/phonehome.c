@@ -1,12 +1,4 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Optional block of the stock player's FiiO update/version lookups. See phonehome.h.
- *
- * Mechanism: /etc/hosts lives on the read-only squashfs rootfs, so a private copy (stock lines + one line mapping the
- * two FiiO check hosts to loopback) is written under /tmp and bind-mounted over it. The player's wget then gets
- * "connection refused" at once. Nothing on flash changes; the mount is gone after a reboot and is re-made at UI start.
- * Hosts (from the player's util/src/ota_update.c: ota_site in /etc/ota_info, and the Bluetooth OTA server):
- *   discpick.fiio.net          ota_patch_user.json (firmware update list), VER_DRTAILS/log_*.txt (release notes)
- *   fiio-bluetooth.fiio.net    <product>/version.txt (Bluetooth firmware version) */
 #include "phonehome.h"
 #include "config.h"
 #include <stdio.h>
@@ -34,14 +26,13 @@ static int hosts_is_bound(void){
     return found;
 }
 
-/* Remove every bind mount on /etc/hosts (ours, possibly stacked by a repeated call). Bounded loop. */
 static void unbind_hosts(void){
     for(int i = 0; i < 4 && hosts_is_bound(); i++)
         if(umount(HOSTS_PATH) != 0) break;
 }
 
 static int build_copy(void){
-    FILE *in = fopen(HOSTS_PATH, "r");       /* call only with our mount removed: this is the stock file */
+    FILE *in = fopen(HOSTS_PATH, "r");
     char tmp[] = COPY_PATH ".tmp";
     FILE *out = fopen(tmp, "w");
     if(!out){ if(in) fclose(in); return -1; }
@@ -65,8 +56,6 @@ static int build_copy(void){
 
 void phonehome_apply(void){
     int want = cfg_get_int("block_fiio_checks", 0) ? 1 : 0;
-    /* Always start from the stock file: drop our mount first, so a re-apply rebuilds from the real /etc/hosts and
-     * turning the setting off can never leave a stale copy in place. */
     unbind_hosts();
     if(!want){ unlink(COPY_PATH); return; }
     if(build_copy() != 0){ fprintf(stderr, "phonehome: cannot write %s: %s\n", COPY_PATH, strerror(errno)); return; }

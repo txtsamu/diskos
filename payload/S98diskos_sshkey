@@ -1,7 +1,4 @@
 #!/bin/sh
-# diskOS (txtsamu fork): key-only development SSH on port 2222 at boot.
-# Does nothing unless /usr/data/sshd/root_home/.ssh/authorized_keys exists, so an image without a
-# provisioned key exposes no new service. Backgrounded so a slow /usr/data never delays boot.
 
 case "$1" in
     start|"") ;;

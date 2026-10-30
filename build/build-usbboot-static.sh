@@ -1,17 +1,6 @@
 #!/bin/bash
-# build-usbboot-static.sh - build a portable, fully-static `usbboot` for Linux.
-#
-# The distro's libusb-1.0.a is built WITH udev, so linking against it drags in
-# libudev + libcap dynamically - which defeats portability (missing/old libudev
-# on other distros). This rebuilds libusb with --disable-udev --enable-static so
-# usbboot links fully static: no libusb.so, no libudev, no glibc-version pin.
-# udev is only needed for hotplug events; usbboot does a one-shot vid/pid open,
-# which uses libusb's sysfs backend and works without udev.
-#
-# Output: installer/vendor/linux-x86_64/usbboot  (statically linked, stripped).
-# Run on an x86_64 Linux host with build-essential + apt source access.
 set -euo pipefail
-cd "$(dirname "$0")/.."                       # installer/
+cd "$(dirname "$0")/.."
 ROOT=$(pwd)
 SRC="$ROOT/src/usbboot/usbboot.c"
 OUT="$ROOT/vendor/linux-x86_64/usbboot"
