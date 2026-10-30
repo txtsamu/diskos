@@ -573,14 +573,14 @@ int ui_route_bt(const char *mac){
     track_state_t st; ipc_get_state(&st);
     int was_playing = g_playing;   /* real play state; raw st.state is unreliable (reports 0 while playing) so
                                     * the old `st.state==1` was false during playback -> pause was SKIPPED */
-    if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
+    if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
     outseq_rc rc = outseq_bt_sink(f);
     if(rc != OUTSEQ_REFUSED) modes_output_reset();      /* the route moved: no longer on SPDIF / USB audio */
     if(rc != OUTSEQ_OK) return -1;
     if(st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", st.volume); ipc_send_cmd(v); }
     /* Safe minimal resume; deterministic load/play remains a future improvement. */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
-    if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
+    if(was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);       /* play */
     session_set_bt_mac(norm);
     route_state_save(norm);
     session_startup_route_settled();                   /* an intentional BT route supersedes startup recovery */
@@ -594,12 +594,12 @@ static int route_analog(int force){
     if(!force && !session_bt_routed()){ route_state_remove(); return 0; }
     track_state_t st; ipc_get_state(&st);
     int was_playing = g_playing;   /* real play state (raw st.state reports 0 while playing) */
-    if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
+    if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
     /* the route commands MUST land; if either fails, keep the BT route set + return failure so a
      * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
     if(outseq_analog() != OUTSEQ_OK) return -1;         /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);
-    if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
+    if(was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);       /* play */
     session_clear_bt_mac();
     route_state_remove();
     ui_bt_codec_upgrade_cancel();                       /* a pending codec switch must not outlive this route */
@@ -1161,7 +1161,7 @@ static void boot_autoplay_pause_cb(lv_timer_t *t){
     if(!t0) t0 = lv_tick_get() ? lv_tick_get() : 1;
     if(ipc_transport_seq() != 0 || lv_tick_elaps(t0) > 60000){ lv_timer_del(t); return; }
     if(modes_output_busy() || !ui_is_playing()) return;
-    if(ipc_send_cmd("0201000C0000") == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
+    if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
     lv_timer_del(t);
 }
 static void localplayer_workmode_cb(lv_timer_t *t){
@@ -3671,7 +3671,7 @@ int main(int argc, char **argv){
             break;
         case PW_SLEEP_DISARM: g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); break;                 /* already stopped -> just disarm */
         case PW_SLEEP_PAUSE:
-            if(ipc_send_cmd("0201000C0000") == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
+            if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
             /* else: send failed -> keep armed, retry next loop */
             break;
         case PW_SLEEP_WAIT: break;
@@ -3688,7 +3688,7 @@ int main(int argc, char **argv){
                  * change is an unambiguous completion signal, so it overrides the post-seek guard. If the
                  * last position was NOT near the target, the user navigated away -> just disarm. */
                 int completed = (g_sleep_eoc_atend && g_sleep_eoc_lastpos >= 0 && g_sleep_eoc_lastpos >= g_sleep_eoc - 8000);
-                if(completed && playing && ipc_send_cmd("0201000C0000") != 0){
+                if(completed && playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) != 0){
                     /* pause send failed -> keep armed, retry next loop (path still differs) */
                 } else {
                     ui_disarm_book_eoc();
@@ -3697,7 +3697,7 @@ int main(int argc, char **argv){
                 g_sleep_eoc_lastpos = sst.position_ms;
                 if(sst.position_ms >= g_sleep_eoc && !sleep_guarded){
                     if(!playing){ ui_disarm_book_eoc(); }                          /* already stopped -> disarm */
-                    else if(ipc_send_cmd("0201000C0000") == 0){ ui_disarm_book_eoc(); }  /* paused OK -> disarm */
+                    else if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ ui_disarm_book_eoc(); }  /* paused OK -> disarm */
                     /* else: send failed -> keep armed, retry */
                 }
             }

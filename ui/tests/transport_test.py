@@ -15,6 +15,7 @@ headers=r'''
 #include <string.h>
 #define LV_SYMBOL_PAUSE "pause"
 #define LV_SYMBOL_PLAY "play"
+#define PLAYER_CMD_PLAYPAUSE "0201000C0000"   /* ipc.h */
 static int g_playing,local=1,book,send_fail,seeks,commands,cancelled,disarmed,hints;
 static int scan_busy,scan_fail,sd_allowed=1,scans;
 static uint32_t now;

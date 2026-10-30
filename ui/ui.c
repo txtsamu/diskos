@@ -481,7 +481,7 @@ int ui_transport_command(const char *cmd)
     if(!cmd) return -1;
     int is_next = !strcmp(cmd, "0201000C0001");
     int is_prev = !strcmp(cmd, "0201000C0002");
-    int is_toggle = !strcmp(cmd, "0201000C0000");
+    int is_toggle = !strcmp(cmd, PLAYER_CMD_PLAYPAUSE);
     if(!is_next && !is_prev && !is_toggle) return -1;
     if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
     if(!ui_local_playback_allowed()){
@@ -2305,7 +2305,7 @@ void ui_create(lv_obj_t *root)
         lv_obj_align(btn_next, LV_ALIGN_TOP_MID, 70, 274);
     }
     make_clickable(btn_prev, "0201000C0002");
-    make_clickable(btn_pp,   "0201000C0000");
+    make_clickable(btn_pp,   PLAYER_CMD_PLAYPAUSE);
     make_clickable(btn_next, "0201000C0001");
     /* touch targets >= 56 px: a 28 px glyph + 14 px each side; play/pause (32 px glyph) + 12 so the three never overlap */
     lv_obj_set_ext_click_area(btn_prev, 14);

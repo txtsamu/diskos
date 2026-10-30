@@ -228,12 +228,12 @@ int ui_set_source_mode(int mode){
         return 0;
     }
     int was_playing = E->playing();
-    if(was_playing && ipc_send_cmd("0201000C0000") < 0){ E->toast("Player is busy - try again"); return -1; }
+    if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ E->toast("Player is busy - try again"); return -1; }
     if(session_source_mode() == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }   /* the Local volume, before the player swaps volumes */
     if(source_send(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
     session_set_source_mode(mode);
     if(mode == 1){ g_dac_enter_t = now_ms(); g_dac_vol_due = g_dac_enter_t + 4500; if(!g_dac_vol_due) g_dac_vol_due = 1; }   /* after the gadget and the player's own per-mode volume have settled */
-    if(mode == 0 && was_playing) ipc_send_cmd("0201000C0000");
+    if(mode == 0 && was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);
     /* Remember the picked Working Mode for the next boot (modes_output_boot_restore). Only the picker calls this,
      * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
      * (mode 3) returns above and is never remembered. */
@@ -270,7 +270,7 @@ static void storage_step(void){
         if(sd_io_active() == 0 && atomic_load(&g_sd_writers) == 0){
             if(!storage_mark('E', 3)){ storage_unknown("cannot record export request"); return; }
             g_sd_phase = SD_WAIT_HOST; g_sd_deadline = now_ms() + 20000;
-            if(E->playing() && ipc_send_cmd("0201000C0000") < 0){ storage_unknown("pause request failed"); return; }
+            if(E->playing() && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ storage_unknown("pause request failed"); return; }
             if(source_send(3) < 0) storage_unknown("export request failed");
             return;
         }

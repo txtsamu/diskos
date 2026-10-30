@@ -61,7 +61,7 @@ static lv_obj_t *g_row[N_MODES];     /* per-row button (for the selected highlig
 #define OUT_USB_WAIT_MS   20000  /* was 8 s: on a cold boot the player's mode thread takes ~7 s before the DAC even enumerates
                                   * (seen 8.2 s, so the old limit fell back to the internal DAC 0.14 s after the DAC appeared) */
 #define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
-#define OUT_PAUSE    "0201000C0000"
+#define OUT_PAUSE    PLAYER_CMD_PLAYPAUSE
 /* The route frames themselves live in outseq.c; its route enum must stay the same numbers as OUT_* */
 _Static_assert((int)OUTSEQ_INTERNAL == OUT_INTERNAL && (int)OUTSEQ_SPDIF == OUT_SPDIF && (int)OUTSEQ_USB == OUT_USB, "outseq route numbers differ from modes.h");
 static void modes_ui_refresh(void);

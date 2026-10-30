@@ -82,7 +82,7 @@ int usbhid_poll(int screen_lit){
                 const char *cmd = NULL, *what = NULL;
                 if(ev[k].type != EV_KEY || ev[k].value < 1 || c < 0 || c >= 0x300) continue;
                 if(ev[k].value == 2 && !vol) continue;           /* auto-repeat only makes sense for volume */
-                if(c == KEY_PLAYPAUSE || c == KEY_PLAYCD || c == KEY_PAUSECD){ cmd = "0201000C0000"; what = "play/pause"; }
+                if(c == KEY_PLAYPAUSE || c == KEY_PLAYCD || c == KEY_PAUSECD){ cmd = PLAYER_CMD_PLAYPAUSE; what = "play/pause"; }
                 else if(c == KEY_NEXTSONG){ cmd = "0201000C0001"; what = "next"; }
                 else if(c == KEY_PREVIOUSSONG){ cmd = "0201000C0002"; what = "previous"; }
                 else if(!vol) continue;
