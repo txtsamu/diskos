@@ -122,7 +122,6 @@ void ui_bt_codec_upgrade_cancel(void);           /* any route change / link loss
 const char *ui_route_mac(void);                  /* main.c: MAC the player is routed to, "" when local */
 void bt_boot_restore(void);   /* at startup: re-enable BT + arm auto-route if it was on */
 void bt_notify_player_restart(void);   /* player restarted: forget stale auto-route so the poll re-routes */
-int  ui_player_settling(void);         /* 1 while the player is still in its post-restart late-init settle window */
 void library_open_album(const char *name);
 void library_open_artist(const char *name);
 void albumwall_create(lv_obj_t *root);     /* SCR_ALBUMWALL: cover-flow album browser */

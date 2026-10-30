@@ -21,8 +21,8 @@ outseq_test: ../outseq.c outseq_test.c ../outseq.h
 session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
 
-playadmit_test: ../playadmit.c ../outseq.c playadmit_test.c ../playadmit.h ../outseq.h
-	$(CC) $(CFLAGS) -I.. ../playadmit.c ../outseq.c playadmit_test.c -o $@
+admit_test: ../admit.c ../outseq.c ../session.c admit_test.c ../admit.h ../outseq.h ../session.h
+	$(CC) $(CFLAGS) -I.. ../admit.c ../outseq.c ../session.c admit_test.c -o $@
 
 dacinfo_test: ../dacinfo.c dacinfo_test.c ../dacinfo.h
 	$(CC) $(CFLAGS) -I.. ../dacinfo.c dacinfo_test.c -o $@
@@ -54,7 +54,7 @@ ipc_tx_test: ipc_tx_test.c ../ipc.c
 	rm -f ipc_tx_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -65,8 +65,8 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	python3 -I outseq_guard_test.py
 	@echo "--- session ---"
 	./session_test
-	@echo "--- playadmit ---"
-	./playadmit_test
+	@echo "--- admit ---"
+	./admit_test
 	@echo "--- dacinfo ---"
 	./dacinfo_test
 	@echo "--- timekeep ---"
@@ -79,4 +79,4 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	./radio_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test

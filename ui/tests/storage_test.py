@@ -48,6 +48,7 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include "ipc.h"     /* track_state_t, ipc_get_state(), ipc_send_cmd() */
 #include "config.h"  /* cfg_get_int() */
 #include "srcswitch.h"
+#include "admit.h"   /* admit_check(): faked below */
 static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan, test_playing;
 static int test_sends, test_fail, test_export_sends, test_seed, test_attached, test_gadget, test_restarts;
@@ -63,7 +64,7 @@ int modes_output_route(void){ return OUT_INTERNAL; }   /* the internal DAC: no l
 int modes_via_local_then(int mode){ (void)mode; return -1; }
 void modes_dac_exit_done(int started){ (void)started; }
 void modes_output_reset(void){}   /* output routing is not under test here */
-int modes_output_busy(void){ return 0; }
+const char *admit_check(admit_what_t what){ (void)what; return NULL; }   /* no output switch in flight */
 /* The seam outseq.c (linked below, the real module) sends every frame through; external so it can link. */
 int ipc_send_cmd(const char *s){
     test_sends++;

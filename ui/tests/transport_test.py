@@ -24,13 +24,14 @@ static uint32_t g_seek_hold_until;
 static char *btn_pp="";
 static char toast[100],glyph[20];
 static void ui_note_transport_sent(void){}
-static int modes_output_busy(void){ return 0; }   /* no output switch in flight: the transport path is under test */
+typedef enum { ADMIT_OUTPUT_IDLE, ADMIT_LOCAL_PLAYBACK, ADMIT_PLAYER_COMMAND } admit_what_t;   /* admit.h */
 static int cancel_ok=1,cancels; static int scanner_cancel(void){ cancels++; return cancel_ok; }   /* Rescan during a scan = Stop */
 typedef struct { char path[40]; long position_ms,duration_ms; } track_state_t;
 static track_state_t state;
 static uint32_t lv_tick_get(void){return now;}
 static int ui_is_playing(void){return g_playing;}
-static int ui_local_playback_allowed(void){return local;}
+/* admit.c's rule for these two questions, with no output switch in flight: the transport path is under test */
+static const char *admit_check(admit_what_t w){ (void)w; return local ? NULL : "Return to local playback first"; }
 static void ui_toast(const char *s){snprintf(toast,sizeof toast,"%s",s);}
 static void ui_defer_sleep(void){}
 static void ipc_get_state(track_state_t *s){*s=state;}

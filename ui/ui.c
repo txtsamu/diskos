@@ -7,6 +7,7 @@
 #include "art.h"
 #include "netart.h"
 #include "ipc.h"
+#include "admit.h"
 #include "musicdb.h"   /* persistent per-song accent cache */
 #include "scanner.h"   /* scan_read_chapters: Now Playing shows a book's current chapter */
 #include "artcache.h"   /* persistent decoded-cover cache on SD */
@@ -483,10 +484,7 @@ int ui_transport_command(const char *cmd)
     int is_prev = !strcmp(cmd, "0201000C0002");
     int is_toggle = !strcmp(cmd, PLAYER_CMD_PLAYPAUSE);
     if(!is_next && !is_prev && !is_toggle) return -1;
-    if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
-    if(!ui_local_playback_allowed()){
-        ui_toast("Return to local playback first"); return -1;
-    }
+    { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
     ui_defer_sleep();
     if(is_next || is_prev){
         track_state_t st; ipc_get_state(&st);

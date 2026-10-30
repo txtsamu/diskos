@@ -30,6 +30,7 @@
 #include "ipc.h"
 #include "config.h"
 #include "session.h"
+#include "admit.h"
 
 static const struct srcswitch_env *E;
 static uint32_t now_ms(void){ return E->now(); }
@@ -122,7 +123,7 @@ static void storage_unknown(const char *why){
  *   1 -> 3       : via Local (0642 0 closes UAC first), same refusal with a computer attached
  *   2 -> 0/1/3   : direct (port already device after 0642 0; 0657 leaves BT sink; BT radio as the player leaves it)
  *   3 -> 0/1/2   : storage return path (source_send(mode), local mount, then a device restart)
- *   1/2/3 -> U   : refused by ui_output_blocked ("Return to local playback first"); 3 -> Local restarts the device,
+ *   1/2/3 -> U   : refused by admit_check(ADMIT_OUTPUT_SWITCH) ("Return to local playback first"); 3 -> Local restarts the device,
  *                  so no continuation could survive it, and 1 -> Local needs the cable unplugged first anyway
  *   U -> 0       : direct (0666 6, 0642 0, 0657 8 restore device role; usb_audio_on cleared below)
  *   U -> 1/2/3   : via Local (modes.c out_switch to the internal DAC, then this call again): a direct 0642 1 from
@@ -183,7 +184,7 @@ static void dac_volume_cb(void){
     E->set_volume(want);
 }
 int ui_set_source_mode(int mode){
-    if(modes_output_busy()){ E->toast("Switching output - try again"); return -1; }
+    { const char *why = admit_check(ADMIT_OUTPUT_IDLE); if(why){ E->toast(why); return -1; } }
     if(mode < 0 || mode > 3) return -1;
     /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
      * (0x4614bc) sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an

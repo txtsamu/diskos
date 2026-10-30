@@ -7,6 +7,7 @@
 #include "config.h"
 #include "outseq.h"
 #include "session.h"
+#include "admit.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -121,7 +122,7 @@ static int out_switch(int target, int via_mode);
  * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
  * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
  * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. An ACCEPTED switch is only a timer
- * (osw_tick): it can still abort (3 s deadline, track change, ui_output_blocked) and leave the route on USB, so the
+ * (osw_tick): it can still abort (3 s deadline, track change, ADMIT_OUTPUT_SWITCH) and leave the route on USB, so the
  * watcher stays until the route reads internal, and starts another attempt (no second toast) - at most USBGONE_TRIES
  * accepted ones, then it gives up and says so rather than retry forever. */
 #define USBGONE_TRIES 3
@@ -154,7 +155,7 @@ static void bootusb_end(void){ if(g_bootusb_tm){ lv_timer_del(g_bootusb_tm); g_b
 static void bootusb_tick(lv_timer_t *t){
     (void)t;
     int src = 0;
-    session_restore_t r = session_restore_poll(lv_tick_get(), modes_output_busy(), ui_output_blocked() != NULL, &src);
+    session_restore_t r = session_restore_poll(lv_tick_get(), modes_output_busy(), admit_check(ADMIT_OUTPUT_SWITCH) != NULL, &src);
     if(r == SESSION_RESTORE_WAIT) return;
     bootusb_end();
     if(r == SESSION_RESTORE_SOURCE){
@@ -239,7 +240,7 @@ static void osw_tick(lv_timer_t *t){
     if(!g_osw.quiet0 || lv_tick_elaps(g_osw.quiet0) < OUT_QUIET_MS){
         return;
     }
-    const char *why = ui_output_blocked();
+    const char *why = admit_check(ADMIT_OUTPUT_SWITCH);
     if(why){ osw_stop(why, g_osw.was_playing); return; }
     lv_timer_del(g_osw.tm); g_osw.tm = NULL;
     out_run();
@@ -247,7 +248,7 @@ static void osw_tick(lv_timer_t *t){
 static int out_switch(int target, int via_mode){
     if(target < OUT_INTERNAL || target > OUT_USB) return -1;
     if(modes_output_busy()){ ui_toast("Switching..."); return -1; }
-    const char *why = ui_output_blocked();
+    const char *why = admit_check(ADMIT_OUTPUT_SWITCH);
     if(why){ session_set_route(modes_output_route()); ui_toast(why); return -1; }
     int was_playing = ui_is_playing();
     track_state_t st; ipc_get_state(&st);
