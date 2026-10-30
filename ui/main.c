@@ -382,7 +382,7 @@ int ui_eq_select(int preset){
  * "unmanaged / System default" -> we send nothing (don't change the user's sound). */
 void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C0001"); }  /* on=0000, off=0001 */
 void ui_set_gain(int high){     if(high<0) return; const char *tag=fw_gain_tag(); if(!tag){ fprintf(stderr,"gain: unverified firmware (MAIN_OS_VER=%d) -> not sending\n", fw_os_ver()); return; } char f[16]; snprintf(f,sizeof f,"%s000C%04X", tag, high?1:0); ipc_send_cmd(f); } /* Low=0, High=1; tag firmware-gated (V2.09=0645, V2.28=0649); fail closed on unknown fw */
-void ui_set_output(int spdif){  if(spdif<0) return; modes_output_switch(spdif ? OUT_SPDIF : OUT_INTERNAL); } /* stop -> 0666 route -> 0657 -> resume, see srcswitch.c */
+void ui_set_output(int spdif){  if(spdif<0) return; modes_output_switch(spdif ? OUT_SPDIF : OUT_INTERNAL); } /* stop -> 0666 route -> 0657 -> resume, see modes.c */
 void ui_set_dac_filter(int idx){ if(idx<0||idx>5) return; char f[16]; snprintf(f,sizeof f,"0653000C%04X",idx); ipc_send_cmd(f); }
 /* ReplayGain / volume-levelling: 0718 (RE-confirmed, on-device-safe 2026-08-24). 0=Off 1=Track 2=Album. */
 void ui_set_replay_gain(int v){ if(v<0||v>2) return; char f[16]; snprintf(f,sizeof f,"0718000C%04X",(unsigned)v); ipc_send_cmd(f); }
@@ -769,7 +769,7 @@ static void reapply_sends(void){
     /* Output route (raw 0666) is deliberately NOT reapplied here: this also runs on player
      * RECONNECT, and sending 0666 to a freshly-booted player can wedge it (see the reconnect
      * warning below). Analog is the boot default; SPDIF / USB audio are chosen per player run
-     * (srcswitch.c, never persisted), so there is no output route to restore here. */
+     * (modes.c, never persisted), so there is no output route to restore here. */
     ui_set_dac_filter(cfg_get_int("audio_filter", 1));
     ui_set_replay_gain(cfg_get_int("replay_gain", 0));
     /* The rest of the managed settings, reapplied so a player restart/reconnect can't leave the
@@ -1307,7 +1307,7 @@ static playadmit_sent_t play_admit(playadmit_kind_t kind){ playadmit_situation_t
  * 1=playing while position advances, else 0). Exposed so route logic shares ONE source of
  * truth instead of re-deriving play/pause from position deltas. */
 int ui_is_playing(void){ return g_playing; }
-/* Admission for an output-route switch (srcswitch.c): NULL = go, else the toast reason. 0666 re-inits the output, so never
+/* Admission for an output-route switch (modes.c): NULL = go, else the toast reason. 0666 re-inits the output, so never
  * during a start-up, a book, another source, a BT route or the post-restart settle. */
 const char *ui_output_blocked(void){
     if(!ui_local_playback_allowed()) return "SD card is not ready";
