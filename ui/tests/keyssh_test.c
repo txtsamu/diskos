@@ -1,12 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-/* Host test for tcp_listen_in() in debug_ui.c (extracted by the Makefile, like ipc_guard_test): the check behind the Debug
- * Mode "Key SSH :2222" line. Real /proc/net/tcp and tcp6 samples. */
+/* Host test for tcp_listen_in() (procnet.c): the check behind the Debug Mode "Key SSH :2222" line. Real /proc/net/tcp and
+ * tcp6 samples. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-
-int tcp_listen_in(FILE *f, int port);
+#include "procnet.h"
 
 static int run(const char *text, int port){
     FILE *f = tmpfile(); assert(f);

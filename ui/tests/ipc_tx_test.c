@@ -1,6 +1,7 @@
-/* Host test for the outbound line's stall reopen (ipc.c tx_open .. tx_drain_locked, extracted by the Makefile) against a
- * fake mq_*: an ORPHANED /player (the player restarted and recreated it, nothing reads the old queue) must not keep the
- * line stuck until the 30 s health tick. Build: make -C tests ipc_tx_test */
+/* Host test for the outbound line's stall reopen (tx_open .. tx_drain_locked in ipc.c) against a fake mq_*: an ORPHANED
+ * /player (the player restarted and recreated it, nothing reads the old queue) must not keep the line stuck until the 30 s
+ * health tick. The whole of ipc.c is compiled into this translation unit (so the test sees its statics, and nothing is
+ * sliced out or redeclared); only the mq_* calls are faked. Build: make -C tests ipc_tx_test */
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -27,17 +28,14 @@ int mq_send(mqd_t q, const char *m, size_t len, unsigned prio){
 }
 int mq_getattr(mqd_t q, struct mq_attr *a){ (void)q; memset(a, 0, sizeof *a); return 0; }
 
-static mqd_t g_tx = (mqd_t)1;                       /* starts on the old queue */
-static dev_t g_tx_dev; static ino_t g_tx_ino; static int g_tx_stale;
-static int mq_identity(mqd_t q, dev_t *d, ino_t *i){ (void)q; *d = 0; *i = 0; return 0; }
-unsigned ipc_rx_frames(void){ return 1; }           /* the player has answered before: 6 s hold */
-#include "ipc_tx_fn.c"
+#include "../ipc.c"
 
 static int fails;
 #define CHECK(c, msg) do{ if(!(c)){ printf("FAIL %s (line %d)\n", msg, __LINE__); fails++; } }while(0)
 static void reset(void){
     old_full = 1; new_full = 0; opens = closes = n_old = n_new = enoent = 0; g_txh = g_txn = 0; g_send_err = 0;
-    g_tx = (mqd_t)1;
+    g_tx = (mqd_t)1;                                  /* starts on the old queue */
+    g_rx_frames = 1;                                  /* the player has answered before: 6 s hold */
 }
 static void enq(const char *f, uint32_t age_ms){
     txe_t *e = &g_txq[(g_txh + g_txn) % TX_MAX];

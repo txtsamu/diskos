@@ -1,7 +1,7 @@
-/* Host test for ipc_frame_is_dangerous (pure). Build: make -C tests ipc_guard_test */
+/* Host test for ipc_frame_is_dangerous (pure), linked from the real ipc.c. Build: make -C tests ipc_guard_test */
 #include <stdio.h>
 #include <string.h>
-int ipc_frame_is_dangerous(const char *frame);
+#include "ipc.h"
 static int fails;
 #define T(f,exp) do{ if(ipc_frame_is_dangerous(f)!=(exp)){ printf("FAIL %s\n",(f)?(f):"NULL"); fails++; } }while(0)
 int main(void){

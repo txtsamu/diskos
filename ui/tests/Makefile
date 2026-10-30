@@ -43,25 +43,19 @@ tama_test: ../tama.c tama_test.c ../tama.h
 transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
 	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
 
-keyssh_test: keyssh_test.c ../debug_ui.c
-	sed -n '/^static int tcp_listen_in/,/^}/p' ../debug_ui.c | sed 's/^static int/int/' > keyssh_fn.c.tmp
-	(echo '#include <stdio.h>'; echo '#include <string.h>'; cat keyssh_fn.c.tmp) > keyssh_fn.c
-	$(CC) $(CFLAGS) keyssh_test.c keyssh_fn.c -o $@
-	rm -f keyssh_fn.c.tmp keyssh_fn.c
+keyssh_test: ../procnet.c keyssh_test.c ../procnet.h
+	$(CC) $(CFLAGS) -I.. ../procnet.c keyssh_test.c -o $@
 
 radio_test: ../radio.c radio_test.c ../radio.h
 	$(CC) $(CFLAGS) -I.. ../radio.c radio_test.c -o $@
 
-ipc_guard_test: ipc_guard_test.c
-	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
-	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
-	$(CC) $(CFLAGS) ipc_guard_test.c ipc_guard_fn.c -o $@
-	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
+# ipc.c is the real module; ipc_guard_test links it, ipc_tx_test compiles all of it into the test (it reads ipc.c's statics)
+# and fakes only mq_*.
+ipc_guard_test: ../ipc.c ipc_guard_test.c ../ipc.h
+	$(CC) $(CFLAGS) -pthread -I.. ../ipc.c ipc_guard_test.c -o $@
 
-ipc_tx_test: ipc_tx_test.c ../ipc.c
-	sed -n '/^static volatile int g_send_err/,/^\/\* ---- safety guard/p' ../ipc.c | sed '$$d' > ipc_tx_fn.c
-	$(CC) $(CFLAGS) -I.. ipc_tx_test.c -o $@
-	rm -f ipc_tx_fn.c
+ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
+	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
 .PHONY: run clean
 run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
