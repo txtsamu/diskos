@@ -25,6 +25,8 @@
   <a href="#see-diskos">Screenshots</a> |
   <a href="#before-you-install">Before you install</a> |
   <a href="#install">Install</a> |
+  <a href="#flash-step-by-step">Flash steps</a> |
+  <a href="#langkah-flash-bahasa-indonesia">Bahasa Indonesia</a> |
   <a href="#update-restore-recover">Restore</a> |
   <a href="#documentation">Docs</a> |
   <a href="#contributing">Contribute</a>
@@ -43,6 +45,10 @@
 - **Hosts:** Linux x86-64 (Debian, Ubuntu, Arch, CachyOS, Fedora); macOS Apple Silicon release package. Intel Macs can build the native tools. Windows 10/11 x64 release ZIP.
 - **Flash time:** about 20 minutes, including the firmware check and verification.
 - **Going back:** restore the saved stock image, boot the stock UI once, or set stock as the default UI.
+- **This fork (`dev`):** carries changes made since 1.2.1 (for example the Pet app, Persistent debug and
+  Persistent clock); they are listed under *Unreleased* in the [changelog](CHANGELOG.md).
+  Install steps are the same as for 1.2.1. Flash steps are also written out in [English](#flash-step-by-step)
+  and [Bahasa Indonesia](#langkah-flash-bahasa-indonesia).
 
 ## See diskOS
 
@@ -148,6 +154,113 @@ Use **Windows 10/11 x64**:
 
 Terminal commands use `diskos-installer-cli.exe`. See the [Windows guide](docs/INSTALL.md#windows)
 and [RECOVERY.txt](RECOVERY.txt) for errors and recovery.
+
+## Flash step by step
+
+The same install as above, as one numbered list. Details and error codes are in the
+[installation guide](docs/INSTALL.md).
+
+**Before you start**
+
+- Back up your music and keep a copy of the saved stock image on other storage.
+- Have the official FiiO firmware ZIP that matches the firmware on your Disc (V2.09, V2.28, V2.40 or V2.57).
+- Use a reliable USB cable, and plan for about 20 minutes without interruption.
+- Do not run the installer with `sudo` (Linux and macOS).
+
+**Linux and macOS**
+
+1. Extract the release package and open a terminal in that folder.
+2. Linux only, once: let your user reach the Disc in flash mode.
+   ```sh
+   sudo cp udev/70-diskos-maskrom.rules /etc/udev/rules.d/
+   sudo udevadm control --reload-rules
+   sudo udevadm trigger
+   ```
+3. Run setup, then start the installer (this is the only step that installs anything, and only into a local `.venv`):
+   ```sh
+   ./install.sh
+   ./diskos-installer gui
+   ```
+   If setup reports a missing package, install it from the [OS packages](docs/INSTALL.md#os-packages) table and run it again.
+4. In the installer, select your firmware ZIP and choose **Public**.
+5. Power the Disc off. Hold **Volume Down**, then connect the USB cable. The screen stays black; that is expected.
+6. Check the Ready checklist (select **Refresh** after changes). Warnings do not block the install.
+7. Select **Install diskOS...**, tick **I understand and will keep the USB cable connected until it finishes.**,
+   then select **Begin flash (~20 min)**.
+8. Keep the cable connected and the computer awake until verification succeeds.
+9. Power-cycle the Disc. diskOS finishes installing itself on first boot; no SD card step is needed.
+
+**Windows 10/11 x64**
+
+1. Extract the whole **diskos-installer-windows-x86_64.zip** and open **diskos-installer.exe**
+   (SmartScreen: **More info**, then **Run anyway**).
+2. Power the Disc off, hold **Volume Down**, and connect USB.
+3. If the Ready checklist offers **Set up USB driver...**, select it and approve the administrator prompt.
+4. Select your firmware ZIP and **Public**, then **Install diskOS...**, tick the acknowledgement and select
+   **Begin flash (~20 min)**.
+5. Leave the empty console window open, keep the computer awake, and wait for verification before power-cycling the Disc.
+
+**If something goes wrong**
+
+If the result is unknown or times out, leave the Disc powered and connected for **at least 25 minutes**
+before doing anything else, then follow [RECOVERY.txt](RECOVERY.txt). To go back to stock, select
+**Restore stock firmware...** in the installer or run `./diskos-installer restore-stock`.
+
+## Langkah flash (Bahasa Indonesia)
+
+Instalasi yang sama seperti di atas, dalam satu daftar bernomor. Detail dan kode error ada di
+[panduan instalasi](docs/INSTALL.md) (bahasa Inggris).
+
+> [!IMPORTANT]
+> **Instalasi mengganti perangkat lunak sistem Disc.** Data yang tersimpan dan kartu SD tidak diubah.
+> Biarkan kabel USB tetap terpasang dan komputer tetap menyala sampai flash selesai.
+> Jika flash terputus, Disc mungkin perlu [pemulihan mask-ROM](docs/INSTALL.md#restore-stock-and-recover).
+
+**Sebelum mulai**
+
+- Cadangkan musik Anda dan simpan salinan stock image yang tersimpan di penyimpanan lain.
+- Siapkan ZIP firmware resmi FiiO yang sesuai dengan firmware di Disc Anda (V2.09, V2.28, V2.40 atau V2.57).
+- Pakai kabel USB yang andal, dan sediakan sekitar 20 menit tanpa gangguan.
+- Jangan jalankan installer dengan `sudo` (Linux dan macOS).
+
+**Linux dan macOS**
+
+1. Ekstrak paket rilis lalu buka terminal di folder tersebut.
+2. Khusus Linux, cukup sekali: izinkan akun Anda mengakses Disc dalam mode flash.
+   ```sh
+   sudo cp udev/70-diskos-maskrom.rules /etc/udev/rules.d/
+   sudo udevadm control --reload-rules
+   sudo udevadm trigger
+   ```
+3. Jalankan setup, lalu buka installer (langkah ini hanya memasang paket ke `.venv` lokal):
+   ```sh
+   ./install.sh
+   ./diskos-installer gui
+   ```
+   Jika setup melaporkan paket yang kurang, pasang dari tabel [OS packages](docs/INSTALL.md#os-packages) lalu jalankan lagi.
+4. Di installer, pilih ZIP firmware Anda dan pilih **Public**.
+5. Matikan Disc. Tahan **Volume Down**, lalu sambungkan kabel USB. Layar tetap hitam; itu normal.
+6. Periksa daftar Ready (pilih **Refresh** setelah ada perubahan). Peringatan tidak memblokir instalasi.
+7. Pilih **Install diskOS...**, centang **I understand and will keep the USB cable connected until it finishes.**,
+   lalu pilih **Begin flash (~20 min)**.
+8. Biarkan kabel tetap terpasang dan komputer tetap menyala sampai verifikasi berhasil.
+9. Matikan lalu nyalakan lagi Disc. diskOS menyelesaikan pemasangannya sendiri saat boot pertama; tidak perlu langkah kartu SD.
+
+**Windows 10/11 x64**
+
+1. Ekstrak seluruh **diskos-installer-windows-x86_64.zip** lalu buka **diskos-installer.exe**
+   (SmartScreen: pilih **More info**, lalu **Run anyway**).
+2. Matikan Disc, tahan **Volume Down**, lalu sambungkan USB.
+3. Jika daftar Ready menawarkan **Set up USB driver...**, pilih itu lalu setujui permintaan administrator.
+4. Pilih ZIP firmware Anda dan **Public**, lalu **Install diskOS...**, centang pernyataan dan pilih
+   **Begin flash (~20 min)**.
+5. Biarkan jendela konsol kosong tetap terbuka, jaga komputer tetap menyala, dan tunggu verifikasi sebelum menyalakan ulang Disc.
+
+**Jika terjadi masalah**
+
+Jika hasilnya tidak diketahui atau waktunya habis, biarkan Disc menyala dan terhubung **minimal 25 menit**
+sebelum melakukan apa pun, lalu ikuti [RECOVERY.txt](RECOVERY.txt). Untuk kembali ke stock, pilih
+**Restore stock firmware...** di installer atau jalankan `./diskos-installer restore-stock`.
 
 ## Update, restore, recover
 
