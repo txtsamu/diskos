@@ -418,8 +418,7 @@ void ui_set_balance(int v){ if(v < -10 || v > 10) return;   /* enforce UI range;
  * out_dev=LOCAL(6) pre-stop normalizes player state before out_dev=BT(2), avoiding the
  * observed mq_player crash/reboot. Codec VALUE1=0 is SBC; keep the MAC payload so the
  * frame shape matches stock. Pause/seek/play resumes the current track after routing.
- * g_route_mac = the MAC we've routed to ("" = local/analog; kept for validation + dedup). */
-static char g_route_mac[20] = "";
+ * The MAC we've routed to ("" = local/analog; kept for validation + dedup) is session_bt_mac() (session.c). */
 static void route_uppercase(const char *in, char *out, int cap);
 #ifndef ROUTE_STATE_PATH
 #define ROUTE_STATE_PATH "/tmp/.diskos-ui/route"
@@ -527,7 +526,7 @@ static int route_state_restore(void){
             route_state_remove(); return 0;
         }
     }
-    snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
+    session_set_bt_mac(norm);
     return 1;
 }
 static int g_playing = 0;   /* published each tick by the main loop's play/pause inference; the routing
@@ -535,7 +534,7 @@ static int g_playing = 0;   /* published each tick by the main loop's play/pause
 /* After a player restart, the fresh player runs a ~7s late-init on its mode-control thread that can
  * overwrite an output route sent too early. The v2.40 local-init already waits this out (localplayer_workmode_cb
  * settles ~9s). BT routing must wait the same window: a speaker's bluealsa PCM is already present, so a
- * route sent within the window can be reverted to local by the player's late init - leaving g_route_mac +
+ * route sent within the window can be reverted to local by the player's late init - leaving the BT route +
  * g_bt_autorouted latched while the player is actually on analog (no recovery). An EXPLICIT armed flag (not
  * a bare deadline) avoids a false "settling" when lv_tick_get()'s absolute CLOCK_MONOTONIC ms sits in the
  * upper half of the 32-bit range; it disarms itself once the window passes. Set on each reconnect; the
@@ -550,7 +549,7 @@ int ui_player_settling(void){
 static void route_uppercase(const char *in, char *out, int cap){
     int j=0; for(int i=0; in[i] && j<cap-1; i++){ char c=in[i]; if(c>='a'&&c<='z') c-=32; out[j++]=c; } out[j]=0;
 }
-const char *ui_route_mac(void){ return g_route_mac; }   /* device the player is routed to ('' = local) */
+const char *ui_route_mac(void){ return session_bt_mac(); }   /* device the player is routed to ('' = local) */
 int ui_local_playback_allowed(void);
 int ui_route_bt(const char *mac){
     if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
@@ -563,7 +562,7 @@ int ui_route_bt(const char *mac){
         if((i+1)%3 == 0){ if(norm[i] != ':') return -1; }
         else if(!((norm[i]>='0'&&norm[i]<='9') || (norm[i]>='A'&&norm[i]<='F'))) return -1;
     }
-    if(!strcmp(norm, g_route_mac)){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }   /* already routed to this device */
+    if(!strcmp(norm, session_bt_mac())){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }   /* already routed to this device */
     /* Defer during the player's post-restart settle window: a route sent now could be reverted by the
      * player's late init and leave the caches latched on a stale route. Return "not routed" so no caller
      * latches g_bt_autorouted; the auto-route poll (which keeps firing) routes on the first tick past the
@@ -582,7 +581,7 @@ int ui_route_bt(const char *mac){
     /* Safe minimal resume; deterministic load/play remains a future improvement. */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
-    snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
+    session_set_bt_mac(norm);
     route_state_save(norm);
     session_startup_route_settled();                   /* an intentional BT route supersedes startup recovery */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
@@ -592,16 +591,16 @@ int ui_route_bt(const char *mac){
 static int route_analog(int force){
     if(modes_output_busy()) return -1;
     if(!ui_local_playback_allowed()) return -1;
-    if(!force && !g_route_mac[0]){ route_state_remove(); return 0; }
+    if(!force && !session_bt_routed()){ route_state_remove(); return 0; }
     track_state_t st; ipc_get_state(&st);
     int was_playing = g_playing;   /* real play state (raw st.state reports 0 while playing) */
     if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
-    /* the route commands MUST land; if either fails, keep g_route_mac set + return failure so a
+    /* the route commands MUST land; if either fails, keep the BT route set + return failure so a
      * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
     if(outseq_analog() != OUTSEQ_OK) return -1;         /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
     if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);
     if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
-    g_route_mac[0] = 0;
+    session_clear_bt_mac();
     route_state_remove();
     ui_bt_codec_upgrade_cancel();                       /* a pending codec switch must not outlive this route */
     fprintf(stderr,"route analog (playing=%d)\n", was_playing); fflush(stderr);
@@ -1071,7 +1070,7 @@ static int play_start_failed(const track_state_t *st){
  *    0 forever unless we poke it. We therefore actively send 02020008 every tick until it answers (a2),
  *    anchor the settle timer on that first response. The V2.40/V2.57 local init then sends 0666+0657
  *    once per player generation; the saved-BT-route check runs only once per UI process. Both require
- *    Local source + analog output intent (g_route_mac empty), and wait while a play is pending. */
+ *    Local source + analog output intent (no BT route), and wait while a play is pending. */
 static unsigned g_play_sent_gen = 0xFFFFFFFFu;   /* ipc generation in which a play command was last sent: that generation's one-shot is moot */
 static uint32_t g_play_sent_at;
 static unsigned g_play_track_seen_gen = 0xFFFFFFFFu;
@@ -1142,11 +1141,11 @@ static int startup_route_reconcile(void){
     }
     if(sink_retry_gen == gen && lv_tick_elaps(sink_retry_at) < 5000) return -1;
     /* A route from this live player is newer than its bulk-saved OUT_DEV. */
-    if(!g_route_mac[0]){
+    if(!session_bt_routed()){
         int saved_bt = startup_saved_bt_route();
         if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
     }
-    int sink = startup_connected_sink(g_route_mac);
+    int sink = startup_connected_sink(session_bt_mac());
     if(sink < 0){ sink_retry_gen = gen; sink_retry_at = lv_tick_get(); return -1; }
     if(sink){ session_startup_route_settled(); return 1; }   /* the auto-route poll owns this speaker */
     if(route_analog(1) < 0) return -1;
@@ -1199,7 +1198,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(session_startup_route_pending() && startup_playback_busy(gen)) return;
     int startup = startup_route_reconcile();
     if(startup < 0) return;
-    if(g_route_mac[0]){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
+    if(session_bt_routed()){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
     if(!fw_needs_localplayer_init()){ lv_timer_del(t); return; }
     if(startup > 0){ session_local_init_mark(gen); return; }
     if(g_play_sent_gen == gen){                                /* a play was started this generation (the play path sends its own preamble while stopped): g_playing is only inferred, so never risk 0666 mid-stream */
@@ -1294,7 +1293,7 @@ static playadmit_situation_t play_situation(void){
     playadmit_situation_t s = {
         .fw_needs_local_init = fw_needs_localplayer_init(),
         .source_mode         = ui_get_source_mode(),
-        .bt_route            = g_route_mac[0] != 0,
+        .bt_route            = session_bt_routed(),
         .output_route        = modes_output_route(),
         .playing             = g_playing,
         .play_recent         = play_recent(),
@@ -1311,7 +1310,7 @@ int ui_is_playing(void){ return g_playing; }
 const char *ui_output_blocked(void){
     if(!ui_local_playback_allowed()) return "SD card is not ready";
     if(ui_get_source_mode() != 0) return "Return to local playback first";
-    if(g_route_mac[0]) return "Bluetooth output is active";
+    if(session_bt_routed()) return "Bluetooth output is active";
     if(ui_player_settling()) return "Player is starting - try again";
     if(play_recent()) return "Player is busy - try again";
     if(book_session_active()) return "Stop the audiobook first";
@@ -3367,7 +3366,7 @@ int main(int argc, char **argv){
             /* the fresh player defaults to local/analog output, so our "routed to X" cache is stale: clear it
              * so ui_reapply_audio's local re-init isn't suppressed, then recover the still-connected speaker
              * via the (settle-deferred) auto-route poll. */
-            g_route_mac[0] = 0;
+            session_clear_bt_mac();
             route_state_remove();
             bt_notify_player_restart();
             ui_reapply_audio();           /* re-send managed audio config (DRE/filter/etc.); the v2.40 local-init

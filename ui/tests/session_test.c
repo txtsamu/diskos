@@ -303,6 +303,22 @@ static void local_init_marks_and_failure_retries(void){
     assert(session_local_init_send(4) == 1 && g_n == 0);     /* moot for this generation */
 }
 
+static void bt_route_is_a_session_fact(void){
+    assert(!session_bt_routed() && !strcmp(session_bt_mac(), ""));     /* a cold boot is on the analog route */
+    session_set_bt_mac("AA:BB:CC:DD:EE:FF");
+    assert(session_bt_routed() && !strcmp(session_bt_mac(), "AA:BB:CC:DD:EE:FF"));
+    session_set_bt_mac("11:22:33:44:55:66");                               /* a new sink replaces the old one */
+    assert(!strcmp(session_bt_mac(), "11:22:33:44:55:66"));
+    session_set_route(OUT_SPDIF);                                          /* the Output route does not touch it */
+    assert(session_bt_routed());
+    session_clear_bt_mac();
+    assert(!session_bt_routed() && !strcmp(session_bt_mac(), ""));
+    session_set_bt_mac(NULL);                                              /* NULL reads as no route */
+    assert(!session_bt_routed());
+    session_set_bt_mac("AA:BB:CC:DD:EE:FF:00:11:22:33");                   /* never overruns its 20-byte buffer */
+    assert(strlen(session_bt_mac()) == 19);
+}
+
 static void run(const char *name, void (*fn)(void)){
     fflush(stdout);
     pid_t p = fork();
@@ -316,6 +332,7 @@ static void run(const char *name, void (*fn)(void)){
 
 int main(void){
     RUN(route_and_source);
+    RUN(bt_route_is_a_session_fact);
     RUN(player_restart_clears_route);
     RUN(player_restart_reruns_local_init);
     RUN(cold_boot_entry);

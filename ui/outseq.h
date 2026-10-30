@@ -6,7 +6,7 @@
 /* Output sequence module (GLOSSARY.md): the ordered Player commands that move the Player to an output route and leave
  * it with a valid Player work mode. The frame order, the settle times and which failures stop the sequence live here
  * and nowhere else. No LVGL; the only seam is ipc_send_cmd() (host tests link a recording fake of it).
- * Stateless: the route the UI believes it is on stays in modes.c; a caller reads the result and decides. */
+ * Stateless: the route the UI believes it is on lives in session.c; a caller reads the result and decides. */
 
 typedef enum { OUTSEQ_INTERNAL = 0, OUTSEQ_SPDIF = 1, OUTSEQ_USB = 2 } outseq_route_t;   /* == OUT_* in modes.h */
 
