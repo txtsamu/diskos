@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 diskOS contributors
 """The boot-selection record has three readers that must never disagree: main.c's boot_select_is_diskos(),
-and the shipped shell helper payload/diskos-selected (used by S97 and the boot hook). This compiles the
-REAL C reader and enforcement out of main.c and runs the REAL helper, under the host shell and, when
+and the shipped shell helper payload/diskos-selected (used by S97 and the boot hook). This links the
+REAL C reader and enforcement (bootsel.c, with handoff.c; only the exec is faked, see bootsel_driver.c) and runs the REAL helper, under the host shell and, when
 available, under the V2.40 firmware BusyBox ash via qemu with the firmware's own wc applet - because ash
 `read` drops NUL bytes, which is exactly the kind of difference that makes readers disagree.
 
@@ -19,9 +19,7 @@ import subprocess
 import tempfile
 
 app = Path(__file__).resolve().parents[1]
-s = (app / 'main.c').read_text()
-a = s.index('/* ---- boot select record (tests slice')
-b = s.index('/* ---- end boot select record ---- */')
+driver = app / 'tests' / 'bootsel_driver.c'
 
 # the helper ships in the installer payload; dev tree and public tree sit at different depths
 helper = next((p for p in (app.parents[1] / 'installer' / 'payload' / 'diskos-selected',
@@ -44,36 +42,12 @@ _fw_ok = FW is not None and bool(QEMU) and (FW / 'bin' / 'busybox').is_file() \
 if os.environ.get('DISKOS_REQUIRE_FW') == '1' and not _fw_ok:
     raise SystemExit(f'FAIL firmware ash required (DISKOS_REQUIRE_FW=1) but qemu or the pinned V{FW_BASE} rootfs is missing at {FW}')
 
-harness = r'''
-#define _GNU_SOURCE
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-static int g_reset = 0;
-static void handoff_signal_reset(void){ g_reset = 1; }
-static int fake_execv(const char *p, char *const v[]){
-    printf("EXEC %s %s reset=%d\n", p, v[0], g_reset); fflush(stdout);
-    return getenv("EXEC_FAILS") ? -1 : (_exit(0), 0);
-}
-#define execv(p,a) fake_execv((p),(a))
-''' + s[a:b] + r'''
-int main(int argc, char **argv){
-    if(argc == 3 && !strcmp(argv[1], "read")){ printf("%d\n", boot_select_is_diskos(argv[2])); return 0; }
-    boot_select_enforce(argv[2]);
-    printf("FELL_THROUGH_TO_DISKOS\n");
-    return 0;
-}
-'''
-
 with tempfile.TemporaryDirectory(prefix='diskos-bootsel-') as t:
     t = Path(t)
-    (t / 'h.c').write_text(harness)
     exe = t / 'h'
     subprocess.run([os.environ.get('CC', 'cc'), '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
-                    '-fno-sanitize-recover=all', '-g', str(t / 'h.c'), '-o', str(exe)], check=True)
+                    '-fno-sanitize-recover=all', '-g', '-I', str(app), str(driver), str(app / 'bootsel.c'),
+                    str(app / 'handoff.c'), '-o', str(exe)], check=True)
 
     shells = {'host-sh': ['sh', str(helper)]}
     if _fw_ok:

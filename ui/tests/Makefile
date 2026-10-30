@@ -2,7 +2,8 @@
 # Copyright (C) 2026 diskOS contributors
 # Off-device host tests for diskOS pure-logic modules (arch#5 harness).
 # Native x86-64 build with sanitizers + CFG_* paths pointed at a temp dir. Does NOT touch the
-# device build (separate dir, separate Makefile). Run: make -C tests run
+# device build (separate dir, separate Makefile). Run: make -C tests run (C tests), make -C tests run-py (Python tests),
+# make -C tests check (both). Every test links or includes the real module sources; none slices a file by marker text.
 CC ?= cc
 CFLAGS := -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
 TDIR := /tmp/diskos_cfgtest
@@ -40,28 +41,25 @@ timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 tama_test: ../tama.c tama_test.c ../tama.h
 	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
 
-keyssh_test: keyssh_test.c ../debug_ui.c
-	sed -n '/^static int tcp_listen_in/,/^}/p' ../debug_ui.c | sed 's/^static int/int/' > keyssh_fn.c.tmp
-	(echo '#include <stdio.h>'; echo '#include <string.h>'; cat keyssh_fn.c.tmp) > keyssh_fn.c
-	$(CC) $(CFLAGS) keyssh_test.c keyssh_fn.c -o $@
-	rm -f keyssh_fn.c.tmp keyssh_fn.c
+transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
+	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
+
+keyssh_test: ../procnet.c keyssh_test.c ../procnet.h
+	$(CC) $(CFLAGS) -I.. ../procnet.c keyssh_test.c -o $@
 
 radio_test: ../radio.c radio_test.c ../radio.h
 	$(CC) $(CFLAGS) -I.. ../radio.c radio_test.c -o $@
 
-ipc_guard_test: ipc_guard_test.c
-	sed -n '/^int ipc_frame_is_dangerous/,/^}/p' ../ipc.c > ipc_guard_fn.c.tmp
-	(echo '#include <string.h>'; echo '#include <stdlib.h>'; cat ipc_guard_fn.c.tmp) > ipc_guard_fn.c
-	$(CC) $(CFLAGS) ipc_guard_test.c ipc_guard_fn.c -o $@
-	rm -f ipc_guard_fn.c.tmp ipc_guard_fn.c
+# ipc.c is the real module; ipc_guard_test links it, ipc_tx_test compiles all of it into the test (it reads ipc.c's statics)
+# and fakes only mq_*.
+ipc_guard_test: ../ipc.c ipc_guard_test.c ../ipc.h
+	$(CC) $(CFLAGS) -pthread -I.. ../ipc.c ipc_guard_test.c -o $@
 
-ipc_tx_test: ipc_tx_test.c ../ipc.c
-	sed -n '/^static volatile int g_send_err/,/^\/\* ---- safety guard/p' ../ipc.c | sed '$$d' > ipc_tx_fn.c
-	$(CC) $(CFLAGS) -I.. ipc_tx_test.c -o $@
-	rm -f ipc_tx_fn.c
+ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
+	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
-.PHONY: run clean
-run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+.PHONY: run run-py check clean
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -87,6 +85,26 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	./keyssh_test
 	@echo "--- radio ---"
 	./radio_test
+	@echo "--- transport ---"
+	./transport_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+
+# The Python tests: thin drivers that compile and run the real modules (and, for boot_select, the shipped shell helper),
+# plus source-policy guards. Each one that prints a final "COMPLETE <name>" line must reach it, so an early clean exit fails.
+# CC is passed through (the tests read $CC). `make run` already includes outseq_guard_test.py; it is repeated here so this
+# target is the whole Python set.
+PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
+PY_UNITTEST := outseq_guard rmguard
+run-py:
+	@set -e; for t in $(PY_COMPLETE); do \
+	  echo "--- $$t (python) ---"; \
+	  out=$$(CC="$(CC)" python3 -I $${t}_test.py) || { echo "$$out"; exit 1; }; \
+	  echo "$$out"; \
+	  echo "$$out" | tail -n 1 | grep -qx "COMPLETE $${t}_test.py" || { echo "FAIL $$t: did not reach its COMPLETE line"; exit 1; }; \
+	done; \
+	for t in $(PY_UNITTEST); do echo "--- $$t (python) ---"; CC="$(CC)" python3 -I $${t}_test.py; done
+
+# Everything: the C tests, then the Python tests.
+check: run run-py

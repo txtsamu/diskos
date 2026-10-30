@@ -5,6 +5,8 @@
 #include "lvgl/lvgl.h"
 #include "srcswitch.h"   /* the source-mode switch and SD admission (ui_set_source_mode, ui_source_switch_*, ...) */
 #include "ipc.h"
+#include "fontchain.h"    /* ui_text_font, ui_font_cjk */
+#include "transport.h"   /* ui_transport_command, ui_pp_tap_hint, ui_pp_icon_playing, ui_rescan_library */
 #include <stdbool.h>
 enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_TAMA, SCR_DAC, SCR_COUNT };
 void screens_init(void);
@@ -136,7 +138,6 @@ void albumwall_scroll_rel(float d_alb);    /* rim scroll: nudge the flow by d_al
 void albumwall_settle(void);               /* rim release: snap to the nearest album */
 void albumwall_play(void);                 /* play the centred album (cover tap) */
 void albumwall_open(void);                 /* open the centred album's track list (cover long-press) */
-const lv_font_t *ui_text_font(int px);     /* fallback-chained user-text font (14/16/18/20) */
 /* apps launcher (apps.c) + launch hook (main.c) */
 void apps_create(lv_obj_t *root);
 void apps_reload(void);
@@ -222,14 +223,10 @@ void ui_set_workmode(int mode);
 int ui_apply_eq(int preset);
 int ui_eq_select(int preset);    /* central EQ apply+persist (eq_preset + eq_last); 0 ok, -1 send failed */
 int ui_is_playing(void);         /* authoritative normalized play state (for the drawer transport glyph) */
-int  ui_transport_command(const char *cmd); /* shared play/pause and music/book skip behavior */
-void ui_pp_tap_hint(void);       /* call on a play/pause tap: show the predicted state instantly (no ~1s lag) */
 void ui_pp_glyph(lv_obj_t *label, int playing);   /* set a play/pause glyph (play optically centred) */
 int  ui_glyph_ink_dy(const lv_font_t *f, uint32_t cp);   /* offset that centres a glyph's ink in its line */
 void ui_glyph_center_ink(lv_obj_t *label);                /* a one-icon label centred by its ink */
-int  ui_pp_icon_playing(int real_playing);   /* returns the play/pause glyph state: prediction if held, else real */
 const char *ui_eq_name(int i);   /* EQ preset name for index 0..20 (drawer toast) */
-void ui_rescan_library(void);
 int  ui_theme_reload(const char *screen);   /* re-launch the UI to apply a theme change (main.c) */
 int  ui_play_mode_now(void);           /* the play mode the player is using (0..4), -1 unknown (main.c) */
 int  ui_queue_jump(int ord1);          /* Up Next: type-0 jump to 1-based position in the current queue (0 = sent) */
@@ -256,7 +253,6 @@ void ui_set_prewarm_mode(int m);          /* 0=covers only 1=+per-track sweep wh
 int  ui_run_cap_bounded(const char *cmd, char *out, int cap, int timeout_ms);   /* bt.c: popen-like capture, killed at timeout */
 int  bt_radio_on(void);              /* current mode; 0 = Album Art Cache off */
 int  ui_main_is_idle(void);               /* main.c: 1 when the screen is dimmed/off (no active use) */
-const lv_font_t *ui_font_cjk(int size);   /* shared montserrat + Source Han Sans fallback user-text font (14/16/20) */
 int  ui_take_art_applied(void);           /* 1 once after art (re)applied -> re-push surfaces */
 int  ui_np_seek_press(int x, int y);
 int  ui_np_cover_hit(int x, int y);      /* 1 = (x,y) is on the visible NP cover */
