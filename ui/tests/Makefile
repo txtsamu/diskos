@@ -21,6 +21,13 @@ outseq_test: ../outseq.c outseq_test.c ../outseq.h
 session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
 
+# srcswitch.c, session.c, outseq.c and sdio.c are the real modules; ipc, cfg and the environment table are faked in the test.
+# The USB card node, the card glob and the SD handoff marker point at the temp dir.
+srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../modes.h ../session.h ../outseq.h
+	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
+	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
+	  ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c -o $@
+
 playadmit_test: ../playadmit.c ../outseq.c playadmit_test.c ../playadmit.h ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../playadmit.c ../outseq.c playadmit_test.c -o $@
 
@@ -54,7 +61,7 @@ ipc_tx_test: ipc_tx_test.c ../ipc.c
 	rm -f ipc_tx_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -65,6 +72,9 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	python3 -I outseq_guard_test.py
 	@echo "--- session ---"
 	./session_test
+	@echo "--- srcswitch ---"
+	@mkdir -p $(TDIR) && rm -f $(TDIR)/fault
+	./srcswitch_test
 	@echo "--- playadmit ---"
 	./playadmit_test
 	@echo "--- dacinfo ---"
@@ -79,4 +89,4 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	./radio_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test playadmit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
