@@ -300,7 +300,7 @@ static lv_obj_t *tp_btn(lv_obj_t *root, const char *sym, const lv_font_t *font, 
 }
 static void build_transport(lv_obj_t *root, int y){
     g_prev_glyph = tp_btn(root, LV_SYMBOL_PREV, TF(UI_22), -84, y + 5, 46, (void*)"0201000C0002");
-    g_pp_glyph = tp_btn(root, LV_SYMBOL_PAUSE, TF(UI_28), 0, y, 56, (void*)"0201000C0000");
+    g_pp_glyph = tp_btn(root, LV_SYMBOL_PAUSE, TF(UI_28), 0, y, 56, (void*)PLAYER_CMD_PLAYPAUSE);
     g_next_glyph = tp_btn(root, LV_SYMBOL_NEXT, TF(UI_22), 84, y + 5, 46, (void*)"0201000C0001");
     if(g_pp_glyph) ui_pp_glyph(g_pp_glyph, ui_is_playing());
 }

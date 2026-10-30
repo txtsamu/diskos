@@ -11,7 +11,8 @@
  * and what a startup restore may therefore still do. Before this module the answer was spread over a modes.c static (now srcswitch.c),
  * main.c flags and the DISKOS_RELOAD_* environment, and every startup timer re-derived it, so each bug got another guard.
  * No LVGL. Seams: ipc_send_cmd() (through outseq), ipc_generation() and cfg_*(); time is passed in, never read.
- * The BT route (ui_route_mac) stays in main.c; the Output-route, Source-mode, SD and DAC state machines are in srcswitch.c. */
+ * The Bluetooth sink route is here too (session_bt_mac); the SD/DAC state machines are in srcswitch.c and the rules for
+ * when the UI may touch the Player are in admit.c. */
 
 typedef enum { SESSION_COLD_BOOT = 0, SESSION_RELAUNCH = 1 } session_entry_t;
 
@@ -22,6 +23,12 @@ int  session_route(void);
 void session_set_route(int route);
 int  session_source_mode(void);            /* best-effort, atomic: the coldplug thread reads it */
 void session_set_source_mode(int mode);
+/* The Bluetooth sink Local playback is routed to ("" = none, the analog route). Beside the Output route above because
+ * the two together say where Local sound goes; admit.c reads it, main.c sets it when a route lands. */
+const char *session_bt_mac(void);
+int  session_bt_routed(void);
+void session_set_bt_mac(const char *mac);   /* the normalised AA:BB:CC:DD:EE:FF of the sink */
+void session_clear_bt_mac(void);
 
 /* ---- how this process was entered ---- */
 void            session_init(void);        /* once at startup: read and consume the relaunch handoff (the DISKOS_* env) */

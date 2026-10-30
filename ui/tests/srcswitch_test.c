@@ -10,6 +10,7 @@
 #include "srcswitch.h"
 #include "session.h"
 #include "outseq.h"
+#include "admit.h"
 #include "ipc.h"
 #include "config.h"
 #include <assert.h>
@@ -72,14 +73,15 @@ static int env_scan_active(void){ return g_scan; }
 static void env_nothing(void){}
 static void env_toast(const char *s){ assert(g_ntoast < 64); snprintf(g_toast[g_ntoast++], sizeof g_toast[0], "%s", s); }
 static void env_volume(int v){ (void)v; }
-static const char *env_blocked(void){ return g_blocked ? "Player is busy - try again" : NULL; }
+/* admit.c is not linked: the one question srcswitch.c asks of it. A blocked Output-route switch is refused with a reason. */
+const char *admit_check(admit_what_t what){ return what == ADMIT_OUTPUT_SWITCH && g_blocked ? "Player is busy - try again" : NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
     .host_attached = env_attached, .dac_gadget_present = env_gadget, .player_guarded = env_guarded,
     .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_nothing, .art_cancel = env_nothing,
     .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast, .set_volume = env_volume,
-    .output_blocked = env_blocked, .seek_to = env_seek,
+    .seek_to = env_seek,
 };
 static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = ev; }
 

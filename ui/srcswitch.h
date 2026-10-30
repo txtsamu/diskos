@@ -28,7 +28,6 @@ struct srcswitch_env {
     void (*restart)(void);               /* the device restart after a USB Storage return */
     void (*toast)(const char *msg);
     void (*set_volume)(int volume);
-    const char *(*output_blocked)(void); /* NULL when an Output-route switch may run now, else a short reason for the toast */
     int  (*seek_to)(long ms);            /* 0 = accepted */
 };
 

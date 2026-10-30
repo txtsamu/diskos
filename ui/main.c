@@ -37,7 +37,7 @@
 #include "outseq.h"
 #include "session.h"
 #include "srcswitch.h"
-#include "playadmit.h"
+#include "admit.h"
 #include "timekeep.h"
 #include "anim.h"
 #include "ipc.h"
@@ -340,18 +340,8 @@ static void hwclock_save_tick(lv_timer_t *t);   /* defined below: starts the RTC
  *            LIST_SONG_0 from SONG via its own SQL, then starts at the track.
  * WORKMODE : 0102 000C <4-hex mode>   (Roon loop/shuffle; no-op in LOCAL - verify by ear)
  * EQ       : 0689 000C <4-hex preset> (selector - verify)
- * RESCAN   : 0622000C0001 (NAS-family; unverified) */
-int ui_local_playback_allowed(void);   /* defined with the launch verdict, below */
-int ui_seek_to(long ms){
-    /* A seek drives the player's current (card-backed) track, so it is card access like any other: never
-     * before this boot's launch verdict qualified the player, and never while SD access is held. */
-    if(!ui_local_playback_allowed()) return -1;
-    if(ms < 0) ms = 0;
-    char f[32]; snprintf(f, sizeof f, "01030010%08lX", (unsigned long)ms);
-    int rc = ipc_send_cmd(f);   /* 0 = queued OK, -1 = send failed */
-    fprintf(stderr,"seek %ldms -> %s (rc=%d)\n", ms, f, rc); fflush(stderr);
-    return rc;
-}
+ * RESCAN   : 0622000C0001 (NAS-family; unverified)
+ * (ui_seek_to, the SEEK sender, lives in admit.c with the other Player-touching rules.) */
 int ui_apply_eq(int preset){
     /* 0..10 = built-in presets (off..retro, sibilance 1/2); 11..20 = user/custom PEQ slots
      * (User 1 = 11). Cap at 20 so the custom EQ can select its slot. Returns the send rc
@@ -418,8 +408,7 @@ void ui_set_balance(int v){ if(v < -10 || v > 10) return;   /* enforce UI range;
  * out_dev=LOCAL(6) pre-stop normalizes player state before out_dev=BT(2), avoiding the
  * observed mq_player crash/reboot. Codec VALUE1=0 is SBC; keep the MAC payload so the
  * frame shape matches stock. Pause/seek/play resumes the current track after routing.
- * g_route_mac = the MAC we've routed to ("" = local/analog; kept for validation + dedup). */
-static char g_route_mac[20] = "";
+ * The MAC we've routed to ("" = local/analog; kept for validation + dedup) is session_bt_mac() (session.c). */
 static void route_uppercase(const char *in, char *out, int cap);
 #ifndef ROUTE_STATE_PATH
 #define ROUTE_STATE_PATH "/tmp/.diskos-ui/route"
@@ -527,35 +516,29 @@ static int route_state_restore(void){
             route_state_remove(); return 0;
         }
     }
-    snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
+    session_set_bt_mac(norm);
     return 1;
 }
 static int g_playing = 0;   /* published each tick by the main loop's play/pause inference; the routing
                              * fns read THIS, not the raw st.state (which reports 0 while playing). */
-/* After a player restart, the fresh player runs a ~7s late-init on its mode-control thread that can
- * overwrite an output route sent too early. The v2.40 local-init already waits this out (localplayer_workmode_cb
- * settles ~9s). BT routing must wait the same window: a speaker's bluealsa PCM is already present, so a
- * route sent within the window can be reverted to local by the player's late init - leaving g_route_mac +
- * g_bt_autorouted latched while the player is actually on analog (no recovery). An EXPLICIT armed flag (not
- * a bare deadline) avoids a false "settling" when lv_tick_get()'s absolute CLOCK_MONOTONIC ms sits in the
- * upper half of the 32-bit range; it disarms itself once the window passes. Set on each reconnect; the
- * guard lives in ui_route_bt so every routing path (poll, connect-completion, tap) defers uniformly. */
-static int      g_settle_armed = 0;
-static uint32_t g_settle_until = 0;
-int ui_player_settling(void){
-    if(!g_settle_armed) return 0;
-    if((int32_t)(lv_tick_get() - g_settle_until) >= 0){ g_settle_armed = 0; return 0; }   /* window passed -> disarm */
-    return 1;
-}
+/* The post-restart settle window (a fresh player's ~7s late-init can revert a route sent too early) is admit.c's:
+ * admit_note_player_restart() arms it on each reconnect, and ADMIT_ROUTE_BT_SEND defers every routing path (poll,
+ * connect-completion, tap) until it has passed. */
 static void route_uppercase(const char *in, char *out, int cap){
     int j=0; for(int i=0; in[i] && j<cap-1; i++){ char c=in[i]; if(c>='a'&&c<='z') c-=32; out[j++]=c; } out[j]=0;
 }
-const char *ui_route_mac(void){ return g_route_mac; }   /* device the player is routed to ('' = local) */
-int ui_local_playback_allowed(void);
+const char *ui_route_mac(void){ return session_bt_mac(); }   /* device the player is routed to ('' = local) */
+/* The Output sequence for a BT route: the 0666/0657/06c1 route frames, then (once they landed) the volume the Player
+ * had. The route moved with the first frame that landed, so the recorded SPDIF / USB audio route is reset unless the
+ * sequence was refused outright. */
+static outseq_rc bt_route_step(const admit_held_t *held, void *frame){
+    outseq_rc rc = outseq_bt_sink((const char *)frame);
+    if(rc != OUTSEQ_REFUSED) modes_output_reset();      /* the route moved: no longer on SPDIF / USB audio */
+    if(rc == OUTSEQ_OK && held->st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", held->st.volume); ipc_send_cmd(v); }
+    return rc;
+}
 int ui_route_bt(const char *mac){
-    if(modes_output_busy()) return -1;                  /* an output switch is in flight or recovering: the auto-route poll retries */
-    if(!ui_local_playback_allowed()) return -1;
-    if(ui_get_source_mode() != 0) return -1;            /* BT routing re-sends 0657 8: in USB DAC / BT-receive it would drop the player out of that work-mode */
+    if(admit_check(ADMIT_ROUTE_BT)) return -1;          /* an output switch in flight or recovering (the auto-route poll retries), or not Local */
     if(!mac) return -1;
     char norm[20]; route_uppercase(mac, norm, sizeof norm);
     if((int)strlen(norm) != 17) return -1;             /* must be AA:BB:CC:DD:EE:FF */
@@ -563,54 +546,38 @@ int ui_route_bt(const char *mac){
         if((i+1)%3 == 0){ if(norm[i] != ':') return -1; }
         else if(!((norm[i]>='0'&&norm[i]<='9') || (norm[i]>='A'&&norm[i]<='F'))) return -1;
     }
-    if(!strcmp(norm, g_route_mac)){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }   /* already routed to this device */
+    if(!strcmp(norm, session_bt_mac())){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }   /* already routed to this device */
     /* Defer during the player's post-restart settle window: a route sent now could be reverted by the
      * player's late init and leave the caches latched on a stale route. Return "not routed" so no caller
      * latches g_bt_autorouted; the auto-route poll (which keeps firing) routes on the first tick past the
      * window. Guarding HERE covers every path into routing (poll, connect-completion, and a device tap). */
-    if(ui_player_settling()) return -1;
+    if(admit_check(ADMIT_ROUTE_BT_SEND)) return -1;
     char f[48];
     if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;   /* 06b3 with SBC (VALUE1 0) + MAC payload, as always; built before anything is sent */
-    track_state_t st; ipc_get_state(&st);
-    int was_playing = g_playing;   /* real play state; raw st.state is unreliable (reports 0 while playing) so
-                                    * the old `st.state==1` was false during playback -> pause was SKIPPED */
-    if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
-    outseq_rc rc = outseq_bt_sink(f);
-    if(rc != OUTSEQ_REFUSED) modes_output_reset();      /* the route moved: no longer on SPDIF / USB audio */
-    if(rc != OUTSEQ_OK) return -1;
-    if(st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", st.volume); ipc_send_cmd(v); }
-    /* Safe minimal resume; deterministic load/play remains a future improvement. */
-    if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);  /* resume position, not restart */
-    if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
-    snprintf(g_route_mac, sizeof g_route_mac, "%s", norm);
+    admit_held_t held;
+    if(admit_switch(bt_route_step, f, &held) < 0) return -1;   /* pause refused or the route did not land: keep the recorded route */
+    session_set_bt_mac(norm);
     route_state_save(norm);
     session_startup_route_settled();                   /* an intentional BT route supersedes startup recovery */
     ui_bt_codec_upgrade_arm(norm, 1);                      /* AAC/LDAC chosen: switch once BlueALSA has the PCM (no-op for SBC) */
-    fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, was_playing, st.position_ms); fflush(stderr);
+    fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, held.was_playing, held.st.position_ms); fflush(stderr);
     return 0;
 }
+/* the route commands MUST land; if either fails, keep the BT route set + return failure so a
+ * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
+static outseq_rc analog_route_step(const admit_held_t *held, void *arg){ (void)held; (void)arg; return outseq_analog(); }   /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
 static int route_analog(int force){
-    if(modes_output_busy()) return -1;
-    if(!ui_local_playback_allowed()) return -1;
-    if(!force && !g_route_mac[0]){ route_state_remove(); return 0; }
-    track_state_t st; ipc_get_state(&st);
-    int was_playing = g_playing;   /* real play state (raw st.state reports 0 while playing) */
-    if(was_playing && ipc_send_cmd("0201000C0000") < 0) return -1;   /* pause; abort route if it can't be sent (don't switch output unpaused) */
-    /* the route commands MUST land; if either fails, keep g_route_mac set + return failure so a
-     * retry re-runs - clearing it would falsely say "on analog" and leave the player stuck on BT. */
-    if(outseq_analog() != OUTSEQ_OK) return -1;         /* 0666 6 (out_dev = analog/local DAC) then 0657 8 */
-    if(st.have_track && st.position_ms > 0) ui_seek_to(st.position_ms);
-    if(was_playing) ipc_send_cmd("0201000C0000");       /* play */
-    g_route_mac[0] = 0;
+    if(admit_check(ADMIT_ROUTE_ANALOG)) return -1;
+    if(!force && !session_bt_routed()){ route_state_remove(); return 0; }
+    admit_held_t held;
+    if(admit_switch(analog_route_step, NULL, &held) < 0) return -1;
+    session_clear_bt_mac();
     route_state_remove();
     ui_bt_codec_upgrade_cancel();                       /* a pending codec switch must not outlive this route */
-    fprintf(stderr,"route analog (playing=%d)\n", was_playing); fflush(stderr);
+    fprintf(stderr,"route analog (playing=%d)\n", held.was_playing); fflush(stderr);
     return 0;
 }
-int ui_route_analog(void){
-    if(modes_output_busy()) return -1;
-    return route_analog(0);
-}
+int ui_route_analog(void){ return route_analog(0); }
 
 /* Working-mode (audio SOURCE) switch. Replays the stock V2.28 sequences captured + live-verified
  * 2026-08-23: each sets the gadget selector byte (0642) + audio route (0657); the
@@ -691,7 +658,7 @@ static const struct srcswitch_env g_srcswitch_env = {
     .playing = env_playing, .scan_active = scanner_active, .scan_if_library_empty = env_scan_if_library_empty,
     .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
     .toast = ui_toast, .set_volume = env_set_volume,
-    .output_blocked = ui_output_blocked, .seek_to = ui_seek_to,
+    .seek_to = ui_seek_to,
 };
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
@@ -748,7 +715,7 @@ void ui_reapply_audio(void){
 }
 static void reapply_retry_cb(lv_timer_t *t){
     (void)t; g_reapply_tmr = NULL;                       /* one-shot: LVGL deletes it after this call */
-    if(modes_output_busy()){ reapply_later(); return; }  /* an output switch owns the player right now: try later */
+    if(admit_check(ADMIT_OUTPUT_IDLE)){ reapply_later(); return; }  /* an output switch owns the player right now: try later */
     reapply_send_all();
 }
 static void reapply_audio_body(void){
@@ -1072,7 +1039,7 @@ static int play_start_failed(const track_state_t *st){
  *    0 forever unless we poke it. We therefore actively send 02020008 every tick until it answers (a2),
  *    anchor the settle timer on that first response. The V2.40/V2.57 local init then sends 0666+0657
  *    once per player generation; the saved-BT-route check runs only once per UI process. Both require
- *    Local source + analog output intent (g_route_mac empty), and wait while a play is pending. */
+ *    Local source + analog output intent (no BT route), and wait while a play is pending. */
 static unsigned g_play_sent_gen = 0xFFFFFFFFu;   /* ipc generation in which a play command was last sent: that generation's one-shot is moot */
 static uint32_t g_play_sent_at;
 static unsigned g_play_track_seen_gen = 0xFFFFFFFFu;
@@ -1143,11 +1110,11 @@ static int startup_route_reconcile(void){
     }
     if(sink_retry_gen == gen && lv_tick_elaps(sink_retry_at) < 5000) return -1;
     /* A route from this live player is newer than its bulk-saved OUT_DEV. */
-    if(!g_route_mac[0]){
+    if(!session_bt_routed()){
         int saved_bt = startup_saved_bt_route();
         if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
     }
-    int sink = startup_connected_sink(g_route_mac);
+    int sink = startup_connected_sink(session_bt_mac());
     if(sink < 0){ sink_retry_gen = gen; sink_retry_at = lv_tick_get(); return -1; }
     if(sink){ session_startup_route_settled(); return 1; }   /* the auto-route poll owns this speaker */
     if(route_analog(1) < 0) return -1;
@@ -1162,23 +1129,22 @@ static void boot_autoplay_pause_cb(lv_timer_t *t){
     static uint32_t t0;
     if(!t0) t0 = lv_tick_get() ? lv_tick_get() : 1;
     if(ipc_transport_seq() != 0 || lv_tick_elaps(t0) > 60000){ lv_timer_del(t); return; }
-    if(modes_output_busy() || !ui_is_playing()) return;
-    if(ipc_send_cmd("0201000C0000") == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
+    if(admit_check(ADMIT_OUTPUT_IDLE) || !ui_is_playing()) return;
+    if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
     lv_timer_del(t);
 }
 static void localplayer_workmode_cb(lv_timer_t *t){
-    /* These commands drive the player and its USB/card ownership, so they need the same admission as any
-     * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
-     * (the timer retries), it is never a reason to go ahead. */
-    if(!ui_local_playback_allowed()) return;
     static unsigned wait_gen = 0xFFFFFFFFu;   /* generation whose settle timer is running */
     static uint32_t wait_start = 0;
     static unsigned rx_gen  = 0xFFFFFFFFu;    /* generation the rx_base snapshot belongs to */
     static unsigned rx_base = 0;              /* cumulative rx_frames at the start of THIS generation */
     static unsigned age_gen = 0xFFFFFFFFu;
     static int player_old = 0;
-    if(ui_get_source_mode() != 0) return;                     /* only while Local source */
-    if(modes_output_busy()) return;                            /* an output switch owns 0666/0642/0657 right now */
+    /* These commands drive the player and its USB/card ownership, so they need the same admission as any
+     * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
+     * (the timer retries), it is never a reason to go ahead. Also: only while Local source, and no output
+     * switch owns 0666/0642/0657 right now. */
+    if(admit_check(ADMIT_LOCAL_INIT)) return;
     unsigned gen = ipc_generation();
     if(!session_local_init_allowed(gen)) return;               /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
     if(age_gen != gen){ age_gen = gen; player_old = session_startup_route_pending() && startup_player_old(); }
@@ -1200,7 +1166,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
     if(session_startup_route_pending() && startup_playback_busy(gen)) return;
     int startup = startup_route_reconcile();
     if(startup < 0) return;
-    if(g_route_mac[0]){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
+    if(session_bt_routed()){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
     if(!fw_needs_localplayer_init()){ lv_timer_del(t); return; }
     if(startup > 0){ session_local_init_mark(gen); return; }
     if(g_play_sent_gen == gen){                                /* a play was started this generation (the play path sends its own preamble while stopped): g_playing is only inferred, so never risk 0666 mid-stream */
@@ -1226,7 +1192,7 @@ static void localplayer_workmode_cb(lv_timer_t *t){
 }
 void ui_rescan_library(void){
     if(scanner_active()){ if(scanner_cancel()) ui_toast("Cancelling scan..."); return; }   /* refused once it is committing: completion reports */   /* the row reads "Stop" while a scan runs */
-    if(!ui_local_playback_allowed()){ ui_toast("Return to local playback to scan"); return; }
+    if(admit_check(ADMIT_LOCAL_PLAYBACK)){ ui_toast("Return to local playback to scan"); return; }
     if(!sd_io_allowed()){ ui_toast("SD card is not ready"); return; }
     if(scanner_start() != 0){ ui_toast("Couldn't start library scan"); return; }
     ui_toast("Scanning library...");
@@ -1286,38 +1252,18 @@ static void scanner_poll(lv_timer_t *t){
         ui_toast(b);
     }
 }
-static unsigned g_play_last_gen = 0xFFFFFFFFu; static uint32_t g_play_last_tick = 0;   /* generation + tick of the last play command we sent */
-/* Is a previous play still starting? g_playing lags the stream by seconds and 0666 under it releases the local output. */
-static int play_recent(void){ return g_play_pending || (g_play_last_gen == ipc_generation() && lv_tick_elaps(g_play_last_tick) < 10000); }
-static void play_note_sent(void){ g_play_last_gen = ipc_generation(); g_play_last_tick = lv_tick_get(); }
-/* The situation a play start is admitted in (playadmit.c decides; this only reads the accessors). */
-static playadmit_situation_t play_situation(void){
-    playadmit_situation_t s = {
-        .fw_needs_local_init = fw_needs_localplayer_init(),
-        .source_mode         = ui_get_source_mode(),
-        .bt_route            = g_route_mac[0] != 0,
-        .output_route        = modes_output_route(),
-        .playing             = g_playing,
-        .play_recent         = play_recent(),
-    };
-    return s;
-}
-static playadmit_sent_t play_admit(playadmit_kind_t kind){ playadmit_situation_t s = play_situation(); return playadmit_start(kind, &s); }
 /* Authoritative play state (the main loop normalizes the unreliable raw st.state into g_playing:
  * 1=playing while position advances, else 0). Exposed so route logic shares ONE source of
  * truth instead of re-deriving play/pause from position deltas. */
 int ui_is_playing(void){ return g_playing; }
-/* Admission for an output-route switch (modes.c): NULL = go, else the toast reason. 0666 re-inits the output, so never
- * during a start-up, a book, another source, a BT route or the post-restart settle. */
-const char *ui_output_blocked(void){
-    if(!ui_local_playback_allowed()) return "SD card is not ready";
-    if(ui_get_source_mode() != 0) return "Return to local playback first";
-    if(g_route_mac[0]) return "Bluetooth output is active";
-    if(ui_player_settling()) return "Player is starting - try again";
-    if(play_recent()) return "Player is busy - try again";
-    if(book_session_active()) return "Stop the audiobook first";
-    return NULL;
-}
+/* The environment admit.c asks about: what only this process knows (the rest it reads from session.c and ipc.c). */
+static int env_play_pending(void){ return g_play_pending != 0; }
+static int env_book_active(void){ return book_session_active(); }
+static const struct admit_env g_admit_env = {
+    .now = lv_tick_get, .local_playback_allowed = ui_local_playback_allowed, .output_busy = modes_output_busy,
+    .play_pending = env_play_pending, .book_active = env_book_active, .playing = env_playing,
+    .fw_needs_local_init = fw_needs_localplayer_init,
+};
 
 /* Optimistic play/pause icon hint. Play state is INFERRED from position advance with a grace period,
  * so the transport glyph lags ~1s when PAUSING (the position stops but the inference waits before it
@@ -1360,8 +1306,7 @@ static uint32_t g_book_noadopt_until = 0;  /* after an explicit play, don't let 
  * inside the already-loaded list always uses pos1. */
 /* Returns 1 if the play frame was sent, 0 if it was refused or the send failed. */
 static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_idx){
-    if(modes_output_busy()){ ui_toast("Switching output - try again"); return 0; }   /* an output switch (0666 re-init) is in flight or recovering */
-    if(!ui_local_playback_allowed()){ ui_toast("Return to local playback first"); return 0; }
+    { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return 0; } }   /* an output switch (0666 re-init) in flight or recovering, or no local playback */
     /* A music list play (not a custom playlist, type 5) makes the stock player build its queue from the
      * UNFILTERED SONG table. If a .m4b hasn't migrated out yet, it would leak into that queue - so ensure
      * migration first, and refuse the play (rather than queue a book) if it still can't complete. */
@@ -1390,8 +1335,8 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
      * Local source + analog output only (never a BT A2DP route); and only while STOPPED (an active
      * track-jump already has the route+mode correct, and 0666 would gap the audio). */
     /* Not while a previous play is still starting (g_playing lags the stream by seconds): 0666 releases the local
-     * output under it (seen live). Only the idle / long-gap case needs the preamble. The gate is playadmit.c's. */
-    play_admit(PLAYADMIT_LIST);
+     * output under it (seen live). Only the idle / long-gap case needs the preamble. The gate is admit.c's. */
+    (void)admit_play_start(ADMIT_PLAY_LIST);
     {   /* always rebuild: the player's queue can change under us (Play Through Folders), so no type-0 shortcut */
         int datalen = 8 + (int)strlen(name);          /* f1(4)+f2(4)+name */
         snprintf(f, sizeof f, "0100%04X%04X%04X%s",
@@ -1399,7 +1344,7 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
         track_state_t cur; ipc_get_state(&cur);   /* snapshot BEFORE the send: the player's reply may already update the state */
         if(ipc_send_cmd(f) == 0){
             sent = 1;
-            play_note_sent();
+            admit_note_play_sent();
             fprintf(stderr,"play(build) type=%d pos=%d name='%s' -> %s\n", list_type, pos1, name, f);
             /* rebuild can take seconds - acknowledge + arm completion/timeout.
              * Capture the current track path so we clear only on a REAL track change
@@ -1435,7 +1380,7 @@ int ui_play_playlist(long pid, int pos){
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;                                 /* not a book */
     send_play_mode(cfg_get_int("work_mode", 0));  /* set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single */
-    play_admit(PLAYADMIT_RESERVED_SLOT);  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
+    (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);  /* local work-mode: a type-5 play from an idle player needs it (same as a book) */
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);      /* the tapped row in the player's read of the slot */
     if(ppos < 1){ ui_toast("Couldn't find that song"); return 0; }   /* never start a guessed, possibly different song */
@@ -1446,17 +1391,16 @@ int ui_play_playlist(long pid, int pos){
  * shuffle, device-verified). A type-0 jump: no rebuild, so the loaded scope stays valid. Refused while a rebuild is
  * pending (the list being jumped in may not be the one on screen). Same local-play preamble rule as ui_play_list. */
 int ui_queue_jump(int ord1){
-    if(modes_output_busy()){ ui_toast("Switching output - try again"); return -1; }
-    if(!ui_local_playback_allowed()){ ui_toast("Return to local playback first"); return -1; }
+    { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
     if(g_play_pending){ ui_toast("Queue is updating - try again"); return -1; }
     if(ord1 < 1 || ord1 > 0xFFFF) return -1;
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
-    play_admit(PLAYADMIT_LIST);
+    (void)admit_play_start(ADMIT_PLAY_LIST);
     ui_note_transport_sent();
     char f[24]; snprintf(f, sizeof f, "0100%04X%04X0000", 16, (ord1 - 1) & 0xFFFF);
     int rc = ipc_send_cmd(f);
-    if(rc == 0) play_note_sent();
+    if(rc == 0) admit_note_play_sent();
     fprintf(stderr, "queue jump pos=%d -> %s (rc=%d)\n", ord1, f, rc); fflush(stderr);
     return rc;
 }
@@ -1472,7 +1416,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
         send_play_mode(cfg_get_int("work_mode", 0));
-        play_admit(PLAYADMIT_RESERVED_SLOT);
+        (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);
         return ui_play_list_ex(5, "", pos, -1);
     }
     if(plan->list_type != 2 && plan->list_type != 3 && plan->list_type != 7){ ui_toast("Couldn't play that list"); return 0; }
@@ -1603,8 +1547,7 @@ void ui_book_user_seeked(long target_ms){
 
 /* Play an audiobook (v1: single-file .m4b) and resume at resume_ms (0 = start). */
 int ui_play_book(const char *path, long resume_ms){
-    if(modes_output_busy()){ ui_toast("Switching output - try again"); return 0; }
-    if(!ui_local_playback_allowed()){ ui_toast("Return to local playback first"); return 0; }
+    { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return 0; } }
     if(!path || !*path) return 0;
     /* The path must round-trip the player's 256-byte track path AND survive the a2 frame's JSON
      * re-escape (the decoder reserves 4 bytes), or st.path won't match and resume/checkpoint would
@@ -1621,7 +1564,7 @@ int ui_play_book(const char *path, long resume_ms){
      * starts). Re-assert the local-play route + work-mode first - device-verified this is what a book
      * play needs; ui_play_list's own preamble is gated to V2.40, but a book must start on V2.09/V2.28 too.
      * Local analog route only (never a BT A2DP path). */
-    play_admit(PLAYADMIT_RESERVED_SLOT);   /* LOCALPLAYER work-mode only (fixes NO_WORK_MODE). NOT 0666: we're already on
+    (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);   /* LOCALPLAYER work-mode only (fixes NO_WORK_MODE). NOT 0666: we're already on
                                             * the local route, and a redundant out_dev re-init pauses the stream ~1.5s in. */
     if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }   /* Single play-mode is REQUIRED for clean EOF isolation; if it can't be set, don't start the book unguarded */
     g_book_single_mode = 1;                                 /* remember to restore the music mode on the next music play */
@@ -1643,7 +1586,7 @@ int ui_play_book(const char *path, long resume_ms){
 /* ~400ms: confirm the book loaded, apply resume once, then checkpoint + detect finish. */
 static void book_tick(lv_timer_t *t){
     (void)t;
-    if(!ui_local_playback_allowed()) return;
+    if(admit_check(ADMIT_LOCAL_PLAYBACK)) return;
     if(!g_book_sess[0]){
         /* Adopt an orphaned book: after a UI-only restart the player still plays the book but our
          * session was lost, so checkpointing stops. If a book is the current track, re-establish the
@@ -3133,6 +3076,7 @@ int main(int argc, char **argv){
                          * creates the worker - pthread_create is a memory barrier, so the worker reads
                          * the already-initialised cache (no first-init data race between the threads). */
     srcswitch_set_env(&g_srcswitch_env);
+    admit_set_env(&g_admit_env);
     srcswitch_init();
     /* coldplug_start() now runs from sd_features_gate_cb, after the launcher publishes its verdict */
     { unsigned seed=0; FILE *r=fopen("/dev/urandom","rb"); if(r){ if(fread(&seed,1,sizeof seed,r)!=sizeof seed) seed=(unsigned)time(NULL); fclose(r);} else seed=(unsigned)time(NULL); srand(seed); }  /* seed RNG (shuffle start pos) */
@@ -3350,7 +3294,7 @@ int main(int argc, char **argv){
         if(ipc_take_reconnected()){       /* player restarted + /ui reattached: resync UI-owned state */
             /* Arm the post-restart settle window so BT routing (and the v2.40 local-init) wait out the
              * player's ~7s late-init before sending an output route that it could otherwise overwrite. */
-            g_settle_armed = 1; g_settle_until = lv_tick_get() + 9000;
+            admit_note_player_restart();
             /* A player restart stopped the book (the fresh player is idle) while our session is still set -
              * and a stale book-path in the reconnected state could keep book_tick treating it as playing,
              * which suppresses the local re-init (localplayer_workmode_cb bails under an active book) and wedges.
@@ -3368,13 +3312,13 @@ int main(int argc, char **argv){
             /* the fresh player defaults to local/analog output, so our "routed to X" cache is stale: clear it
              * so ui_reapply_audio's local re-init isn't suppressed, then recover the still-connected speaker
              * via the (settle-deferred) auto-route poll. */
-            g_route_mac[0] = 0;
+            session_clear_bt_mac();
             route_state_remove();
             bt_notify_player_restart();
             ui_reapply_audio();           /* re-send managed audio config (DRE/filter/etc.); the v2.40 local-init
                                            * is NOT here - it's sent from the play path when the player is ready. */
         }
-        if(g_settle_armed) (void)ui_player_settling();   /* service the settle expiry every loop so a dormant armed flag can never wrap (~24.9d) into a false "settling" */
+        admit_tick();   /* service the settle expiry every loop so a dormant armed flag can never wrap (~24.9d) into a false "settling" */
         opus_title_tick();
         ipc_get_state(&st);
         wifi_supervise();   /* keep wpa_supplicant alive when Wi-Fi should be on (auto-reconnect) */
@@ -3673,7 +3617,7 @@ int main(int argc, char **argv){
             break;
         case PW_SLEEP_DISARM: g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); break;                 /* already stopped -> just disarm */
         case PW_SLEEP_PAUSE:
-            if(ipc_send_cmd("0201000C0000") == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
+            if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }  /* paused OK -> disarm */
             /* else: send failed -> keep armed, retry next loop */
             break;
         case PW_SLEEP_WAIT: break;
@@ -3690,7 +3634,7 @@ int main(int argc, char **argv){
                  * change is an unambiguous completion signal, so it overrides the post-seek guard. If the
                  * last position was NOT near the target, the user navigated away -> just disarm. */
                 int completed = (g_sleep_eoc_atend && g_sleep_eoc_lastpos >= 0 && g_sleep_eoc_lastpos >= g_sleep_eoc - 8000);
-                if(completed && playing && ipc_send_cmd("0201000C0000") != 0){
+                if(completed && playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) != 0){
                     /* pause send failed -> keep armed, retry next loop (path still differs) */
                 } else {
                     ui_disarm_book_eoc();
@@ -3699,7 +3643,7 @@ int main(int argc, char **argv){
                 g_sleep_eoc_lastpos = sst.position_ms;
                 if(sst.position_ms >= g_sleep_eoc && !sleep_guarded){
                     if(!playing){ ui_disarm_book_eoc(); }                          /* already stopped -> disarm */
-                    else if(ipc_send_cmd("0201000C0000") == 0){ ui_disarm_book_eoc(); }  /* paused OK -> disarm */
+                    else if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ ui_disarm_book_eoc(); }  /* paused OK -> disarm */
                     /* else: send failed -> keep armed, retry */
                 }
             }

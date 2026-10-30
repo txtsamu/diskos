@@ -32,6 +32,15 @@ int session_route(void){
 int  session_source_mode(void){ return g_source_mode; }
 void session_set_source_mode(int mode){ g_source_mode = mode; }
 
+/* The Bluetooth sink Local playback is routed to: "" = none (the analog route above). Kept for validation and dedup of
+ * a route request, and read by every admission rule that must never send 0666 under an A2DP sink. A restarted Player
+ * is back on the analog route, so the caller clears it on a Player reconnect. */
+static char g_bt_mac[20] = "";
+const char *session_bt_mac(void){ return g_bt_mac; }
+int  session_bt_routed(void){ return g_bt_mac[0] != 0; }
+void session_set_bt_mac(const char *mac){ snprintf(g_bt_mac, sizeof g_bt_mac, "%s", mac ? mac : ""); }
+void session_clear_bt_mac(void){ g_bt_mac[0] = 0; }
+
 /* ---- how this process was entered ---- */
 static session_entry_t g_entry = SESSION_COLD_BOOT;
 static struct { int valid, route, src; } g_hand;   /* the state a relaunch was handed, until adopted */

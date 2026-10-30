@@ -248,7 +248,7 @@ static void pp_event_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED){
         if(ui_press_travel() > HOME_TAP_SLOP) return;   /* a swipe across the key must not pause the music */
-        if(ui_transport_command("0201000C0000") < 0) return;
+        if(ui_transport_command(PLAYER_CMD_PLAYPAUSE) < 0) return;
         if (g_np_state) ui_pp_glyph(g_np_state, ui_pp_icon_playing(ui_is_playing()));
     }
 }

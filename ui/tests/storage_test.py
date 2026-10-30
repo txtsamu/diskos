@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include "config.h"  /* cfg_get_int() */
 #include "session.h" /* the real session.c is linked: Source mode and Output route */
 #include "srcswitch.h"
+#include "admit.h"   /* admit_check(): faked below */
 static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan, test_playing;
 static int test_sends, test_fail, test_export_sends, test_seed, test_attached, test_gadget, test_restarts;
@@ -65,6 +66,7 @@ static int test_local_vol;
 void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); out->volume = test_local_vol; }
 unsigned ipc_generation(void){ return 1; }
 int ipc_is_ready(void){ return 1; }
+const char *admit_check(admit_what_t what){ (void)what; return NULL; }   /* no output switch in flight */
 /* The seam outseq.c (linked below, the real module) sends every frame through; external so it can link. */
 int ipc_send_cmd(const char *s){
     test_sends++;
@@ -91,14 +93,13 @@ static void env_seed(void){ test_seed++; }
 static void env_restart(void){ test_restarts++; }
 static void env_toast(const char *s){ (void)s; }
 static void env_volume(int v){ (void)v; test_volume_set++; }
-static const char *env_blocked(void){ return NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env test_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
     .host_attached = env_attached, .dac_gadget_present = env_gadget, .player_guarded = env_guarded,
     .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_scan_empty, .art_cancel = env_nothing,
     .card_returned = env_seed, .restart = env_restart, .toast = env_toast, .set_volume = env_volume,
-    .output_blocked = env_blocked, .seek_to = env_seek,
+    .seek_to = env_seek,
 };
 #include "srcswitch.c"   /* the module under test, in this translation unit */
 '''

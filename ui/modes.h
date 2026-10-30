@@ -12,7 +12,6 @@ enum { OUT_INTERNAL = 0, OUT_SPDIF = 1, OUT_USB = 2 };
 
 #include "srcswitch.h"
 
-/* main.c: NULL when an output switch may run now, else a short reason for the toast */
-const char *ui_output_blocked(void);
+/* Whether an output switch may run now is admit.c's rule: admit_check(ADMIT_OUTPUT_SWITCH). */
 
 #endif

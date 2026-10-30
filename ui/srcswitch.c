@@ -37,6 +37,7 @@
 #include "ipc.h"
 #include "config.h"
 #include "session.h"
+#include "admit.h"
 
 static const struct srcswitch_env *E;
 static uint32_t now_ms(void){ return E->now(); }
@@ -86,7 +87,6 @@ static int  tm_due(tm_t *t){
 #define OUT_USB_WAIT_MS   20000  /* was 8 s: on a cold boot the player's mode thread takes ~7 s before the DAC even enumerates
                                   * (seen 8.2 s, so the old limit fell back to the internal DAC 0.14 s after the DAC appeared) */
 #define OUT_USB_SETTLE_MS 1000   /* card seen -> give on_usb_audio_add time to move USB_HOST_NULL to USB_HOST */
-#define PAUSE_FRAME  "0201000C0000"
 /* The route frames themselves live in outseq.c; its route enum must stay the same numbers as OUT_* */
 _Static_assert((int)OUTSEQ_INTERNAL == OUT_INTERNAL && (int)OUTSEQ_SPDIF == OUT_SPDIF && (int)OUTSEQ_USB == OUT_USB, "outseq route numbers differ from modes.h");
 /* The route the UI believes the Player is on lives in session.c (session_route / session_set_route). */
@@ -142,13 +142,13 @@ static void out_resume(int moved){
     track_state_t st; ipc_get_state(&st);
     if(moved && (ipc_generation() != g_osw.gen || !st.have_track || strcmp(st.path, g_osw.path) != 0)){ E->toast("Output switched - press play"); return; }
     if(moved && g_osw.pos > 0 && E->seek_to(g_osw.pos) < 0){ E->toast("Couldn't resume - press play"); return; }
-    if(ipc_send_cmd(PAUSE_FRAME) < 0) E->toast("Couldn't resume - press play");   /* toggle: plays again */
+    if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) E->toast("Couldn't resume - press play");   /* toggle: plays again */
 }
 /* USB DAC unplugged while routed to it: the player falls back to a silent USB_HOST_NULL sink and nothing in the
  * UI noticed. Poll card1 once a second; after two misses switch back to the internal DAC through the normal
  * pause -> quiet -> route path, but leave playback paused (like unplugging headphones) instead of resuming
  * into the jack. A refused switch (e.g. player busy) is retried on the next ticks. An ACCEPTED switch is only a timer
- * (osw_tick): it can still abort (3 s deadline, track change, output_blocked) and leave the route on USB, so the
+ * (osw_tick): it can still abort (3 s deadline, track change, admit_check) and leave the route on USB, so the
  * watcher stays until the route reads internal, and starts another attempt (no second toast) - at most USBGONE_TRIES
  * accepted ones, then it gives up and says so rather than retry forever. */
 #define USBGONE_TRIES 3
@@ -177,7 +177,7 @@ static void usbgone_tick(void){
  * timer only polls it and runs the switch it names. */
 static void bootusb_tick(void){
     int src = 0;
-    session_restore_t r = session_restore_poll(now_ms(), modes_output_busy(), E->output_blocked() != NULL, &src);
+    session_restore_t r = session_restore_poll(now_ms(), modes_output_busy(), admit_check(ADMIT_OUTPUT_SWITCH) != NULL, &src);
     if(r == SESSION_RESTORE_WAIT) return;
     tm_stop(&g_bootusb);
     if(r == SESSION_RESTORE_SOURCE){
@@ -259,7 +259,7 @@ static void osw_tick(void){
     if(!g_osw.quiet0 || elapsed(g_osw.quiet0) < OUT_QUIET_MS){
         return;
     }
-    const char *why = E->output_blocked();
+    const char *why = admit_check(ADMIT_OUTPUT_SWITCH);
     if(why){ osw_stop(why, g_osw.was_playing); return; }
     tm_stop(&g_osw.tm);
     out_run();
@@ -267,7 +267,7 @@ static void osw_tick(void){
 static int out_switch(int target, int via_mode){
     if(target < OUT_INTERNAL || target > OUT_USB) return -1;
     if(modes_output_busy()){ E->toast("Switching..."); return -1; }
-    const char *why = E->output_blocked();
+    const char *why = admit_check(ADMIT_OUTPUT_SWITCH);
     if(why){ session_set_route(modes_output_route()); E->toast(why); return -1; }
     int was_playing = E->playing();
     track_state_t st; ipc_get_state(&st);
@@ -276,7 +276,7 @@ static int out_switch(int target, int via_mode){
     g_osw.full = via_mode || target == OUT_USB || modes_output_route() == OUT_USB;   /* Settings toggle = stock's 2-frame form, except to/from USB */
     g_osw.gen = ipc_generation(); g_osw.pos = st.have_track ? st.position_ms : 0;
     snprintf(g_osw.path, sizeof g_osw.path, "%s", st.have_track ? st.path : "");
-    if(was_playing && ipc_send_cmd(PAUSE_FRAME) < 0){ session_set_route(modes_output_route()); E->toast("Player is busy - try again"); return -1; }
+    if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ session_set_route(modes_output_route()); E->toast("Player is busy - try again"); return -1; }
     g_osw.t0 = now_ms();
     tm_start(&g_osw.tm, 100);
     return 0;
@@ -373,7 +373,7 @@ static void storage_unknown(const char *why){
  *   1 -> 3       : via Local (0642 0 closes UAC first), same refusal with a computer attached
  *   2 -> 0/1/3   : direct (port already device after 0642 0; 0657 leaves BT sink; BT radio as the player leaves it)
  *   3 -> 0/1/2   : storage return path (source_send(mode), local mount, then a device restart)
- *   1/2/3 -> U   : refused by output_blocked ("Return to local playback first"); 3 -> Local restarts the device,
+ *   1/2/3 -> U   : refused by admit_check(ADMIT_OUTPUT_SWITCH) ("Return to local playback first"); 3 -> Local restarts the device,
  *                  so no continuation could survive it, and 1 -> Local needs the cable unplugged first anyway
  *   U -> 0       : direct (0666 6, 0642 0, 0657 8 restore device role; usb_audio_on cleared below)
  *   U -> 1/2/3   : via Local (out_switch to the internal DAC, then source_switch again from leave_tick): a direct 0642 1
@@ -487,7 +487,7 @@ int modes_source_switch_busy(void){
 /* exit_done: set only while the ordered USB DAC exit's continuation (dac_exit_tick) carries the switch on, so it is not
  * started a second time. It is a parameter, not a flag, so nothing outside this call chain can see it. */
 static int source_switch(int mode, int exit_done){
-    if(modes_output_busy()){ E->toast("Switching output - try again"); return -1; }
+    { const char *why = admit_check(ADMIT_OUTPUT_IDLE); if(why){ E->toast(why); return -1; } }
     if(mode < 0 || mode > 3) return -1;
     /* Leaving USB DAC while a computer is attached can wedge mq_player V2.57 for good: close_pcm_capture_thread
      * (0x4614bc) sets the capture state to 2 and pthread_joins, but the capture thread is blocked reading from an
@@ -532,12 +532,12 @@ static int source_switch(int mode, int exit_done){
         return 0;
     }
     int was_playing = E->playing();
-    if(was_playing && ipc_send_cmd(PAUSE_FRAME) < 0){ E->toast("Player is busy - try again"); return -1; }
+    if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ E->toast("Player is busy - try again"); return -1; }
     if(session_source_mode() == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }   /* the Local volume, before the player swaps volumes */
     if(source_send(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
     session_set_source_mode(mode);
     if(mode == 1){ g_dac_enter_t = now_ms(); g_dac_vol_due = g_dac_enter_t + 4500; if(!g_dac_vol_due) g_dac_vol_due = 1; }   /* after the gadget and the player's own per-mode volume have settled */
-    if(mode == 0 && was_playing) ipc_send_cmd(PAUSE_FRAME);
+    if(mode == 0 && was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);
     /* Remember the picked Working Mode for the next boot (the boot restore above). Only the picker calls this,
      * so it records user choices; picking any source mode also ends a remembered USB Audio output. USB Storage
      * (mode 3) returns above and is never remembered. */
@@ -577,7 +577,7 @@ static void storage_step(void){
         if(sd_io_active() == 0 && atomic_load(&g_sd_writers) == 0){
             if(!storage_mark('E', 3)){ storage_unknown("cannot record export request"); return; }
             g_sd_phase = SD_WAIT_HOST; g_sd_deadline = now_ms() + 20000;
-            if(E->playing() && ipc_send_cmd(PAUSE_FRAME) < 0){ storage_unknown("pause request failed"); return; }
+            if(E->playing() && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ storage_unknown("pause request failed"); return; }
             if(source_send(3) < 0) storage_unknown("export request failed");
             return;
         }
