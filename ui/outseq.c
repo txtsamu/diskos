@@ -4,7 +4,7 @@
 #include "ipc.h"
 #include <unistd.h>
 
-/* Frames (stock V2.57, see the OUTPUT-ROUTE notes in modes.c): 0666 <n> set out device (6 local analog, 4 SPDIF_TX,
+/* Frames (stock V2.57, see the Output route notes in srcswitch.c): 0666 <n> set out device (6 local analog, 4 SPDIF_TX,
  * 3 USB_HOST), 0642 <n> gadget role (0 none, 5 USB host), 0657 8 player work mode LOCALPLAYER. A 0666 not followed by
  * 0657 8 leaves the Player in NO_WORK_MODE, so the sequence always ends there. */
 #define F_ROUTE_INTERNAL "0666000C0006"

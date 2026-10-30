@@ -8,10 +8,10 @@
 
 /* Session module (GLOSSARY.md): what the Player is currently on, as the UI believes it (Output route + Source mode),
  * how this UI process came to be (cold boot, or a relaunch such as a theme change under a Player that kept running),
- * and what a startup restore may therefore still do. Before this module the answer was spread over a modes.c static,
+ * and what a startup restore may therefore still do. Before this module the answer was spread over a modes.c static (now srcswitch.c),
  * main.c flags and the DISKOS_RELOAD_* environment, and every startup timer re-derived it, so each bug got another guard.
  * No LVGL. Seams: ipc_send_cmd() (through outseq), ipc_generation() and cfg_*(); time is passed in, never read.
- * The BT route (ui_route_mac) stays in main.c; the SD/DAC state machines are in srcswitch.c. */
+ * The BT route (ui_route_mac) stays in main.c; the Output-route, Source-mode, SD and DAC state machines are in srcswitch.c. */
 
 typedef enum { SESSION_COLD_BOOT = 0, SESSION_RELAUNCH = 1 } session_entry_t;
 

@@ -133,7 +133,7 @@ static void apply_gain(int v){ ui_set_gain(v); }
 static void apply_dac_filter(int v){ ui_set_dac_filter(v); }
 static void apply_gapless(int v){ ui_set_gapless(v); }
 #ifdef DISKOS_TEST_OUTPUTS
-static void apply_spdif(int v){ ui_set_output(v); }   /* SPDIF: stock toggle form: pause -> silent -> 0666 -> 0657 8 -> resume (modes.c); the toggle then mirrors the real route */
+static void apply_spdif(int v){ ui_set_output(v); }   /* SPDIF: stock toggle form: pause -> silent -> 0666 -> 0657 8 -> resume (srcswitch.c); the toggle then mirrors the real route */
 #endif
 static void apply_memory(int v){ ui_set_memory(v); }
 static void apply_maxvol(int v){ ui_set_maxvol(v); }

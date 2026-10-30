@@ -445,7 +445,7 @@ in memory; diskOS manages persistence separately.
 - **Artist list grouping** = `0648` - `0648000C0000` Artist / `0001` Album-Artist. (ARTIST_CLASS_TYPE)
 - **Memory playback (resume)** = `0684` - `0684000C000<0|1|2>` = Off / Position / Song.
 - **Max volume** = `0711` - `0711000C00<NN>` where NN(hex)=cap, 0..0x78(120).
-Output routes must use the coordinated stop/switch/resume path in `ui/modes.c`;
+Output routes must use the coordinated stop/switch/resume path in `ui/srcswitch.c`;
 do not send a raw route change during playback.
 
 <a id="5e-sibilance-eq-presets-wired-2026-07-01-code-only-staged-not-yet-deployed"></a>

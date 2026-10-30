@@ -3,9 +3,11 @@
 # Copyright (C) 2026 diskOS contributors
 """Run the actual handoff controller (srcswitch.c) with simulated IPC, mounts and gadget state.
 
-The filesystem marker and SD admission implementation are real. Only hardware and running-player inspection are
-replaced, through the struct srcswitch_env table the module takes. The test includes srcswitch.c itself (not a slice
-of main.c) so it can also set the phase, the way a UI restart leaves it.
+The filesystem marker and SD admission implementation are real, and so are session.c (the Source mode / Output route the
+module reads and writes) and outseq.c. Only hardware and running-player inspection are replaced, through the struct
+srcswitch_env table the module takes, plus the ipc/cfg seams below. The test includes srcswitch.c itself (not a slice
+of main.c) so it can also set the phase, the way a UI restart leaves it. The via-Local and Output-route paths run for
+real here (no stubs of them); srcswitch_test.c in this directory covers them in depth.
 """
 import os
 from pathlib import Path
@@ -44,26 +46,25 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include <dirent.h>
 #include "sdio.h"
 #include "outseq.h"
-#include "modes.h"   /* OUT_USB, modes_output_route(), modes_via_local_then() declarations */
+#include "modes.h"   /* OUT_USB */
 #include "ipc.h"     /* track_state_t, ipc_get_state(), ipc_send_cmd() */
 #include "config.h"  /* cfg_get_int() */
+#include "session.h" /* the real session.c is linked: Source mode and Output route */
 #include "srcswitch.h"
 static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan, test_playing;
 static int test_sends, test_fail, test_export_sends, test_seed, test_attached, test_gadget, test_restarts;
 static int test_volume_set, test_scans;
-static _Atomic int g_source_mode;   /* stands in for session.c's source mode */
-int session_source_mode(void){ return g_source_mode; }
-void session_set_source_mode(int m){ g_source_mode = m; }
-void session_save_source(int mode){ (void)mode; }
-int cfg_get_int(const char *key, int def){ (void)key; return def; }
+static struct { char key[24]; int v; } test_cfg[8]; static int test_ncfg;   /* cfg_*: a tiny in-memory store (session.c saves the pick) */
+int cfg_get_int(const char *key, int def){ for(int i=0;i<test_ncfg;i++) if(!strcmp(test_cfg[i].key,key)) return test_cfg[i].v; return def; }
+int cfg_set_int(const char *key, int v){
+    for(int i=0;i<test_ncfg;i++) if(!strcmp(test_cfg[i].key,key)){ test_cfg[i].v=v; return 0; }
+    assert(test_ncfg<8); snprintf(test_cfg[test_ncfg].key,sizeof test_cfg[0].key,"%s",key); test_cfg[test_ncfg++].v=v; return 0;
+}
 static int test_local_vol;
 void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); out->volume = test_local_vol; }
-int modes_output_route(void){ return OUT_INTERNAL; }   /* the internal DAC: no leave-USB detour */
-int modes_via_local_then(int mode){ (void)mode; return -1; }
-void modes_dac_exit_done(int started){ (void)started; }
-void modes_output_reset(void){}   /* output routing is not under test here */
-int modes_output_busy(void){ return 0; }
+unsigned ipc_generation(void){ return 1; }
+int ipc_is_ready(void){ return 1; }
 /* The seam outseq.c (linked below, the real module) sends every frame through; external so it can link. */
 int ipc_send_cmd(const char *s){
     test_sends++;
@@ -90,9 +91,14 @@ static void env_seed(void){ test_seed++; }
 static void env_restart(void){ test_restarts++; }
 static void env_toast(const char *s){ (void)s; }
 static void env_volume(int v){ (void)v; test_volume_set++; }
+static const char *env_blocked(void){ return NULL; }
+static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env test_env = {
-    env_now, env_mounted, env_exported, env_host_confirmed, env_attached, env_gadget, env_guarded,
-    env_playing, env_scan_active, env_scan_empty, env_nothing, env_seed, env_restart, env_toast, env_volume,
+    .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
+    .host_attached = env_attached, .dac_gadget_present = env_gadget, .player_guarded = env_guarded,
+    .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_scan_empty, .art_cancel = env_nothing,
+    .card_returned = env_seed, .restart = env_restart, .toast = env_toast, .set_volume = env_volume,
+    .output_blocked = env_blocked, .seek_to = env_seek,
 };
 #include "srcswitch.c"   /* the module under test, in this translation unit */
 '''
@@ -104,7 +110,8 @@ static void reset(void){
     unlink(SD_EXPORT_MARKER);
     test_clock=0; test_mounted=1; test_exported=0; test_host=0;
     test_guarded=1; test_scan=0; test_playing=0; test_attached=0; test_gadget=0; test_restarts=0; test_scans=0; test_volume_set=0; test_local_vol=0; g_dac_vol_due=0; g_dacx.active=0; test_sends=0; test_fail=0; test_export_sends=0; test_seed=0;
-    g_sd_hold=0; g_sd_phase=SD_LOCAL; g_source_mode=0; g_sd_reissue=0;
+    g_sd_hold=0; g_sd_phase=SD_LOCAL; session_set_source_mode(0); session_set_route(OUT_INTERNAL); g_sd_reissue=0;
+    memset(&g_osw,0,sizeof g_osw); memset(&g_leave,0,sizeof g_leave); g_rec=0; memset(&g_rec_tm,0,sizeof g_rec_tm); memset(&g_usbw,0,sizeof g_usbw); memset(&g_usbgone,0,sizeof g_usbgone); memset(&g_bootusb,0,sizeof g_bootusb); g_listener=NULL;
     atomic_store(&g_sd_writable,1); atomic_store(&g_sd_writers,0);
     srcswitch_init(); assert(sd_io_allowed() && ui_local_playback_allowed());
 }
@@ -203,24 +210,24 @@ int main(void){
     srcswitch_init(); assert(g_sd_phase==SD_UNKNOWN && !sd_io_allowed());
     puts("PASS old or malformed handoff marker remains held");
     /* Leaving USB DAC with a computer on the cable: 0642 0 first, wait for the gadget to go (+1.5 s), only then the switch. */
-    reset(); g_source_mode=1; test_attached=1; test_gadget=1;
-    assert(ui_set_source_mode(0)==0 && ui_dac_exit_pending() && g_source_mode==1 && test_sends==1);
+    reset(); session_set_source_mode(1); test_attached=1; test_gadget=1;
+    assert(ui_set_source_mode(0)==0 && g_dacx.active && session_source_mode()==1 && test_sends==1);
     assert(ui_set_source_mode(2)<0 && test_sends==1);                      /* a second request while it waits is refused */
-    test_clock=5000; srcswitch_tick(); assert(ui_dac_exit_pending() && g_source_mode==1);   /* gadget still bound */
-    test_gadget=0; test_clock=6000; srcswitch_tick(); assert(ui_dac_exit_pending());       /* seen gone: margin starts */
-    test_clock=7400; srcswitch_tick(); assert(ui_dac_exit_pending() && g_source_mode==1);
-    test_clock=7500; srcswitch_tick(); assert(!ui_dac_exit_pending() && g_source_mode==0 && test_sends>1);
+    test_clock=5000; srcswitch_tick(); assert(g_dacx.active && session_source_mode()==1);   /* gadget still bound */
+    test_gadget=0; test_clock=6000; srcswitch_tick(); assert(g_dacx.active);       /* seen gone: margin starts */
+    test_clock=7400; srcswitch_tick(); assert(g_dacx.active && session_source_mode()==1);
+    test_clock=7500; srcswitch_tick(); assert(!g_dacx.active && session_source_mode()==0 && test_sends>1);
     puts("PASS leaving USB DAC waits for the gadget, then switches");
 
-    reset(); g_source_mode=1; test_attached=1; test_gadget=1;
+    reset(); session_set_source_mode(1); test_attached=1; test_gadget=1;
     assert(ui_set_source_mode(0)==0);
     test_clock=30001; srcswitch_tick();
-    assert(!ui_dac_exit_pending() && g_source_mode==1);
+    assert(!g_dacx.active && session_source_mode()==1);
     puts("PASS a gadget that never goes away ends the exit without switching");
 
     /* USB DAC volume: the Local level is carried over once the switch has settled (4.5 s), never before. */
     reset(); test_local_vol=40;
-    assert(ui_set_source_mode(1)==0 && g_source_mode==1);
+    assert(ui_set_source_mode(1)==0 && session_source_mode()==1);
     test_clock=4499; srcswitch_tick(); assert(test_volume_set==0 && !srcswitch_dac_level_settled());
     test_clock=4500; srcswitch_tick(); assert(test_volume_set==1);
     test_clock=4600; srcswitch_tick(); assert(test_volume_set==1);          /* one-shot */
@@ -250,7 +257,7 @@ int main(void){
     exe = root / "test"
     subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",
                     "-fsanitize=address,undefined", "-g", "-pthread", '-DSD_IO_FAULT_MARKER="' + str(root / "fault") + '"', '-DSD_EXPORT_MARKER="' + str(root / "handoff") + '"', "-I", str(app),
-                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), "-o", str(exe)], check=True)
+                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), str(app / "session.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
 print('COMPLETE storage_test.py')   # last line: the runner requires it, so an early clean exit cannot pass
