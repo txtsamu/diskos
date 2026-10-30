@@ -47,16 +47,8 @@ void session_handoff_export(void);
 void session_handoff_cancel(void);
 
 /* ---- what may a startup restore still do ---- */
-/* a relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay when Resume
- * Playback was explicitly set Off (cfg memory_play 0, which the UI sends to the Player at startup): then the Player starts
- * nothing, and anything playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must
- * not be paused. Pass cfg_get_int("memory_play", -1): UNSET (-1) is NOT Off. The UI never sent 0684 then, so the Player keeps
- * its own Resume Playback setting, which autoplays at boot on the development Disc, and the pause must stay. */
-int  session_autoplay_pause_allowed(int resume_playback);
-/* The charging screen belongs to the power-on a charger triggers. A relaunch is the user mid-session (a theme change):
- * showing it there, with a charger plugged in, would power the Disc off if the charger is then pulled. A cold boot
- * cannot tell a power-on from a crash restart or a hot-load, which also carry no handoff: those keep the screen. */
-int  session_chargemode_boot_allowed(void);
+/* The two startup actions that depend only on the entry (a relaunch is not a boot) are decided by their one caller each
+ * in main.c, from session_entry(): the Resume Playback autoplay pause and the charging screen. */
 
 /* Saved Working Mode (cfg src_mode: 0 Local, 1 USB DAC, 2 BT Receiving; usb_audio_on: the output route was USB Audio). */
 int  session_saved_source(void);
@@ -71,17 +63,40 @@ typedef enum { SESSION_RESTORE_WAIT, SESSION_RESTORE_NONE, SESSION_RESTORE_SOURC
 void              session_restore_arm(uint32_t now_ms);
 session_restore_t session_restore_poll(uint32_t now_ms, int busy, int blocked, int *src);
 
-/* Startup route recovery (Bluetooth sink left by a previous UI): looked at once per process. */
-int  session_startup_route_pending(void);
-void session_startup_route_settled(void);
+/* ---- the startup Local init: when does it go out ---- */
+/* The Local init (outseq_local_boot: 0642/0666/0657) runs once per Player generation, and never for the generation a
+ * relaunch adopted (it would pull the Player off a USB DAC). Whether it may go out NOW is decided here, together with the
+ * Bluetooth sink recovery that must precede it (a sink left by a previous UI is looked at once per process). main.c's
+ * 500 ms timer passes session_startup_tick() the time and acts on the answer; the facts and the slow system probes come
+ * through struct session_startup_env, so a host test drives the whole decision with fakes. */
+struct session_startup_env {
+    /* facts, read when the decision needs them and not earlier: the order of the reads is part of the behaviour */
+    int      (*admitted)(void);          /* admit_check(ADMIT_LOCAL_INIT) == NULL: card access allowed, Local source, no output switch */
+    unsigned (*rx_frames)(void);         /* ipc_rx_frames(): CUMULATIVE across Player generations */
+    int      (*play_starting)(void);     /* a play was sent and its track has not arrived yet, or an audiobook is active */
+    int      (*playing)(void);           /* playstate's inference: position advancing */
+    int      (*have_track)(void);        /* the Player has reported a loaded track (paused or not) */
+    int      (*fw_needs_init)(void);     /* this firmware's Player needs the Local init (V2.40/V2.57) */
+    /* slow system probes, and the one route change the recovery makes (main.c adapters: shell, /proc, an Output sequence) */
+    int      (*player_old)(void);        /* the live Player has been up long enough that an old idle one need not answer first */
+    int      (*saved_bt_route)(void);    /* 1 the Player's saved output is a Bluetooth sink, 0 it is not, -1 unknown */
+    int      (*connected_sink)(const char *mac);   /* 1 an A2DP sink is connected (the auto-route poll owns it), 0 none, -1 inconclusive */
+    int      (*route_analog)(void);      /* leave the Bluetooth sink for the analog DAC: 0 done, < 0 refused or failed */
+};
+void session_startup_set_env(const struct session_startup_env *env);   /* once at startup, before the first tick */
 
-/* The Local init (outseq_local_boot) runs once per Player generation, and never for the generation a relaunch adopted
- * (its 0642/0666/0657 would pull the Player off a USB DAC). allowed() is false for the adopted generation; done()/mark()
- * track the one-shot; send() sends it on the current route and marks it. send(): 0 sent, 1 nothing to do, -1 a frame was
- * refused (not marked: the caller retries on its next tick). */
-int  session_local_init_allowed(unsigned gen);
-int  session_local_init_done(unsigned gen);
-void session_local_init_mark(unsigned gen);
-int  session_local_init_send(unsigned gen);
+/* A play/pause/next/prev went to the Player, or playback was observed, in Player generation `gen` at `now_ms`: that
+ * generation's Local init is moot (the play path sends its own preamble) and the startup recovery waits for it to settle. */
+void session_note_transport_sent(unsigned gen, uint32_t now_ms);
+
+/* One pass of the startup timer. WAIT: nothing to do yet, tick again. PROBE: the caller sends a silent 02020008 (an idle
+ * Player emits nothing until asked). DONE: the Local init is not needed on this firmware, or the recovery has handled the
+ * generation: stop ticking. The Local init frames and the recovery's route change go out from inside, through outseq;
+ * a refused frame is not marked done and the next tick retries it. */
+typedef enum { SESSION_STARTUP_WAIT, SESSION_STARTUP_PROBE, SESSION_STARTUP_DONE } session_startup_t;
+session_startup_t session_startup_tick(uint32_t now_ms);
+
+/* An intentional Bluetooth route supersedes the startup recovery (ui_route_bt). */
+void session_startup_route_settled(void);
 
 #endif

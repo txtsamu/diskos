@@ -1027,38 +1027,11 @@ static int play_start_failed(const track_state_t *st){
     return 1;
 }
 /* End playback-start monitor. */
-/* Startup route recovery and V2.40 LOCALPLAYER work-mode one-shot. The latter's mechanism (RE'd from mq_player_v240):
- *  - v2.40's player needs 0666(local route)+0657(LOCALPLAYER work-mode) set at runtime or local
- *    start_local fails ("work mode NULL"/NO_WORK_MODE -> g_fiio_local null). Protocol 0657=8 maps to
- *    internal work-mode 1 (LOCALPLAYER); 0 = NO_WORK_MODE.
- *  - WHY an early 0657 doesn't stick: an async mode-control thread (player 0x4dca64) keeps running AFTER
- *    the /player command server goes live. It runs ~50x100ms polls + up to ~2s of 1s sleeps (~7s worst
- *    case), calling close_player() (resets work-mode to 0) and re-initing per late hardware state - which
- *    clobbers any 0657 sent inside that window. So we wait past it (~8s guard; we use 9s) before sending.
- *  - WHY there is no a607 oracle on /ui: the 0607 query handler writes its a607 reply to a SEPARATE
- *    fd-based transport (mask 0, raw write to fd 0x83e5f4), never the /ui mqueue - so we can never see it.
- *    There is NO deterministic /ui frame meaning "late init finished". a1=needs playback, a2=server
- *    liveness only, a714=volume. The best anchor is: solicit a2 with 02020008, then a fixed settle delay.
- *  - IDLE PLAYER IS SILENT: a fresh cold-boot player emits NOTHING unsolicited, so ipc_rx_frames() stays
- *    0 forever unless we poke it. We therefore actively send 02020008 every tick until it answers (a2),
- *    anchor the settle timer on that first response. The V2.40/V2.57 local init then sends 0666+0657
- *    once per player generation; the saved-BT-route check runs only once per UI process. Both require
- *    Local source + analog output intent (no BT route), and wait while a play is pending. */
-static unsigned g_play_sent_gen = 0xFFFFFFFFu;   /* ipc generation in which a play command was last sent: that generation's one-shot is moot */
-static uint32_t g_play_sent_at;
-static unsigned g_play_track_seen_gen = 0xFFFFFFFFu;
-void ui_note_transport_sent(void){ g_play_sent_gen = ipc_generation(); g_play_sent_at = lv_tick_get(); }
-/* A sent play can precede its first track reply. A loaded track may still be paused,
- * so wait for the player to unload it and for the last play evidence to age out. */
-static int startup_playback_busy(unsigned gen){
-    if(g_playing) g_play_track_seen_gen = gen;
-    if(g_play_pending || g_playing || book_session_active()) return 1;
-    if(g_play_sent_gen != gen) return 0;
-    track_state_t st; ipc_get_state(&st);
-    if(st.have_track) g_play_track_seen_gen = gen;
-    return st.have_track || g_play_track_seen_gen != gen || lv_tick_elaps(g_play_sent_at) < 10000;
-}
-/* Read the live player's age once per generation. An old idle player need not answer
+/* Startup route recovery and V2.40 LOCALPLAYER work-mode one-shot: the decision (settle window, per-generation rx
+ * anchor, play-already-sent, already-playing, BT route, retry on a refused frame) and its mechanism notes are
+ * session.c's (session_startup_tick); this file feeds it the time and the facts below, and acts on the answer. */
+void ui_note_transport_sent(void){ session_note_transport_sent(ipc_generation(), lv_tick_get()); }
+/* The live player's age (session.c asks once per generation). An old idle player need not answer
  * the track probe before a route recovery; a young player still uses the reply/settle path. */
 static int startup_player_old(void){
     long pid, hz = sysconf(_SC_CLK_TCK);
@@ -1101,30 +1074,6 @@ static int startup_connected_sink(const char *mac){
     route_uppercase(buf, buf, sizeof buf);
     return strstr(buf, needle) != NULL;
 }
-/* 1 = this generation needs no other local init, 0 = normal init may continue,
- * -1 = evidence or a route send is pending. An inconclusive sink probe waits
- * at least five seconds before another shell probe on this generation. */
-static int startup_route_reconcile(void){
-    static unsigned sink_retry_gen = 0xFFFFFFFFu;
-    static uint32_t sink_retry_at = 0;
-    if(!session_startup_route_pending()) return 0;
-    unsigned gen = ipc_generation();
-    if(modes_output_route() != OUT_INTERNAL || cfg_get_int("spdif", 0)){
-        session_startup_route_settled(); return 0;
-    }
-    if(sink_retry_gen == gen && lv_tick_elaps(sink_retry_at) < 5000) return -1;
-    /* A route from this live player is newer than its bulk-saved OUT_DEV. */
-    if(!session_bt_routed()){
-        int saved_bt = startup_saved_bt_route();
-        if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
-    }
-    int sink = startup_connected_sink(session_bt_mac());
-    if(sink < 0){ sink_retry_gen = gen; sink_retry_at = lv_tick_get(); return -1; }
-    if(sink){ session_startup_route_settled(); return 1; }   /* the auto-route poll owns this speaker */
-    if(route_analog(1) < 0) return -1;
-    session_startup_route_settled();
-    return 1;   /* route_analog logs the single recovery line */
-}
 /* Resume Playback (0684 Position/Song) restores the last song at boot, but the player also starts PLAYING it
  * ("[MEMORY]: mount stable, begin memory play"). Keep the restored song and position, paused: once in the first
  * 60 s of the UI, if it is playing and the user has not driven the transport yet (ipc_transport_seq still 0:
@@ -1137,62 +1086,24 @@ static void boot_autoplay_pause_cb(lv_timer_t *t){
     if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ fprintf(stderr, "boot: paused the player's resume autoplay\n"); fflush(stderr); }
     lv_timer_del(t);
 }
+/* The facts and system probes session_startup_tick() asks for. */
+static int startup_admitted(void){ return admit_check(ADMIT_LOCAL_INIT) == NULL; }
+static int startup_play_starting(void){ return g_play_pending || book_session_active(); }
+static int startup_playing(void){ return g_playing; }
+static int startup_have_track(void){ track_state_t st; ipc_get_state(&st); return st.have_track; }
+static int startup_route_analog(void){ return route_analog(1); }
+static const struct session_startup_env g_startup_env = {
+    .admitted = startup_admitted, .rx_frames = ipc_rx_frames, .play_starting = startup_play_starting,
+    .playing = startup_playing, .have_track = startup_have_track, .fw_needs_init = fw_needs_localplayer_init,
+    .player_old = startup_player_old, .saved_bt_route = startup_saved_bt_route,
+    .connected_sink = startup_connected_sink, .route_analog = startup_route_analog,
+};
 static void localplayer_workmode_cb(lv_timer_t *t){
-    static unsigned wait_gen = 0xFFFFFFFFu;   /* generation whose settle timer is running */
-    static uint32_t wait_start = 0;
-    static unsigned rx_gen  = 0xFFFFFFFFu;    /* generation the rx_base snapshot belongs to */
-    static unsigned rx_base = 0;              /* cumulative rx_frames at the start of THIS generation */
-    static unsigned age_gen = 0xFFFFFFFFu;
-    static int player_old = 0;
-    /* These commands drive the player and its USB/card ownership, so they need the same admission as any
-     * other card access: a qualified launch verdict, SD not held, no decoder fault. A pending verdict waits
-     * (the timer retries), it is never a reason to go ahead. Also: only while Local source, and no output
-     * switch owns 0666/0642/0657 right now. */
-    if(admit_check(ADMIT_LOCAL_INIT)) return;
-    unsigned gen = ipc_generation();
-    if(!session_local_init_allowed(gen)) return;               /* a theme re-launch kept the player's route: 0642/0666/0657 here would pull it off a USB DAC */
-    if(age_gen != gen){ age_gen = gen; player_old = session_startup_route_pending() && startup_player_old(); }
-    if(session_startup_route_pending() && player_old && !startup_playback_busy(gen)){
-        int startup = startup_route_reconcile();
-        if(startup > 0) session_local_init_mark(gen);
-        if(startup > 0 && !fw_needs_localplayer_init()){
-            lv_timer_del(t); return;
-        }
+    switch(session_startup_tick(lv_tick_get())){
+    case SESSION_STARTUP_PROBE: ipc_send_probe("02020008"); break;   /* solicit a2: an idle player is silent */
+    case SESSION_STARTUP_DONE:  lv_timer_del(t); break;
+    case SESSION_STARTUP_WAIT:  break;
     }
-    if(g_play_pending || book_session_active()) return;
-    if(session_local_init_done(gen)) return;
-    unsigned rx  = ipc_rx_frames();           /* CUMULATIVE across generations -> anchor per-generation via rx_base */
-    if(rx_gen != gen){ rx_gen = gen; rx_base = rx; }           /* new generation -> snapshot the count */
-    if(rx == rx_base){ ipc_send_probe("02020008"); return; }   /* SOLICIT: THIS generation's player hasn't answered yet (idle player is silent) */
-    uint32_t now = lv_tick_get();
-    if(wait_gen != gen){ wait_gen = gen; wait_start = now; return; }   /* first response this gen -> start settle */
-    if(now - wait_start < 9000) return;                        /* settle past the ~7s mode-control-thread window */
-    if(session_startup_route_pending() && startup_playback_busy(gen)) return;
-    int startup = startup_route_reconcile();
-    if(startup < 0) return;
-    if(session_bt_routed()){ session_local_init_mark(gen); if(!fw_needs_localplayer_init()) lv_timer_del(t); return; }
-    if(!fw_needs_localplayer_init()){ lv_timer_del(t); return; }
-    if(startup > 0){ session_local_init_mark(gen); return; }
-    if(g_play_sent_gen == gen){                                /* a play was started this generation (the play path sends its own preamble while stopped): g_playing is only inferred, so never risk 0666 mid-stream */
-        session_local_init_mark(gen);
-        fprintf(stderr,"v2.40 workmode: local-init skipped, play already sent (gen %u)\n", gen); fflush(stderr);
-        return;
-    }
-    /* Already PLAYING locally (the user started a song inside the settle window): the player has a working local
-     * route and work-mode and the card isn't exported - exactly the state this one-shot exists to establish - and
-     * 0666 would close the stream mid-song (seen live on V2.57). Count this generation as initialised. */
-    if(g_playing){
-        session_local_init_mark(gen);
-        fprintf(stderr,"v2.40 workmode: local-init skipped, already playing (gen %u)\n", gen); fflush(stderr);
-        return;
-    }
-    /* USB gadget selector -> Local/no-export: tears down any mass-storage the stock player
-     * auto-bound from a persisted WORK_MODE=4 (recovers hand-deploys + belt-and-suspenders for
-     * the flashed boot gate). Sent past the settle window so the async mode-control thread can't
-     * clobber it. If the send fails, DON'T mark this generation done - retry next tick rather than
-     * leave the card exported. */
-    if(session_local_init_send(gen) != 0) return;   /* outseq_local_boot on the current route: 0642 gadget (0 = none, 5 = USB host), 0666 local route (6 internal, 4 SPDIF, 3 USB audio: (re)inits the local device, creates g_fiio_local), 0657 8 LOCALPLAYER work-mode (fixes NO_WORK_MODE); marks this generation initialised only once ALL three were actually sent */
-    fprintf(stderr,"v2.40 workmode: local-init sent once (gen %u)\n", gen); fflush(stderr);
 }
 /* Poll for scan completion: reload the library from the rebuilt DB, refresh the view, toast. */
 /* 1 once every .m4b has been moved out of SONG into BOOKS. Until then a music play (which the stock player
@@ -2792,9 +2703,15 @@ int main(int argc, char **argv){
     lv_timer_create(sd_features_gate_cb, 500, NULL);     /* start SD-backed features only on a positive launcher verdict */
     g_t_art = lv_timer_create(ui_art_poll, 120, NULL);    /* apply finished album-art decode (worker thread) */
     session_init();                                       /* cold boot or relaunch: before any timer below asks what a startup restore may still do */
+    session_startup_set_env(&g_startup_env);
     lv_timer_create(localplayer_workmode_cb, 500, NULL);  /* solicit a2 and settle before startup route recovery / V2.40 local init */
     modes_output_boot_restore();                          /* USB Audio was the active output: re-select it once the player has settled */
-    if(session_autoplay_pause_allowed(cfg_get_int("memory_play", -1)))   /* a theme relaunch is not a boot: what is playing must keep playing; Resume Playback explicitly Off: the Player starts nothing, so nothing to pause (unset = the Player keeps its own setting, so it may autoplay) */
+    /* A relaunch is not a boot: what is playing must keep playing. Nor is it the Player's own resume autoplay when Resume
+     * Playback was explicitly set Off (cfg memory_play 0, which the UI sends to the Player at startup): then the Player starts
+     * nothing, and anything playing in the first minute (a Bluetooth headset's play, a hardware key) is the user's and must
+     * not be paused. UNSET (-1) is NOT Off: the UI never sent 0684 then, so the Player keeps its own Resume Playback setting,
+     * which autoplays at boot on the development Disc, and the pause must stay. */
+    if(session_entry() == SESSION_COLD_BOOT && cfg_get_int("memory_play", -1) != 0)
         lv_timer_create(boot_autoplay_pause_cb, 500, NULL);   /* Resume Playback: keep the restored song, but paused */
     /* Background cover/accent prewarm. The worker self-gates on the user's "Album art
      * caching" setting (off/idle/charging) + a battery-temp throttle, so it's safe to
@@ -3407,7 +3324,7 @@ int main(int argc, char **argv){
         }
         if(kbinput_active()) last_activity = lv_tick_get();
         if(usbhid_poll(bl_state == 0) && bl_state == 0) last_activity = lv_tick_get();   /* USB IEM buttons: activity, never a wake */
-        { static int cm_boot; if(!cm_boot){ cm_boot = 1; if(session_chargemode_boot_allowed()) chargemode_boot(); } chargemode_tick(); }   /* a theme re-launch is mid-session, not a power-on: no charging screen (tick only acts on a showing one) */
+        { static int cm_boot; if(!cm_boot){ cm_boot = 1; if(session_entry() == SESSION_COLD_BOOT) chargemode_boot(); } chargemode_tick(); }   /* the charging screen belongs to the power-on a charger triggers; a theme re-launch is mid-session, and showing it there with a charger plugged in would power the Disc off if the charger is then pulled. A cold boot cannot tell a power-on from a crash restart or a hot-load (also no handoff): those keep the screen (tick only acts on a showing one) */
         power_tick(chargemode_active() ? lv_tick_get() : last_activity, playing);   /* the charging screen may dim/blank but never idle-powers-off */   /* AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice */
         int in_saver = (screen_current()==SCR_SAVER);
         /* a manual Sleep request ends the moment the panel is woken (we leave SCR_SAVER) */
