@@ -477,39 +477,12 @@ static void style_text(lv_obj_t *obj, const lv_font_t *font, lv_color_t color)
     lv_obj_set_style_text_letter_space(obj, 0, LV_PART_MAIN);
 }
 
-int ui_transport_command(const char *cmd)
-{
-    if(!cmd) return -1;
-    int is_next = !strcmp(cmd, "0201000C0001");
-    int is_prev = !strcmp(cmd, "0201000C0002");
-    int is_toggle = !strcmp(cmd, PLAYER_CMD_PLAYPAUSE);
-    if(!is_next && !is_prev && !is_toggle) return -1;
-    { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
-    ui_defer_sleep();
-    if(is_next || is_prev){
-        track_state_t st; ipc_get_state(&st);
-        if(mdb_is_book_path(st.path)){
-            long tgt = st.position_ms + (is_next ? 30000 : -15000);
-            if(tgt < 0) tgt = 0;
-            if(st.duration_ms > 0 && tgt > st.duration_ms) tgt = st.duration_ms;
-            if(ui_seek_to(tgt) < 0){ ui_toast("Couldn't seek - try again"); return -1; }
-            g_seek_target_ms = tgt;
-            g_seek_hold_until = lv_tick_get() + 2500;
-            ui_book_user_seeked(tgt);
-            return 0;
-        }
-    }
-    ui_note_transport_sent();
-    if(ipc_send_cmd(cmd) < 0){ ui_toast("Player busy - try again"); return -1; }
-    if(is_toggle){
-        ui_pp_tap_hint();
-        ui_pp_glyph(btn_pp, ui_pp_icon_playing(ui_is_playing()));
-    } else {
-        ui_cancel_book_resume();
-        ui_disarm_book_eoc();
-    }
-    return 0;
+/* What transport.c asks of this screen (transport.h): the seek-echo hold and the transport glyph. */
+void ui_np_seek_hold(long target_ms){
+    g_seek_target_ms = target_ms;
+    g_seek_hold_until = lv_tick_get() + 2500;
 }
+void ui_np_pp_refresh(int playing){ ui_pp_glyph(btn_pp, playing); }
 static void transport_cb(lv_event_t *e)
 {
     ui_transport_command((const char *)lv_event_get_user_data(e));

@@ -5,6 +5,7 @@
 #include "lvgl/lvgl.h"
 #include "srcswitch.h"   /* the source-mode switch and SD admission (ui_set_source_mode, ui_source_switch_*, ...) */
 #include "ipc.h"
+#include "transport.h"   /* ui_transport_command, ui_pp_tap_hint, ui_pp_icon_playing, ui_rescan_library */
 #include <stdbool.h>
 enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_TAMA, SCR_DAC, SCR_COUNT };
 void screens_init(void);
@@ -222,14 +223,10 @@ void ui_set_workmode(int mode);
 int ui_apply_eq(int preset);
 int ui_eq_select(int preset);    /* central EQ apply+persist (eq_preset + eq_last); 0 ok, -1 send failed */
 int ui_is_playing(void);         /* authoritative normalized play state (for the drawer transport glyph) */
-int  ui_transport_command(const char *cmd); /* shared play/pause and music/book skip behavior */
-void ui_pp_tap_hint(void);       /* call on a play/pause tap: show the predicted state instantly (no ~1s lag) */
 void ui_pp_glyph(lv_obj_t *label, int playing);   /* set a play/pause glyph (play optically centred) */
 int  ui_glyph_ink_dy(const lv_font_t *f, uint32_t cp);   /* offset that centres a glyph's ink in its line */
 void ui_glyph_center_ink(lv_obj_t *label);                /* a one-icon label centred by its ink */
-int  ui_pp_icon_playing(int real_playing);   /* returns the play/pause glyph state: prediction if held, else real */
 const char *ui_eq_name(int i);   /* EQ preset name for index 0..20 (drawer toast) */
-void ui_rescan_library(void);
 int  ui_theme_reload(const char *screen);   /* re-launch the UI to apply a theme change (main.c) */
 int  ui_play_mode_now(void);           /* the play mode the player is using (0..4), -1 unknown (main.c) */
 int  ui_queue_jump(int ord1);          /* Up Next: type-0 jump to 1-based position in the current queue (0 = sent) */

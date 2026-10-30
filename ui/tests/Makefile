@@ -40,6 +40,9 @@ timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 tama_test: ../tama.c tama_test.c ../tama.h
 	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
 
+transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
+	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
+
 keyssh_test: keyssh_test.c ../debug_ui.c
 	sed -n '/^static int tcp_listen_in/,/^}/p' ../debug_ui.c | sed 's/^static int/int/' > keyssh_fn.c.tmp
 	(echo '#include <stdio.h>'; echo '#include <string.h>'; cat keyssh_fn.c.tmp) > keyssh_fn.c
@@ -61,7 +64,7 @@ ipc_tx_test: ipc_tx_test.c ../ipc.c
 	rm -f ipc_tx_fn.c
 
 .PHONY: run clean
-run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -87,6 +90,8 @@ run: config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_t
 	./keyssh_test
 	@echo "--- radio ---"
 	./radio_test
+	@echo "--- transport ---"
+	./transport_test
 
 clean:
-	rm -f config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
