@@ -48,6 +48,12 @@ static void bootusb_tick(void){
         if(ui_set_source_mode(src) == 0) E->toast(src == 1 ? "Restoring USB DAC mode..." : "Restoring Bluetooth Receiving...");
         notify(SRCSWITCH_EV_CHANGED);
     } else if(r == SESSION_RESTORE_USB_AUDIO){
+        int power = E->external_power ? E->external_power() : 0;
+        if(power != 0){
+            fprintf(stderr, "usb audio: restore skipped, %s\n", power > 0 ? "the port has external power" : "the port power state is unreadable"); fflush(stderr);
+            if(power > 0) E->toast("USB Audio not restored - charger connected");
+            return;
+        }
         if(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0) E->toast("Restoring USB Audio...");
     }
 }

@@ -533,6 +533,41 @@ static void usb_audio_unplug_gives_up_after_three_tries(void){
     for(int t = 0; t < 20000; t += 100){ g_now += 100; g_blocked = outroute_pick_pending() ? "SD card is not ready" : NULL; outroute_tick(); }
     assert(g_ntoast == quiet);
 }
+static void usb_audio_timeout_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(21000);
+    assert(outroute_route() == OUT_INTERNAL && !outroute_busy());
+    assert(cfg_get_int("usb_audio_on", -1) == 0 && !outroute_saved_usb_audio());
+}
+static void usb_audio_restart_while_waiting_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(1000); g_gen++; run(500);
+    assert(toasted("Player restarted - try again") && outroute_route() == OUT_INTERNAL);
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_uncertain_fallback_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(1000); g_fail_from = 3; run(20000);
+    assert(toasted("Output state uncertain - recovering") && outroute_busy());
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_failed_enter_forgets_the_saved_flag(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1);
+    g_fail_at = 1;
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(700);
+    assert(toasted("Output switch failed - internal DAC restored") && outroute_route() == OUT_INTERNAL);
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_connected_keeps_the_saved_flag(void){
+    setup(); usb_card(1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(2500);
+    assert(toasted("USB DAC connected") && cfg_get_int("usb_audio_on", -1) == 1);
+}
 static void adopt_watches_a_usb_route(void){
     setup(); usb_card(1);
     outroute_set(OUT_USB);
@@ -588,6 +623,11 @@ int main(void){
     S(usb_audio_restart_while_waiting);
     S(usb_audio_unplug_gives_up_after_three_tries);
     S(adopt_watches_a_usb_route);
+    S(usb_audio_timeout_forgets_the_saved_flag);
+    S(usb_audio_restart_while_waiting_forgets_the_saved_flag);
+    S(usb_audio_uncertain_fallback_forgets_the_saved_flag);
+    S(usb_audio_failed_enter_forgets_the_saved_flag);
+    S(usb_audio_connected_keeps_the_saved_flag);
     puts("outroute_test: ok");
     return 0;
 }

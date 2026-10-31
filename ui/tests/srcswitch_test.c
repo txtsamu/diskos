@@ -51,7 +51,7 @@ int cfg_set_int(const char *key, int v){
 }
 
 static uint32_t g_now;
-static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan;
+static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan, g_power;
 static char g_toast[64][96]; static int g_ntoast;
 static srcswitch_event_t g_ev[32]; static int g_nev;
 static uint32_t env_now(void){ return g_now; }
@@ -68,10 +68,11 @@ static void env_toast(const char *s){ assert(g_ntoast < 64); snprintf(g_toast[g_
 static void env_volume(int v){ (void)v; }
 const char *admit_check(admit_what_t what){ (void)what; return NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
+static int env_power(void){ return g_power; }
 static const struct srcswitch_env env = {
     .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
     .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
-    .seek_to = env_seek,
+    .seek_to = env_seek, .external_power = env_power,
 };
 static const struct sd_env sd_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
@@ -251,6 +252,30 @@ static void boot_restore_replays_the_saved_mode(void){
     expect_frames("restore", want, 3);
     assert(session_source_mode() == 1 && toasted("Restoring USB DAC mode..."));
 }
+static void boot_restore_skips_usb_audio_with_external_power(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = 1;
+    modes_output_boot_restore();
+    run(130000);
+    assert(g_n == 0 && !outroute_busy() && outroute_route() == OUT_INTERNAL);
+    assert(toasted("USB Audio not restored - charger connected") && !toasted("Restoring USB Audio..."));
+    assert(cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void boot_restore_skips_usb_audio_when_power_is_unreadable(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = -1;
+    modes_output_boot_restore();
+    run(130000);
+    assert(g_n == 0 && !outroute_busy() && outroute_route() == OUT_INTERNAL);
+    assert(!toasted("Restoring USB Audio...") && cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void boot_restore_replays_usb_audio_without_external_power(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = 0;
+    modes_output_boot_restore();
+    run(14000); assert(g_n == 0);
+    run(2700);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("restore USB Audio", want, 3);
+    assert(toasted("Restoring USB Audio...") && outroute_route() == OUT_USB);
+}
 
 static void scenario(const char *name, void (*fn)(void)){
     fflush(stdout);
@@ -273,6 +298,9 @@ int main(void){
     S(deferred_pick_refused_is_abandoned);
     S(failed_source_frame_refuses);
     S(boot_restore_replays_the_saved_mode);
+    S(boot_restore_skips_usb_audio_with_external_power);
+    S(boot_restore_skips_usb_audio_when_power_is_unreadable);
+    S(boot_restore_replays_usb_audio_without_external_power);
     puts("srcswitch_test: ok");
     return 0;
 }

@@ -5,6 +5,7 @@
 #include "outroute.h"
 #include "session.h"
 #include "power.h"
+#include "vbus.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -12,35 +13,10 @@
 #include <glob.h>
 #include <sys/ioctl.h>
 
-#define I2C_SLAVE_FORCE_ 0x0706
-#define CHG_BUS  "/dev/i2c-2"
-#define CHG_ADDR 0x1a
-#define CHG_REG_STATUS 0x08
-
 static lv_obj_t *g_ov, *g_pct, *g_sub;
 static int g_gone_polls;
 static uint32_t g_last_poll;
 
-static int vbus_present(void){
-    int fd = open(CHG_BUS, O_RDWR | O_CLOEXEC);
-    if(fd < 0) return -1;
-    unsigned char reg = CHG_REG_STATUS, val = 0;
-    int ok = ioctl(fd, I2C_SLAVE_FORCE_, CHG_ADDR) == 0 && write(fd, &reg, 1) == 1 && read(fd, &val, 1) == 1;
-    close(fd);
-    return ok ? ((val >> 5) & 7) != 0 : -1;
-}
-static int plain_charger(void){
-    glob_t g; int plain = 1;
-    if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 1;
-    for(size_t i = 0; i < g.gl_pathc; i++){
-        FILE *f = fopen(g.gl_pathv[i], "r"); char s[32] = "";
-        if(!f) continue;
-        if(fgets(s, sizeof s, f) && strncmp(s, "not attached", 12) != 0) plain = 0;
-        fclose(f);
-    }
-    globfree(&g);
-    return plain;
-}
 static int usb_mode_involved(void){
     int sm = session_source_mode();
     return outroute_route() == OUT_USB || sm == 1 || sm == 3 ||
@@ -64,7 +40,7 @@ static void paint(void){
 int chargemode_active(void){ return g_ov != NULL; }
 
 void chargemode_boot(void){
-    if(g_ov || usb_mode_involved() || vbus_present() != 1 || !plain_charger()) return;
+    if(g_ov || usb_mode_involved() || vbus_present() != 1 || !vbus_plain_charger()) return;
     g_ov = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(g_ov);
     lv_obj_set_size(g_ov, 360, 360);
@@ -101,7 +77,7 @@ void chargemode_boot(void){
 void chargemode_tick(void){
     if(!g_ov || lv_tick_elaps(g_last_poll) < 1000) return;
     g_last_poll = lv_tick_get();
-    if(usb_mode_involved() || !plain_charger()){ close_ov(); return; }
+    if(usb_mode_involved() || !vbus_plain_charger()){ close_ov(); return; }
     paint();
     int v = vbus_present();
     if(v == 0){

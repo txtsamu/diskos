@@ -243,6 +243,7 @@ static void out_recover_tick(void){
 }
 static void out_rec_enter(void){
     outroute_reset();
+    outroute_save_usb_audio(0);
     if(g_rec) return;
     g_rec = 1; g_rec_gen = ipc_generation();
     tm_start(&g_rec_tm, 500);
@@ -268,7 +269,7 @@ static void usbgone_tick(void){
     }
 }
 static void usbw_tick(void){
-    if(ipc_generation() != g_osw.gen){ tm_stop(&g_usbw.tm); outroute_reset(); E->toast("Player restarted - try again"); notify(); return; }
+    if(ipc_generation() != g_osw.gen){ tm_stop(&g_usbw.tm); outroute_reset(); outroute_save_usb_audio(0); E->toast("Player restarted - try again"); notify(); return; }
     if(out_usb_card_ok()){
         if(!g_usbw.seen) g_usbw.seen = now_ms() ? now_ms() : 1;
         if(elapsed(g_usbw.seen) < OUT_USB_SETTLE_MS) return;
@@ -278,6 +279,7 @@ static void usbw_tick(void){
     }
     if(elapsed(g_usbw.t0) < OUT_USB_WAIT_MS) return;
     tm_stop(&g_usbw.tm);
+    outroute_save_usb_audio(0);
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         outroute_reset();
         E->toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
@@ -301,6 +303,7 @@ static int out_run(void){
     if(rc == OUTSEQ_OK){ outroute_set(target); out_resume(1); outroute_save_usb_audio(0); notify(); return 0; }
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         outroute_reset();
+        outroute_save_usb_audio(0);
         E->toast("Output switch failed - internal DAC restored");
         out_resume(1); notify();
         return -1;
