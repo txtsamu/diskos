@@ -41,6 +41,7 @@
 #define PREF_USB "usb_audio_on"
 #define PREF_SPDIF "spdif"
 #define MAC_TEXT_LEN 17
+#define CHARGE_REAPPLY_MS 2000
 
 static const struct outroute_env *E;
 static void (*g_listener)(void);
@@ -64,6 +65,7 @@ static struct { int target, was_playing, full; unsigned gen; char path[256]; lon
 static int g_rec = 0; static unsigned g_rec_gen = 0; static tm_t g_rec_tm;
 static struct { tm_t tm; uint32_t t0, seen; } g_usbw;
 static tm_t g_usbgone; static int g_usbgone_miss, g_usbgone_tries;
+static struct { tm_t tm; unsigned gen; } g_chg;
 
 void outroute_init(const struct outroute_env *env){
     E = env;
@@ -75,6 +77,7 @@ void outroute_init(const struct outroute_env *env){
     memset(&g_usbw, 0, sizeof g_usbw);
     memset(&g_usbgone, 0, sizeof g_usbgone);
     g_usbgone_miss = g_usbgone_tries = 0;
+    memset(&g_chg, 0, sizeof g_chg);
 }
 
 void outroute_set(int route){
@@ -232,6 +235,16 @@ static int out_usb_any_card(void){
     if(glob(OUT_USB_ANY_CARD, 0, NULL, &g) == 0){ n = (int)g.gl_pathc; globfree(&g); }
     return n > 0;
 }
+static void charge_limit_reapply_arm(void){
+    g_chg.gen = ipc_generation();
+    tm_start(&g_chg.tm, CHARGE_REAPPLY_MS);
+}
+static void charge_limit_reapply_tick(void){
+    tm_stop(&g_chg.tm);
+    if(!E->charge_limit_reapply || ipc_generation() != g_chg.gen) return;
+    if(outroute_route() != OUT_INTERNAL || outroute_busy()) return;
+    E->charge_limit_reapply();
+}
 static void out_rec_clear(void){ tm_stop(&g_rec_tm); g_rec = 0; }
 static void out_recover_tick(void){
     if(ipc_generation() != g_rec_gen){ out_rec_clear(); outroute_reset(); notify(); return; }
@@ -282,6 +295,7 @@ static void usbw_tick(void){
     outroute_save_usb_audio(0);
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         outroute_reset();
+        charge_limit_reapply_arm();
         E->toast(out_usb_any_card() ? "USB DAC not on card1 - internal DAC restored" : "No USB DAC found - internal DAC restored");
         out_resume(1);
     } else {
@@ -297,13 +311,15 @@ static void usbw_start(void){
 }
 static int out_run(void){
     int target = g_osw.target;
+    int left_usb = outroute_route() == OUT_USB && target != OUT_USB;
     outseq_rc rc = outseq_route(target, g_osw.full ? OUTSEQ_FULL : OUTSEQ_QUICK);
     if(rc == OUTSEQ_REFUSED){ outroute_set(outroute_route()); E->toast("Couldn't switch output"); out_resume(0); notify(); return -1; }
     if(rc == OUTSEQ_OK && target == OUT_USB){ outroute_set(target); usbw_start(); notify(); return 0; }
-    if(rc == OUTSEQ_OK){ outroute_set(target); out_resume(1); outroute_save_usb_audio(0); notify(); return 0; }
+    if(rc == OUTSEQ_OK){ outroute_set(target); if(left_usb) charge_limit_reapply_arm(); out_resume(1); outroute_save_usb_audio(0); notify(); return 0; }
     if(outseq_route(OUTSEQ_INTERNAL, OUTSEQ_FULL) == OUTSEQ_OK){
         outroute_reset();
         outroute_save_usb_audio(0);
+        if(left_usb) charge_limit_reapply_arm();
         E->toast("Output switch failed - internal DAC restored");
         out_resume(1); notify();
         return -1;
@@ -365,6 +381,7 @@ void outroute_tick(void){
     if(tm_due(&g_rec_tm)) out_recover_tick();
     if(tm_due(&g_usbw.tm)) usbw_tick();
     if(tm_due(&g_usbgone)) usbgone_tick();
+    if(tm_due(&g_chg.tm)) charge_limit_reapply_tick();
 }
 
 typedef outseq_rc (*step_fn)(const outroute_held_t *held, void *arg);

@@ -397,10 +397,12 @@ static const struct sd_env g_sd_env = {
     .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
     .toast = ui_toast, .send_source = srcswitch_send_source,
 };
+static void env_charge_limit_reapply(void){ power_apply_charge(cfg_get_int("charge_protect", 0) ? 1 : 0); }
 static const char *env_switch_blocked(void){ return admit_check(ADMIT_OUTPUT_SWITCH); }
 static const struct outroute_env g_outroute_env = {
     .now = lv_tick_get, .playing = env_playing, .switch_blocked = env_switch_blocked,
     .toast = ui_toast, .seek_to = ui_seek_to,
+    .charge_limit_reapply = env_charge_limit_reapply,
 };
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
