@@ -87,13 +87,6 @@ int power_takeover_step(pw_take_t *t, int (*read_secs)(void), int (*send)(const 
     return 0;
 }
 
-pw_sleep_act_t power_sleep_decide(uint32_t armed_ms, uint32_t elapsed_ms, int guarded, int playing, int action){
-    if(!armed_ms || elapsed_ms < armed_ms) return PW_SLEEP_WAIT;
-    if(action == POWER_SLEEP_SHUTDOWN) return PW_SLEEP_SHUTDOWN;
-    if(guarded) return PW_SLEEP_WAIT;
-    return playing ? PW_SLEEP_PAUSE : PW_SLEEP_DISARM;
-}
-
 static struct { power_ops_t ops; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;
 
 static uint32_t pw_elapsed(void){ return g_pw.ops.now_ms(g_pw.ops.ctx) - g_pw.t0; }

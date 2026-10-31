@@ -26,8 +26,6 @@ int  power_takeover_step(pw_take_t *t, int (*read_secs)(void), int (*send)(const
 
 #define POWER_SLEEP_PAUSE 0
 #define POWER_SLEEP_SHUTDOWN 1
-typedef enum { PW_SLEEP_WAIT, PW_SLEEP_PAUSE, PW_SLEEP_DISARM, PW_SLEEP_SHUTDOWN } pw_sleep_act_t;
-pw_sleep_act_t power_sleep_decide(uint32_t armed_ms, uint32_t elapsed_ms, int guarded, int playing, int action);
 
 typedef enum { PW_OFF, PW_DRAIN, PW_SYNC, PW_HANDOFF, PW_PROTECTED } pw_phase_t;
 typedef struct power_ops {
