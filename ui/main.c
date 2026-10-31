@@ -43,6 +43,7 @@
 #include "rmguard.h"
 #include "launcher.h"
 #include "transport.h"
+#include "booksess.h"
 #include "handoff.h"
 #include "anim.h"
 #include "ipc.h"
@@ -950,13 +951,12 @@ int ui_set_volume(int vol){
 }
 void ui_disarm_book_eoc(void);
 static int g_book_single_mode = 0;
-static uint32_t g_book_noadopt_until = 0;
 static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_idx){
     { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return 0; } }
     if(list_type != 5 && !books_ensure_migrated()){ ui_toast("Library is finishing setup - try again"); return 0; }
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
-    g_book_noadopt_until = lv_tick_get() + 4000;
+    booksess_hold_off_adopt();
     if(list_type != 5 && g_book_single_mode){
         send_play_mode(cfg_get_int("work_mode", 0));
         g_book_single_mode = 0;
@@ -1064,156 +1064,38 @@ int ui_play_song_by_path(const char *path){
     return ui_play_list(1, "", pos);
 }
 
-static char     g_book_sess[256];
-static long     g_book_resume_ms = -1;
-static int      g_book_resume_done;
-static int      g_book_confirmed;
-static uint32_t g_book_deadline;
-static uint32_t g_book_last_save;
-static int      g_book_was_playing;
-static uint32_t g_book_pause_tick;
-static long     g_book_last_pos = -1;
-static long     g_book_resume_target = 0;
-static int      g_book_ckpt_ok = 0;
-static int book_session_active(void){ return g_book_sess[0] != 0; }
-int ui_book_active(void){ return g_book_sess[0] != 0; }
-static uint32_t g_sleep_seek_guard;
-
-void ui_cancel_book_resume(void){
-    if(g_book_sess[0] && g_book_ckpt_ok){
-        track_state_t s; ipc_get_state(&s);
-        if(s.have_track && strcmp(s.path, g_book_sess) == 0 && s.position_ms > 0
-           && (int32_t)(s.pos_seq - s.path_seq) > 0)
-            mdb_book_save(g_book_sess, g_book_sess, s.position_ms, 0);
-    }
-    g_book_sess[0] = 0;
-    g_book_resume_ms = -1;
-    g_book_resume_done = 0;
-    g_book_confirmed = 0;
-    g_book_was_playing = 0;
-    g_book_pause_tick = 0;
-    g_book_last_pos = -1;
-    g_book_resume_target = 0;
-    g_book_ckpt_ok = 0;
-}
-
-void ui_defer_sleep(void){ g_sleep_seek_guard = lv_tick_get() + 2500; }
-
-void ui_book_user_seeked(long target_ms){
-    g_sleep_seek_guard = lv_tick_get() + 2500;
-    if(g_book_sess[0] && g_book_confirmed){
-        g_book_resume_ms = -1; g_book_resume_done = 1; g_book_pause_tick = 0;
-        if(target_ms >= 0){
-            g_book_last_pos = target_ms;
-            g_book_resume_target = target_ms;
-            g_book_ckpt_ok = 0;
-            mdb_book_save(g_book_sess, g_book_sess, target_ms, 0);
-        } else {
-            g_book_ckpt_ok = 1;
-        }
-    }
-}
+static int book_session_active(void){ return ui_book_active(); }
 
 int ui_play_book(const char *path, long resume_ms){
     { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return 0; } }
     if(!path || !*path) return 0;
-    if(strlen(path) >= sizeof g_book_sess - 4){ ui_toast("Path too long"); return 0; }
+    if(strlen(path) >= BOOKSESS_PATH_MAX - 4){ ui_toast("Path too long"); return 0; }
     if(!mdb_reserved_slot_set(path)){ ui_toast("Couldn't start book"); return 0; }
     (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);
     if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }
     g_book_single_mode = 1;
     if(!ui_play_list(5, "", 1)) return 0;
     g_play_pending = 0;
-    snprintf(g_book_sess, sizeof g_book_sess, "%s", path);
-    g_book_resume_ms   = (resume_ms > 1000) ? resume_ms : 0;
-    g_book_resume_done = (g_book_resume_ms > 0) ? 0 : 1;
-    g_book_resume_target = g_book_resume_ms;
-    g_book_ckpt_ok     = (g_book_resume_ms > 0) ? 0 : 1;
-    g_book_confirmed   = 0;
-    g_book_deadline    = lv_tick_get() + 15000;
-    g_book_last_save   = lv_tick_get();
+    booksess_begin(path, resume_ms);
     return 1;
 }
 
-static void book_tick(lv_timer_t *t){
-    (void)t;
-    if(admit_check(ADMIT_LOCAL_PLAYBACK)) return;
-    if(!g_book_sess[0]){
-        if(DISKOS_AUDIOBOOKS && lv_tick_get() >= g_book_noadopt_until){
-            track_state_t s; ipc_get_state(&s);
-            if(s.have_track && mdb_is_book_path(s.path) && ui_is_playing()){
-                long cur = (s.position_ms < 0) ? 0 : s.position_ms;
-                long saved = 0;
-                int have_bm = mdb_book_progress(s.path, NULL, 0, &saved, NULL, NULL);
-                if(have_bm < 0) return;
-                snprintf(g_book_sess, sizeof g_book_sess, "%s", s.path);
-                g_book_confirmed = 1; g_book_single_mode = 1;
-                g_book_was_playing = 1; g_book_pause_tick = 0;
-                g_book_last_save = lv_tick_get();
-                if(have_bm == 1 && saved > cur + 35000){
-                    g_book_resume_ms = saved; g_book_resume_done = 0; g_book_resume_target = saved;
-                    g_book_ckpt_ok = 0; g_book_last_pos = -1;
-                } else {
-                    g_book_resume_ms = 0; g_book_resume_done = 1; g_book_resume_target = 0;
-                    g_book_ckpt_ok = 1; g_book_last_pos = cur;
-                }
-                send_play_mode(4);
-            }
-        }
-        return;
-    }
-    track_state_t st; ipc_get_state(&st);
-    uint32_t now = lv_tick_get();
-    int past_deadline = (int32_t)(now - g_book_deadline) >= 0;
-    int is_ours = (st.path[0] && strcmp(st.path, g_book_sess) == 0);
-    if(!is_ours){
-        if(g_book_confirmed){ ui_cancel_book_resume(); return; }
-        if(past_deadline) ui_cancel_book_resume();
-        return;
-    }
-    if(!g_book_confirmed){ g_book_confirmed = 1; return; }
-    if(!g_book_resume_done){
-        if(g_book_resume_ms > 0){
-            if(st.duration_ms <= 0 && !past_deadline) return;
-            long rt = g_book_resume_ms;
-            if(st.duration_ms > 0 && rt > st.duration_ms - 2000){ rt = st.duration_ms - 2000; if(rt < 0) rt = 0; }
-            g_book_resume_target = rt;
-            if(ui_seek_to(rt) != 0) return;
-        }
-        g_book_resume_done = 1;
-        g_book_last_save = now;
-        g_book_was_playing = ui_is_playing();
-        return;
-    }
-    {
-        int np = ui_is_playing();
-        if(g_book_was_playing && !np){ g_book_pause_tick = now; }
-        else if(!g_book_was_playing && np && g_book_pause_tick){
-            long rw = ui_smart_rewind_ms((long)(lv_tick_elaps(g_book_pause_tick) / 1000u));
-            if(rw > 0){ long t = st.position_ms - rw; if(t < 0) t = 0; ui_seek_to(t); }
-            g_book_pause_tick = 0;
-        }
-        g_book_was_playing = np;
-    }
-    if((int32_t)(st.pos_seq - st.path_seq) <= 0) return;
-    int seek_guarded = lv_tick_get() < g_sleep_seek_guard;
-    if(!seek_guarded && g_book_last_pos >= 0 && st.position_ms < g_book_last_pos - 35000){
-        g_book_ckpt_ok = 0;
-        ui_cancel_book_resume();
-        return;
-    }
-    g_book_last_pos = st.position_ms;
-    if(st.position_ms <= 0) return;
-    if(st.duration_ms > 0 && st.position_ms > st.duration_ms + 2000){ g_book_ckpt_ok = 0; ui_cancel_book_resume(); return; }
-    if(!g_book_ckpt_ok){
-        if(labs(st.position_ms - g_book_resume_target) <= 3000) g_book_ckpt_ok = 1;
-        else return;
-    }
-    if(!ui_is_playing()) return;
-    if((int32_t)(now - g_book_last_save) < 10000) return;
-    if(mdb_book_save(g_book_sess, g_book_sess, st.position_ms, 0) == 0) return;
-    g_book_last_save = now;
-}
+static const char *book_env_admit(void){ return admit_check(ADMIT_LOCAL_PLAYBACK); }
+static void book_env_get_state(track_state_t *out){ ipc_get_state(out); }
+static int book_env_playpause(void){ return ipc_send_cmd(PLAYER_CMD_PLAYPAUSE); }
+static int book_env_progress(const char *key, long *position_ms){ return mdb_book_progress(key, NULL, 0, position_ms, NULL, NULL); }
+static int book_env_save(const char *key, long position_ms){ return mdb_book_save(key, key, position_ms, 0); }
+static void book_env_adopted(void){ g_book_single_mode = 1; send_play_mode(4); }
+static int book_env_sleep_action(void){ return cfg_get_int("sleep_action", POWER_SLEEP_PAUSE); }
+static void book_env_sleep_ended(void){ cfg_set_int("sleep_idx", 0); }
+static void book_env_shutdown(void){ power_shutdown_request(); }
+static const struct booksess_env g_booksess_env = {
+    .now = lv_tick_get, .admit = book_env_admit, .get_state = book_env_get_state, .playing = ui_is_playing,
+    .seek_to = ui_seek_to, .playpause = book_env_playpause, .is_book_path = mdb_is_book_path,
+    .book_progress = book_env_progress, .book_save = book_env_save, .adopted = book_env_adopted,
+    .sleep_action = book_env_sleep_action, .sleep_ended = book_env_sleep_ended, .shutdown = book_env_shutdown,
+};
+static void book_tick(lv_timer_t *t){ (void)t; booksess_tick(); }
 
 static int on_search_play(int id){
     int pos = mdb_play_pos(id, 1, "");
@@ -1225,38 +1107,6 @@ void ui_set_workmode(int mode){
     cfg_set_int("work_mode", mode);
     int rc = send_play_mode(mode);
     fprintf(stderr,"workmode %d -> 0102000C%04X (rc=%d)\n", mode, mode, rc); fflush(stderr);
-}
-
-static uint32_t g_sleep_start=0, g_sleep_ms=0;
-static long     g_sleep_eoc = -1;
-static char     g_sleep_eoc_path[256];
-static long     g_sleep_eoc_lastpos = -1;
-static int      g_sleep_eoc_atend = 0;
-void ui_disarm_book_eoc(void){ g_sleep_eoc = -1; g_sleep_eoc_lastpos = -1; g_sleep_eoc_atend = 0; }
-void ui_set_sleep_timer(int minutes){
-    ui_disarm_book_eoc();
-    if(minutes>0){ g_sleep_start=lv_tick_get(); g_sleep_ms=(uint32_t)minutes*60000u; }
-    else g_sleep_ms=0;
-}
-long ui_smart_rewind_ms(long idle_seconds){
-    if(idle_seconds < 30)    return 0;
-    if(idle_seconds < 1800)  return 8000;
-    if(idle_seconds < 28800) return 18000;
-    return 30000;
-}
-
-void ui_set_sleep_eoc(long target_ms, const char *path, int at_book_end){
-    g_sleep_ms = 0;
-    g_sleep_eoc_lastpos = -1;
-    if(target_ms > 0 && path && path[0]){ g_sleep_eoc = target_ms; g_sleep_eoc_atend = at_book_end ? 1 : 0; snprintf(g_sleep_eoc_path, sizeof g_sleep_eoc_path, "%s", path); }
-    else { g_sleep_eoc = -1; g_sleep_eoc_atend = 0; }
-}
-int ui_sleep_state(int *secs_left){
-    if(g_sleep_ms){
-        if(secs_left){ long r = (long)g_sleep_ms - (long)lv_tick_elaps(g_sleep_start); *secs_left = (int)((r>0?r:0)/1000); }
-        return 1;
-    }
-    return g_sleep_eoc >= 0 ? 2 : 0;
 }
 
 static char g_app_exec[256];
@@ -1969,6 +1819,7 @@ int main(int argc, char **argv){
     (void)fw_os_ver();
     srcswitch_set_env(&g_srcswitch_env);
     admit_set_env(&g_admit_env);
+    booksess_set_env(&g_booksess_env);
     srcswitch_init();
     { unsigned seed=0; FILE *r=fopen("/dev/urandom","rb"); if(r){ if(fread(&seed,1,sizeof seed,r)!=sizeof seed) seed=(unsigned)time(NULL); fclose(r);} else seed=(unsigned)time(NULL); srand(seed); }
     lv_init();
@@ -2129,11 +1980,7 @@ int main(int argc, char **argv){
     for(;;){
         if(ipc_take_reconnected()){
             admit_note_player_restart();
-            if(book_session_active()){
-                g_book_ckpt_ok = 0;
-                ui_cancel_book_resume();
-                g_book_noadopt_until = lv_tick_get() + 4000;
-            }
+            booksess_player_restarted();
             session_clear_bt_mac();
             route_state_remove();
             bt_notify_player_restart();
@@ -2339,35 +2186,7 @@ int main(int argc, char **argv){
             prev_ts = ts;
         }
 
-        int sleep_guarded = lv_tick_get() < g_sleep_seek_guard;
-        switch(power_sleep_decide(g_sleep_ms, g_sleep_ms ? lv_tick_elaps(g_sleep_start) : 0, sleep_guarded, playing,
-                                  cfg_get_int("sleep_action", POWER_SLEEP_PAUSE))){
-        case PW_SLEEP_SHUTDOWN:
-            g_sleep_ms = 0; cfg_set_int("sleep_idx", 0);
-            power_shutdown_request();
-            break;
-        case PW_SLEEP_DISARM: g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); break;
-        case PW_SLEEP_PAUSE:
-            if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ g_sleep_ms = 0; cfg_set_int("sleep_idx", 0); }
-            break;
-        case PW_SLEEP_WAIT: break;
-        }
-        if(g_sleep_eoc >= 0){
-            track_state_t sst; ipc_get_state(&sst);
-            if(strcmp(sst.path, g_sleep_eoc_path) != 0){
-                int completed = (g_sleep_eoc_atend && g_sleep_eoc_lastpos >= 0 && g_sleep_eoc_lastpos >= g_sleep_eoc - 8000);
-                if(completed && playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) != 0){
-                } else {
-                    ui_disarm_book_eoc();
-                }
-            } else {
-                g_sleep_eoc_lastpos = sst.position_ms;
-                if(sst.position_ms >= g_sleep_eoc && !sleep_guarded){
-                    if(!playing){ ui_disarm_book_eoc(); }
-                    else if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) == 0){ ui_disarm_book_eoc(); }
-                }
-            }
-        }
+        booksess_sleep_tick();
 
         if(fw_power_key_driveable()){
             int on; unsigned sq, pq, gen; ipc_screen_snapshot(&on, &sq, &pq, &gen);

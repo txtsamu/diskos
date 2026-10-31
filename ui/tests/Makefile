@@ -41,6 +41,9 @@ clicks_test: ../clicks.c clicks_test.c ../clicks.h
 transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
 	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
 
+booksess_test: ../booksess.c booksess_test.c ../booksess.h ../ipc.h
+	$(CC) $(CFLAGS) -I.. ../booksess.c booksess_test.c -o $@
+
 keyssh_test: ../procnet.c keyssh_test.c ../procnet.h
 	$(CC) $(CFLAGS) -I.. ../procnet.c keyssh_test.c -o $@
 
@@ -54,7 +57,7 @@ ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
 	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
 .PHONY: run run-py check clean
-run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -84,9 +87,11 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	./transport_test
 	@echo "--- clicks ---"
 	./clicks_test
+	@echo "--- booksess ---"
+	./booksess_test
 
 clean:
-	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard
