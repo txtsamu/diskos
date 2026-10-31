@@ -112,6 +112,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/audiodur.h](#uiaudiodurh) | 70 |
 | [ui/books.c](#uibooksc) | 30 |
 | [ui/books.h](#uibooksh) | 5 |
+| [ui/booksess.c](#uibooksessc) | 5 |
 | [ui/bootsel.c](#uibootselc) | 4 |
 | [ui/bootsel.h](#uibootselh) | 3 |
 | [ui/bt.c](#uibtc) | 163 |
@@ -123,6 +124,8 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/config.h](#uiconfigh) | 10 |
 | [ui/controls.c](#uicontrolsc) | 24 |
 | [ui/controls.h](#uicontrolsh) | 35 |
+| [ui/coverart.c](#uicoverartc) | 5 |
+| [ui/coverart_accent.c](#uicoverartaccentc) | 1 |
 | [ui/dac_ui.c](#uidacuic) | 5 |
 | [ui/dacinfo.c](#uidacinfoc) | 12 |
 | [ui/dacinfo.h](#uidacinfoh) | 9 |
@@ -169,11 +172,14 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/opustitle_worker.h](#uiopustitleworkerh) | 6 |
 | [ui/ota.c](#uiotac) | 61 |
 | [ui/ota.h](#uiotah) | 38 |
+| [ui/outroute.c](#uioutroutec) | 3 |
+| [ui/outroute.h](#uioutrouteh) | 5 |
 | [ui/outseq.c](#uioutseqc) | 10 |
 | [ui/outseq.h](#uioutseqh) | 14 |
 | [ui/phonehome.c](#uiphonehomec) | 4 |
 | [ui/phonehome.h](#uiphonehomeh) | 1 |
 | [ui/playlistview.c](#uiplaylistviewc) | 51 |
+| [ui/playreq.c](#uiplayreqc) | 7 |
 | [ui/playstate.c](#uiplaystatec) | 2 |
 | [ui/playstate.h](#uiplaystateh) | 5 |
 | [ui/power.c](#uipowerc) | 26 |
@@ -193,6 +199,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/scanner.h](#uiscannerh) | 17 |
 | [ui/screenmgr.c](#uiscreenmgrc) | 57 |
 | [ui/screens.h](#uiscreensh) | 196 |
+| [ui/sdio.c](#uisdioc) | 2 |
 | [ui/sdio.h](#uisdioh) | 2 |
 | [ui/search.c](#uisearchc) | 37 |
 | [ui/session.c](#uisessionc) | 48 |
@@ -202,6 +209,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/splash.c](#uisplashc) | 53 |
 | [ui/srcswitch.c](#uisrcswitchc) | 88 |
 | [ui/srcswitch.h](#uisrcswitchh) | 37 |
+| [ui/sysconfig.h](#uisysconfigh) | 6 |
 | [ui/system.c](#uisystemc) | 40 |
 | [ui/system.h](#uisystemh) | 33 |
 | [ui/tama.c](#uitamac) | 66 |
@@ -209,10 +217,13 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tama_ui.c](#uitamauic) | 46 |
 | [ui/tests/Makefile](#uitestsmakefile) | 13 |
 | [ui/tests/admit_test.c](#uitestsadmittestc) | 52 |
+| [ui/tests/booksess_test.c](#uitestsbooksesstestc) | 1 |
 | [ui/tests/boot_probe_test.py](#uitestsbootprobetestpy) | 22 |
 | [ui/tests/boot_select_test.py](#uitestsbootselecttestpy) | 5 |
 | [ui/tests/bootsel_driver.c](#uitestsbootseldriverc) | 2 |
 | [ui/tests/config_test.c](#uitestsconfigtestc) | 13 |
+| [ui/tests/coverart_pipeline_test.c](#uitestscoverartpipelinetestc) | 1 |
+| [ui/tests/coverart_test.c](#uitestscoverarttestc) | 1 |
 | [ui/tests/dacinfo_test.c](#uitestsdacinfotestc) | 8 |
 | [ui/tests/font_coverage_test.py](#uitestsfontcoveragetestpy) | 2 |
 | [ui/tests/ipc_guard_test.c](#uitestsipcguardtestc) | 1 |
@@ -220,15 +231,19 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/keyssh_test.c](#uitestskeysshtestc) | 8 |
 | [ui/tests/launcher_driver.c](#uitestslauncherdriverc) | 16 |
 | [ui/tests/launcher_test.py](#uitestslaunchertestpy) | 9 |
+| [ui/tests/outroute_test.c](#uitestsoutroutetestc) | 1 |
 | [ui/tests/outseq_guard_test.py](#uitestsoutseqguardtestpy) | 9 |
 | [ui/tests/outseq_test.c](#uitestsoutseqtestc) | 22 |
+| [ui/tests/playreq_test.c](#uitestsplayreqtestc) | 1 |
 | [ui/tests/playstate_test.c](#uitestsplaystatetestc) | 12 |
 | [ui/tests/radio_test.c](#uitestsradiotestc) | 47 |
 | [ui/tests/rmguard_driver.c](#uitestsrmguarddriverc) | 1 |
 | [ui/tests/rmguard_test.py](#uitestsrmguardtestpy) | 1 |
+| [ui/tests/sdio_test.c](#uitestssdiotestc) | 1 |
 | [ui/tests/session_test.c](#uitestssessiontestc) | 135 |
 | [ui/tests/srcswitch_test.c](#uitestssrcswitchtestc) | 38 |
 | [ui/tests/storage_test.py](#uitestsstoragetestpy) | 1 |
+| [ui/tests/sysconfig_test.c](#uitestssysconfigtestc) | 1 |
 | [ui/tests/tama_test.c](#uiteststamatestc) | 102 |
 | [ui/tests/timekeep_test.c](#uiteststimekeeptestc) | 24 |
 | [ui/tests/transport_test.c](#uiteststransporttestc) | 7 |
@@ -13673,6 +13688,40 @@ build the chapter-navigation screen once
 load the current book's chapters + show SCR_CHAPTERS
 ~~~
 
+## ui/booksess.c
+
+**L24** `static uint32_t g_sleep_seek_guard;`
+
+~~~text
+Book session and sleep timer. Everything the UI decides about an audiobook session lives here and talks to the outside only through struct booksess_env (clock, Player state, seek, play/pause, bookmark store, shutdown). booksess_tick runs on a 400 ms LVGL timer. booksess_sleep_tick runs every main-loop iteration because it must react to a play/pause within a frame; the two cannot share one tick without changing the timing. g_sleep_seek_guard is shared by the session's backward-jump check and by the sleep and EOC checks (2.5 s after a user seek or transport tap).
+~~~
+
+**L71** `void booksess_hold_off_adopt(void){ g_book_noadopt_until = E->now() + 4000; }`
+
+~~~text
+4 s after any explicit play or Player restart, booksess_tick does not re-adopt a book the Player is still reporting.
+~~~
+
+**L73** `void booksess_player_restarted(void){`
+
+~~~text
+A Player restart drops the session without flushing: the new Player instance may not share the position; hold adoption off 4 s. Only when a session was active.
+~~~
+
+**L81** `void booksess_begin(const char *path, long resume_ms){`
+
+~~~text
+Called by ui_play_book after ui_play_list (which clears the previous session); arms the confirm deadline (15 s), the resume target and the checkpoint gate.
+~~~
+
+**L202** `static pw_sleep_act_t sleep_decide(uint32_t armed_ms, uint32_t elapsed_ms, int guarded, int playing, int actio`
+
+~~~text
+Moved from power.c. Nothing armed or interval not elapsed -> wait; shutdown action fires regardless of the seek guard and the play state; otherwise guard -> wait; playing -> pause; paused -> just disarm (never toggle a paused book into play).
+
+Preserved latent issues: an adopted resume skips the metadata wait (no deadline set); now < g_sleep_seek_guard and now >= g_book_noadopt_until are not wrap-safe; a failing sleep pause is retried every main-loop pass with no backoff; shutdown ignores the seek guard; pause_tick == 0 means "not paused"; ui_cancel_book_resume ignores the book_save result.
+~~~
+
 ## ui/bootsel.c
 
 **L11** `int boot_select_is_diskos(const char *path){`
@@ -15785,6 +15834,48 @@ turn the display now and ask "Keep this orientation?"; 0 ok, -1 not. 0646 is sen
 
 ~~~text
 rollback timeout (also driven by the prompt's own timer)
+~~~
+
+## ui/coverart.c
+
+**L37** `void coverart_decode_lock(void){ pthread_mutex_lock(&g_decode_mu); }`
+
+~~~text
+The decode mutex serialises every diskos-artdec child (live, online, prewarm and sharp), so only one decoder runs at a time. Replaces the ui_decode_lock/unlock globals of ui.c.
+~~~
+
+**L62** `static void *art_worker(void *arg)`
+
+~~~text
+Cover art module: owns the cover and accent lifecycle: cache lookup and put, the decoder child process, the online fallback, the prewarm policy, accent extraction and the sharp-cover decode. ui.c only renders results. Order: cache hit, else decode, else (if online art is on) netart. A netart result is never cached and never produces an accent. rc == -2 means the request was cancelled, so there is no online retry. At most one art worker runs at a time.
+~~~
+
+**L51** `static int accent_stale(const char *track, const char *key)`
+
+~~~text
+An accent is written when the accent mode is not static and the fingerprint is non-empty and not fresh in musicdb. The accent is keyed by the artcache fingerprint taken before the decode.
+
+Preserved latent issues: ui_prewarm_enqueue returns 0 when the 48-slot ring is full even for a path already queued (effective capacity 47; album-wall seeding backs off); a cache hit whose fingerprint lookup fails computes no accent; a file that changes mid-decode is shown but not cached and the accent is stored under the old fingerprint; the queue prewarm path (album wall) caches covers but never computes an accent; the title-pending retry (g_art_title_pending) still lives in ui.c.
+~~~
+
+**L145** `coverart_event_t coverart_poll(const char *want_key, int online_art, coverart_job_t *shown)`
+
+~~~text
+A result is delivered only if its request counter is still current. coverart_poll consumes the ready flag even for stale results.
+~~~
+
+**L279** `void coverart_prewarm_step(coverart_wait_t *w)`
+
+~~~text
+The prewarm window is open when the io lease is allowed, the prewarm mode is not 0, the main loop is idle, and (mode 2 only) the battery is charging. The thermal gate enters "hot" at 42.0 C or above and leaves it below 40.0 C; a missing reading waits 15 s. Decoder activity from a live request pauses prewarm (300 ms). The step function returns a wait, so tests drive it with fake inputs and no sleeping.
+~~~
+
+## ui/coverart_accent.c
+
+**L13** `#pragma GCC optimize ("O0")`
+
+~~~text
+The pure colour math (OKLab k-means, then a WCAG 4.5:1 lift against #1C1C1E). Wrapped in #pragma GCC optimize("O0") and built with -ffp-contract=off so the result is bit-identical. The 28 golden values in ui/tests/coverart_synth.h were captured from the pre-move ui.c code (identical under clang -O2, gcc -O2 and gcc -Os); bit-identity on the mipsel gcc 11.2 build is unverified. The sRGB table is built once with pthread_once.
 ~~~
 
 ## ui/dac_ui.c
@@ -31193,6 +31284,62 @@ re-ask). Bounds UI-thread scanning of corrupt/hostile files diskOS never writes.
 exact user text (contract section 6); NULL for OK
 ~~~
 
+## ui/outroute.c
+
+**L24** `#ifndef ROUTE_STATE_PATH`
+
+~~~text
+Single owner of the Output route: its kind, the Bluetooth sink MAC, the saved USB Audio preference, the route file and the pause/switch/resume/recovery choreography. outseq.c stays the only place that knows the Player frames; this module decides when to send which sequence.
+
+Route file (/tmp/.diskos-ui/route): "pid=<mq_player pid> start=<start ticks> gen=<ipc generation> mac=<MAC>\n", mode 0600 in a 0700 directory owned by ROUTE_STATE_UID. outroute_restore trusts it only if it is byte-for-byte canonical and pid and start time match the one live mq_player, so a restarted Player or a stale file never revives a Bluetooth route. gen is written for diagnosis but not checked on restore. Any failure removes the file. ROUTE_STATE_PATH/DIR/UID and ROUTE_PROC_ROOT are overridable for tests.
+
+The cfg "spdif" key is a Settings toggle, a mirror of the route, and a startup "SPDIF intent" read by session_startup_route_reconcile. A route invalidated by a new Player generation falls back to INTERNAL lazily inside outroute_route().
+~~~
+
+**L99** `int outroute_mac_normalize(const char *in, char out[OUTROUTE_MAC_LEN]){`
+
+~~~text
+The only MAC validator: upper-cases, 17 chars, ':' every third, hex digits.
+~~~
+
+**L360** `void outroute_tick(void){`
+
+~~~text
+Called from srcswitch_tick every 100 ms; each internal timer keeps its own period (pick 100 ms, recovery 500 ms, USB wait 250 ms, DAC-gone watch 1 s).
+~~~
+
+## ui/outroute.h
+
+**L10** `enum { OUT_INTERNAL = OUTSEQ_INTERNAL, OUT_SPDIF = OUTSEQ_SPDIF, OUT_USB = OUTSEQ_USB };`
+
+~~~text
+OUT_INTERNAL/SPDIF/USB are the Output route kinds, numbered as outseq's OUTSEQ_* (derived here, so there is one set of numbers). The SPDIF row and the USB Audio picker row exist only in builds made with -DDISKOS_TEST_OUTPUTS (device-unverified); the code is always built and is a no-op equivalent of the old preamble while the route is the internal DAC.
+~~~
+
+**L14** `struct outroute_env {`
+
+~~~text
+The seam. The Player channel (ipc_*) and cfg_* are link-time seams (production: ipc.c / config.c); clock, play state, the admission verdict (admit_check(ADMIT_OUTPUT_SWITCH) in production), toast and seek come through the env.
+~~~
+
+**L42** `typedef enum { OUTROUTE_SETTING, OUTROUTE_MODE, OUTROUTE_MODE_STAY_PAUSED } outroute_how_t;`
+
+~~~text
+OUTROUTE_SETTING = the Settings SPDIF toggle (quick sequence unless USB is involved); OUTROUTE_MODE = the Working Mode picker, boot restore and via-Local flows (full sequence); OUTROUTE_MODE_STAY_PAUSED = the same but the Player stays paused afterwards (leaving USB Audio, unplugged DAC).
+~~~
+
+**L53** `int  outroute_to_bt(const char *mac, const char *codec_frame, outroute_held_t *held);`
+
+~~~text
+Route policy "leave paused" (the old admit_switch): pause, run the sequence, then seek and resume ONLY if the sequence succeeded. A failed step returns OUTROUTE_STEP_FAILED with the Player paused and no recovery attempted (pinned by outroute_test). outroute_pick is the "recover" policy (the old out_switch): a failed step restores the internal DAC and resumes, or starts a recovery timer. The two differ by history, not by decision: flagged for a product decision. outroute_to_bt requires a mac already normalized by outroute_mac_normalize.
+~~~
+
+**L54** `int  outroute_to_analog(int force, outroute_held_t *held);`
+
+~~~text
+1 = switched, 0 = nothing to do (no sink routed and not forced; a stale route file is removed), <0 = failed.
+~~~
+
 ## ui/outseq.c
 
 **L7** `#define F_ROUTE_INTERNAL "0666000C0006"`
@@ -31729,6 +31876,52 @@ its 268 px rows (5 px in) land centred on the screen
 
 ~~~text
 last row scrolls clear of the round bottom bezel
+~~~
+
+## ui/playreq.c
+
+**L27** `static unsigned g_sent_gen = NO_GEN;`
+
+~~~text
+Generation and time of the last play command sent (list or queue jump). g_playing lags the stream by seconds, and 0666 under a play that is still starting releases the local output (seen live). Distinct from the transport latch. A play is "recent" for 10 s of its Player generation after a play-list or queue-jump send, or while a request is pending.
+~~~
+
+**L29** `static unsigned g_transport_gen = NO_GEN;`
+
+~~~text
+Generation and time of the last transport command sent (or playback observed): that generation's local-init one-shot is moot.
+~~~
+
+**L44** `int playreq_startup_busy(unsigned gen, uint32_t now_ms, int playing, int starting, int have_track){`
+
+~~~text
+A sent play can precede its first track reply. A loaded track may still be paused, so wait for the player to unload it and for the last play evidence to age out.
+~~~
+
+**L74** `static int pcm_seen(uint32_t now, int fresh){`
+
+~~~text
+Routine observations are at least 500 ms apart. A terminal decision may force one fresh observation, without duplicating a read at this tick.
+~~~
+
+**L110** `static int start_failed(const track_state_t *st, uint32_t now){`
+
+~~~text
+Owns the play request lifecycle. Metadata is progress; raw a2 state is not play proof. Only a track/restart transition attributes advances to this request. A stopped snapshot near zero is ambiguous: preserve possible start evidence to avoid a late error, but never use it to record health. A new player or another transport attempt supersedes the request. First real metadata corrects a presentation seed, not a start. Metadata progress buys time but establishes no attribution. Unobserved rebuild: 15 s; progress: 6 s quiet window; hard limit: 45 s. Established or ambiguous brief starts must not produce a late error.
+~~~
+
+**L256** `int playreq_tick(const track_state_t *st){`
+
+~~~text
+The main loop's only call: the playing inference (position advancing, 1600 ms grace), the playback-observed transport note, the re-base of a request that still waits in the outbound line (a busy Player), and the failure state machine. Returns 1 once when a pending play has just failed; the pending request is cleared first and main shows the "Couldn't start playback" toast.
+~~~
+
+**L269** `static int send_play(const char *frame, int track){`
+
+~~~text
+Order: note transport, admit_start(LIST), read state, send, record sent, arm. arm copies the track fields before the send (the transport epoch includes the successfully queued request; the serial distinguishes requests at one tick).
+
+Known, preserved: ui_play_playlist, ui_play_plan (type 5) and ui_play_book call playreq_reserve_slot() (admit_play_start RESERVED_SLOT) and then the list start (admit_play_start LIST). On V2.40 with local route, not playing and no recent play this sends 0657 twice with a 0666 between (unverified on a device). Playlist/plan send 0102 before the reserved-slot start, book after.
 ~~~
 
 ## ui/playstate.c
@@ -37531,6 +37724,20 @@ current album/artist/genre drill context (player list_type 3/2/10); 0 if flat
 step one level back within the library; 0 if already at the top menu
 ~~~
 
+## ui/sdio.c
+
+**L21** `#ifndef SD_EXPORT_MARKER`
+
+~~~text
+SD access authority (GLOSSARY.md: SD access). The one module that decides whether anything may touch the card. It owns: admission (readers sd_io_begin/end, decoder children included, and writers sd_write_begin/end share one mutex and one pair of counters, so sd_drained() is a single fact); closing (card_close() and card_lost() are the only ways the card is shut; sd_hold() is the boot-time flag main.c sets before sd_init); the launch verdict (sd_gate_poll folds the launcher status in: waits up to 60 polls without a verdict, opens exactly once, revokes on any later non-positive status); the storage phase machine (LOCAL, DRAIN, WAIT_HOST, HOST, WAIT_LOCAL, UNKNOWN) with its crash-safe marker (SD_EXPORT_MARKER: D 3, E 3, H 3, R <mode>; anything unreadable on restart means UNKNOWN so the card stays closed); quiesce (close, wait for sd_drained(), reopen only if the phase is LOCAL and not held); the coldplug mode mutex, hidden behind sd_coldplug_begin/end, which excludes sd_export_begin (it times out after 200 ms with "SD card is busy"). Outside facts (mount, export, host, Player state, restart, source frame) come through struct sd_env; send_source is srcswitch_send_source so the route reset after a source frame stays in route code.
+~~~
+
+**L79** `int sd_write_begin(void){`
+
+~~~text
+Preserved inconsistency: writers check only writable and the export state. They are admitted before any launch verdict (writable starts at 1) and after sd_io_fault()/sd_hold() until the next sd_tick calls storage_unknown. Readers are stricter on all of these. Decision pending whether writers should be as strict.
+~~~
+
 ## ui/sdio.h
 
 **L5** `void sd_io_init(int (*media_local)(void));`
@@ -41143,6 +41350,44 @@ SD admission for writers (sd_io_* covers readers) and the Restart card drain.
 The launch verdict (-1 pending, 0 negative, 1 guarded and locally owned) and the boot-long hold.
 ~~~
 
+## ui/sysconfig.h
+
+**L6** `#ifndef PLAYER_SYSCONFIG_DB`
+
+~~~text
+The Player's own configuration database. The Player owns it; the UI reads it and writes AUTO_TIME only. One compiled-in default, overridable by a host test or at run time with sysconfig_set_path.
+~~~
+
+**L16** `} sc_col_t;`
+
+~~~text
+The columns the UI knows, each with the range the old per-caller code accepted: PLAY_MODE 0..4, LANGUAGE 0..63, AUTO_TIME / FOLDER_JUMP / ARTIST_CLASS / WIFI_STATUS / BT_STATUS 0..1, every other column >=0. An unreadable column or a value outside its range reads as -1. ARTIST_CLASS_TYPE: 0 = ARTIST, 1 = album artist (the player's artist queue is built with ARTIST=? under 0 and COALESCE(ALBUM_ARTIST,ARTIST)=? under 1, V2.40 0x44b818 / V2.57 0x450f88). PLAY_MODE is only meaningful while diskOS has never set a mode. FOLDER_JUMP: 0687 -> SYSCONFIG.FOLDER_JUMP, default 0. LANGUAGE: stock uses it to pick the iTunes storefront for online covers.
+~~~
+
+**L26** `int sysconfig_get(sc_col_t col);`
+
+~~~text
+In-process read-only read with a 200 ms busy wait. -1 for a missing or locked database, missing table, row or column, NULL, non-integer type or out-of-range value. Never creates the file. get_many reads several columns in one open and one row.
+~~~
+
+**L28** `int sysconfig_set(sc_col_t col, int v);`
+
+~~~text
+0 = written (exactly one row changed) and read back, -1 = not. Only columns marked writable (AUTO_TIME today). 1500 ms busy wait; never creates the file; the player may hold the database, so it is never forced. The player loads AUTO_TIME only at its start, so a change applies from its next start.
+~~~
+
+**L30** `int sysconfig_get_via(sysconfig_cap_t cap, sc_col_t col, int timeout_ms);`
+
+~~~text
+The same reads through the sqlite3 CLI under a process-level bound (the runner kills the child). Used where a locked or corrupt database must not stall the caller beyond its bound: boot route (OUT_DEV, 250 ms), Wi-Fi intent seed and saved radio state (1000 ms). Strict parse: digits separated by '|', one optional newline. The CLI read has no busy wait and does NOT guard against the file being absent: sqlite3 creates an empty database if it is missing (preserved from the old code; a -readonly or [ -f ] guard is a one-line fix awaiting a decision).
+~~~
+
+**L33** `int sysconfig_work_mode_reset_via(sysconfig_run_t run, int timeout_ms);`
+
+~~~text
+Default the persisted work mode to 0 (Local) and confirm it by reading the row back rather than trusting an UPDATE that may have matched no row. The stock player's startup jump table maps WORK_MODE -> USB gadget: 4 = mass-storage EXPORT of the SD, 1 = USB-DAC, 0/3/5 = Local/no gadget. main.c runs reset (8000 ms, result ignored) then confirm (5000 ms); the launcher runs the combined reset_confirm (8000 ms), which fails if the UPDATE fails even when WORK_MODE is already 0. Bounded because a locked or corrupt sysconfig.db must not wedge boot. A path containing a single quote is refused.
+~~~
+
 ## ui/system.c
 
 **L3** `#include "system.h"`
@@ -42948,6 +43193,14 @@ ui.c ui_transport_command(), main.c ui_play_list_ex() / ui_queue_jump() / ui_pla
 play start, over the same facts (it reads neither the card verdict nor an output switch)
 ~~~
 
+## ui/tests/booksess_test.c
+
+**L3** `#include <stdio.h>`
+
+~~~text
+Drives booksess.c through its env with a fake clock, Player state, seek, play/pause and bookmark store. Each scenario starts from reset(), which cancels any session, disarms EOC and the timer and advances the clock 20 s so the seek guard and adoption hold-off from the previous scenario have expired.
+~~~
+
 ## ui/tests/boot_probe_test.py
 
 **L59** `f = st.rsplit(')', 1)[1].split()` *(trailing)*
@@ -43218,6 +43471,22 @@ partial set (the all-or-nothing guarantee for related keys).
 
 ~~~text
 clean slate
+~~~
+
+## ui/tests/coverart_pipeline_test.c
+
+**L3** `#include "coverart.h"`
+
+~~~text
+The real art.c and artcache.c with a fake diskos-artdec (artdec_fake.c) and a temp cache directory.
+~~~
+
+## ui/tests/coverart_test.c
+
+**L3** `#include "coverart.h"`
+
+~~~text
+Fakes for every coverart_env input; golden accent values from coverart_synth.h.
 ~~~
 
 ## ui/tests/dacinfo_test.c
@@ -43572,6 +43841,14 @@ a dangling parent error (ENOTDIR must not count as an absent card).
 last line: the runner requires it, so an early clean exit cannot pass
 ~~~
 
+## ui/tests/outroute_test.c
+
+**L3** `#include "outroute.h"`
+
+~~~text
+Runs outroute.c against the real outseq.c with fake ipc_*/cfg_* and a fake env. The route file and a fake /proc live under $(TDIR)/outroute (the Makefile overrides ROUTE_STATE_*, ROUTE_PROC_ROOT, OUT_USB_CARD). leave_paused_* scenarios pin the policy where a failed step leaves the Player paused; pick_policy_* pin the policy where a failed step restores the internal DAC and resumes.
+~~~
+
 ## ui/tests/outseq_guard_test.py
 
 **L26** `call = re.compile(r'\boutseq_(local_preamble|assert_workmode)\s*\(')`
@@ -43762,6 +44039,14 @@ work-mode re-assert: exactly 0657 8, and a failed send changes nothing else
 
 ~~~text
 an out-of-range route sends nothing
+~~~
+
+## ui/tests/playreq_test.c
+
+**L3** `#include "playreq.h"`
+
+~~~text
+Fake clock, Player state and send channel through playreq_env; pcm status files under TDIR/pcm via PLAY_PCM_GLOB. Each test runs in a forked child (statics reset).
 ~~~
 
 ## ui/tests/playstate_test.c
@@ -44149,6 +44434,14 @@ under /usr/data is touched. Usage: driver <case>; it sets the case up, calls rmg
 
 ~~~text
 wiped before every case; the macros below point into it
+~~~
+
+## ui/tests/sdio_test.c
+
+**L3** `#include "sdio.h"`
+
+~~~text
+Host test of the SD access module through its public interface only: markers in $(TDIR), one forked process per scenario because the fault marker and the gate latch are sticky.
 ~~~
 
 ## ui/tests/session_test.c
@@ -45213,6 +45506,14 @@ two missed polls, then pause -> quiet -> route
 
 ~~~text
 last line: the runner requires it, so an early clean exit cannot pass
+~~~
+
+## ui/tests/sysconfig_test.c
+
+**L4** `#include <stdio.h>`
+
+~~~text
+Host test of the sysconfig module. The adapters are a temp sqlite file for the in-process side, fake runners for the CLI side, and real sh -c with a fake sqlite3 script on PATH to prove the quoting.
 ~~~
 
 ## ui/tests/tama_test.c
