@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "sysconfig.h"
+#include "vbus.h"
+#include "bootlog.h"
 
 static const int IDLE_SECS[POWER_IDLE_N] = { 0, 300, 600, 1800, 3600, 5400, 7200 };
 static const char *const IDLE_LABEL[POWER_IDLE_N] = { "Off", "5 min", "10 min", "30 min", "60 min", "90 min", "120 min" };
@@ -156,7 +158,19 @@ static void idle_takeover(void){
     if(sps != was) cfg_set_int("stock_power_save", sps);
     if(r == 1) g_take_ok = 1;
 }
-static int idle_request(void){ return power_shutdown_request(); }
+static int idle_request(void){
+    bootlog_event("idle power-off: timer fired, no charger input");
+    return power_shutdown_request();
+}
+static int charger_holds_idle(uint32_t now){
+    static uint32_t at; static int have, held;
+    if(!have || now - at >= 2000u){
+        int h = vbus_external_input() > 0;
+        if(have && h != held) bootlog_event(h ? "idle power-off held: charger attached" : "idle power-off released: charger removed");
+        held = h; at = now; have = 1;
+    }
+    return held;
+}
 void power_note_input(void){ g_key_ms = lv_tick_get(); g_have_key = 1; }
 void power_startup_mirror(void){
     if(!power_supported()) return;
@@ -218,8 +232,10 @@ void power_tick(uint32_t last_input_ms, int playing){
     uint32_t now = lv_tick_get();
     if(power_supported()){
         if(g_have_key && (int32_t)(g_key_ms - last_input_ms) > 0) last_input_ms = g_key_ms;
-        if(power_shutdown_phase() == PW_OFF && g_take_ok)
-            power_idle_tick(now, (uint32_t)power_idle_secs(cfg_get_int("idle_off_idx", 0)), playing, last_input_ms, idle_request);
+        if(power_shutdown_phase() == PW_OFF && g_take_ok){
+            int limit = power_idle_secs(cfg_get_int("idle_off_idx", 0));
+            power_idle_tick(now, (uint32_t)limit, playing || (limit > 0 && charger_holds_idle(now)), last_input_ms, idle_request);
+        }
     }
     if(have_last && now - last < 5000u) return;
     last = now; have_last = 1;

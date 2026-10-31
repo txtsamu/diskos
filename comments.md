@@ -183,7 +183,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/playreq.c](#uiplayreqc) | 7 |
 | [ui/playstate.c](#uiplaystatec) | 2 |
 | [ui/playstate.h](#uiplaystateh) | 5 |
-| [ui/power.c](#uipowerc) | 26 |
+| [ui/power.c](#uipowerc) | 27 |
 | [ui/power.h](#uipowerh) | 33 |
 | [ui/procnet.c](#uiprocnetc) | 2 |
 | [ui/procnet.h](#uiprocneth) | 2 |
@@ -249,6 +249,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/tama_test.c](#uiteststamatestc) | 102 |
 | [ui/tests/timekeep_test.c](#uiteststimekeeptestc) | 24 |
 | [ui/tests/transport_test.c](#uiteststransporttestc) | 7 |
+| [ui/tests/vbus_test.c](#uitestsvbustestc) | 1 |
 | [ui/theme.c](#uithemec) | 62 |
 | [ui/theme.h](#uithemeh) | 54 |
 | [ui/theme_defs.c](#uithemedefsc) | 2 |
@@ -32199,6 +32200,12 @@ the player restarted: a pending stock power-off is gone
 never before the player's own idle power-off is confirmed off
 ~~~
 
+**L165** `static int charger_holds_idle(uint32_t now){`
+
+~~~text
+The idle power-off timer does not run while the charger IC reports an external input (vbus_external_input() > 0), polled at most every 2 s. Powering the Disc off writes charge-off to the SGM41513 (the Player routine and the kernel shutdown handler both do), so an unattended Disc on a charger used to stop charging when diskOS's own idle timer fired; the stock idle power-off is already disabled by the takeover. An unreadable status (-1), the OTG boost (USB Audio, VBUS_STAT 7) and no input all leave the timer running as before. While the charger holds it the timer is reset like playback, so after unplugging the full idle interval starts again. Both transitions and the firing are written to the journal. The screen being off or dimmed does not touch charging (measured live: REG01 0x16, REG08 0x34, capacity rising with the backlight at 0).
+~~~
+
 ## ui/power.h
 
 **L3** `#ifndef DISKOS_POWER_H`
@@ -46381,6 +46388,14 @@ no hint held
 
 ~~~text
 committing: refused, completion reports
+~~~
+
+## ui/tests/vbus_test.c
+
+**L3** `#include "vbus.h"`
+
+~~~text
+Truth table of vbus_stat_external (1..6 external, 0 none, 7 the Disc's own OTG boost) and vbus_plain_charger against fake UDC state files under $(TDIR)/vbus. vbus_stat itself needs the charger IC on i2c and is not host-testable.
 ~~~
 
 ## ui/theme.c
