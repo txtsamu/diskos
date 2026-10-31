@@ -5,6 +5,7 @@
 #include "theme_kit.h"
 #include "modes.h"
 #include "config.h"
+#include "sdio.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -38,7 +39,7 @@ static void mark_selected_mode(int cur){
         }
     }
 }
-static void mark_selected(void){ mark_selected_mode(ui_source_switch_failed() ? -1 : shown_mode(ui_get_source_mode())); }
+static void mark_selected(void){ mark_selected_mode(sd_switch_failed() ? -1 : shown_mode(ui_get_source_mode())); }
 static void modes_ui_refresh(void){
     mark_selected();
     setting_detail_refresh();
@@ -74,7 +75,7 @@ static void settle_cb(lv_timer_t *t){
     if(lv_tick_elaps(g_last_switch) < 3200) return;
     lv_timer_del(g_settle); g_settle = NULL;
     int intended = g_pending_mode; g_pending_mode = -1;
-    if(ui_source_switch_failed()){ mark_selected_mode(-1); return; }
+    if(sd_switch_failed()){ mark_selected_mode(-1); return; }
     int show = (intended >= 0) ? intended : ui_get_source_mode();
     if(intended == 0 || intended == 1 || intended == 3){
         int actual = ui_detect_source_mode();

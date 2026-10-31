@@ -4,6 +4,7 @@
 #include "md5.h"
 #include "musicdb.h"
 #include "sysconfig.h"
+#include "sdio.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,6 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
-
-int  sd_io_begin(void);  void sd_io_end(void);
-int  sd_write_begin(void); void sd_write_end(void);
 
 #ifndef NETART_SD_ROOT
 #define NETART_SD_ROOT "/tmp/sdcard/.diskos"

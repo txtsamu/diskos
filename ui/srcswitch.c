@@ -3,17 +3,11 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <errno.h>
 #include <glob.h>
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 #include "srcswitch.h"
 #include "sdio.h"
 #include "outseq.h"
@@ -221,68 +215,10 @@ static int out_switch(int target, int via_mode){
 int modes_output_switch(int target){ return out_switch(target, 0); }
 int modes_output_mode_switch(int target){ return out_switch(target, 1); }
 
-static _Atomic int g_sd_writable = 1;
-static _Atomic int g_sd_writers = 0;
-static _Atomic int g_sd_hold = 0;
-static _Atomic int g_launch_verdict = -1;
-static pthread_mutex_t g_sd_mode_mu = PTHREAD_MUTEX_INITIALIZER;
-#ifndef SD_EXPORT_MARKER
-#define SD_EXPORT_MARKER "/tmp/.diskos_sd_export_intent"
-#endif
-typedef enum { SD_LOCAL, SD_DRAIN, SD_WAIT_HOST, SD_HOST, SD_WAIT_LOCAL, SD_UNKNOWN } sd_phase_t;
-static sd_phase_t g_sd_phase = SD_LOCAL;
-static uint32_t g_sd_deadline;
-static int g_sd_return_mode;
-static int g_sd_reissue;
-static int storage_media_local(void){
-    if(atomic_load(&g_launch_verdict) != 1) return 0;
-    return !atomic_load(&g_sd_hold) && !E->exported_to_host() && E->media_mounted();
-}
-int ui_local_playback_allowed(void){
-    return atomic_load(&g_launch_verdict) == 1 && g_sd_phase == SD_LOCAL && !g_sd_hold && sd_io_healthy();
-}
-
-static _Atomic int g_sd_quiesce = 0;
-void ui_sd_quiesce_begin(void){
-    atomic_store(&g_sd_quiesce, 1);
-    sd_io_hold();
-    atomic_store(&g_sd_writable, 0);
-}
-int ui_sd_quiesce_drained(void){ return sd_io_active() == 0 && atomic_load(&g_sd_writers) == 0; }
-void ui_sd_quiesce_end(void){
-    atomic_store(&g_sd_quiesce, 0);
-    if(g_sd_phase == SD_LOCAL && !g_sd_hold){ atomic_store(&g_sd_writable, 1); sd_io_resume(); }
-}
-int sd_write_begin(void){
-    atomic_fetch_add(&g_sd_writers, 1);
-    if(!atomic_load(&g_sd_writable) || E->exported_to_host()){
-        atomic_fetch_sub(&g_sd_writers, 1); return 0;
-    }
-    return 1;
-}
-void sd_write_end(void){ atomic_fetch_sub(&g_sd_writers, 1); }
-int ui_source_switch_failed(void){ return g_sd_phase == SD_UNKNOWN || g_sd_hold; }
-int ui_source_switch_pending(void){
-    return g_sd_phase == SD_DRAIN || g_sd_phase == SD_WAIT_HOST || g_sd_phase == SD_WAIT_LOCAL;
-}
-static int storage_mark(char phase, int mode){
-    char tmp[] = SD_EXPORT_MARKER ".XXXXXX";
-    int fd = mkstemp(tmp); if(fd < 0) return 0;
-    char b[8]; int n = snprintf(b, sizeof b, "%c %d\n", phase, mode);
-    int ok = write(fd, b, (size_t)n) == n && fsync(fd) == 0;
-    if(close(fd) != 0) ok = 0;
-    if(!ok || rename(tmp, SD_EXPORT_MARKER) != 0){ unlink(tmp); return 0; }
-    return 1;
-}
-static int source_send(int mode){
+int srcswitch_send_source(int mode){
     outseq_rc rc = outseq_source((outseq_src_t)mode);
     if(rc != OUTSEQ_REFUSED) modes_output_reset();
     return rc < 0 ? -1 : 0;
-}
-static void storage_unknown(const char *why){
-    sd_io_hold(); atomic_store(&g_sd_writable, 0); g_sd_phase = SD_UNKNOWN;
-    fprintf(stderr, "storage: %s; SD access remains held\n", why); fflush(stderr);
-    E->toast("Storage state uncertain - reboot device");
 }
 
 static struct { int active; int mode; uint32_t t0, gone_at; } g_dacx;
@@ -364,7 +300,7 @@ static int via_local(int mode, int exit_done){
 }
 int srcswitch_via_local_pending(void){ return g_leave.tm.on; }
 int modes_source_switch_busy(void){
-    return g_osw.tm.on || g_leave.tm.on || g_dacx.active || ui_source_switch_pending();
+    return g_osw.tm.on || g_leave.tm.on || g_dacx.active || sd_switch_pending();
 }
 static int source_switch(int mode, int exit_done){
     { const char *why = admit_check(ADMIT_OUTPUT_IDLE); if(why){ E->toast(why); return -1; } }
@@ -373,36 +309,14 @@ static int source_switch(int mode, int exit_done){
         if(cfg_get_int("dac_safe_exit", 1) == 0){ E->toast("Unplug the USB cable first"); return -1; }
         return dac_exit_begin(mode);
     }
-    if(ui_source_switch_pending()){ E->toast("Storage is switching"); return -1; }
-    if(g_sd_phase == SD_UNKNOWN || g_sd_hold || !sd_io_healthy()){ E->toast("SD access is held this boot"); return -1; }
-    if(atomic_load(&g_launch_verdict) != 1){ E->toast("SD access is not ready yet"); return -1; }
+    { const char *why = sd_switch_refusal(); if(why){ E->toast(why); return -1; } }
     if(mode != 0 && (modes_output_route() == OUT_USB || (session_source_mode() == 1 && mode == 3))) return via_local(mode, exit_done);
-    if(mode == 3){
-        if(g_sd_phase == SD_HOST) return 0;
-        if(E->scan_active()){ E->toast("Let the library scan finish first"); return -1; }
-        if(!E->player_guarded()){ E->toast("Storage protection is unavailable"); return -1; }
-        if(!storage_media_local()){ E->toast("SD card is not ready"); return -1; }
-        struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_nsec += 200000000L; if(ts.tv_nsec >= 1000000000L){ ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
-        if(pthread_mutex_timedlock(&g_sd_mode_mu, &ts) != 0){ E->toast("SD card is busy - try again"); return -1; }
-        if(!storage_mark('D', 3)){ pthread_mutex_unlock(&g_sd_mode_mu); E->toast("Couldn't prepare USB storage"); return -1; }
-        sd_io_hold(); atomic_store(&g_sd_writable, 0); session_set_source_mode(3);
-        g_sd_phase = SD_DRAIN; g_sd_deadline = now_ms() + 20000;
-        E->art_cancel();
-        pthread_mutex_unlock(&g_sd_mode_mu);
-        return 0;
-    }
-    if(g_sd_phase == SD_HOST){
-        if(!storage_mark('R', mode)){ E->toast("Couldn't leave USB storage"); return -1; }
-        g_sd_return_mode = mode; g_sd_phase = SD_WAIT_LOCAL;
-        g_sd_deadline = now_ms() + 20000;
-        if(source_send(mode) < 0){ storage_unknown("return request failed"); return -1; }
-        return 0;
-    }
+    if(mode == 3) return sd_export_begin();
+    if(sd_host_owned()) return sd_return_begin(mode);
     int was_playing = E->playing();
     if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ E->toast("Player is busy - try again"); return -1; }
     if(session_source_mode() == 0 && mode != 0){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }
-    if(source_send(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
+    if(srcswitch_send_source(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
     session_set_source_mode(mode);
     if(mode == 1){ g_dac_enter_t = now_ms(); g_dac_vol_due = g_dac_enter_t + 4500; if(!g_dac_vol_due) g_dac_vol_due = 1; }
     if(mode == 0 && was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);
@@ -411,80 +325,7 @@ static int source_switch(int mode, int exit_done){
 }
 int ui_set_source_mode(int mode){ return source_switch(mode, 0); }
 
-static void storage_resume_local(void){
-    if(unlink(SD_EXPORT_MARKER) != 0 && errno != ENOENT){ storage_unknown("cannot clear handoff state"); return; }
-    if(!sd_io_resume()){ storage_unknown("local mount changed during return"); return; }
-    atomic_store(&g_sd_writable, 1); g_sd_phase = SD_LOCAL; session_set_source_mode(g_sd_return_mode);
-    session_save_source(g_sd_return_mode);
-    g_sd_reissue = 0;
-    E->card_returned();
-    fprintf(stderr, "storage: local mount confirmed; SD readers and artwork cache resumed\n"); fflush(stderr);
-    E->toast("Restarting to reload the card...");
-    E->restart();
-}
-static void storage_step(void){
-    if(g_sd_hold || atomic_load(&g_sd_quiesce)) return;
-    if(!sd_io_healthy()){
-        if(g_sd_phase != SD_UNKNOWN) storage_unknown("artwork decoder did not exit");
-        return;
-    }
-    if(g_sd_phase == SD_LOCAL){
-        if(!sd_io_allowed() && storage_media_local()){
-            if(sd_io_resume()) E->scan_if_library_empty();
-        }
-        return;
-    }
-    if(g_sd_phase == SD_DRAIN){
-        if(sd_io_active() == 0 && atomic_load(&g_sd_writers) == 0){
-            if(!storage_mark('E', 3)){ storage_unknown("cannot record export request"); return; }
-            g_sd_phase = SD_WAIT_HOST; g_sd_deadline = now_ms() + 20000;
-            if(E->playing() && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ storage_unknown("pause request failed"); return; }
-            if(source_send(3) < 0) storage_unknown("export request failed");
-            return;
-        }
-        if((int32_t)(now_ms() - g_sd_deadline) >= 0){
-            storage_unknown("SD readers did not finish");
-        }
-    } else if(g_sd_phase == SD_WAIT_HOST){
-        if(E->host_confirmed() && !E->media_mounted()){
-            if(!storage_mark('H', 3)){ storage_unknown("cannot record completed export"); return; }
-            g_sd_phase = SD_HOST;
-            g_sd_reissue = 0;
-            fprintf(stderr, "storage: export confirmed with no local mount\n"); fflush(stderr);
-        } else if((int32_t)(now_ms() - g_sd_deadline) >= 0) storage_unknown("export not confirmed");
-        else if(g_sd_reissue && atomic_load(&g_launch_verdict) == 1 && source_send(3) == 0) g_sd_reissue = 0;
-    } else if(g_sd_phase == SD_WAIT_LOCAL){
-        if(storage_media_local()){ storage_resume_local(); return; }
-        if((int32_t)(now_ms() - g_sd_deadline) >= 0) storage_unknown("return mount not confirmed");
-        else if(g_sd_reissue && atomic_load(&g_launch_verdict) == 1 && source_send(g_sd_return_mode) == 0)
-            g_sd_reissue = 0;
-    }
-}
-void srcswitch_init(void){
-    sd_io_init(storage_media_local);
-    FILE *f = fopen(SD_EXPORT_MARKER, "r");
-    if(f){
-        char phase = 0; int mode = 0;
-        int n = fscanf(f, "%c %d", &phase, &mode); fclose(f);
-        atomic_store(&g_sd_writable, 0);
-        if(n == 2 && (phase == 'H' || phase == 'E') && E->host_confirmed() && !E->media_mounted()){
-            g_sd_phase = storage_mark('H', 3) ? SD_HOST : SD_UNKNOWN; session_set_source_mode(3);
-        } else if(n == 2 && phase == 'E' && mode == 3){
-            g_sd_phase = SD_WAIT_HOST; session_set_source_mode(3); g_sd_reissue = 1;
-            g_sd_deadline = now_ms() + 20000;
-        } else if(n == 2 && phase == 'R' && mode >= 0 && mode < 3){
-            g_sd_phase = SD_WAIT_LOCAL; g_sd_return_mode = mode; session_set_source_mode(3); g_sd_reissue = 1;
-            g_sd_deadline = now_ms() + 20000;
-        } else if(n == 2 && phase == 'D' && !E->exported_to_host()){
-            if(unlink(SD_EXPORT_MARKER) == 0){ g_sd_phase = SD_LOCAL; atomic_store(&g_sd_writable, 1); }
-            else g_sd_phase = SD_UNKNOWN;
-        } else g_sd_phase = SD_UNKNOWN;
-    } else if(errno != ENOENT || E->exported_to_host()){
-        g_sd_phase = SD_UNKNOWN; atomic_store(&g_sd_writable, 0);
-    }
-    if(g_sd_hold){ g_sd_phase = SD_UNKNOWN; atomic_store(&g_sd_writable, 0); }
-    if(g_sd_phase == SD_LOCAL && !g_sd_hold) sd_io_resume();
-}
+void srcswitch_init(void){ sd_init(); }
 
 void srcswitch_tick(void){
     if(tm_due(&g_osw.tm)) osw_tick();
@@ -495,20 +336,6 @@ void srcswitch_tick(void){
     if(tm_due(&g_bootusb)) bootusb_tick();
     dac_exit_tick();
     if(g_dac_vol_due && (int32_t)(now_ms() - g_dac_vol_due) >= 0){ g_dac_vol_due = 0; dac_volume_cb(); }
-    storage_step();
+    sd_tick();
 }
 int srcswitch_dac_level_settled(void){ return session_source_mode() == 1 && elapsed(g_dac_enter_t) > 8000; }
-
-void srcswitch_set_launch_verdict(int v){ atomic_store(&g_launch_verdict, v); }
-void srcswitch_hold(void){ g_sd_hold = 1; }
-int  srcswitch_held(void){ return g_sd_hold; }
-void srcswitch_revoke(void){
-    atomic_store(&g_launch_verdict, 0);
-    g_sd_hold = 1;
-    atomic_store(&g_sd_writable, 0);
-    sd_io_hold();
-    g_sd_phase = SD_UNKNOWN;
-}
-void srcswitch_restart_deadline(void){ if(ui_source_switch_pending()) g_sd_deadline = now_ms() + 20000; }
-int  srcswitch_sd_writable(void){ return atomic_load(&g_sd_writable); }
-pthread_mutex_t *srcswitch_mode_mutex(void){ return &g_sd_mode_mu; }

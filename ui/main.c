@@ -507,13 +507,18 @@ void settings_restart_now(void);
 static void env_restart(void){ settings_restart_now(); }
 static void env_set_volume(int v){ ui_set_volume(v); }
 static const struct srcswitch_env g_srcswitch_env = {
-    .now = lv_tick_get, .media_mounted = coldplug_mounted, .exported_to_host = sd_exported_to_host,
-    .host_confirmed = storage_host_confirmed, .host_attached = usb_host_attached,
-    .dac_gadget_present = env_dac_gadget_present, .player_guarded = storage_player_guarded,
-    .playing = env_playing, .scan_active = scanner_active, .scan_if_library_empty = env_scan_if_library_empty,
-    .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
+    .now = lv_tick_get, .host_attached = usb_host_attached,
+    .dac_gadget_present = env_dac_gadget_present,
+    .playing = env_playing,
     .toast = ui_toast, .set_volume = env_set_volume,
     .seek_to = ui_seek_to,
+};
+static const struct sd_env g_sd_env = {
+    .now = lv_tick_get, .media_mounted = coldplug_mounted, .exported_to_host = sd_exported_to_host,
+    .host_confirmed = storage_host_confirmed, .player_guarded = storage_player_guarded,
+    .playing = env_playing, .scan_active = scanner_active, .scan_if_library_empty = env_scan_if_library_empty,
+    .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
+    .toast = ui_toast, .send_source = srcswitch_send_source,
 };
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
@@ -721,7 +726,7 @@ static void scanner_poll(lv_timer_t *t){
 int ui_is_playing(void){ return playreq_playing(); }
 static int env_book_active(void){ return book_session_active(); }
 static const struct admit_env g_admit_env = {
-    .now = lv_tick_get, .local_playback_allowed = ui_local_playback_allowed, .output_busy = modes_output_busy,
+    .now = lv_tick_get, .local_playback_allowed = sd_local_playback_allowed, .output_busy = modes_output_busy,
     .play_recent = playreq_recent, .book_active = env_book_active, .playing = env_playing,
     .fw_needs_local_init = fw_needs_localplayer_init,
 };
@@ -1386,7 +1391,7 @@ int ui_detect_source_mode(void){
 static int sd_cold_mount_allowed(void){
     double up = -1.0; FILE *pu = fopen("/proc/uptime", "r");
     if(pu){ if(fscanf(pu, "%lf", &up) != 1) up = -1.0; fclose(pu); }
-    return (up >= 0.0 && up <= 150.0 && !sd_exported_to_host() && srcswitch_sd_writable());
+    return (up >= 0.0 && up <= 150.0 && !sd_exported_to_host() && sd_writable());
 }
 static void *coldplug_thread(void *arg){
     (void)arg;
@@ -1403,8 +1408,8 @@ static void *coldplug_thread(void *arg){
     int nudged = 0;
     for(int i = 0; i < 120; i++){
         if(coldplug_mounted()){ coldplug_log("SD mounted - done"); return NULL; }
-        pthread_mutex_lock(srcswitch_mode_mutex());
-        if(ui_get_source_mode() == 0 && !sd_exported_to_host() && !coldplug_mounted() && srcswitch_sd_writable()){
+        int cold_writable = sd_coldplug_begin();
+        if(cold_writable && ui_get_source_mode() == 0 && !sd_exported_to_host() && !coldplug_mounted()){
             if(!direct_sd_mount || nudged || i >= 10){
                 if(direct_sd_mount && !nudged) coldplug_log("direct mount failed -> falling back to the player's uevent listener (one-way: no more direct mounts)");
                 nudged = 1;
@@ -1419,9 +1424,9 @@ static void *coldplug_thread(void *arg){
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
                         else
                             coldplug_log("post-mount export detected -> unmounted, host owns card (one-shot gives up)");
-                        pthread_mutex_unlock(srcswitch_mode_mutex()); return NULL;
+                        sd_coldplug_end(); return NULL;
                     }
-                    coldplug_log("SD direct-mounted (V2.40 exfat)"); pthread_mutex_unlock(srcswitch_mode_mutex()); return NULL;
+                    coldplug_log("SD direct-mounted (V2.40 exfat)"); sd_coldplug_end(); return NULL;
                 }
                 else if(sd_cold_mount_allowed() && sd_mount_utf8("vfat") == 0){
                     if(sd_exported_to_host()){
@@ -1429,19 +1434,19 @@ static void *coldplug_thread(void *arg){
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
                         else
                             coldplug_log("post-mount export detected -> unmounted, host owns card (one-shot gives up)");
-                        pthread_mutex_unlock(srcswitch_mode_mutex()); return NULL;
+                        sd_coldplug_end(); return NULL;
                     }
-                    coldplug_log("SD direct-mounted (V2.40 vfat)"); pthread_mutex_unlock(srcswitch_mode_mutex()); return NULL;
+                    coldplug_log("SD direct-mounted (V2.40 vfat)"); sd_coldplug_end(); return NULL;
                 }
                 if(!sd_cold_mount_allowed()){
-                    pthread_mutex_unlock(srcswitch_mode_mutex());
+                    sd_coldplug_end();
                     coldplug_log("V2.40 SD one-shot: window elapsed or card exported (SD not mounted)");
                     return NULL;
                 }
                 { char b[96]; snprintf(b, sizeof b, "SD direct-mount failed errno=%d(%s)", errno, strerror(errno)); coldplug_log(b); }
             }
         }
-        pthread_mutex_unlock(srcswitch_mode_mutex());
+        sd_coldplug_end();
         struct timespec ts = { 3, 0 }; nanosleep(&ts, NULL);
     }
     coldplug_log("coldplug TIMEOUT - SD never mounted");
@@ -1472,28 +1477,19 @@ static const struct launcher_env g_launcher_env = {
 
 static void sd_degraded_notice_cb(lv_timer_t *t){
     (void)t;
-    if(srcswitch_held()) ui_toast("SD protection unavailable - library and artwork are off");
+    if(sd_held()) ui_toast("SD protection unavailable - library and artwork are off");
 }
 static void sd_features_gate_cb(lv_timer_t *t){
-    static int waited = 0, started = 0;
-    int v = launch_status_get();
-    if(v < 0 && !started){
-        if(++waited < 60) return;
-        v = 0;
+    sd_gate_t gate = sd_gate_poll(launch_status_get());
+    if(gate == SD_GATE_WAIT) return;
+    if(gate == SD_GATE_OPENED){
+        coldplug_start();
+        ui_art_retry();
+        coverart_prewarm_start();
+        albumwall_prewarm_seed();
+        lv_timer_set_period(t, 5000);
     }
-    if(v == 1){
-        if(!started){
-            started = 1;
-            srcswitch_set_launch_verdict(1);
-            coldplug_start();
-            ui_art_retry();
-            coverart_prewarm_start();
-            albumwall_prewarm_seed();
-            lv_timer_set_period(t, 5000);
-        }
-        return;
-    }
-    srcswitch_revoke();
+    if(gate != SD_GATE_DENIED) return;
     scanner_abort();
     art_kill_all();
     playreq_clear();
@@ -1574,11 +1570,12 @@ int main(int argc, char **argv){
       sigaction(SIGALRM,&al,NULL); alarm(BOOT_DEADLINE_S); }
     fprintf(stderr,"=== diskos main start argc=%d ===\n", argc); fflush(stderr);
     sysconfig_work_mode_reset_via(run_bounded, 8000);
-    if(sysconfig_work_mode_confirm_via(run_bounded, 5000) != 0){ srcswitch_hold(); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); }
-    if(!rmguard_ensure()){ srcswitch_hold(); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
+    if(sysconfig_work_mode_confirm_via(run_bounded, 5000) != 0){ sd_hold(); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); }
+    if(!rmguard_ensure()){ sd_hold(); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
     srcswitch_set_env(&g_srcswitch_env);
+    sd_set_env(&g_sd_env);
     admit_set_env(&g_admit_env);
     booksess_set_env(&g_booksess_env);
     playreq_set_env(&g_playreq_env);
@@ -1712,7 +1709,7 @@ int main(int argc, char **argv){
     unsigned scr_seq_seen = 0, aa03_seq_seen = 0, screen_gen_seen = 0, inject_for = 0, inject_gen = 0;
     int poweroff_inhibit = 0, inject_pending = 0; uint32_t inject_due = 0;
     unsigned last_vol_seq = 0;
-    srcswitch_restart_deadline();
+    sd_restart_deadline();
     lv_timer_create(srcswitch_tick_cb, 100, NULL);
     { void system_ota_health_init(void); system_ota_health_init(); }
     if(session_entry() == SESSION_RELAUNCH){
@@ -1728,7 +1725,7 @@ int main(int argc, char **argv){
     }
     lv_refr_now(NULL);
     if(bl_state == 2) draw_set_dark(1);
-    if(srcswitch_held()){
+    if(sd_held()){
         ui_toast("SD protection unavailable - library and artwork are off");
         lv_timer_create(sd_degraded_notice_cb, 300000, NULL);
     }

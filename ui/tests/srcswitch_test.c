@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "srcswitch.h"
+#include "sdio.h"
 #include "session.h"
 #include "outseq.h"
 #include "admit.h"
@@ -67,11 +68,15 @@ static void env_volume(int v){ (void)v; }
 const char *admit_check(admit_what_t what){ return what == ADMIT_OUTPUT_SWITCH && g_blocked ? "Player is busy - try again" : NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env env = {
-    .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
-    .host_attached = env_attached, .dac_gadget_present = env_gadget, .player_guarded = env_guarded,
-    .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_nothing, .art_cancel = env_nothing,
-    .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast, .set_volume = env_volume,
+    .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
+    .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
     .seek_to = env_seek,
+};
+static const struct sd_env sd_env = {
+    .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
+    .player_guarded = env_guarded, .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_nothing,
+    .art_cancel = env_nothing, .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast,
+    .send_source = srcswitch_send_source,
 };
 static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = ev; }
 
@@ -93,10 +98,10 @@ static void setup(void){
     char *slash = strrchr(d, '/'); if(slash){ *slash = 0; mkdir(d, 0700); *slash = '/'; }
     mkdir(d, 0700); usb_card(0); unlink(SD_EXPORT_MARKER);
     g_now = 1000;
-    srcswitch_set_env(&env); srcswitch_set_listener(on_event);
-    srcswitch_set_launch_verdict(1);
+    srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event);
+    assert(sd_gate_poll(1) == SD_GATE_OPENED);
     srcswitch_init();
-    assert(ui_local_playback_allowed());
+    assert(sd_local_playback_allowed());
 }
 static void run(int ms){ for(int t = 0; t < ms; t += 100){ g_now += 100; srcswitch_tick(); } }
 static int idx(const char *frame, int from){ for(int i = from; i < g_n; i++) if(!strcmp(g_log[i], frame)) return i; return -1; }
@@ -164,7 +169,7 @@ static void usb_dac_to_storage_exit_then_local_then_export(void){
     assert(session_source_mode() == 0 && srcswitch_via_local_pending() && evented(SRCSWITCH_EV_SETTLE_RESTART));
     run(2400); assert(g_n == 4);
     run(300);
-    assert(session_source_mode() == 3 && ui_source_switch_pending() && !srcswitch_via_local_pending());
+    assert(session_source_mode() == 3 && sd_switch_pending() && !srcswitch_via_local_pending());
     run(200);
     const char *s2[] = { G0, R6, G0, W8, R6, G1, W8 };
     expect_frames("then the export", s2, 7);
@@ -176,7 +181,7 @@ static void host_role_never_goes_straight_to_storage(void){
     assert(ui_set_source_mode(3) == 0);
     assert(g_n == 1 && !strcmp(g_log[0], PAUSE) && !g_playing);
     run(5000);
-    assert(ui_source_switch_pending());
+    assert(sd_switch_pending());
     run(300);
     const char *want[] = { PAUSE, R6, G0, W8, R6, G1, W8 };
     expect_frames("storage from USB Audio", want, 7);

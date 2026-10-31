@@ -46,8 +46,8 @@ class OutseqGuard(unittest.TestCase):
         self.assertIn('#define PLAYER_CMD_PLAYPAUSE "0201000C0000"', (APP / 'ipc.h').read_text())
 
     def test_admission_not_recomposed_by_callers(self):
-        facts = re.compile(r'\b(ui_local_playback_allowed|modes_output_busy|ui_output_blocked|ui_player_settling)\b')
-        owners = {'srcswitch.c', 'srcswitch.h', 'modes.c', 'modes.h', 'admit.c', 'admit.h'}
+        facts = re.compile(r'\b(sd_local_playback_allowed|modes_output_busy|ui_output_blocked|ui_player_settling)\b')
+        owners = {'srcswitch.c', 'srcswitch.h', 'sdio.c', 'sdio.h', 'modes.c', 'modes.h', 'admit.c', 'admit.h'}
         offenders = []
         for path in sorted(APP.glob('*.c')) + sorted(APP.glob('*.h')):
             if path.name in owners or path.name in ('sqlite3.c', 'sqlite3.h') or path.name.startswith('font_'):
