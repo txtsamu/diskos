@@ -11,7 +11,7 @@ struct admit_env {
     uint32_t (*now)(void);
     int  (*local_playback_allowed)(void);
     int  (*output_busy)(void);
-    int  (*play_pending)(void);
+    int  (*play_recent)(void);
     int  (*book_active)(void);
     int  (*playing)(void);
     int  (*fw_needs_local_init)(void);
@@ -43,7 +43,6 @@ int ui_seek_to(long ms);
 typedef enum { ADMIT_PLAY_LIST, ADMIT_PLAY_RESERVED_SLOT } admit_play_t;
 typedef enum { ADMIT_SENT_NONE = 0, ADMIT_SENT_WORKMODE = 1, ADMIT_SENT_PREAMBLE = 2 } admit_sent_t;
 admit_sent_t admit_play_start(admit_play_t kind);
-void admit_note_play_sent(void);
 
 void admit_note_player_restart(void);
 int  admit_settling(void);

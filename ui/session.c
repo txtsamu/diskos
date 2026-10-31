@@ -4,6 +4,7 @@
 #include "config.h"
 #include "ipc.h"
 #include "outseq.h"
+#include "playreq.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,18 +122,8 @@ static int  local_init_send(unsigned gen){
     return 0;
 }
 
-static unsigned g_play_sent_gen = NO_GEN;
-static uint32_t g_play_sent_at;
-static unsigned g_play_track_seen_gen = NO_GEN;
-void session_note_transport_sent(unsigned gen, uint32_t now_ms){ g_play_sent_gen = gen; g_play_sent_at = now_ms; }
-
 static int startup_playback_busy(unsigned gen, uint32_t now){
-    if(SE->playing()) g_play_track_seen_gen = gen;
-    if(SE->play_starting() || SE->playing()) return 1;
-    if(g_play_sent_gen != gen) return 0;
-    int have_track = SE->have_track();
-    if(have_track) g_play_track_seen_gen = gen;
-    return have_track || g_play_track_seen_gen != gen || now - g_play_sent_at < 10000;
+    return playreq_startup_busy(gen, now, SE->playing(), SE->play_starting(), SE->have_track());
 }
 
 static unsigned g_sink_retry_gen = NO_GEN;
@@ -184,7 +175,7 @@ session_startup_t session_startup_tick(uint32_t now){
     if(session_bt_routed()){ local_init_mark(gen); return SE->fw_needs_init() ? SESSION_STARTUP_WAIT : SESSION_STARTUP_DONE; }
     if(!SE->fw_needs_init()) return SESSION_STARTUP_DONE;
     if(startup > 0){ local_init_mark(gen); return SESSION_STARTUP_WAIT; }
-    if(g_play_sent_gen == gen){
+    if(playreq_transport_in(gen)){
         local_init_mark(gen);
         fprintf(stderr,"v2.40 workmode: local-init skipped, play already sent (gen %u)\n", gen); fflush(stderr);
         return SESSION_STARTUP_WAIT;

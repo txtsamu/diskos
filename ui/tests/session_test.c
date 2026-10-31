@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "session.h"
+#include "playreq.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -395,21 +396,21 @@ static void startup_skips_the_init_when_a_play_was_already_sent(void){
     player_answers(1000);
     F.playing = 1; assert(TICK(2000) == SESSION_STARTUP_WAIT);
     F.playing = 0;
-    session_note_transport_sent(g_gen, 3000);
+    playreq_note_transport(g_gen, 3000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
     assert(TICK(13000) == SESSION_STARTUP_WAIT);
     assert(g_n == 0);
     assert(TICK(60000) == SESSION_STARTUP_WAIT && g_n == 0);
 }
 static void startup_play_sent_in_an_older_generation_does_not_count(void){
-    session_note_transport_sent(g_gen, 0);
+    playreq_note_transport(g_gen, 0);
     g_gen = 2;
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
     expect_init("init for a new generation after an old play");
 }
 static void startup_busy_playback_holds_the_recovery(void){
-    session_note_transport_sent(g_gen, 0);
+    playreq_note_transport(g_gen, 0);
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT && g_n == 0);
     F.have_track = 1;

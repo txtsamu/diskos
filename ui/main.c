@@ -54,7 +54,7 @@
 #include "config.h"
 #include "phonehome.h"
 #include "scanner.h"
-#include "playstate.h"
+#include "playreq.h"
 #include "sdio.h"
 #include "art.h"
 #include "power.h"
@@ -402,7 +402,6 @@ static int route_state_restore(void){
     session_set_bt_mac(norm);
     return 1;
 }
-static int g_playing = 0;
 static void route_uppercase(const char *in, char *out, int cap){
     int j=0; for(int i=0; in[i] && j<cap-1; i++){ char c=in[i]; if(c>='a'&&c<='z') c-=32; out[j++]=c; } out[j]=0;
 }
@@ -497,7 +496,7 @@ static int usb_host_attached(void){
     return on;
 }
 static int env_dac_gadget_present(void){ return access("/sys/kernel/config/usb_gadget/uac_demo", F_OK) == 0; }
-static int env_playing(void){ return g_playing; }
+static int env_playing(void){ return playreq_playing(); }
 static void env_scan_if_library_empty(void){ if(mdb_total_song_count() == 0 && !mdb_load_failed()) scanner_start(); }
 static void env_art_cancel(void){ art_cancel(); }
 static void env_card_returned(void){ albumwall_prewarm_seed(); }
@@ -614,219 +613,7 @@ static void opus_title_tick(void){
         otw_reject_commit(worker);
     }
 }
-static uint32_t g_play_pending = 0;
-#ifndef PLAY_PCM_GLOB
-#define PLAY_PCM_GLOB "/proc/asound/card*/pcm*p/sub*/status"
-#endif
-static int play_pcm_running(void){
-    glob_t paths;
-    if(glob(PLAY_PCM_GLOB, 0, NULL, &paths) != 0){
-        globfree(&paths);
-        return 0;
-    }
-    int running = 0;
-    for(size_t i = 0; i < paths.gl_pathc && i < 16 && !running; i++){
-        char buf[512];
-        int fd = open(paths.gl_pathv[i],
-                      O_RDONLY | O_CLOEXEC | O_NONBLOCK);
-        if(fd < 0) continue;
-        ssize_t n = read(fd, buf, sizeof buf - 1);
-        close(fd);
-        if(n > 0){
-            buf[n] = 0;
-            running = strstr(buf, "state: RUNNING") != NULL;
-        }
-    }
-    globfree(&paths);
-    return running;
-}
-
-static struct {
-    uint32_t request, at;
-    unsigned serial, pos_seq, generation, transport;
-    uint64_t token;
-    long position, duration;
-    int have_track, playing, provisional;
-} g_play_pre;
-
-static void play_request_arm(const track_state_t *cur, int was_playing){
-    g_play_pending = lv_tick_get();
-    if(!g_play_pending) g_play_pending = 1;
-
-    g_play_pre.serial++;
-    g_play_pre.request = g_play_pre.at = g_play_pending;
-    g_play_pre.pos_seq = cur->pos_seq;
-    g_play_pre.position = cur->position_ms;
-    g_play_pre.generation = cur->player_generation;
-    g_play_pre.transport = ipc_transport_seq();
-    g_play_pre.token = cur->playback_token;
-    g_play_pre.duration = cur->duration_ms;
-    g_play_pre.have_track = cur->have_track;
-    g_play_pre.playing = was_playing;
-    g_play_pre.provisional = cur->provisional;
-}
-
-static int play_pcm_seen(uint32_t now, int fresh){
-    static uint32_t at;
-    static int valid, running;
-    if(!valid || now - at >= 500 || (fresh && at != now)){
-        running = play_pcm_running();
-        at = now;
-        valid = 1;
-    }
-    return running;
-}
-
-static int play_start_failed(const track_state_t *st){
-    static uint32_t request, progress, pos_at, adv_at;
-    static unsigned serial, pos_seq, generation, transport;
-    static uint64_t token;
-    static long position, duration;
-    static int active, had_track, seed, advances;
-    static int attrib, started, possible, may_start, seen;
-
-    uint32_t now = lv_tick_get();
-    if(!g_play_pending){
-        active = 0;
-        return 0;
-    }
-    if(!active || request != g_play_pending ||
-       serial != g_play_pre.serial){
-        active = 1;
-        request = g_play_pending;
-        serial = g_play_pre.serial;
-        progress = request;
-        advances = attrib = started = possible = seen = 0;
-        may_start = seed = 0;
-
-        if(g_play_pre.request == request){
-            pos_at = g_play_pre.at;
-            pos_seq = g_play_pre.pos_seq;
-            position = g_play_pre.position;
-            generation = g_play_pre.generation;
-            transport = g_play_pre.transport;
-            token = g_play_pre.token;
-            duration = g_play_pre.duration;
-            had_track = g_play_pre.have_track;
-            seed = g_play_pre.provisional;
-            may_start = !g_play_pre.playing &&
-                        (!had_track || position <= 1500);
-        } else {
-            pos_at = now;
-            pos_seq = st->pos_seq;
-            position = st->position_ms;
-            generation = st->player_generation;
-            transport = ipc_transport_seq();
-            token = st->playback_token;
-            duration = st->duration_ms;
-            had_track = st->have_track;
-        }
-    }
-
-    if(generation != st->player_generation ||
-       transport != ipc_transport_seq()){
-        g_play_pending = 0;
-        active = 0;
-        return 0;
-    }
-
-    if(seed && st->player_confirmed){
-        seed = 0;
-        attrib = 0;
-        advances = 0;
-        progress = now;
-        token = st->playback_token;
-        duration = st->duration_ms;
-        had_track = st->have_track;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
-        pos_at = now;
-    } else if(token != st->playback_token ||
-              had_track != st->have_track){
-        progress = now;
-        advances = 0;
-        attrib = !seed && st->have_track &&
-                 st->player_confirmed && !st->provisional;
-        token = st->playback_token;
-        duration = st->duration_ms;
-        had_track = st->have_track;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
-        pos_at = now;
-    } else if(duration != st->duration_ms){
-        progress = now;
-        advances = 0;
-        duration = st->duration_ms;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
-        pos_at = now;
-    }
-
-    if(st->pos_seq != pos_seq){
-        long long delta = (long long)st->position_ms - position;
-        uint32_t gap = now - pos_at;
-        long long slack = (long long)gap + 1500;
-        int fresh = st->have_track && st->player_confirmed &&
-                    !st->provisional &&
-                    (int32_t)(st->pos_seq - st->path_seq) > 0;
-        int wrap = delta < 0 && duration > 0 &&
-                   position >= 0 && position <= duration &&
-                   st->position_ms >= 0 &&
-                   st->position_ms <= duration &&
-                   (long long)duration - position +
-                       st->position_ms <= slack;
-
-        if(fresh && delta != 0) progress = now;
-        if(fresh && ((delta > 0 && delta <= slack) || wrap)){
-            advances++;
-            seen = 1;
-            adv_at = now;
-            if(attrib) started = 1;
-            else if(may_start) possible = 1;
-        } else {
-            advances = 0;
-            if(fresh && !wrap && delta < -1500)
-                attrib = 1;
-        }
-
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
-        pos_at = now;
-        if(advances >= 2 && (attrib || possible)){
-            g_play_pending = 0;
-            if(attrib){
-                void system_ota_note_playback(void);
-                system_ota_note_playback();
-            }
-            active = 0;
-            return 0;
-        }
-    }
-
-    uint32_t age = now - request;
-    if(age < 45000 && (age < 15000 || now - progress < 6000))
-        return 0;
-
-    if(started || possible){
-        g_play_pending = 0;
-        active = 0;
-        return 0;
-    }
-
-    int final = age >= 45000;
-    int out = seen && now - adv_at < 6000;
-    if(!out) out = play_pcm_seen(now, final);
-    if(!out && !final) out = play_pcm_seen(now, 1);
-    if(out){
-        if(final){
-            g_play_pending = 0;
-            active = 0;
-        }
-        return 0;
-    }
-    return 1;
-}
-void ui_note_transport_sent(void){ session_note_transport_sent(ipc_generation(), lv_tick_get()); }
+void ui_note_transport_sent(void){ playreq_note_transport(ipc_generation(), lv_tick_get()); }
 static int startup_player_old(void){
     long pid, hz = sysconf(_SC_CLK_TCK);
     unsigned long long start;
@@ -872,13 +659,12 @@ static void boot_autoplay_pause_cb(lv_timer_t *t){
     lv_timer_del(t);
 }
 static int startup_admitted(void){ return admit_check(ADMIT_LOCAL_INIT) == NULL; }
-static int startup_play_starting(void){ return g_play_pending || book_session_active(); }
-static int startup_playing(void){ return g_playing; }
+static int startup_play_starting(void){ return playreq_pending() || book_session_active(); }
 static int startup_have_track(void){ track_state_t st; ipc_get_state(&st); return st.have_track; }
 static int startup_route_analog(void){ return route_analog(1); }
 static const struct session_startup_env g_startup_env = {
     .admitted = startup_admitted, .rx_frames = ipc_rx_frames, .play_starting = startup_play_starting,
-    .playing = startup_playing, .have_track = startup_have_track, .fw_needs_init = fw_needs_localplayer_init,
+    .playing = env_playing, .have_track = startup_have_track, .fw_needs_init = fw_needs_localplayer_init,
     .player_old = startup_player_old, .saved_bt_route = startup_saved_bt_route,
     .connected_sink = startup_connected_sink, .route_analog = startup_route_analog,
 };
@@ -931,13 +717,18 @@ static void scanner_poll(lv_timer_t *t){
         ui_toast(b);
     }
 }
-int ui_is_playing(void){ return g_playing; }
-static int env_play_pending(void){ return g_play_pending != 0; }
+int ui_is_playing(void){ return playreq_playing(); }
 static int env_book_active(void){ return book_session_active(); }
 static const struct admit_env g_admit_env = {
     .now = lv_tick_get, .local_playback_allowed = ui_local_playback_allowed, .output_busy = modes_output_busy,
-    .play_pending = env_play_pending, .book_active = env_book_active, .playing = env_playing,
+    .play_recent = playreq_recent, .book_active = env_book_active, .playing = env_playing,
     .fw_needs_local_init = fw_needs_localplayer_init,
+};
+void system_ota_note_playback(void);
+static const struct playreq_env g_playreq_env = {
+    .now = lv_tick_get, .generation = ipc_generation, .transport_seq = ipc_transport_seq, .get_state = ipc_get_state,
+    .tx_waiting = ipc_tx_waiting, .send = ipc_send_cmd, .admit_start = admit_play_start,
+    .note_playback = system_ota_note_playback,
 };
 
 int ui_set_volume(int vol){
@@ -961,29 +752,9 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
         send_play_mode(cfg_get_int("work_mode", 0));
         g_book_single_mode = 0;
     }
-    if(pos1 < 1) pos1 = 1;
-    if(!name) name = "";
-    if(strlen(name) >= 380){ ui_toast("Couldn't play that list"); return 0; }
-    char f[420];
-    int sent = 0;
-    ui_note_transport_sent();
-    (void)admit_play_start(ADMIT_PLAY_LIST);
-    {
-        int datalen = 8 + (int)strlen(name);
-        snprintf(f, sizeof f, "0100%04X%04X%04X%s",
-                 8 + datalen, (build_idx >= 0 ? build_idx : pos1-1) & 0xFFFF, list_type & 0xFFFF, name);
-        track_state_t cur; ipc_get_state(&cur);
-        if(ipc_send_cmd(f) == 0){
-            sent = 1;
-            admit_note_play_sent();
-            fprintf(stderr,"play(build) type=%d pos=%d name='%s' -> %s\n", list_type, pos1, name, f);
-            play_request_arm(&cur, g_playing);
-            ui_toast("Starting...");
-        } else {
-            ui_toast("Couldn't start playback");
-        }
-    }
-    fflush(stderr);
+    int sent = playreq_play_list(list_type, name, pos1, build_idx);
+    if(sent < 0){ ui_toast("Couldn't play that list"); return 0; }
+    ui_toast(sent ? "Starting..." : "Couldn't start playback");
     return sent;
 }
 int ui_play_list(int list_type, const char *name, int pos1){ return ui_play_list_ex(list_type, name, pos1, -1); }
@@ -998,7 +769,7 @@ int ui_play_playlist(long pid, int pos){
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;
     send_play_mode(cfg_get_int("work_mode", 0));
-    (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);
+    playreq_reserve_slot();
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);
     if(ppos < 1){ ui_toast("Couldn't find that song"); return 0; }
@@ -1007,17 +778,11 @@ int ui_play_playlist(long pid, int pos){
 }
 int ui_queue_jump(int ord1){
     { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
-    if(g_play_pending){ ui_toast("Queue is updating - try again"); return -1; }
+    if(playreq_pending()){ ui_toast("Queue is updating - try again"); return -1; }
     if(ord1 < 1 || ord1 > 0xFFFF) return -1;
     ui_cancel_book_resume();
     ui_disarm_book_eoc();
-    (void)admit_play_start(ADMIT_PLAY_LIST);
-    ui_note_transport_sent();
-    char f[24]; snprintf(f, sizeof f, "0100%04X%04X0000", 16, (ord1 - 1) & 0xFFFF);
-    int rc = ipc_send_cmd(f);
-    if(rc == 0) admit_note_play_sent();
-    fprintf(stderr, "queue jump pos=%d -> %s (rc=%d)\n", ord1, f, rc); fflush(stderr);
-    return rc;
+    return playreq_queue_jump(ord1);
 }
 int ui_play_plan(mdb_plan_t *plan, int song_id){
     if(!plan || !plan->ids || plan->count <= 0){ ui_toast("Couldn't play that list"); return 0; }
@@ -1027,7 +792,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
         send_play_mode(cfg_get_int("work_mode", 0));
-        (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);
+        playreq_reserve_slot();
         return ui_play_list_ex(5, "", pos, -1);
     }
     if(plan->list_type != 2 && plan->list_type != 3 && plan->list_type != 7){ ui_toast("Couldn't play that list"); return 0; }
@@ -1119,11 +884,11 @@ int ui_play_book(const char *path, long resume_ms){
     if(!path || !*path) return 0;
     if(strlen(path) >= sizeof g_book_sess - 4){ ui_toast("Path too long"); return 0; }
     if(!mdb_reserved_slot_set(path)){ ui_toast("Couldn't start book"); return 0; }
-    (void)admit_play_start(ADMIT_PLAY_RESERVED_SLOT);
+    playreq_reserve_slot();
     if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }
     g_book_single_mode = 1;
     if(!ui_play_list(5, "", 1)) return 0;
-    g_play_pending = 0;
+    playreq_clear();
     snprintf(g_book_sess, sizeof g_book_sess, "%s", path);
     g_book_resume_ms   = (resume_ms > 1000) ? resume_ms : 0;
     g_book_resume_done = (g_book_resume_ms > 0) ? 0 : 1;
@@ -1349,7 +1114,7 @@ static void advance_probe_tick(int visible){
         if(active){ active = used = 0; }
         have_pos = 0; pos_seq = s.pos_seq;
     }
-    if(g_play_pending || book_session_active()){
+    if(playreq_pending() || book_session_active()){
         active = 0; used = 1;
     }
     transport = tx;
@@ -1881,7 +1646,7 @@ static void sd_features_gate_cb(lv_timer_t *t){
     srcswitch_revoke();
     scanner_abort();
     art_kill_all();
-    g_play_pending = 0;
+    playreq_clear();
     ui_toast("SD protection unavailable - library and artwork are off");
     lv_timer_create(sd_degraded_notice_cb, 300000, NULL);
     lv_timer_del(t);
@@ -1969,6 +1734,7 @@ int main(int argc, char **argv){
     (void)fw_os_ver();
     srcswitch_set_env(&g_srcswitch_env);
     admit_set_env(&g_admit_env);
+    playreq_set_env(&g_playreq_env);
     srcswitch_init();
     { unsigned seed=0; FILE *r=fopen("/dev/urandom","rb"); if(r){ if(fread(&seed,1,sizeof seed,r)!=sizeof seed) seed=(unsigned)time(NULL); fclose(r);} else seed=(unsigned)time(NULL); srand(seed); }
     lv_init();
@@ -2083,7 +1849,7 @@ int main(int argc, char **argv){
     int cover_tap=0;
     int fsart_touch=0;
     int sleep_touch=0;
-    playstate_t g_ps = { -1, 0 }; int last_playing=-1;
+    int last_playing=-1;
     char np_last_path[256] = "";
     char np_last_title[sizeof st.title] = "", np_last_artist[sizeof st.artist] = "";
     static const int TMAP[5] = {0,30,60,120,300};
@@ -2153,20 +1919,10 @@ int main(int argc, char **argv){
                 ui_show_volume(st.volume);
             }
         }
-        int playing = playstate_playing(&g_ps, st.have_track, st.position_ms, lv_tick_get(), 1600, 0);
-        if(playing) ui_note_transport_sent();
-        g_playing = playing;
+        int play_failed = playreq_tick(&st);
+        int playing = playreq_playing();
         st.state = playing ? 2 : 1;
-        if(g_play_pending && ipc_tx_waiting()){
-            g_play_pending = lv_tick_get(); if(!g_play_pending) g_play_pending = 1;
-            g_play_pre.request = g_play_pre.at = g_play_pending;
-        }
-        if(play_start_failed(&st)){
-            if(g_play_pending && lv_tick_elaps(g_play_pending) > 6000){
-                g_play_pending = 0;
-                ui_toast("Couldn't start playback");
-            }
-        }
+        if(play_failed) ui_toast("Couldn't start playback");
         ui_np_title_scroll(bl_state != 2);
         if(bl_state != 2 && (g_draw_dark || st.seq != last || playing != last_playing || ui_take_art_force())){
             last = st.seq; last_playing = playing;

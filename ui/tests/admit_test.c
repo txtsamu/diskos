@@ -32,15 +32,15 @@ int cfg_set_int(const char *key, int v){
 static void reset_log(void){ g_n = 0; g_sends = 0; k_fail_nth = 0; k_fail_all = 0; memset(g_log, 0, sizeof g_log); }
 
 static uint32_t k_now;
-static int k_allowed, k_busy, k_pending, k_book, k_playing, k_fw;
+static int k_allowed, k_busy, k_recent, k_book, k_playing, k_fw;
 static uint32_t env_now(void){ return k_now; }
 static int env_allowed(void){ return k_allowed; }
 static int env_busy(void){ return k_busy; }
-static int env_pending(void){ return k_pending; }
+static int env_recent(void){ return k_recent; }
 static int env_book(void){ return k_book; }
 static int env_playing(void){ return k_playing; }
 static int env_fw(void){ return k_fw; }
-static const struct admit_env test_env = { env_now, env_allowed, env_busy, env_pending, env_book, env_playing, env_fw };
+static const struct admit_env test_env = { env_now, env_allowed, env_busy, env_recent, env_book, env_playing, env_fw };
 
 #define R6 "0666000C0006"
 #define R4 "0666000C0004"
@@ -82,12 +82,11 @@ static void apply(const facts_t *f){
     k_gen++;
     k_now += 20000;
     (void)admit_settling();
-    k_allowed = f->allowed; k_busy = f->busy; k_pending = f->pending; k_book = f->book; k_playing = f->playing; k_fw = f->fw;
+    k_allowed = f->allowed; k_busy = f->busy; k_recent = f->pending || f->recent; k_book = f->book; k_playing = f->playing; k_fw = f->fw;
     session_set_source_mode(f->src);
     session_set_route(f->route);
     if(f->bt) session_set_bt_mac("AA:BB:CC:DD:EE:FF"); else session_clear_bt_mac();
     if(f->settling) admit_note_player_restart();
-    if(f->recent) admit_note_play_sent();
 }
 
 #define SW  "Switching output - try again"
@@ -235,18 +234,6 @@ static void settle_window(void){
     k_now = 8898;        assert(admit_settling());
     k_now = 8899; admit_tick(); assert(!admit_settling());
 }
-static void play_recent_window(void){
-    apply(&IDLE_LOCAL);
-    expect_reason("before any play", admit_check(ADMIT_OUTPUT_SWITCH), NULL);
-    k_now = 5000; admit_note_play_sent();
-    expect_reason("just sent", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
-    k_now = 5000 + 9999; expect_reason("9.999 s later", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
-    k_now = 5000 + 10000; expect_reason("10 s later", admit_check(ADMIT_OUTPUT_SWITCH), NULL);
-    k_now = 5000; admit_note_play_sent();
-    k_gen++;
-    expect_reason("new generation", admit_check(ADMIT_OUTPUT_SWITCH), NULL);
-    k_pending = 1; expect_reason("pending", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
-}
 
 static const char *const W8_ONLY[] = { W8 };
 static void play_start_table(void){
@@ -359,7 +346,6 @@ int main(void){
     RUN(dance);
     RUN(seek);
     RUN(settle_window);
-    RUN(play_recent_window);
     RUN(play_start_table);
     run("cross_product", cross_product);
     puts("admit_test: ok");
