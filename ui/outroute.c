@@ -230,6 +230,14 @@ static int out_usb_card_ok(void){
     char p[96]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
     return access(p, F_OK) == 0;
 }
+int outroute_usb_ready(void){ return outroute_route() == OUT_USB && !outroute_busy() && out_usb_card_ok(); }
+int outroute_usb_card(void){
+    static const char path[] = OUT_USB_CARD;
+    if(!out_usb_card_ok()) return -1;
+    size_t end = sizeof path - 1, start = end;
+    while(start > 0 && path[start - 1] >= '0' && path[start - 1] <= '9') start--;
+    return start < end ? atoi(path + start) : -1;
+}
 static int out_usb_any_card(void){
     glob_t g; int n = 0;
     if(glob(OUT_USB_ANY_CARD, 0, NULL, &g) == 0){ n = (int)g.gl_pathc; globfree(&g); }
@@ -391,6 +399,7 @@ static int leave_paused_switch(step_fn step, void *arg, outroute_held_t *held){
     h.was_playing = E->playing();
     if(held) *held = h;
     if(h.was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) return OUTROUTE_NOT_PAUSED;
+    if(E->release_volume) h.st.volume = E->release_volume(h.st.volume);
     if(step(&h, arg) != OUTSEQ_OK) return OUTROUTE_STEP_FAILED;
     if(h.st.have_track && h.st.position_ms > 0) E->seek_to(h.st.position_ms);
     if(h.was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);

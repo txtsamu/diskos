@@ -499,6 +499,35 @@ static void usb_audio_enter_and_unplug(void){
     expect_frames("back to internal", back, 6);
     assert(cfg_get_int("usb_audio_on", 1) == 0);
 }
+static void usb_ready_is_a_settled_route_with_its_card(void){
+    setup(); usb_card(1);
+    assert(!outroute_usb_ready() && outroute_usb_card() == 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(700);
+    assert(outroute_route() == OUT_USB && outroute_busy() && !outroute_usb_ready());
+    run(1500);
+    assert(!outroute_busy() && outroute_usb_ready());
+    usb_card(0);
+    assert(!outroute_usb_ready() && outroute_usb_card() == -1);
+    usb_card(1);
+    assert(outroute_usb_ready());
+    outroute_set(OUT_INTERNAL);
+    assert(!outroute_usb_ready() && outroute_usb_card() == 1);
+}
+static int g_release_calls, g_release_in;
+static int env_release(int cur){ g_release_calls++; g_release_in = cur; return 33; }
+static void bt_sink_carries_the_released_volume(void){
+    setup(); g_playing = 1;
+    struct outroute_env with = env; with.release_volume = env_release;
+    outroute_init(&with);
+    g_trk.volume = 120; g_trk.volume_seq = 4;
+    g_release_calls = 0;
+    assert(outroute_to_bt(MAC, CODEC, NULL) == OUTROUTE_OK);
+    assert(g_release_calls == 1 && g_release_in == 120);
+    assert(idx("0715000C0021", 0) >= 0 && idx("0715000C0078", 0) < 0);
+    assert(idx("0715000C0021", 0) > idx(PAUSE, 0));
+    outroute_init(&env);
+}
 static void usb_audio_without_a_dac_falls_back(void){
     setup();
     assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
@@ -691,6 +720,8 @@ int main(void){
     S(pick_policy_recovery_timer);
     S(recovery_stops_after_a_player_restart);
     S(usb_audio_enter_and_unplug);
+    S(usb_ready_is_a_settled_route_with_its_card);
+    S(bt_sink_carries_the_released_volume);
     S(usb_audio_without_a_dac_falls_back);
     S(usb_audio_on_another_card);
     S(usb_audio_restart_while_waiting);

@@ -18,6 +18,7 @@ struct outroute_env {
     void        (*toast)(const char *msg);
     int         (*seek_to)(long ms);
     void        (*charge_limit_reapply)(void);
+    int         (*release_volume)(int current);
 };
 void outroute_init(const struct outroute_env *env);
 void outroute_set_listener(void (*cb)(void));
@@ -43,6 +44,8 @@ void outroute_save_usb_audio(int on);
 typedef enum { OUTROUTE_SETTING, OUTROUTE_MODE, OUTROUTE_MODE_STAY_PAUSED } outroute_how_t;
 int  outroute_pick(int target, outroute_how_t how);
 int  outroute_busy(void);
+int  outroute_usb_ready(void);
+int  outroute_usb_card(void);
 int  outroute_pick_pending(void);
 void outroute_adopt(void);
 void outroute_tick(void);

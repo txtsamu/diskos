@@ -3,6 +3,7 @@
 #include "outroute.h"
 #include "power.h"
 #include "clicks.h"
+#include "dacvol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,7 +57,7 @@ static void scan(void){
 static int step_volume(int dir){
     uint32_t now = lv_tick_get();
     if(g_vol < 0 || (uint32_t)(now - g_vol_ms) > VOL_SETTLE_MS){
-        track_state_t st; ipc_get_state(&st); g_vol = st.volume;
+        track_state_t st; ipc_get_state(&st); g_vol = dacvol_effective_volume(st.volume);
     }
     int v = g_vol + dir * VOL_STEP;
     if(v < 0) v = 0;

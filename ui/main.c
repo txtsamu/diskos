@@ -33,6 +33,7 @@
 #include "controls.h"
 #include "screens.h"
 #include "outroute.h"
+#include "dacvol_sys.h"
 #include "usbhid.h"
 #include "session.h"
 #include "srcswitch.h"
@@ -294,7 +295,8 @@ int ui_set_folder_jump(int on){
 }
 void ui_set_track_display(int on){ if(fw_track_display_settable()) ipc_send_cmd(on ? "064d000C0001" : "064d000C0000"); }
 void ui_set_memory(int mode){  if(mode<0||mode>2) return; char f[16]; snprintf(f,sizeof f,"0684000C%04X",mode); ipc_send_cmd(f); }
-void ui_set_maxvol(int v){     if(v<0) v=0; if(v>120) v=120; char f[16]; snprintf(f,sizeof f,"0711000C%04X",v); ipc_send_cmd(f); }
+static int maxvol_send(int v){ if(v<0) v=0; if(v>120) v=120; char f[16]; snprintf(f,sizeof f,"0711000C%04X",v); return ipc_send_cmd(f); }
+void ui_set_maxvol(int v){     if(dacvol_owns_volume()) return; maxvol_send(v); }
 void ui_set_balance(int v){ if(v < -10 || v > 10) return;
                             int fv = (v>0) ? (v & 0xFF) : (v<0) ? (0x0100 | ((-v) & 0xFF)) : 0;
                             char f[16]; snprintf(f,sizeof f,"0713000C%04X",fv); ipc_send_cmd(f); }
@@ -404,6 +406,7 @@ static const struct outroute_env g_outroute_env = {
     .now = lv_tick_get, .playing = env_playing, .switch_blocked = env_switch_blocked,
     .toast = ui_toast, .seek_to = ui_seek_to,
     .charge_limit_reapply = env_charge_limit_reapply,
+    .release_volume = dacvol_release_now,
 };
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
@@ -610,14 +613,37 @@ static const struct playreq_env g_playreq_env = {
     .note_playback = system_ota_note_playback,
 };
 
-int ui_set_volume(int vol){
-    if(vol < 0) vol = 0; if(vol > VOL_MAX) vol = VOL_MAX;
-    { int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }
+static int player_volume_send(int vol){
+    vol = vol < 0 ? 0 : vol > VOL_MAX ? VOL_MAX : vol;
     char f[16]; snprintf(f, sizeof f, "0715000C%04X", vol);
     int rc = ipc_send_cmd(f);
     fprintf(stderr,"set volume %d -> %s (rc=%d)\n", vol, f, rc); fflush(stderr);
     return rc;
 }
+int ui_set_volume(int vol){
+    vol = vol < 0 ? 0 : vol > VOL_MAX ? VOL_MAX : vol;
+    { int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }
+    if(dacvol_set_user(vol)) return 0;
+    return player_volume_send(vol);
+}
+static int dacvol_env_usb_ready(void){ return outroute_usb_ready() && session_source_mode() == 0 && power_shutdown_phase() == PW_OFF; }
+static int dacvol_env_player_maxvol(int v){ return maxvol_send(v); }
+static void dacvol_env_maxvol_restore(void){ int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && mv < VOL_MAX) maxvol_send(mv); }
+static int dacvol_env_keys_adjust_volume(void){
+    static const char *const K[] = { "key_single", "key_double", "key_long" };
+    for(int i = 0; i < 3; i++) if(cfg_get_int(K[i], CTL_ACT_VOLUME) != CTL_ACT_VOLUME) return 0;
+    return 1;
+}
+static int dacvol_env_user_cap(void){ int mv = cfg_get_int("max_vol", -1); return (mv >= 10 && mv < VOL_MAX) ? mv : VOL_MAX; }
+static void dacvol_env_log(const char *msg){ bootlog_event("%s", msg); }
+static const struct dacvol_env g_dacvol_env = {
+    .now = lv_tick_get, .usb_ready = dacvol_env_usb_ready, .usb_card = outroute_usb_card,
+    .mixer_probe = dacvol_sys_mixer_probe, .mixer_probe_poll = dacvol_sys_mixer_probe_poll,
+    .mixer_set = dacvol_sys_mixer_set, .mixer_state = dacvol_sys_mixer_state,
+    .player_send = player_volume_send, .player_maxvol = dacvol_env_player_maxvol, .player_maxvol_restore = dacvol_env_maxvol_restore,
+    .key_active = dacvol_sys_key_active, .key_poll = dacvol_sys_key_poll,
+    .keys_adjust_volume = dacvol_env_keys_adjust_volume, .user_cap = dacvol_env_user_cap, .log = dacvol_env_log,
+};
 void ui_disarm_book_eoc(void);
 static int g_book_single_mode = 0;
 static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_idx){
@@ -1463,6 +1489,7 @@ int main(int argc, char **argv){
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
     outroute_init(&g_outroute_env);
+    dacvol_init(&g_dacvol_env);
     srcswitch_set_env(&g_srcswitch_env);
     sd_set_env(&g_sd_env);
     admit_set_env(&g_admit_env);
@@ -1638,15 +1665,21 @@ int main(int argc, char **argv){
         opus_title_tick();
         ipc_get_state(&st);
         wifi_supervise();
+        dacvol_tick();
+        int vol_shown = -1;
         if(st.volume_seq != last_vol_seq){
             last_vol_seq = st.volume_seq;
-            power_note_input();
-            if(srcswitch_dac_level_settled() && st.volume > 0) cfg_set_int("dac_volume", st.volume);
-            if(bl_state == 0){
-                last_activity = lv_tick_get();
-                if(screen_current()==SCR_SAVER) screen_back();
-                ui_show_volume(st.volume);
+            if(!dacvol_owns_volume()){
+                power_note_input();
+                if(srcswitch_dac_level_settled() && st.volume > 0) cfg_set_int("dac_volume", st.volume);
+                vol_shown = st.volume;
             }
+        }
+        { int dv; if(dacvol_take_change(&dv)){ power_note_input(); vol_shown = dv; } }
+        if(vol_shown >= 0 && bl_state == 0){
+            last_activity = lv_tick_get();
+            if(screen_current()==SCR_SAVER) screen_back();
+            ui_show_volume(vol_shown);
         }
         int play_failed = playreq_tick(&st);
         int playing = playreq_playing();
