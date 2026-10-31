@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "launcher.h"
 #include "handoff.h"
+#include "bootlog.h"
 #include "sysconfig.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -100,6 +101,7 @@ int player_local_mode_confirmed(void){
     return !g_env->sd_exported_to_host();
 }
 void exec_stock_player(void){
+    bootlog_event("launcher: exec stock player");
     if(g_env && g_env->kill_bounded) g_env->kill_bounded();
     handoff_signal_reset();
     handoff_exec("/usr/bin/mq_player", "mq_player");
@@ -109,6 +111,7 @@ static void launch_deadline_exec(int sig){
     exec_stock_player();
 }
 void player_launch_prepare(void){
+    bootlog_event("launcher start");
     launch_status_invalidate();
     { struct sigaction sa; memset(&sa, 0, sizeof sa);
       sa.sa_handler = launch_deadline_exec; sigemptyset(&sa.sa_mask);
@@ -123,6 +126,7 @@ void player_launch_prepare(void){
         if(guard && local) break;
     }
     launch_status_publish(guard, local);
+    bootlog_event("launcher verdict guard=%d local=%d", guard, local);
     if(!guard)      boot_note("launcher: SD guard unavailable - stock player launched UNPROTECTED; diskOS SD features held");
     else if(!local) boot_note("launcher: local ownership unconfirmed - stock player launched; diskOS SD features held");
 }

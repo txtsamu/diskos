@@ -61,6 +61,7 @@
 #include "art.h"
 #include "power.h"
 #include "vbus.h"
+#include "bootlog.h"
 
 void mclock_sync(int backlight_on);
 void ui_np_title_scroll(int visible);
@@ -882,11 +883,13 @@ static void ipc_health_cb(lv_timer_t *t){
 
 static void crash_log(int sig, siginfo_t *si, void *ucv){
     const char *m = "=== diskos CAUGHT FATAL SIGNAL ";
-    int fd = open("/usr/data/diskos_boot.log", O_WRONLY|O_APPEND);
-    if(fd>=0){ (void)si; (void)ucv;
-        char b[8]; int n=sig, i=0; b[i++]=' ';
-        if(n>=10){ b[i++]='0'+(n/10); } b[i++]='0'+(n%10); b[i++]='\n';
-        write(fd,m,30); write(fd,b,i); close(fd); }
+    int fd = open(BOOTLOG_MAIN_PATH, O_WRONLY|O_APPEND);
+    (void)si; (void)ucv;
+    char out[48]; int ol = 0;
+    memcpy(out, m, 30); ol = 30;
+    out[ol++] = ' '; if(sig >= 10) out[ol++] = (char)('0' + sig / 10); out[ol++] = (char)('0' + sig % 10); out[ol++] = '\n';
+    if(fd>=0){ write(fd,out,ol); close(fd); }
+    bootlog_signal_note(out, ol);
     signal(sig, SIG_DFL); raise(sig);
 }
 
@@ -902,6 +905,7 @@ static void boot_alarm_handler(int sig){
     alarm(5);
     static const char m[] = "=== diskos BOOT WATCHDOG timeout -> exit for respawn ===\n";
     (void)write(2, m, sizeof m - 1);
+    bootlog_signal_note(m, sizeof m - 1);
     _exit(124);
 }
 
@@ -1352,9 +1356,14 @@ static void sd_degraded_notice_cb(lv_timer_t *t){
     if(sd_held()) ui_toast("SD protection unavailable - library and artwork are off");
 }
 static void sd_features_gate_cb(lv_timer_t *t){
-    sd_gate_t gate = sd_gate_poll(launch_status_get());
+    static int polls, last_status = 99;
+    int status = launch_status_get();
+    polls++;
+    if(status != last_status){ bootlog_event("sd gate: launch status %d at poll %d", status, polls); last_status = status; }
+    sd_gate_t gate = sd_gate_poll(status);
     if(gate == SD_GATE_WAIT) return;
     if(gate == SD_GATE_OPENED){
+        bootlog_event("sd gate: opened at poll %d", polls);
         coldplug_start();
         ui_art_retry();
         coverart_prewarm_start();
@@ -1362,6 +1371,9 @@ static void sd_features_gate_cb(lv_timer_t *t){
         lv_timer_set_period(t, 5000);
     }
     if(gate != SD_GATE_DENIED) return;
+    bootlog_event("sd gate: DENIED launch_status=%d polls=%d", status, polls);
+    bootlog_event_file("launch status file", "/tmp/.diskos_launch_status");
+    bootlog_dmesg("sd gate denied", 60);
     scanner_abort();
     art_kill_all();
     playreq_clear();
@@ -1416,6 +1428,7 @@ int main(int argc, char **argv){
             alarm(45);
         }
     }
+    bootlog_event("boot select record run_diskos=%d", boot_select_is_diskos("/tmp/.diskos_boot_select"));
     {
         FILE *bl = (access("/usr/data/volup_dbg", F_OK) == 0) ? fopen("/usr/data/volup_boot.log", "a") : NULL;
         if(bl){
@@ -1424,12 +1437,15 @@ int main(int argc, char **argv){
         }
         boot_select_enforce("/tmp/.diskos_boot_select");
     }
-    { struct stat lb; if(stat("/usr/data/diskos_boot.log", &lb) == 0 && lb.st_size > 256*1024)
-          freopen("/usr/data/diskos_boot.log", "w", stderr);
-      else freopen("/usr/data/diskos_boot.log", "a", stderr); }
+    bootlog_open_stderr();
     dup2(fileno(stderr), fileno(stdout));
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
+    { char exe[128]; ssize_t en = readlink("/proc/self/exe", exe, sizeof exe - 1); if(en < 0) en = 0; exe[en] = 0;
+      bootlog_event("ui start exe=%s", exe);
+      bootlog_event_file("boot select", "/tmp/.diskos_boot_select.why");
+      bootlog_event_file("launch status at ui start", "/tmp/.diskos_launch_status");
+      bootlog_dmesg("ui start", 60); }
     { static char altstk[32768];
       stack_t ss; ss.ss_sp = altstk; ss.ss_size = sizeof altstk; ss.ss_flags = 0; sigaltstack(&ss, NULL);
       struct sigaction sa; memset(&sa, 0, sizeof sa);
@@ -1442,8 +1458,8 @@ int main(int argc, char **argv){
       sigaction(SIGALRM,&al,NULL); alarm(BOOT_DEADLINE_S); }
     fprintf(stderr,"=== diskos main start argc=%d ===\n", argc); fflush(stderr);
     sysconfig_work_mode_reset_via(run_bounded, 8000);
-    if(sysconfig_work_mode_confirm_via(run_bounded, 5000) != 0){ sd_hold(); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); }
-    if(!rmguard_ensure()){ sd_hold(); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
+    if(sysconfig_work_mode_confirm_via(run_bounded, 5000) != 0){ sd_hold(); bootlog_event("SD held: WORK_MODE reset unconfirmed"); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); }
+    if(!rmguard_ensure()){ sd_hold(); bootlog_event("SD held: SD guard could not be established"); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
     outroute_init(&g_outroute_env);
@@ -1599,6 +1615,7 @@ int main(int argc, char **argv){
     lv_refr_now(NULL);
     if(bl_state == 2) draw_set_dark(1);
     if(sd_held()){
+        bootlog_event("sd held at first frame: SD protection unavailable toast");
         ui_toast("SD protection unavailable - library and artwork are off");
         lv_timer_create(sd_degraded_notice_cb, 300000, NULL);
     }

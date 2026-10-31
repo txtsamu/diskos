@@ -113,6 +113,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/books.c](#uibooksc) | 30 |
 | [ui/books.h](#uibooksh) | 5 |
 | [ui/booksess.c](#uibooksessc) | 5 |
+| [ui/bootlog.c](#uibootlogc) | 4 |
 | [ui/bootsel.c](#uibootselc) | 4 |
 | [ui/bootsel.h](#uibootselh) | 3 |
 | [ui/bt.c](#uibtc) | 163 |
@@ -220,6 +221,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/booksess_test.c](#uitestsbooksesstestc) | 1 |
 | [ui/tests/boot_probe_test.py](#uitestsbootprobetestpy) | 22 |
 | [ui/tests/boot_select_test.py](#uitestsbootselecttestpy) | 5 |
+| [ui/tests/bootlog_test.c](#uitestsbootlogtestc) | 1 |
 | [ui/tests/bootsel_driver.c](#uitestsbootseldriverc) | 2 |
 | [ui/tests/config_test.c](#uitestsconfigtestc) | 13 |
 | [ui/tests/coverart_pipeline_test.c](#uitestscoverartpipelinetestc) | 1 |
@@ -13721,6 +13723,32 @@ Called by ui_play_book after ui_play_list (which clears the previous session); a
 Moved from power.c. Nothing armed or interval not elapsed -> wait; shutdown action fires regardless of the seek guard and the play state; otherwise guard -> wait; playing -> pause; paused -> just disarm (never toggle a paused book into play).
 
 Preserved latent issues: an adopted resume skips the metadata wait (no deadline set); now < g_sleep_seek_guard and now >= g_book_noadopt_until are not wrap-safe; a failing sleep pause is retried every main-loop pass with no backoff; shutdown ignores the seek guard; pause_tick == 0 means "not paused"; ui_cancel_book_resume ignores the book_save result.
+~~~
+
+## ui/bootlog.c
+
+**L19** `void bootlog_rotate(const char *path, long max, int keep){`
+
+~~~text
+Persistent logs live on /usr/data (ubifs, mounted sync, so every line reaches flash at once and survives a hard reset; 67.6 MB, about 52 MB free on 2026-10-31). The SD card is deliberately not used: the failures worth logging (SD gate denied, SD held, USB Storage export, card unmounted) are exactly when the card is unavailable, and writing to it would go around the SD admission rules. Rotation keeps BOOTLOG_KEEP (3) older generations instead of truncating, so the boot that failed is still there after the next boot. Caps: main log 192 KB, journal 64 KB, dmesg 96 KB, each x4 files, about 1.4 MB worst case. Lines are written one write() each; do not log per frame because the partition is sync.
+~~~
+
+**L53** `void bootlog_event(const char *fmt, ...){`
+
+~~~text
+The journal (/usr/data/diskos_journal.log) holds lifecycle events only, one line each: "u=<uptime s> t=<wall clock> pid=<pid> <text>". The wall clock is unreliable early in boot (RTC reset to 2020 or +7 h), so read u= first. Events: ui start (exe, boot-select why file, launch status file), boot select record, launcher start / verdict / exec stock player, SD held (WORK_MODE or SD guard), sd gate (status changes, opened, DENIED with the status file and a dmesg tail), SD held at first frame, fatal signal, boot watchdog timeout.
+~~~
+
+**L80** `void bootlog_dmesg(const char *why, int lines){`
+
+~~~text
+dmesg is RAM-only and lost at reboot, so the tail is copied to /usr/data/diskos_dmesg.log at UI start and when the SD gate is denied. BOOTLOG_DMESG_CMD is overridable for the host test.
+~~~
+
+**L97** `void bootlog_signal_note(const char *msg, int len){`
+
+~~~text
+Async-signal-safe path (open + write only) for the fatal-signal handler and the boot watchdog alarm.
 ~~~
 
 ## ui/bootsel.c
@@ -43390,6 +43418,14 @@ quietly use another version's shell and report it as this one.
 
 ~~~text
 this base's own applets, not the host's
+~~~
+
+## ui/tests/bootlog_test.c
+
+**L3** `#include "bootlog.h"`
+
+~~~text
+Host test of rotation, journal lines, event_file, dmesg snapshots and the stderr reopen, with every path pointed at $(TDIR)/bootlog and tiny size limits so rotation happens in milliseconds.
 ~~~
 
 ## ui/tests/bootsel_driver.c

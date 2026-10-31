@@ -56,6 +56,12 @@ transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit
 booksess_test: ../booksess.c booksess_test.c ../booksess.h ../ipc.h
 	$(CC) $(CFLAGS) -I.. ../booksess.c booksess_test.c -o $@
 
+bootlog_test: ../bootlog.c bootlog_test.c ../bootlog.h
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -DBOOTLOG_TEST_DIR='"$(TDIR)/bootlog"' -DBOOTLOG_MAIN_PATH='"$(TDIR)/bootlog/main.log"' \
+	  -DBOOTLOG_JOURNAL_PATH='"$(TDIR)/bootlog/journal.log"' -DBOOTLOG_DMESG_PATH='"$(TDIR)/bootlog/dmesg.log"' \
+	  -DBOOTLOG_DMESG_CMD='"printf \"line1\\nline2\\nline3\\nline4\\nline5\\n\""' \
+	  -DBOOTLOG_MAIN_MAX=4096 -DBOOTLOG_JOURNAL_MAX=8192 -DBOOTLOG_DMESG_MAX=65536 -I.. ../bootlog.c bootlog_test.c -o $@
+
 keyssh_test: ../procnet.c keyssh_test.c ../procnet.h
 	$(CC) $(CFLAGS) -I.. ../procnet.c keyssh_test.c -o $@
 
@@ -92,7 +98,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
+run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test coverart_test coverart_pipeline_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -133,6 +139,9 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./clicks_test
 	@echo "--- booksess ---"
 	./booksess_test
+	@echo "--- bootlog ---"
+	@mkdir -p $(TDIR)/bootlog
+	./bootlog_test
 	@echo "--- sysconfig ---"
 	./sysconfig_test
 	@echo "--- coverart ---"
@@ -141,7 +150,7 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./coverart_pipeline_test
 
 clean:
-	rm -f sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
+	rm -f bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard
