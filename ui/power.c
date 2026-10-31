@@ -161,13 +161,13 @@ pw_phase_t power_shutdown_tick(void){
 #include "fwcaps.h"
 #include "ipc.h"
 #include "art.h"
+#include "sdio.h"
 #include "scanner.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
 
-void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
 #define POWER_SYSCONFIG "/usr/data/fiio/db/sysconfig.db"
 
@@ -196,9 +196,9 @@ void power_startup_mirror(void){
 }
 
 static pid_t g_sync_pid;
-static void real_quiesce_begin(void *c){ (void)c; ui_sd_quiesce_begin(); scanner_abort(); art_kill_all(); }
-static int  real_drained(void *c){ (void)c; return ui_sd_quiesce_drained(); }
-static void real_quiesce_end(void *c){ (void)c; ui_sd_quiesce_end(); }
+static void real_quiesce_begin(void *c){ (void)c; sd_quiesce_begin(); scanner_abort(); art_kill_all(); }
+static int  real_drained(void *c){ (void)c; return sd_drained(); }
+static void real_quiesce_end(void *c){ (void)c; sd_quiesce_end(); }
 static int  real_sync_start(void *c){
     (void)c;
     pid_t p = 0;

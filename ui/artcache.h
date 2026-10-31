@@ -18,7 +18,4 @@ int  artcache_cover_path(const char *track, char *out, int cap);
 
 unsigned artcache_gen(void);
 
-int  sd_write_begin(void);
-void sd_write_end(void);
-
 #endif

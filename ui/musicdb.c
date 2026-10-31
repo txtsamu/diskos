@@ -1816,7 +1816,6 @@ int mdb_playlist_remove_at(long pid, int position){
     int rc = sqlite3_step(st); sqlite3_finalize(st);
     return (rc == SQLITE_DONE && sqlite3_changes(d) > 0) ? 1 : 0;
 }
-int sd_write_begin(void); void sd_write_end(void);
 static void pl_sanitize(const char *name, char *out, int cap){
     int j=0;
     for(const char *s = (name && name[0]) ? name : "playlist"; *s && j < cap - 1; s++){

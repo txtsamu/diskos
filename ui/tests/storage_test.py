@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 diskOS contributors
-"""Run the actual handoff controller (srcswitch.c) with simulated IPC, mounts and gadget state.
+"""Run the actual handoff controller (srcswitch.c) and SD access module (sdio.c) with simulated IPC, mounts and gadget state.
 
 The filesystem marker and SD admission implementation are real, and so are session.c (the Source mode / Output route the
 module reads and writes) and outseq.c. Only hardware and running-player inspection are replaced, through the struct
-srcswitch_env table the module takes, plus the ipc/cfg seams below. The test includes srcswitch.c itself (not a slice
-of main.c) so it can also set the phase, the way a UI restart leaves it. The via-Local and Output-route paths run for
+srcswitch_env and struct sd_env tables the modules take, plus the ipc/cfg seams below. The test includes sdio.c and
+srcswitch.c themselves (not a slice of main.c) so it can also set the phase, the way a UI restart leaves it. The via-Local and Output-route paths run for
 real here (no stubs of them); srcswitch_test.c in this directory covers them in depth.
 """
 import os
@@ -72,7 +72,7 @@ int ipc_send_cmd(const char *s){
     test_sends++;
     if(test_fail) return -1;
     if(!strcmp(s,"0642000C0001")){
-        assert(!sd_io_allowed() && sd_io_active()==0);
+        assert(!sd_io_allowed() && sd_drained());
         test_export_sends++;
     }
     return 0;
@@ -95,26 +95,31 @@ static void env_toast(const char *s){ (void)s; }
 static void env_volume(int v){ (void)v; test_volume_set++; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env test_env = {
-    .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
-    .host_attached = env_attached, .dac_gadget_present = env_gadget, .player_guarded = env_guarded,
-    .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_scan_empty, .art_cancel = env_nothing,
-    .card_returned = env_seed, .restart = env_restart, .toast = env_toast, .set_volume = env_volume,
+    .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
+    .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
     .seek_to = env_seek,
 };
+static const struct sd_env test_sd_env = {
+    .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
+    .player_guarded = env_guarded, .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_scan_empty,
+    .art_cancel = env_nothing, .card_returned = env_seed, .restart = env_restart, .toast = env_toast,
+    .send_source = srcswitch_send_source,
+};
+#include "sdio.c"
 #include "srcswitch.c"   /* the module under test, in this translation unit */
 '''
     tests = r'''
 static void reset(void){
-    srcswitch_set_env(&test_env);
+    srcswitch_set_env(&test_env); sd_set_env(&test_sd_env);
     g_launch_verdict = 1;   /* a confirmed launch; the gate itself is covered by launcher_test */
-    assert(sd_io_active()==0);
+    assert(sd_drained());
     unlink(SD_EXPORT_MARKER);
     test_clock=0; test_mounted=1; test_exported=0; test_host=0;
     test_guarded=1; test_scan=0; test_playing=0; test_attached=0; test_gadget=0; test_restarts=0; test_scans=0; test_volume_set=0; test_local_vol=0; g_dac_vol_due=0; g_dacx.active=0; test_sends=0; test_fail=0; test_export_sends=0; test_seed=0;
     g_sd_hold=0; g_sd_phase=SD_LOCAL; session_set_source_mode(0); session_set_route(OUT_INTERNAL); g_sd_reissue=0;
     memset(&g_osw,0,sizeof g_osw); memset(&g_leave,0,sizeof g_leave); g_rec=0; memset(&g_rec_tm,0,sizeof g_rec_tm); memset(&g_usbw,0,sizeof g_usbw); memset(&g_usbgone,0,sizeof g_usbgone); memset(&g_bootusb,0,sizeof g_bootusb); g_listener=NULL;
-    atomic_store(&g_sd_writable,1); atomic_store(&g_sd_writers,0);
-    srcswitch_init(); assert(sd_io_allowed() && ui_local_playback_allowed());
+    g_sd_writable=1; g_sd_writers=0;
+    srcswitch_init(); assert(sd_io_allowed() && sd_local_playback_allowed());
 }
 static void enter_host(void){
     assert(ui_set_source_mode(3)==0);
@@ -130,11 +135,11 @@ int main(void){
     g_launch_verdict = -1;
     assert(!sd_io_begin());
     assert(!sd_io_resume());
-    assert(!ui_local_playback_allowed());
+    assert(!sd_local_playback_allowed());
     g_launch_verdict = 0;
     assert(!sd_io_begin());
     assert(!sd_io_resume());
-    assert(!ui_local_playback_allowed());
+    assert(!sd_local_playback_allowed());
     puts("PASS a pending or negative launch verdict closes leases, resume and playback");
 
     reset();
@@ -247,7 +252,7 @@ int main(void){
 
     reset(); assert(ui_set_source_mode(3)==0); sd_io_fault(); srcswitch_tick();
     assert(g_sd_phase==SD_UNKNOWN && test_export_sends==0 && !sd_io_resume());
-    srcswitch_init(); assert(!sd_io_resume() && !ui_local_playback_allowed());
+    srcswitch_init(); assert(!sd_io_resume() && !sd_local_playback_allowed());
     puts("PASS unreaped decoder prevents export and survives UI restart");
     puts("HARNESS COMPLETE");
     return 0;
@@ -258,7 +263,7 @@ int main(void){
     exe = root / "test"
     subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",
                     "-fsanitize=address,undefined", "-g", "-pthread", '-DSD_IO_FAULT_MARKER="' + str(root / "fault") + '"', '-DSD_EXPORT_MARKER="' + str(root / "handoff") + '"', "-I", str(app),
-                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), str(app / "session.c"), "-o", str(exe)], check=True)
+                    str(c), str(app / "outseq.c"), str(app / "session.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
 print('COMPLETE storage_test.py')

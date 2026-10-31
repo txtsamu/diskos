@@ -23,6 +23,10 @@ srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
 	  ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c -o $@
 
+sdio_test: ../sdio.c ../session.c ../outseq.c sdio_test.c ../sdio.h ../session.h ../outseq.h
+	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DSD_EXPORT_MARKER='"$(TDIR)/sdio_handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/sdio_fault"' -I.. \
+	  ../sdio.c ../session.c ../outseq.c sdio_test.c -o $@
+
 admit_test: ../admit.c ../outseq.c ../session.c admit_test.c ../admit.h ../outseq.h ../session.h
 	$(CC) $(CFLAGS) -I.. ../admit.c ../outseq.c ../session.c admit_test.c -o $@
 
@@ -54,7 +58,7 @@ ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
 	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
 .PHONY: run run-py check clean
-run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -68,6 +72,9 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	@echo "--- srcswitch ---"
 	@mkdir -p $(TDIR) && rm -f $(TDIR)/fault
 	./srcswitch_test
+	@echo "--- sdio ---"
+	@mkdir -p $(TDIR)
+	./sdio_test
 	@echo "--- admit ---"
 	./admit_test
 	@echo "--- dacinfo ---"
@@ -86,7 +93,7 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	./clicks_test
 
 clean:
-	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

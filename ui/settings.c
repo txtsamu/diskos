@@ -108,7 +108,6 @@ void ui_set_balance(int v);
 static void apply_open_colorpick(int v){ (void)v; colorpick_open(); }
 static void apply_debug_mode(int v){ (void)v; debug_open(); }
 static void apply_artcache(int v){ ui_set_prewarm_mode(v); }
-void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
 static void apply_swipe(int v){ ui_apply_swipe_thresh(v); }
 static void apply_anim(int v){ screen_set_anim(v); }
@@ -379,7 +378,7 @@ static void restart_fail(const char *why){
     fprintf(stderr, "restart: not done: %s\n", why); fflush(stderr);
     stop_child(&g_rst_sync); stop_child(&g_rst_clock);
     if(g_rst_timer){ lv_timer_delete(g_rst_timer); g_rst_timer = NULL; }
-    ui_sd_quiesce_end();
+    sd_quiesce_end();
     boot_modal_close();
     ui_toast(why);
 }
@@ -404,7 +403,7 @@ static void restart_tick(lv_timer_t *t){
     (void)t;
     rst_reap_sweep();
     if(g_rst_phase == 0){
-        if(ui_sd_quiesce_drained()){
+        if(sd_drained()){
             g_rst_sync = spawn_detached("sync");
             if(g_rst_sync <= 0){ g_rst_sync = 0; restart_fail("Couldn't restart - try again"); return; }
             g_rst_phase = 1; g_rst_t0 = lv_tick_get();
@@ -439,7 +438,7 @@ void settings_restart_now(void){ restart_begin(); }
 static void restart_begin(void){
     if(g_rst_timer) return;
     if(rst_reap_free() < 3){ ui_toast("Couldn't restart - try again"); return; }
-    ui_sd_quiesce_begin();
+    sd_quiesce_begin();
     scanner_abort();
     art_kill_all();
     ui_timekeep_save_now();
