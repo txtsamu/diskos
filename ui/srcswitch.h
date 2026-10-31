@@ -13,6 +13,7 @@ struct srcswitch_env {
     void (*toast)(const char *msg);
     void (*set_volume)(int volume);
     int  (*seek_to)(long ms);
+    int  (*external_power)(void);
 };
 
 void srcswitch_set_env(const struct srcswitch_env *env);

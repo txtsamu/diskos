@@ -17,6 +17,7 @@ struct outroute_env {
     const char *(*switch_blocked)(void);
     void        (*toast)(const char *msg);
     int         (*seek_to)(long ms);
+    void        (*charge_limit_reapply)(void);
 };
 void outroute_init(const struct outroute_env *env);
 void outroute_set_listener(void (*cb)(void));

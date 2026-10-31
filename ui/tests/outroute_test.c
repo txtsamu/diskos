@@ -46,14 +46,15 @@ static uint32_t g_now;
 static const char *g_blocked;
 static int g_seek_rc, g_nseek; static long g_seek_ms;
 static char g_toast[32][96]; static int g_ntoast;
-static int g_nchanged;
+static int g_nchanged, g_reapplied;
 static uint32_t env_now(void){ return g_now; }
 static int env_playing(void){ return g_playing; }
 static const char *env_blocked(void){ return g_blocked; }
 static void env_toast(const char *s){ assert(g_ntoast < 32); snprintf(g_toast[g_ntoast++], sizeof g_toast[0], "%s", s); }
 static int env_seek(long ms){ g_nseek++; g_seek_ms = ms; return g_seek_rc; }
 static void on_changed(void){ g_nchanged++; }
-static const struct outroute_env env = { .now = env_now, .playing = env_playing, .switch_blocked = env_blocked, .toast = env_toast, .seek_to = env_seek };
+static void env_reapply(void){ g_reapplied++; }
+static const struct outroute_env env = { .now = env_now, .playing = env_playing, .switch_blocked = env_blocked, .toast = env_toast, .seek_to = env_seek, .charge_limit_reapply = env_reapply };
 
 #define R6 "0666000C0006"
 #define R4 "0666000C0004"
@@ -90,7 +91,7 @@ static void setup(void){
     sh("rm -rf '%s'", ROUTE_TEST_ROOT);
     sh2("mkdir -p '%s' '%s'", OUT_USB_CARD, ROUTE_PROC_ROOT);
     usb_card(0);
-    g_now = 1000; g_n = 0; g_fail_at = g_fail_from = -1; g_playing = 0; g_blocked = NULL; g_seek_rc = 0; g_nseek = 0; g_ntoast = 0; g_nchanged = 0;
+    g_now = 1000; g_n = 0; g_fail_at = g_fail_from = -1; g_playing = 0; g_blocked = NULL; g_seek_rc = 0; g_nseek = 0; g_ntoast = 0; g_nchanged = 0; g_reapplied = 0;
     g_trk.have_track = 1; g_trk.pos = 0; g_trk.volume = 40; g_trk.volume_seq = 0; snprintf(g_trk.path, sizeof g_trk.path, "/music/a.flac");
     g_ncfg = 0;
     outroute_init(&env);
@@ -533,6 +534,113 @@ static void usb_audio_unplug_gives_up_after_three_tries(void){
     for(int t = 0; t < 20000; t += 100){ g_now += 100; g_blocked = outroute_pick_pending() ? "SD card is not ready" : NULL; outroute_tick(); }
     assert(g_ntoast == quiet);
 }
+static void usb_audio_timeout_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(21000);
+    assert(outroute_route() == OUT_INTERNAL && !outroute_busy());
+    assert(cfg_get_int("usb_audio_on", -1) == 0 && !outroute_saved_usb_audio());
+}
+static void usb_audio_restart_while_waiting_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(1000); g_gen++; run(500);
+    assert(toasted("Player restarted - try again") && outroute_route() == OUT_INTERNAL);
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_uncertain_fallback_forgets_the_saved_flag(void){
+    setup(); cfg_set_int("usb_audio_on", 1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(1000); g_fail_from = 3; run(20000);
+    assert(toasted("Output state uncertain - recovering") && outroute_busy());
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_failed_enter_forgets_the_saved_flag(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1);
+    g_fail_at = 1;
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(700);
+    assert(toasted("Output switch failed - internal DAC restored") && outroute_route() == OUT_INTERNAL);
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void usb_audio_connected_keeps_the_saved_flag(void){
+    setup(); usb_card(1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(2500);
+    assert(toasted("USB DAC connected") && cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void enter_usb_audio_connected(void){
+    setup(); usb_card(1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(2500);
+    assert(toasted("USB DAC connected") && !outroute_busy());
+}
+static void charge_limit_reapplied_once_after_leaving_usb_audio(void){
+    enter_usb_audio_connected();
+    run(5000); assert(g_reapplied == 0);
+    assert(outroute_pick(OUT_INTERNAL, OUTROUTE_SETTING) == 0);
+    run(700);
+    assert(outroute_route() == OUT_INTERNAL && g_reapplied == 0);
+    run(1700); assert(g_reapplied == 0);
+    run(300); assert(g_reapplied == 1);
+    run(10000); assert(g_reapplied == 1);
+}
+static void charge_limit_reapplied_after_the_no_dac_fallback(void){
+    setup();
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(21000); assert(g_reapplied == 0);
+    run(2100); assert(g_reapplied == 1);
+}
+static void charge_limit_reapplied_after_the_dac_is_unplugged(void){
+    enter_usb_audio_connected();
+    usb_card(0); run(3500);
+    assert(toasted("USB DAC disconnected - internal DAC") && g_reapplied == 0);
+    run(2500); assert(g_reapplied == 1);
+}
+static void charge_limit_reapplied_after_a_failed_exit_is_restored(void){
+    enter_usb_audio_connected();
+    assert(outroute_pick(OUT_SPDIF, OUTROUTE_SETTING) == 0);
+    g_fail_at = g_n + 2;
+    run(700);
+    assert(toasted("Output switch failed - internal DAC restored") && g_reapplied == 0);
+    run(2100); assert(g_reapplied == 1);
+}
+static void charge_limit_reapply_dropped_when_the_route_moves_again(void){
+    enter_usb_audio_connected();
+    assert(outroute_pick(OUT_INTERNAL, OUTROUTE_SETTING) == 0);
+    run(700); assert(outroute_route() == OUT_INTERNAL);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0);
+    run(5000); assert(g_reapplied == 0 && outroute_route() == OUT_USB);
+}
+static void charge_limit_reapply_dropped_while_a_switch_is_busy(void){
+    enter_usb_audio_connected();
+    assert(outroute_pick(OUT_INTERNAL, OUTROUTE_SETTING) == 0);
+    run(700);
+    assert(outroute_route() == OUT_INTERNAL && g_reapplied == 0);
+    run(300);
+    assert(outroute_pick(OUT_SPDIF, OUTROUTE_SETTING) == 0);
+    for(int t = 0; t < 1500; t += 100){ g_now += 100; g_playing = 1; outroute_tick(); }
+    assert(outroute_pick_pending() && g_reapplied == 0);
+    g_playing = 0;
+    run(6000);
+    assert(g_reapplied == 0);
+}
+static void charge_limit_reapply_dropped_when_the_player_restarts(void){
+    enter_usb_audio_connected();
+    assert(outroute_pick(OUT_INTERNAL, OUTROUTE_SETTING) == 0);
+    run(700); g_gen++; run(5000);
+    assert(g_reapplied == 0);
+}
+static void charge_limit_not_reapplied_for_other_routes(void){
+    setup();
+    assert(outroute_pick(OUT_SPDIF, OUTROUTE_SETTING) == 0);
+    run(5000); assert(outroute_route() == OUT_SPDIF);
+    assert(outroute_pick(OUT_INTERNAL, OUTROUTE_SETTING) == 0);
+    run(5000); assert(outroute_route() == OUT_INTERNAL);
+    assert(outroute_pick(OUT_SPDIF, OUTROUTE_SETTING) == 0);
+    run(5000);
+    assert(g_reapplied == 0);
+}
 static void adopt_watches_a_usb_route(void){
     setup(); usb_card(1);
     outroute_set(OUT_USB);
@@ -588,6 +696,19 @@ int main(void){
     S(usb_audio_restart_while_waiting);
     S(usb_audio_unplug_gives_up_after_three_tries);
     S(adopt_watches_a_usb_route);
+    S(usb_audio_timeout_forgets_the_saved_flag);
+    S(usb_audio_restart_while_waiting_forgets_the_saved_flag);
+    S(usb_audio_uncertain_fallback_forgets_the_saved_flag);
+    S(usb_audio_failed_enter_forgets_the_saved_flag);
+    S(usb_audio_connected_keeps_the_saved_flag);
+    S(charge_limit_reapplied_once_after_leaving_usb_audio);
+    S(charge_limit_reapplied_after_the_no_dac_fallback);
+    S(charge_limit_reapplied_after_the_dac_is_unplugged);
+    S(charge_limit_reapplied_after_a_failed_exit_is_restored);
+    S(charge_limit_reapply_dropped_when_the_route_moves_again);
+    S(charge_limit_reapply_dropped_while_a_switch_is_busy);
+    S(charge_limit_reapply_dropped_when_the_player_restarts);
+    S(charge_limit_not_reapplied_for_other_routes);
     puts("outroute_test: ok");
     return 0;
 }

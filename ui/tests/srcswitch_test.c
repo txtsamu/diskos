@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -51,7 +52,8 @@ int cfg_set_int(const char *key, int v){
 }
 
 static uint32_t g_now;
-static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan;
+static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan, g_power;
+static const char *g_blocked;
 static char g_toast[64][96]; static int g_ntoast;
 static srcswitch_event_t g_ev[32]; static int g_nev;
 static uint32_t env_now(void){ return g_now; }
@@ -68,10 +70,11 @@ static void env_toast(const char *s){ assert(g_ntoast < 64); snprintf(g_toast[g_
 static void env_volume(int v){ (void)v; }
 const char *admit_check(admit_what_t what){ (void)what; return NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
+static int env_power(void){ return g_power; }
 static const struct srcswitch_env env = {
     .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
     .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
-    .seek_to = env_seek,
+    .seek_to = env_seek, .external_power = env_power,
 };
 static const struct sd_env sd_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
@@ -79,7 +82,7 @@ static const struct sd_env sd_env = {
     .art_cancel = env_nothing, .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast,
     .send_source = srcswitch_send_source,
 };
-static const char *env_switch_blocked(void){ return NULL; }
+static const char *env_switch_blocked(void){ return g_blocked; }
 static const struct outroute_env renv = { .now = env_now, .playing = env_playing, .switch_blocked = env_switch_blocked, .toast = env_toast, .seek_to = env_seek };
 static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = ev; }
 
@@ -251,6 +254,76 @@ static void boot_restore_replays_the_saved_mode(void){
     expect_frames("restore", want, 3);
     assert(session_source_mode() == 1 && toasted("Restoring USB DAC mode..."));
 }
+static void boot_restore_skips_usb_audio_with_external_power(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = 1;
+    modes_output_boot_restore();
+    run(130000);
+    assert(g_n == 0 && !outroute_busy() && outroute_route() == OUT_INTERNAL);
+    assert(toasted("USB Audio not restored - charger connected") && !toasted("Restoring USB Audio..."));
+    assert(cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void boot_restore_skips_usb_audio_when_power_is_unreadable(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = -1;
+    modes_output_boot_restore();
+    run(130000);
+    assert(g_n == 0 && !outroute_busy() && outroute_route() == OUT_INTERNAL);
+    assert(!toasted("Restoring USB Audio...") && cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void boot_restore_replays_usb_audio_without_external_power(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_power = 0;
+    modes_output_boot_restore();
+    run(14000); assert(g_n == 0);
+    run(2700);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("restore USB Audio", want, 3);
+    assert(toasted("Restoring USB Audio...") && outroute_route() == OUT_USB);
+}
+static long real_ms(void){ struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L; }
+static void working_mode_local_from_usb_audio_takes_the_ordered_exit(void){
+    setup(); usb_card(1); g_playing = 1;
+    outroute_set(OUT_USB); cfg_set_int("usb_audio_on", 1);
+    assert(ui_set_source_mode(0) == 0);
+    assert(g_n == 1 && !strcmp(g_log[0], PAUSE) && !g_playing && outroute_busy());
+    run(300); assert(g_n == 1);
+    long t0 = real_ms();
+    run(500);
+    long took = real_ms() - t0;
+    const char *want[] = { PAUSE, R6, G0, W8, PAUSE };
+    expect_frames("Local from USB Audio", want, 5);
+    assert(took >= 60 && took < 400);
+    assert(g_playing && outroute_route() == OUT_INTERNAL && session_source_mode() == 0 && !outroute_busy());
+    assert(cfg_get_int("usb_audio_on", -1) == 0);
+}
+static void working_mode_local_from_usb_audio_waits_for_quiet(void){
+    setup(); usb_card(1); g_playing = 1; outroute_set(OUT_USB);
+    assert(ui_set_source_mode(0) == 0);
+    g_playing = 1;
+    run(3200);
+    assert(idx(R6, 0) < 0 && idx(G0, 0) < 0 && toasted("Player is busy - try again"));
+    assert(outroute_route() == OUT_USB && !outroute_busy());
+}
+static void working_mode_local_from_usb_audio_stops_when_the_player_restarts(void){
+    setup(); usb_card(1); g_playing = 1; outroute_set(OUT_USB);
+    assert(ui_set_source_mode(0) == 0);
+    g_gen++;
+    run(1000);
+    assert(toasted("Player restarted - try again") && idx(R6, 0) < 0 && idx(G0, 0) < 0 && !outroute_busy());
+}
+static void working_mode_local_from_usb_audio_honours_admission(void){
+    setup(); usb_card(1); outroute_set(OUT_USB); g_blocked = "Player is busy - try again";
+    assert(ui_set_source_mode(0) < 0 && g_n == 0 && toasted("Player is busy - try again"));
+    assert(outroute_route() == OUT_USB && !outroute_busy());
+}
+static void working_mode_local_off_usb_audio_stays_direct(void){
+    setup(); session_set_source_mode(2);
+    assert(ui_set_source_mode(0) == 0);
+    const char *want[] = { R6, G0, W8 };
+    expect_frames("direct Local", want, 3);
+    assert(!outroute_busy() && session_source_mode() == 0);
+    g_n = 0;
+    assert(ui_set_source_mode(0) == 0);
+    expect_frames("direct Local again", want, 3);
+}
 
 static void scenario(const char *name, void (*fn)(void)){
     fflush(stdout);
@@ -273,6 +346,14 @@ int main(void){
     S(deferred_pick_refused_is_abandoned);
     S(failed_source_frame_refuses);
     S(boot_restore_replays_the_saved_mode);
+    S(boot_restore_skips_usb_audio_with_external_power);
+    S(boot_restore_skips_usb_audio_when_power_is_unreadable);
+    S(boot_restore_replays_usb_audio_without_external_power);
+    S(working_mode_local_from_usb_audio_takes_the_ordered_exit);
+    S(working_mode_local_from_usb_audio_waits_for_quiet);
+    S(working_mode_local_from_usb_audio_stops_when_the_player_restarts);
+    S(working_mode_local_from_usb_audio_honours_admission);
+    S(working_mode_local_off_usb_audio_stays_direct);
     puts("srcswitch_test: ok");
     return 0;
 }
