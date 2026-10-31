@@ -3,7 +3,9 @@
 #include "screens.h"
 #include "theme.h"
 #include "theme_kit.h"
-#include "modes.h"
+#include "outroute.h"
+#include "session.h"
+#include "srcswitch.h"
 #include "config.h"
 #include "sdio.h"
 #include <stdint.h>
@@ -26,7 +28,7 @@ static const modeinfo_t MODES[] = {
 static lv_obj_t *g_check[N_MODES];
 static lv_obj_t *g_row[N_MODES];
 
-static int shown_mode(int src){ return (src == 0 && N_MODES > ROW_USB_AUDIO && modes_output_route() == OUT_USB) ? ROW_USB_AUDIO : src; }
+static int shown_mode(int src){ return (src == 0 && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src; }
 
 static void mark_selected_mode(int cur){
     for(int i=0;i<N_MODES;i++){
@@ -39,7 +41,7 @@ static void mark_selected_mode(int cur){
         }
     }
 }
-static void mark_selected(void){ mark_selected_mode(sd_switch_failed() ? -1 : shown_mode(ui_get_source_mode())); }
+static void mark_selected(void){ mark_selected_mode(sd_switch_failed() ? -1 : shown_mode(session_source_mode())); }
 static void modes_ui_refresh(void){
     mark_selected();
     setting_detail_refresh();
@@ -76,13 +78,13 @@ static void settle_cb(lv_timer_t *t){
     lv_timer_del(g_settle); g_settle = NULL;
     int intended = g_pending_mode; g_pending_mode = -1;
     if(sd_switch_failed()){ mark_selected_mode(-1); return; }
-    int show = (intended >= 0) ? intended : ui_get_source_mode();
+    int show = (intended >= 0) ? intended : session_source_mode();
     if(intended == 0 || intended == 1 || intended == 3){
         int actual = ui_detect_source_mode();
         show = actual;
         if(actual != intended) ui_toast("Mode didn't switch");
     }
-    if(intended == ROW_USB_AUDIO) show = ui_get_source_mode();
+    if(intended == ROW_USB_AUDIO) show = session_source_mode();
     mark_selected_mode(shown_mode(show));
 }
 
@@ -92,7 +94,7 @@ static void row_cb(lv_event_t *e){
     if(srcswitch_via_local_pending() || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
     g_last_switch = lv_tick_get();
     if(m == ROW_USB_AUDIO){
-        if(modes_output_mode_switch(OUT_USB) == 0){
+        if(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0){
             g_pending_mode = m; mark_pending(m);
             if(g_settle) lv_timer_del(g_settle);
             g_settle = lv_timer_create(settle_cb, 500, NULL);
@@ -116,7 +118,7 @@ void modes_open(void){
 }
 
 void modes_create(lv_obj_t *root){
-    if(cfg_get_int("spdif", 0)) cfg_set_int("spdif", 0);
+    outroute_clear_spdif_choice();
     srcswitch_set_listener(on_switch_event);
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);

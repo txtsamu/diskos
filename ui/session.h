@@ -4,18 +4,11 @@
 #define DISKOS_SESSION_H
 
 #include <stdint.h>
-#include "modes.h"
 
 typedef enum { SESSION_COLD_BOOT = 0, SESSION_RELAUNCH = 1 } session_entry_t;
 
-int  session_route(void);
-void session_set_route(int route);
 int  session_source_mode(void);
 void session_set_source_mode(int mode);
-const char *session_bt_mac(void);
-int  session_bt_routed(void);
-void session_set_bt_mac(const char *mac);
-void session_clear_bt_mac(void);
 
 void            session_init(void);
 session_entry_t session_entry(void);
@@ -25,9 +18,7 @@ void session_handoff_export(void);
 void session_handoff_cancel(void);
 
 int  session_saved_source(void);
-int  session_saved_usb_audio(void);
 void session_save_source(int mode);
-void session_save_usb_audio(int on);
 
 typedef enum { SESSION_RESTORE_WAIT, SESSION_RESTORE_NONE, SESSION_RESTORE_SOURCE, SESSION_RESTORE_USB_AUDIO } session_restore_t;
 void              session_restore_arm(uint32_t now_ms);

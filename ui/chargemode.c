@@ -2,7 +2,7 @@
 #include "theme_kit.h"
 #include "theme.h"
 #include "config.h"
-#include "modes.h"
+#include "outroute.h"
 #include "session.h"
 #include "power.h"
 #include <stdio.h>
@@ -42,9 +42,9 @@ static int plain_charger(void){
     return plain;
 }
 static int usb_mode_involved(void){
-    int sm = ui_get_source_mode();
-    return modes_output_route() == OUT_USB || sm == 1 || sm == 3 ||
-           session_saved_usb_audio() || session_saved_source() == 1 || session_saved_source() == 3;
+    int sm = session_source_mode();
+    return outroute_route() == OUT_USB || sm == 1 || sm == 3 ||
+           outroute_saved_usb_audio() || session_saved_source() == 1 || session_saved_source() == 3;
 }
 static int battery_pct(void){
     FILE *f = fopen("/sys/class/power_supply/cw221X-bat/capacity", "r");

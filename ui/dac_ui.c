@@ -4,6 +4,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "ipc.h"
+#include "session.h"
 #include "dacinfo.h"
 #include <stdio.h>
 
@@ -27,7 +28,7 @@ static void set_note(const char *text, int show_btn){
 
 static void refresh(void){
     if(!g_rate) return;
-    if(ui_get_source_mode() != 1){
+    if(session_source_mode() != 1){
         show_stream(0);
         set_note("USB DAC mode is off", 1);
         return;

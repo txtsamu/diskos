@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "admit.h"
 #include "session.h"
+#include "outroute.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +22,7 @@ int ipc_send_cmd(const char *frame){
 }
 static unsigned k_gen = 1;
 unsigned ipc_generation(void){ return k_gen; }
+int ipc_is_ready(void){ return 1; }
 static track_state_t k_state;
 void ipc_get_state(track_state_t *out){ *out = k_state; }
 static struct { char key[24]; int v; } g_cfg[8]; static int g_ncfg;
@@ -84,8 +86,8 @@ static void apply(const facts_t *f){
     (void)admit_settling();
     k_allowed = f->allowed; k_busy = f->busy; k_recent = f->pending || f->recent; k_book = f->book; k_playing = f->playing; k_fw = f->fw;
     session_set_source_mode(f->src);
-    session_set_route(f->route);
-    if(f->bt) session_set_bt_mac("AA:BB:CC:DD:EE:FF"); else session_clear_bt_mac();
+    outroute_set(f->route);
+    outroute_set_bt(f->bt ? "AA:BB:CC:DD:EE:FF" : NULL);
     if(f->settling) admit_note_player_restart();
 }
 
@@ -142,72 +144,6 @@ static void rules(void){
         expect_reason(r->name, admit_check(ADMIT_LOCAL_INIT),       r->local_init);
     }
     assert(admit_check((admit_what_t)99) != NULL);
-}
-
-typedef struct { int ran, saw_playing; long saw_pos; outseq_rc rc; } step_probe_t;
-static outseq_rc probe_step(const admit_held_t *held, void *arg){
-    step_probe_t *p = arg;
-    p->ran++; p->saw_playing = held->was_playing; p->saw_pos = held->st.position_ms;
-    return p->rc;
-}
-static outseq_rc analog_step(const admit_held_t *held, void *arg){ (void)held; (void)arg; return outseq_analog(); }
-
-static void dance(void){
-    static const char *const seek5k = "0103001000001388";
-    const facts_t quiet = IDLE_LOCAL;
-    step_probe_t p;
-
-    apply(&quiet); reset_log(); memset(&k_state, 0, sizeof k_state); p = (step_probe_t){ .rc = OUTSEQ_OK };
-    assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_OK && p.ran == 1 && g_n == 0);
-
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
-    k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
-    p = (step_probe_t){ .rc = OUTSEQ_OK };
-    admit_held_t held;
-    assert(admit_switch(probe_step, &p, &held) == ADMIT_SWITCH_OK && p.ran == 1 && p.saw_playing == 1 && p.saw_pos == 5000);
-    assert(held.was_playing == 1 && held.st.position_ms == 5000);
-    expect_frames("playing, step landed", (const char *const[]){ PP, seek5k, PP }, 3);
-
-    reset_log(); p = (step_probe_t){ 0 };
-    assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
-    expect_frames("playing, analog route", (const char *const[]){ PP, R6, W8, seek5k, PP }, 5);
-
-    apply(&quiet); reset_log();
-    k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
-    assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
-    expect_frames("stopped with a track", (const char *const[]){ R6, W8, seek5k }, 3);
-
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
-    k_state = (track_state_t){ .have_track = 1, .position_ms = 0 };
-    assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_OK);
-    expect_frames("playing at 0", (const char *const[]){ PP, R6, W8, PP }, 4);
-
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log(); k_fail_all = 1;
-    k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
-    p = (step_probe_t){ .rc = OUTSEQ_OK };
-    assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_NOT_PAUSED && p.ran == 0 && g_sends == 1 && g_n == 0);
-
-    for(int i = 0; i < 2; i++){
-        outseq_rc bad = i ? OUTSEQ_MOVED : OUTSEQ_REFUSED;
-        apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
-        p = (step_probe_t){ .rc = bad };
-        assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_STEP_FAILED && p.ran == 1);
-        expect_frames("step failed", (const char *const[]){ PP }, 1);
-    }
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log(); k_fail_nth = 3;
-    assert(admit_switch(analog_step, NULL, NULL) == ADMIT_SWITCH_STEP_FAILED);
-    expect_frames("analog failed part way", (const char *const[]){ PP, R6 }, 2);
-
-    apply(&(facts_t){ .allowed = 1, .playing = 1 }); reset_log();
-    k_state = (track_state_t){ .have_track = 1, .position_ms = 5000 };
-    p = (step_probe_t){ .rc = OUTSEQ_OK };
-    {
-        struct admit_env e = test_env;
-        e.local_playback_allowed = env_busy;
-        admit_set_env(&e);
-        assert(admit_switch(probe_step, &p, NULL) == ADMIT_SWITCH_OK);
-        expect_frames("seek refused", (const char *const[]){ PP, PP }, 2);
-    }
 }
 
 static void seek(void){
@@ -343,7 +279,6 @@ static void run(const char *name, void (*fn)(void)){
 
 int main(void){
     RUN(rules);
-    RUN(dance);
     RUN(seek);
     RUN(settle_window);
     RUN(play_start_table);

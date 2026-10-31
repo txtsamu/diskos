@@ -4,6 +4,7 @@
 #include "sdio.h"
 #include "session.h"
 #include "outseq.h"
+#include "outroute.h"
 #include "admit.h"
 #include "ipc.h"
 #include "config.h"
@@ -50,7 +51,7 @@ int cfg_set_int(const char *key, int v){
 }
 
 static uint32_t g_now;
-static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan, g_blocked;
+static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan;
 static char g_toast[64][96]; static int g_ntoast;
 static srcswitch_event_t g_ev[32]; static int g_nev;
 static uint32_t env_now(void){ return g_now; }
@@ -65,7 +66,7 @@ static int env_scan_active(void){ return g_scan; }
 static void env_nothing(void){}
 static void env_toast(const char *s){ assert(g_ntoast < 64); snprintf(g_toast[g_ntoast++], sizeof g_toast[0], "%s", s); }
 static void env_volume(int v){ (void)v; }
-const char *admit_check(admit_what_t what){ return what == ADMIT_OUTPUT_SWITCH && g_blocked ? "Player is busy - try again" : NULL; }
+const char *admit_check(admit_what_t what){ (void)what; return NULL; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static const struct srcswitch_env env = {
     .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
@@ -78,6 +79,8 @@ static const struct sd_env sd_env = {
     .art_cancel = env_nothing, .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast,
     .send_source = srcswitch_send_source,
 };
+static const char *env_switch_blocked(void){ return NULL; }
+static const struct outroute_env renv = { .now = env_now, .playing = env_playing, .switch_blocked = env_switch_blocked, .toast = env_toast, .seek_to = env_seek };
 static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = ev; }
 
 #define R6 "0666000C0006"
@@ -98,7 +101,7 @@ static void setup(void){
     char *slash = strrchr(d, '/'); if(slash){ *slash = 0; mkdir(d, 0700); *slash = '/'; }
     mkdir(d, 0700); usb_card(0); unlink(SD_EXPORT_MARKER);
     g_now = 1000;
-    srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event);
+    outroute_init(&renv); srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event);
     assert(sd_gate_poll(1) == SD_GATE_OPENED);
     srcswitch_init();
     assert(sd_local_playback_allowed());
@@ -116,16 +119,16 @@ static void expect_frames(const char *what, const char *const *want, int n){
 
 static void usb_audio_to_usb_dac_via_local(void){
     setup(); usb_card(1);
-    session_set_route(OUT_USB);
+    outroute_set(OUT_USB);
     assert(ui_set_source_mode(1) == 0);
-    assert(g_n == 0 && modes_output_busy() && modes_source_switch_busy() && srcswitch_via_local_pending());
+    assert(g_n == 0 && outroute_busy() && modes_source_switch_busy() && srcswitch_via_local_pending());
     assert(toasted("Leaving USB Audio..."));
     assert(ui_set_source_mode(2) < 0);
     run(400); assert(g_n == 0);
     run(600);
     const char *internal[] = { R6, G0, W8 };
     expect_frames("route to internal", internal, 3);
-    assert(session_route() == OUT_INTERNAL && !modes_output_busy());
+    assert(outroute_route() == OUT_INTERNAL && !outroute_busy());
     assert(modes_source_switch_busy() && session_source_mode() == 0);
     run(1900); assert(g_n == 3 && session_source_mode() == 0);
     run(500);
@@ -140,7 +143,7 @@ static void usb_dac_ordered_exit(void){
     assert(ui_set_source_mode(0) == 0);
     const char *g0[] = { G0 };
     expect_frames("exit starts with 0642 0", g0, 1);
-    assert(toasted("Leaving USB DAC... (up to 20 s)") && modes_source_switch_busy() && !modes_output_busy());
+    assert(toasted("Leaving USB DAC... (up to 20 s)") && modes_source_switch_busy() && !outroute_busy());
     assert(ui_set_source_mode(2) < 0 && g_n == 1);
     run(5000); assert(g_n == 1 && session_source_mode() == 1);
     g_gadget = 0; run(100);
@@ -177,7 +180,7 @@ static void usb_dac_to_storage_exit_then_local_then_export(void){
 }
 static void host_role_never_goes_straight_to_storage(void){
     setup(); usb_card(1);
-    g_playing = 1; session_set_route(OUT_USB);
+    g_playing = 1; outroute_set(OUT_USB);
     assert(ui_set_source_mode(3) == 0);
     assert(g_n == 1 && !strcmp(g_log[0], PAUSE) && !g_playing);
     run(5000);
@@ -186,7 +189,7 @@ static void host_role_never_goes_straight_to_storage(void){
     const char *want[] = { PAUSE, R6, G0, W8, R6, G1, W8 };
     expect_frames("storage from USB Audio", want, 7);
     assert(idx(G1, 0) > idx(G0, 0) && count(PAUSE) == 1);
-    assert(session_route() == OUT_INTERNAL);
+    assert(outroute_route() == OUT_INTERNAL);
 }
 static void local_to_storage_is_direct(void){
     setup();
@@ -197,28 +200,28 @@ static void local_to_storage_is_direct(void){
 }
 static void failed_leave_abandons_and_recovers(void){
     setup(); usb_card(1);
-    session_set_route(OUT_USB);
+    outroute_set(OUT_USB);
     g_fail_from = 1;
     assert(ui_set_source_mode(1) == 0);
     run(1000);
-    assert(toasted("Output state uncertain - recovering") && modes_output_busy() && session_route() == OUT_INTERNAL);
+    assert(toasted("Output state uncertain - recovering") && outroute_busy() && outroute_route() == OUT_INTERNAL);
     run(9500);
     assert(evented(SRCSWITCH_EV_ABANDONED) && toasted("Couldn't return to Local - mode not changed"));
     assert(!srcswitch_via_local_pending() && session_source_mode() == 0);
-    assert(idx(G2, 0) < 0 && idx(W1, 0) < 0 && modes_output_busy());
+    assert(idx(G2, 0) < 0 && idx(W1, 0) < 0 && outroute_busy());
     g_fail_from = -1; run(600);
-    assert(!modes_output_busy() && toasted("Internal DAC restored"));
-    assert(session_route() == OUT_INTERNAL);
+    assert(!outroute_busy() && toasted("Internal DAC restored"));
+    assert(outroute_route() == OUT_INTERNAL);
 }
 static void failed_step_then_retry_lands(void){
     setup(); usb_card(1);
-    session_set_route(OUT_USB);
+    outroute_set(OUT_USB);
     g_fail_at = 1;
     assert(ui_set_source_mode(2) == 0);
     run(700);
     const char *retried[] = { R6, G0, R6, G0, W8 };
     expect_frames("internal sequence retried in full", retried, 5);
-    assert(toasted("Output switch failed - internal DAC restored") && !modes_output_busy() && session_route() == OUT_INTERNAL);
+    assert(toasted("Output switch failed - internal DAC restored") && !outroute_busy() && outroute_route() == OUT_INTERNAL);
     run(3000);
     assert(session_source_mode() == 2 && idx("0657000C0006", 0) > 0 && toasted("Switching to Bluetooth receiving"));
 }
@@ -237,31 +240,7 @@ static void failed_source_frame_refuses(void){
     g_fail_from = -1; g_n = 0; g_ntoast = 0;
     g_fail_from = 1;
     assert(ui_set_source_mode(1) < 0 && session_source_mode() == 0 && toasted("Couldn't switch mode"));
-    assert(session_route() == OUT_INTERNAL);
-}
-static void usb_audio_enter_and_unplug(void){
-    setup(); usb_card(1);
-    assert(modes_output_mode_switch(OUT_USB) == 0);
-    run(700);
-    const char *to_usb[] = { R3, G5, W8 };
-    expect_frames("to USB", to_usb, 3);
-    assert(toasted("Powering USB DAC...") && session_route() == OUT_USB && modes_output_busy());
-    run(1500);
-    assert(toasted("USB DAC connected") && !modes_output_busy() && cfg_get_int("usb_audio_on", 0) == 1);
-    usb_card(0); run(2500);
-    run(700);
-    assert(toasted("USB DAC disconnected - internal DAC") && session_route() == OUT_INTERNAL);
-    const char *back[] = { R3, G5, W8, R6, G0, W8 };
-    expect_frames("back to internal", back, 6);
-    assert(cfg_get_int("usb_audio_on", 1) == 0);
-}
-static void usb_audio_without_a_dac_falls_back(void){
-    setup();
-    assert(modes_output_mode_switch(OUT_USB) == 0);
-    run(21000);
-    assert(toasted("No USB DAC found - internal DAC restored") && session_route() == OUT_INTERNAL && !modes_output_busy());
-    const char *want[] = { R3, G5, W8, R6, G0, W8 };
-    expect_frames("fallback", want, 6);
+    assert(outroute_route() == OUT_INTERNAL);
 }
 static void boot_restore_replays_the_saved_mode(void){
     setup(); cfg_set_int("src_mode", 1);
@@ -271,16 +250,6 @@ static void boot_restore_replays_the_saved_mode(void){
     const char *want[] = { R6, G2, W1 };
     expect_frames("restore", want, 3);
     assert(session_source_mode() == 1 && toasted("Restoring USB DAC mode..."));
-}
-static void blocked_output_switch_is_refused(void){
-    setup(); g_blocked = 1;
-    assert(modes_output_switch(OUT_SPDIF) < 0 && toasted("Player is busy - try again") && !modes_output_busy());
-    g_blocked = 0;
-    assert(modes_output_switch(OUT_SPDIF) == 0);
-    run(700);
-    const char *want[] = { "0666000C0004", W8 };
-    expect_frames("spdif quick form", want, 2);
-    assert(session_route() == OUT_SPDIF);
 }
 
 static void scenario(const char *name, void (*fn)(void)){
@@ -303,10 +272,7 @@ int main(void){
     S(failed_step_then_retry_lands);
     S(deferred_pick_refused_is_abandoned);
     S(failed_source_frame_refuses);
-    S(usb_audio_enter_and_unplug);
-    S(usb_audio_without_a_dac_falls_back);
     S(boot_restore_replays_the_saved_mode);
-    S(blocked_output_switch_is_refused);
     puts("srcswitch_test: ok");
     return 0;
 }
