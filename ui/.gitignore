@@ -30,3 +30,4 @@ tests/session_test
 # UI and FreeType build products
 mq_ui
 third_party/out/
+tests/*_test
