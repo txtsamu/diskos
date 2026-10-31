@@ -172,7 +172,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/opustitle_worker.h](#uiopustitleworkerh) | 6 |
 | [ui/ota.c](#uiotac) | 61 |
 | [ui/ota.h](#uiotah) | 38 |
-| [ui/outroute.c](#uioutroutec) | 3 |
+| [ui/outroute.c](#uioutroutec) | 5 |
 | [ui/outroute.h](#uioutrouteh) | 5 |
 | [ui/outseq.c](#uioutseqc) | 10 |
 | [ui/outseq.h](#uioutseqh) | 14 |
@@ -207,7 +207,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/settings.c](#uisettingsc) | 195 |
 | [ui/songinfo.c](#uisonginfoc) | 57 |
 | [ui/splash.c](#uisplashc) | 53 |
-| [ui/srcswitch.c](#uisrcswitchc) | 88 |
+| [ui/srcswitch.c](#uisrcswitchc) | 90 |
 | [ui/srcswitch.h](#uisrcswitchh) | 37 |
 | [ui/sysconfig.h](#uisysconfigh) | 6 |
 | [ui/system.c](#uisystemc) | 40 |
@@ -275,6 +275,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/upnext.c](#uiupnextc) | 27 |
 | [ui/usbhid.c](#uiusbhidc) | 9 |
 | [ui/usbhid.h](#uiusbhidh) | 1 |
+| [ui/vbus.c](#uivbusc) | 1 |
 | [ui/version.h](#uiversionh) | 1 |
 | [ui/weather.c](#uiweatherc) | 65 |
 | [ui/wifi.c](#uiwific) | 166 |
@@ -31308,6 +31309,18 @@ The only MAC validator: upper-cases, 17 chars, ':' every third, hex digits.
 Called from srcswitch_tick every 100 ms; each internal timer keeps its own period (pick 100 ms, recovery 500 ms, USB wait 250 ms, DAC-gone watch 1 s).
 ~~~
 
+**L259** `outroute_save_usb_audio(0);`
+
+~~~text
+"usb_audio_on" is cleared on every fall back to the internal DAC after a failed USB Audio attempt (no-DAC timeout, Player restart while waiting, failed or uncertain switch), not only on a completed switch away, so a boot never replays a USB Audio that did not work.
+~~~
+
+**L242** `static void charge_limit_reapply_tick(void){`
+
+~~~text
+UNPROVEN. The Player's 0642 0 branch turns the OTG boost off, writes charger-IC charge-off and flips the role back after a 1 s sleep, and charging is only re-enabled by its polling threads. Two seconds after a successful exit from the USB Audio route the configured Charging Limit (0808) is sent again through the charge_limit_reapply env hook so the Player re-evaluates its charge conditions. Not armed for other routes; dropped if the route moves again, the Player restarts or a switch is in flight. May be a no-op (e.g. when the limit is off). Revert fa442e6 to drop it.
+~~~
+
 ## ui/outroute.h
 
 **L10** `enum { OUT_INTERNAL = OUTSEQ_INTERNAL, OUT_SPDIF = OUTSEQ_SPDIF, OUT_USB = OUTSEQ_USB };`
@@ -41119,6 +41132,18 @@ The coldplug worker's view: 0 while a Storage export is intended or pending.
 
 ~~~text
 Serialises a direct card mount against a switch to USB Storage.
+~~~
+
+**L51** `int power = E->external_power ? E->external_power() : 0;`
+
+~~~text
+A saved USB Audio is not replayed while the charger IC reports an external input on the port: a Disc that comes up with a charger attached becomes the USB-C source for the ~20 s DAC wait (OTG boost on, charging off), which an unplugged-DAC boot must not do. The preference is kept so an unattached boot still restores it. An unreadable reading skips the restore (fail closed). The restore is one-shot: session_restore_poll has already disarmed itself.
+~~~
+
+**L159** `if(mode == 0 && outroute_route() == OUT_USB) return outroute_pick(OUT_INTERNAL, OUTROUTE_MODE);`
+
+~~~text
+Working Mode Local from the USB Audio route is the ordered outroute_pick(OUT_INTERNAL, OUTROUTE_MODE) (pause, quiet, 0666 6, 65 ms, 0642 0, 0657 8, resume), the same exit every other USB Audio exit uses, not the unsettled SRC_LOCAL burst. The via-Local paths use MODE_STAY_PAUSED only because another switch follows.
 ~~~
 
 ## ui/srcswitch.h
@@ -53748,6 +53773,14 @@ unplugged
 Media buttons of a USB IEM/DAC in USB Audio mode (route OUT_USB). Call once per main-loop pass; cheap when idle
 or when the route is not USB. screen_lit: 1 only when the panel is fully on (shows the volume bar).
 Returns 1 if a button was handled (caller counts it as activity, never as a wake).
+~~~
+
+## ui/vbus.c
+
+**L21** `int vbus_stat(void){`
+
+~~~text
+Charger IC reads shared by the charging screen and the saved-USB-Audio boot restore. SGM41513 on i2c-2 at 0x1a, REG08 bits 7:5 = VBUS_STAT: 0 no input, 1..6 an external source feeds the Disc (1 is a USB host or the phone, as in the 0x34 reading), 7 the Disc itself is sourcing 5 V (OTG boost, 0xe0, seen in USB Audio with a DAC). vbus_present() is "any input including OTG" (the charging screen's test); vbus_external_input() excludes OTG, so a host-powered DAC does not count as a charger. -1 = unreadable. vbus_plain_charger() is 1 only while no UDC reports anything but "not attached", so a computer on the cable is not a plain charger. The bit meanings come from the earlier USB DAC exit notes, not from the datasheet.
 ~~~
 
 ## ui/version.h
