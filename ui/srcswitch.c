@@ -156,6 +156,7 @@ static int source_switch(int mode, int exit_done){
     }
     { const char *why = sd_switch_refusal(); if(why){ E->toast(why); return -1; } }
     if(mode != 0 && (outroute_route() == OUT_USB || (session_source_mode() == 1 && mode == 3))) return via_local(mode, exit_done);
+    if(mode == 0 && outroute_route() == OUT_USB) return outroute_pick(OUT_INTERNAL, OUTROUTE_MODE);
     if(mode == 3) return sd_export_begin();
     if(sd_host_owned()) return sd_return_begin(mode);
     int was_playing = E->playing();
