@@ -21,12 +21,16 @@ def build(root, name, card):
     status = root / 'status'
     blog = root / 'boot.log'
     exe = root / name
+    sqlite = root / 'sqlite3.o'
+    if not sqlite.exists():
+        subprocess.run([os.environ.get('CC', 'cc'), '-O1', '-w', '-DSQLITE_THREADSAFE=0', '-DSQLITE_OMIT_LOAD_EXTENSION',
+                        '-c', str(app / 'sqlite3.c'), '-o', str(sqlite)], check=True)
     subprocess.run([os.environ.get('CC', 'cc'), '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined', '-g',
                     '-I', str(app),
                     '-DLAUNCH_STATUS_PATH="%s"' % status, '-DBOOT_LOG_PATH="%s"' % blog,
                     '-DPLAYER_SYSCONFIG_DB="%s"' % (root / 'sysconfig.db'), '-DPLAYER_SD_CARD_NODE="%s"' % card,
                     '-DLAUNCH_DEADLINE_S=2', '-DPLAYER_COMM_NAME="test"',
-                    str(driver), str(app / 'launcher.c'), str(app / 'handoff.c'), '-o', str(exe)], check=True)
+                    str(driver), str(app / 'launcher.c'), str(app / 'handoff.c'), str(app / 'sysconfig.c'), str(sqlite), '-lm', '-o', str(exe)], check=True)
     return exe, status, blog
 
 

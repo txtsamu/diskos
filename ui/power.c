@@ -4,7 +4,7 @@
 #include "power.h"
 #include <stdio.h>
 #include <string.h>
-#include "sqlite3.h"
+#include "sysconfig.h"
 
 static const int IDLE_SECS[POWER_IDLE_N] = { 0, 300, 600, 1800, 3600, 5400, 7200 };
 static const char *const IDLE_LABEL[POWER_IDLE_N] = { "Off", "5 min", "10 min", "30 min", "60 min", "90 min", "120 min" };
@@ -37,27 +37,6 @@ int power_apply_charge_via(int (*send)(const char *), int on){
 int power_temp_state(int tenths_c){ return tenths_c >= 551 ? 1 : (tenths_c < 0 ? 2 : 0); }
 const char *power_temp_msg(int state){
     return state == 1 ? "Temperature too high" : (state == 2 ? "Temperature too low" : NULL);
-}
-
-int power_read_sysconfig(const char *db_path, const char *column){
-    const char *sql = NULL;
-    if(column && !strcmp(column, "POWER_SAVE")) sql = "SELECT POWER_SAVE FROM SYSCONFIG WHERE ID=1;";
-    else if(column && !strcmp(column, "CHARGE_PROTECT")) sql = "SELECT CHARGE_PROTECT FROM SYSCONFIG WHERE ID=1;";
-    if(!sql || !db_path) return -1;
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(db_path, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st = NULL;
-        if(sqlite3_prepare_v2(c, sql, -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x >= 0) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
 }
 
 static struct { uint32_t since; int started, fired; } g_idle;
@@ -162,14 +141,12 @@ pw_phase_t power_shutdown_tick(void){
 
 void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
-#define POWER_SYSCONFIG "/usr/data/fiio/db/sysconfig.db"
-
 int power_supported(void){ return fw_os_ver() == 257; }
 int power_apply_charge(int on){ return power_supported() ? power_apply_charge_via(ipc_send_cmd, on) : -1; }
 
 static uint32_t g_key_ms; static int g_have_key;
 static pw_take_t g_take; static int g_take_ok; static unsigned g_take_gen; static int g_take_gen_set;
-static int take_read(void){ return power_read_sysconfig(POWER_SYSCONFIG, "POWER_SAVE"); }
+static int take_read(void){ return sysconfig_get(SC_POWER_SAVE); }
 static void idle_takeover(void){
     unsigned gen = ipc_generation();
     if(!g_take_gen_set || gen != g_take_gen){ g_take_gen = gen; g_take_gen_set = 1; power_takeover_reset(&g_take); g_take_ok = 0; }
@@ -184,7 +161,7 @@ void power_note_input(void){ g_key_ms = lv_tick_get(); g_have_key = 1; }
 void power_startup_mirror(void){
     if(!power_supported()) return;
     idle_takeover();
-    int c = power_read_sysconfig(POWER_SYSCONFIG, "CHARGE_PROTECT");
+    int c = sysconfig_get(SC_CHARGE_PROTECT);
     if(c >= 0){ c = c ? 1 : 0; if(c != cfg_get_int("charge_protect", 0)) cfg_set_int("charge_protect", c); }
 }
 

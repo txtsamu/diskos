@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "sqlite3.h"
+#include "sysconfig.h"
 
 int ctl_supported_ver(int os_ver){ return os_ver == 257; }
 
@@ -113,26 +113,14 @@ int ctl_apply_key_via(int (*send)(const char *), int key, int act){
     return send(f) == 0 ? 0 : -1;
 }
 
-int ctl_read_state(const char *db_path, ctl_state_t *st){
+int ctl_read_state(ctl_state_t *st){
+    static const sc_col_t COLS[1 + CTL_KEY_N] = { SC_SCREEN_ROT, SC_KEY_SINGLE, SC_KEY_DOUBLE, SC_KEY_LONG };
+    int v[1 + CTL_KEY_N];
     if(!st) return -1;
-    st->rot = -1; for(int i = 0; i < CTL_KEY_N; i++) st->key[i] = -1;
-    if(!db_path) return -1;
-    sqlite3 *c = NULL; int got = -1;
-    if(sqlite3_open_v2(db_path, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *s = NULL;
-        if(sqlite3_prepare_v2(c, "SELECT SCREEN_ROT,KEY_SINGLE_CLICK_SLE,KEY_DOUBLE_CLICK_SLE,KEY_LONG_PRESS_SLE "
-                                 "FROM SYSCONFIG WHERE ID=1;", -1, &s, NULL) == SQLITE_OK){
-            if(sqlite3_step(s) == SQLITE_ROW){
-                int *dst[4] = { &st->rot, &st->key[0], &st->key[1], &st->key[2] };
-                for(int i = 0; i < 4; i++)
-                    if(sqlite3_column_type(s, i) == SQLITE_INTEGER){ int x = sqlite3_column_int(s, i); if(x >= 0){ *dst[i] = x; got = 0; } }
-            }
-            sqlite3_finalize(s);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return got;
+    int got = sysconfig_get_many(COLS, 1 + CTL_KEY_N, v);
+    st->rot = v[0];
+    for(int i = 0; i < CTL_KEY_N; i++) st->key[i] = v[1 + i];
+    return got > 0 ? 0 : -1;
 }
 
 void ctl_mirror_via(const ctl_state_t *st, void (*set_int)(const char *key, int v)){
@@ -152,13 +140,13 @@ int ctl_supported(void){ return ctl_supported_ver(fw_os_ver()); }
 
 void controls_boot_rotation(void){
     ctl_state_t st;
-    if(ctl_supported() && ctl_read_state(CTL_SYSCONFIG, &st) == 0 && st.rot >= 0) ctl_rot_set(st.rot);
+    if(ctl_supported() && ctl_read_state(&st) == 0 && st.rot >= 0) ctl_rot_set(st.rot);
 }
 static void cfg_put(const char *key, int v){ if(cfg_get_int(key, -1) != v) cfg_set_int(key, v); }
 void controls_startup_mirror(void){
     if(!ctl_supported()) return;
     ctl_state_t st;
-    ctl_read_state(CTL_SYSCONFIG, &st);
+    ctl_read_state(&st);
     ctl_mirror_via(&st, cfg_put);
 }
 

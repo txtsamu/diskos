@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "launcher.h"
 #include "handoff.h"
+#include "sysconfig.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -12,9 +13,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#ifndef PLAYER_SYSCONFIG_DB
-#define PLAYER_SYSCONFIG_DB "/usr/data/fiio/db/sysconfig.db"
-#endif
 #ifndef PLAYER_SD_CARD_NODE
 #define PLAYER_SD_CARD_NODE "/sys/class/block/mmcblk0"
 #endif
@@ -98,11 +96,7 @@ static void boot_note(const char *msg){
 int player_local_mode_confirmed(void){
     if(g_env->sd_exported_to_host()) return 0;
     if(player_config_absent_without_card()) return 1;
-    char *a[] = { "sh", "-c",
-        "[ -f " PLAYER_SYSCONFIG_DB " ] && "
-        "sqlite3 -cmd '.timeout 3000' " PLAYER_SYSCONFIG_DB " 'UPDATE SYSCONFIG SET WORK_MODE=0 WHERE ID=1 AND WORK_MODE IS NOT 0' && "
-        "[ \"$(sqlite3 -cmd '.timeout 3000' " PLAYER_SYSCONFIG_DB " 'SELECT WORK_MODE FROM SYSCONFIG WHERE ID=1')\" = \"0\" ]", NULL };
-    if(g_env->run_bounded(a, 8000) != 0) return 0;
+    if(sysconfig_work_mode_reset_confirm_via(g_env->run_bounded, 8000) != 0) return 0;
     return !g_env->sd_exported_to_host();
 }
 void exec_stock_player(void){

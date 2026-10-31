@@ -83,9 +83,7 @@ typedef struct {
 #define MDB_UPNEXT_BUSY     (-3)
 int mdb_upnext(int shuffle, int cur_pos_id, const char *cur_path, mdb_qrow_t *out, int cap, int *more);
 int mdb_queue_row_valid(int base_id, int ord, const char *path);
-int mdb_sysconfig_play_mode(void);
 int  ui_play_plan(mdb_plan_t *plan, int song_id);
-int  mdb_artist_class_type(void);
 void mdb_set_artist_mode(int album_artist);
 int  mdb_artist_mode(void);
 int  mdb_artist_missing(const char *key);
@@ -166,8 +164,4 @@ int  mdb_set_peq(int style_preset, double master_gain, const char *params_json);
 int  mdb_get_peq(int style_preset, int *master_out, int *gains_out);
 int  mdb_peq_is_graphic(int style_preset);
 
-int  mdb_sysconfig_folder_jump(void);
-int  mdb_sysconfig_language(void);          
-int  mdb_sysconfig_auto_time(void);
-int  mdb_sysconfig_set_auto_time(int on);
 #endif

@@ -39,7 +39,7 @@ int  ctl_apply_rot_via(int (*send)(const char *), int v);
 int  ctl_apply_key_via(int (*send)(const char *), int key, int act);
 
 typedef struct { int rot, key[CTL_KEY_N]; } ctl_state_t;
-int  ctl_read_state(const char *db_path, ctl_state_t *st);
+int  ctl_read_state(ctl_state_t *st);
 void ctl_mirror_via(const ctl_state_t *st, void (*set_int)(const char *key, int v));
 #define CTL_ROLLBACK_MS 10000
 typedef struct { int pending, prev, cur; uint32_t start; } ctl_rb_t;
@@ -48,7 +48,6 @@ int  ctl_rb_left_ms(const ctl_rb_t *r, uint32_t now_ms);
 int  ctl_rb_expired(ctl_rb_t *r, uint32_t now_ms, int *revert_to);
 int  ctl_rb_keep(ctl_rb_t *r, int *value);
 int  ctl_rb_revert(ctl_rb_t *r, int *value);
-#define CTL_SYSCONFIG "/usr/data/fiio/db/sysconfig.db"
 #define CTL_CFG_ROT "screen_rot"
 
 #ifndef CTL_CORE_ONLY
