@@ -112,66 +112,13 @@ static void vinyl_update_vis(void)
 
 int saver_wants_bright(void) { return g_style == 4 && g_have_track && g_vbuf_valid; }
 
-#include <pthread.h>
-#include <fcntl.h>
-#include "art.h"
-void ui_decode_lock(void); void ui_decode_unlock(void);
+#include "coverart.h"
 static char g_vpath[1024];
-static unsigned g_vgen;
-static pthread_mutex_t g_vmu = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  g_vcv = PTHREAD_COND_INITIALIZER;
-static int g_vwork_started, g_vwant;
-static char g_vwant_path[1024];
-static unsigned g_vwant_gen;
-static int64_t g_vwant_deadline;
 static int g_vfails;
 #define VIN_RETRIES 3
-static int64_t vin_now_ms(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000; }
-static uint8_t *g_vres; static unsigned g_vres_gen; static int g_vres_ready;
 static unsigned g_vasked_gen = ~0u;
 static lv_timer_t *g_vpoll;
 static int g_vpending;
-
-static void *vinyl_worker(void *arg)
-{
-    (void)arg;
-    const size_t need = (size_t)VIN_W * VIN_W * 4;
-    for (;;) {
-        pthread_mutex_lock(&g_vmu);
-        while (!g_vwant) pthread_cond_wait(&g_vcv, &g_vmu);
-        char path[1024]; snprintf(path, sizeof path, "%s", g_vwant_path);
-        unsigned gen = g_vwant_gen; int64_t deadline = g_vwant_deadline; g_vwant = 0;
-        pthread_mutex_unlock(&g_vmu);
-
-        char out[64]; snprintf(out, sizeof out, "/tmp/.diskos-vinyl-%u.bgra", gen);
-        uint8_t *buf = NULL;
-        ui_decode_lock();
-        pthread_mutex_lock(&g_vmu);
-        int superseded = g_vgen != gen;
-        pthread_mutex_unlock(&g_vmu);
-        int rc = (superseded || vin_now_ms() >= deadline) ? -1 : art_make_saver(path, out, deadline);
-        ui_decode_unlock();
-        if (rc == 0) {
-            int fd = open(out, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
-            buf = malloc(need);
-            size_t got = 0;
-            if (fd >= 0 && buf) {
-                ssize_t n;
-                while (got < need && (n = read(fd, buf + got, need - got)) > 0) got += (size_t)n;
-                char extra; if (got == need && read(fd, &extra, 1) != 0) got = 0;
-            }
-            if (fd >= 0) close(fd);
-            if (got != need) { free(buf); buf = NULL; }
-        }
-        unlink(out);
-        pthread_mutex_lock(&g_vmu);
-        if (gen != g_vgen) { free(buf); pthread_mutex_unlock(&g_vmu); continue; }
-        free(g_vres);
-        g_vres = buf; g_vres_gen = gen; g_vres_ready = 1;
-        pthread_mutex_unlock(&g_vmu);
-    }
-    return NULL;
-}
 
 static void vinyl_bind(void)
 {
@@ -201,10 +148,7 @@ const lv_image_dsc_t *sharp_cover_get(void)
 
 void sharp_cover_invalidate(void)
 {
-    pthread_mutex_lock(&g_vmu);
-    g_vgen++; g_vwant = 0;
-    free(g_vres); g_vres = NULL; g_vres_ready = 0;
-    pthread_mutex_unlock(&g_vmu);
+    coverart_sharp_drop();
     g_vpending = 0;
     if (g_vpoll) lv_timer_pause(g_vpoll);
     g_vbuf_valid = g_vbound = 0; g_vfails = 0; g_vasked_gen = ~0u;
@@ -231,12 +175,9 @@ static int sharp_retained(void)
 
 static void vinyl_poll(lv_timer_t *t)
 {
-    pthread_mutex_lock(&g_vmu);
-    if (!g_vres_ready) { pthread_mutex_unlock(&g_vmu); return; }
-    uint8_t *buf = g_vres; unsigned gen = g_vres_gen;
-    g_vres = NULL; g_vres_ready = 0;
-    pthread_mutex_unlock(&g_vmu);
-    if (gen != g_vgen) { free(buf); if (!g_vpending) lv_timer_pause(t); return; }
+    uint8_t *buf; unsigned gen;
+    if (!coverart_sharp_take(&buf, &gen)) return;
+    if (gen != coverart_sharp_gen()) { free(buf); if (!g_vpending) lv_timer_pause(t); return; }
     g_vpending = 0;
     lv_timer_pause(t);
     if (!sharp_retained()) { free(buf); return; }
@@ -257,26 +198,17 @@ static void vinyl_poll(lv_timer_t *t)
 
 void sharp_cover_request(void)
 {
-    if (!g_vpath[0] || !sharp_retained() || g_vbuf_valid || g_vasked_gen == g_vgen) return;
+    if (!g_vpath[0] || !sharp_retained() || g_vbuf_valid || g_vasked_gen == coverart_sharp_gen()) return;
     if (!g_vpoll) g_vpoll = lv_timer_create(vinyl_poll, 150, NULL);
-    if (!g_vpoll) { if (++g_vfails >= VIN_RETRIES) g_vasked_gen = g_vgen; return; }
+    if (!g_vpoll) { if (++g_vfails >= VIN_RETRIES) g_vasked_gen = coverart_sharp_gen(); return; }
     lv_timer_pause(g_vpoll);
-    pthread_mutex_lock(&g_vmu);
-    if (!g_vwork_started) {
-        pthread_t th;
-        if (pthread_create(&th, NULL, vinyl_worker, NULL) == 0) { pthread_detach(th); g_vwork_started = 1; }
-    }
-    if (g_vwork_started) {
-        snprintf(g_vwant_path, sizeof g_vwant_path, "%s", g_vpath);
-        g_vwant_gen = g_vgen; g_vwant = 1;
-        g_vwant_deadline = vin_now_ms() + 15000;
-        pthread_cond_signal(&g_vcv);
-        g_vasked_gen = g_vgen;
+    unsigned gen;
+    if (coverart_sharp_ask(g_vpath, &gen)) {
+        g_vasked_gen = gen;
         g_vpending = 1;
         lv_timer_reset(g_vpoll);
         lv_timer_resume(g_vpoll);
-    } else if (++g_vfails >= VIN_RETRIES) g_vasked_gen = g_vgen;
-    pthread_mutex_unlock(&g_vmu);
+    } else if (++g_vfails >= VIN_RETRIES) g_vasked_gen = coverart_sharp_gen();
 }
 
 static void vinyl_load_sharp_cover(void)

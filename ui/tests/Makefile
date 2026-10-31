@@ -65,8 +65,25 @@ sqlite3_host.o: ../sqlite3.c ../sqlite3.h
 sysconfig_test: ../sysconfig.c sysconfig_test.c ../sysconfig.h sqlite3_host.o
 	$(CC) $(CFLAGS) -I.. ../sysconfig.c sysconfig_test.c sqlite3_host.o -lm -o $@
 
+ATDIR := /tmp/diskos_arttest
+CA_DEFS := -DCA_TMP='"$(ATDIR)"' -DCOVERART_SHARP_OUT='"$(ATDIR)/vinyl-%u.bgra"' \
+        -DCOVERART_PW_COVER='"$(ATDIR)/pw_cover.bmp"' -DCOVERART_PW_THUMB='"$(ATDIR)/pw_thumb.bmp"' \
+        -DCOVERART_PW_BACKDROP='"$(ATDIR)/pw_backdrop.bmp"'
+
+coverart_test: ../coverart.c ../coverart_accent.c coverart_test.c coverart_synth.h ../coverart.h
+	$(CC) $(CFLAGS) -ffp-contract=off -Wno-unknown-pragmas -pthread -D_GNU_SOURCE $(CA_DEFS) -I.. ../coverart.c ../coverart_accent.c coverart_test.c -o $@ -lm
+
+$(ATDIR)/artdec_fake: artdec_fake.c coverart_synth.h
+	@mkdir -p $(ATDIR)
+	$(CC) -g -O1 -Wall -Wextra -o $@ artdec_fake.c
+
+coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c coverart_synth.h ../coverart.h $(ATDIR)/artdec_fake
+	$(CC) $(CFLAGS) -ffp-contract=off -Wno-unknown-pragmas -pthread -D_GNU_SOURCE $(CA_DEFS) -DARTDEC_PATH='"$(ATDIR)/artdec_fake"' \
+	  -DCACHE_ROOT='"$(ATDIR)/sd/.diskos/artcache"' -DARTCACHE_BASE_DIR='"$(ATDIR)/sd/.diskos"' -DARTCACHE_FREE_PATH='"$(ATDIR)/sd"' \
+	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
+
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
+run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -103,9 +120,13 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./booksess_test
 	@echo "--- sysconfig ---"
 	./sysconfig_test
+	@echo "--- coverart ---"
+	@rm -rf $(ATDIR)/sd $(ATDIR)/log && mkdir -p $(ATDIR)/sd/.diskos $(ATDIR)/music
+	./coverart_test
+	./coverart_pipeline_test
 
 clean:
-	rm -f sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
+	rm -f sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

@@ -26,6 +26,7 @@
 #include <sys/reboot.h>
 #include "sdio.h"
 #include "art.h"
+#include "coverart.h"
 #include "scanner.h"
 #include "power.h"
 #include "system.h"
@@ -92,7 +93,6 @@ void ui_set_workmode(int mode);
 int ui_apply_eq(int preset);
 void ui_clock_refresh(void);
 void ui_set_accent_config(int mode, int rgb);
-void ui_set_prewarm_mode(int m);
 void ui_set_dre(int on);
 void ui_set_gain(int high);
 int  ui_set_artist_class(int album_artist);
@@ -108,7 +108,7 @@ void ui_set_balance(int v);
 
 static void apply_open_colorpick(int v){ (void)v; colorpick_open(); }
 static void apply_debug_mode(int v){ (void)v; debug_open(); }
-static void apply_artcache(int v){ ui_set_prewarm_mode(v); }
+static void apply_artcache(int v){ coverart_prewarm_mode(v); }
 void ui_sd_quiesce_begin(void); int ui_sd_quiesce_drained(void); void ui_sd_quiesce_end(void);
 
 static void apply_swipe(int v){ ui_apply_swipe_thresh(v); }
@@ -605,7 +605,7 @@ void settings_apply_startup(int restore_brightness){
     cfg_set_int("sleep_idx", 0);
     apply_boot_default(cfg_get_int("boot_default", 0));
     ui_set_accent_config(cfg_get_int("accent_mode", 0), cfg_get_int("accent_color", 0xF23260));
-    ui_set_prewarm_mode(cfg_get_int("artcache", 0));
+    coverart_prewarm_mode(cfg_get_int("artcache", 0));
 }
 
 void ui_set_brightness(int v){

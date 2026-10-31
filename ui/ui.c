@@ -4,18 +4,15 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "lvgl/lvgl.h"
-#include "art.h"
-#include "netart.h"
+#include "coverart.h"
 #include "ipc.h"
 #include "admit.h"
 #include "musicdb.h"
 #include "scanner.h"
-#include "artcache.h"
 #include "config.h"
 #include "i18n.h"
 #include "screens.h"
 #include "modes.h"
-#include "sdio.h"
 #include "anim.h"
 #include "fonts_intl.h"
 #include "fontft.h"
@@ -812,25 +809,7 @@ static uint8_t g_coverbuf[CBMP*CBMP*4];
 static lv_image_dsc_t g_coverdsc;
 static int load_cover_dsc(const char *path)
 {
-    FILE *f = fopen(path, "rb"); if(!f) return -1;
-    uint8_t hdr[54];
-    if(fread(hdr,1,54,f)!=54){ fclose(f); return -1; }
-    uint32_t off = hdr[10]|(hdr[11]<<8)|(hdr[12]<<16)|((uint32_t)hdr[13]<<24);
-    int w = hdr[18]|(hdr[19]<<8), h = hdr[22]|(hdr[23]<<8);
-    int bpp = hdr[28]|(hdr[29]<<8);
-    uint32_t comp = hdr[30]|(hdr[31]<<8)|(hdr[32]<<16)|((uint32_t)hdr[33]<<24);
-    if(w!=CBMP || h!=CBMP || bpp!=24 || comp!=0){ fclose(f); return -1; }
-    static uint8_t row[CBMP*3];
-    if(fseek(f, off, SEEK_SET)!=0){ fclose(f); return -1; }
-    for(int yy=0; yy<CBMP; yy++){
-        if(fread(row,1,CBMP*3,f)!=(size_t)(CBMP*3)){ fclose(f); return -1; }
-        uint8_t *d = g_coverbuf + (CBMP-1-yy)*CBMP*4;
-        for(int x=0;x<CBMP;x++){
-            d[x*4+0]=row[x*3+0]; d[x*4+1]=row[x*3+1];
-            d[x*4+2]=row[x*3+2]; d[x*4+3]=0xFF;
-        }
-    }
-    fclose(f);
+    if(coverart_read_bmp(path, g_coverbuf) != 0) return -1;
     g_coverdsc.header.magic  = LV_IMAGE_HEADER_MAGIC;
     g_coverdsc.header.cf     = LV_COLOR_FORMAT_ARGB8888;
     g_coverdsc.header.w      = CBMP;
@@ -840,149 +819,6 @@ static int load_cover_dsc(const char *path)
     g_coverdsc.data_size     = sizeof g_coverbuf;
     return 0;
 }
-
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-
-static float g_lin_lut[256]; static int g_lin_lut_init = 0;
-static void lin_lut_init(void){
-    for(int i=0;i<256;i++){ float x=i/255.0f; g_lin_lut[i]= x<=0.04045f ? x/12.92f : powf((x+0.055f)/1.055f, 2.4f); }
-    g_lin_lut_init=1;
-}
-static float a_clamp01(float x){ return x<0?0:(x>1?1:x); }
-static float a_smooth(float a,float b,float x){ if(b<=a) return x>=b?1.0f:0.0f; float t=a_clamp01((x-a)/(b-a)); return t*t*(3.0f-2.0f*t); }
-static void rgb2oklab(int R,int G,int B, float *L,float *a,float *bb){
-    float r=g_lin_lut[R], g=g_lin_lut[G], bl=g_lin_lut[B];
-    float l=0.4122214708f*r+0.5363325363f*g+0.0514459929f*bl;
-    float m=0.2119034982f*r+0.6806995451f*g+0.1073969566f*bl;
-    float s=0.0883024619f*r+0.2817188376f*g+0.6299787005f*bl;
-    float l_=cbrtf(l), m_=cbrtf(m), s_=cbrtf(s);
-    *L =0.2104542553f*l_+0.7936177850f*m_-0.0040720468f*s_;
-    *a =1.9779984951f*l_-2.4285922050f*m_+0.4505937099f*s_;
-    *bb=0.0259040371f*l_+0.7827717662f*m_-0.8086757660f*s_;
-}
-static int oklab2rgb(float L,float a,float b, int *R,int *G,int *B){
-    float l_=L+0.3963377774f*a+0.2158037573f*b;
-    float m_=L-0.1055613458f*a-0.0638541728f*b;
-    float s_=L-0.0894841775f*a-1.2914855480f*b;
-    float l=l_*l_*l_, m=m_*m_*m_, s=s_*s_*s_;
-    float lin[3];
-    lin[0]= 4.0767416621f*l-3.3077115913f*m+0.2309699292f*s;
-    lin[1]=-1.2684380046f*l+2.6097574011f*m-0.3413193965f*s;
-    lin[2]=-0.0041960863f*l-0.7034186147f*m+1.7076147010f*s;
-    int in = 1; int *o[3]={R,G,B};
-    for(int i=0;i<3;i++){
-        float x=lin[i];
-        if(x<-0.001f||x>1.001f) in=0;
-        if(x<0)x=0; if(x>1)x=1;
-        float v = x<=0.0031308f ? 12.92f*x : 1.055f*powf(x,1.0f/2.4f)-0.055f;
-        *o[i] = (int)(v*255.0f+0.5f);
-    }
-    return in;
-}
-static float wcag_lum(int R,int G,int B){ return 0.2126f*g_lin_lut[R]+0.7152f*g_lin_lut[G]+0.0722f*g_lin_lut[B]; }
-
-static int read_cover_bmp(const char *path, uint8_t *buf)
-{
-    FILE *f = fopen(path, "rb"); if(!f) return -1;
-    uint8_t hdr[54];
-    if(fread(hdr,1,54,f)!=54){ fclose(f); return -1; }
-    uint32_t off = hdr[10]|(hdr[11]<<8)|(hdr[12]<<16)|((uint32_t)hdr[13]<<24);
-    int w = hdr[18]|(hdr[19]<<8), h = hdr[22]|(hdr[23]<<8);
-    int bpp = hdr[28]|(hdr[29]<<8);
-    uint32_t comp = hdr[30]|(hdr[31]<<8)|(hdr[32]<<16)|((uint32_t)hdr[33]<<24);
-    if(w!=CBMP || h!=CBMP || bpp!=24 || comp!=0){ fclose(f); return -1; }
-    uint8_t row[CBMP*3];
-    if(fseek(f, off, SEEK_SET)!=0){ fclose(f); return -1; }
-    for(int yy=0; yy<CBMP; yy++){
-        if(fread(row,1,CBMP*3,f)!=(size_t)(CBMP*3)){ fclose(f); return -1; }
-        uint8_t *d = buf + (CBMP-1-yy)*CBMP*4;
-        for(int x=0;x<CBMP;x++){
-            d[x*4+0]=row[x*3+0]; d[x*4+1]=row[x*3+1];
-            d[x*4+2]=row[x*3+2]; d[x*4+3]=0xFF;
-        }
-    }
-    fclose(f);
-    return 0;
-}
-
-static int accent_from_buf(const uint8_t *cbuf, uint32_t *out_rgb)
-{
-    if(!cbuf) return 0;
-    float *pL=malloc(2025*sizeof(float)), *pA=malloc(2025*sizeof(float)),
-          *pB=malloc(2025*sizeof(float)), *pW=malloc(2025*sizeof(float));
-    if(!pL||!pA||!pB||!pW){ free(pL);free(pA);free(pB);free(pW); return 0; }
-    int rc = 0;
-    int n=0; float wsum=0,csum=0;
-    for(int y=8;y<140;y+=3){
-        const uint8_t *rp=cbuf+(size_t)y*CBMP*4;
-        for(int x=8;x<140 && n<2025;x+=3){
-            const uint8_t *p=rp+x*4; int B=p[0],G=p[1],R=p[2];
-            float L,a,b; rgb2oklab(R,G,B,&L,&a,&b);
-            float C=sqrtf(a*a+b*b), w=1.0f;
-            if(C<0.025f||L<0.08f||L>0.96f) w=0.35f;
-            pL[n]=L;pA[n]=a;pB[n]=b;pW[n]=w; wsum+=w; csum+=C*w; n++;
-        }
-    }
-    if(n<32) goto done;
-    if(wsum>0 && csum/wsum < 0.025f){ *out_rgb=0xAEB4BE; rc=1; goto done; }
-
-    { const int K=8; float cL[8],cA[8],cB[8],pop[8];
-    { int bi=0; float bc=-1; for(int i=0;i<n;i++){ float c=pA[i]*pA[i]+pB[i]*pB[i]; if(c>bc){bc=c;bi=i;} }
-      cL[0]=pL[bi];cA[0]=pA[bi];cB[0]=pB[bi]; }
-    for(int k=1;k<K;k++){ int bi=0; float bd=-1;
-        for(int i=0;i<n;i++){ float md=1e9f;
-            for(int j=0;j<k;j++){ float dL=pL[i]-cL[j],da=pA[i]-cA[j],db=pB[i]-cB[j]; float d=1.25f*dL*dL+da*da+db*db; if(d<md)md=d; }
-            if(md>bd){bd=md;bi=i;} }
-        cL[k]=pL[bi];cA[k]=pA[bi];cB[k]=pB[bi]; }
-    for(int it=0;it<10;it++){
-        float sL[8]={0},sA[8]={0},sB[8]={0},sw[8]={0};
-        for(int i=0;i<n;i++){ int bj=0; float bd=1e9f;
-            for(int j=0;j<K;j++){ float dL=pL[i]-cL[j],da=pA[i]-cA[j],db=pB[i]-cB[j]; float d=1.25f*dL*dL+da*da+db*db; if(d<bd){bd=d;bj=j;} }
-            float w=pW[i]; sL[bj]+=pL[i]*w; sA[bj]+=pA[i]*w; sB[bj]+=pB[i]*w; sw[bj]+=w; }
-        for(int j=0;j<K;j++){ if(sw[j]>0){cL[j]=sL[j]/sw[j];cA[j]=sA[j]/sw[j];cB[j]=sB[j]/sw[j];} pop[j]=sw[j]; }
-    }
-    float best=-1; int bk=-1;
-    for(int j=0;j<K;j++){
-        float L=cL[j],a=cA[j],b=cB[j]; float C=sqrtf(a*a+b*b);
-        float pf = wsum>0 ? pop[j]/wsum : 0;
-        if(pf<0.008f||C<0.035f||L<0.18f||L>0.92f) continue;
-        float popS=sqrtf(pf);
-        float lS=1.0f-a_clamp01(fabsf(L-0.72f)/0.32f);
-        float cS=1.0f-a_clamp01(fabsf(C-0.16f)/0.14f);
-        float vivid=a_smooth(0.07f,0.18f,C);
-        float darkP=a_smooth(0.18f,0.38f,L);
-        float lightP=1.0f-a_smooth(0.88f,0.98f,L);
-        float sc=(0.42f*popS+0.28f*cS+0.22f*lS+0.08f*vivid)*darkP*lightP;
-        if(pf<0.02f && C<0.12f) sc*=0.5f;
-        if(sc>best){best=sc;bk=j;}
-    }
-    if(bk<0){ *out_rgb=0xAEB4BE; rc=1; goto done; }
-
-    float L=cL[bk],a=cA[bk],b=cB[bk]; float C=sqrtf(a*a+b*b), H=atan2f(b,a);
-    if(L<0.58f)L=0.58f; else if(L>0.84f)L=0.84f;
-    if(C<0.075f)C=0.075f; else if(C>0.22f)C=0.22f;
-    if(C>0.18f&&L>0.72f) C*=0.92f;
-    if(C<0.10f) C=C+(0.10f-C)*0.35f;
-    a=C*cosf(H); b=C*sinf(H);
-    float Ybg=wcag_lum(0x1C,0x1C,0x1E); int R=0,G=0,Bo=0;
-    for(int iter=0;iter<48;iter++){
-        a=C*cosf(H); b=C*sinf(H);
-        int in=oklab2rgb(L,a,b,&R,&G,&Bo);
-        if(!in && C>0.04f){ C*=0.94f; continue; }
-        float Y=wcag_lum(R,G,Bo); float hi=Y>Ybg?Y:Ybg, lo=Y>Ybg?Ybg:Y;
-        if((hi+0.05f)/(lo+0.05f) >= 4.5f || L>=0.88f) break;
-        L+=0.015f;
-    }
-    a=C*cosf(H); b=C*sinf(H); oklab2rgb(L,a,b,&R,&G,&Bo);
-    *out_rgb = ((uint32_t)R<<16)|((uint32_t)G<<8)|(uint32_t)Bo;
-    rc=1;
-    }
-done:
-    free(pL);free(pA);free(pB);free(pW);
-    return rc;
-}
-#pragma GCC pop_options
 
 static int g_accent_gray = 0;
 static _Atomic int g_accent_mode = 0;
@@ -1019,7 +855,7 @@ static void update_accent_seed(const track_state_t *st)
 
     copy_cstr(last_seed_a, sizeof(last_seed_a), seed_a);
     copy_cstr(last_seed_b, sizeof(last_seed_b), seed_b);
-    int rgb = mdb_song_accent(st->path);
+    int rgb = coverart_accent(st->path);
     if(rgb){ accent = theme_accent_from_rgb(rgb); apply_accent(); }
 }
 
@@ -1061,97 +897,10 @@ static void clear_art_state(void)
     g_art_applied = 1;
 }
 
-typedef struct {
-    char track[256];
-    int  idx;
-    char out[40], tout[40], bout[40];
-    char art_key[420];
-    int  is_clear;
-    char artist[160], album[160], title[IPC_TITLE_CAPACITY];
-    int  online;
-    int  online_only;
-    int  from_net;
-} art_req_t;
-
-static pthread_mutex_t g_decode_mu = PTHREAD_MUTEX_INITIALIZER;
-void ui_decode_lock(void){ pthread_mutex_lock(&g_decode_mu); }
-void ui_decode_unlock(void){ pthread_mutex_unlock(&g_decode_mu); }
-
-#define PWQ_MAX 48
-static char            pwq[PWQ_MAX][512];
-static int             pwq_head, pwq_tail;
-static pthread_mutex_t pwq_mu = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  pwq_cv;
-static pthread_once_t  pwq_once = PTHREAD_ONCE_INIT;
-static _Atomic int g_prewarm_mode = 0;
-static unsigned pwq_mode_seq;
-static void pwq_init(void){
-    pthread_condattr_t attr;
-    pthread_condattr_init(&attr);
-    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&pwq_cv, &attr);
-    pthread_condattr_destroy(&attr);
-}
-void ui_set_prewarm_mode(int m){
-    m = (m<0)?0:(m>2?2:m);
-    pthread_once(&pwq_once, pwq_init);
-    pthread_mutex_lock(&pwq_mu);
-    if(g_prewarm_mode != m){
-        g_prewarm_mode = m;
-        pwq_mode_seq++;
-        pthread_cond_signal(&pwq_cv);
-    }
-    pthread_mutex_unlock(&pwq_mu);
-}
-int ui_prewarm_enqueue(const char *path){
-    if(!path || !path[0]) return 1;
-    int ok = 0;
-    pthread_once(&pwq_once, pwq_init);
-    pthread_mutex_lock(&pwq_mu);
-    int nt = (pwq_tail+1) % PWQ_MAX;
-    if(nt != pwq_head){
-        int dup = 0;
-        for(int i=pwq_head; i!=pwq_tail; i=(i+1)%PWQ_MAX) if(!strcmp(pwq[i], path)){ dup=1; break; }
-        if(dup) ok = 1;
-        else { copy_cstr(pwq[pwq_tail], sizeof pwq[pwq_tail], path); pwq_tail = nt; ok = 1; pthread_cond_signal(&pwq_cv); }
-    }
-    pthread_mutex_unlock(&pwq_mu);
-    return ok;
-}
-static int pwq_pop(char *out, int cap){
-    int got = 0;
-    pthread_mutex_lock(&pwq_mu);
-    if(pwq_head != pwq_tail){ copy_cstr(out, cap, pwq[pwq_head]); pwq_head = (pwq_head+1)%PWQ_MAX; got = 1; }
-    pthread_mutex_unlock(&pwq_mu);
-    return got;
-}
-static void pw_sleep(int secs){
-    struct timespec until;
-    clock_gettime(CLOCK_MONOTONIC, &until);
-    until.tv_sec += secs;
-    pthread_once(&pwq_once, pwq_init);
-    pthread_mutex_lock(&pwq_mu);
-    unsigned seq = pwq_mode_seq;
-    while(pwq_head == pwq_tail && seq == pwq_mode_seq){
-        if(g_prewarm_mode == 0) pthread_cond_wait(&pwq_cv, &pwq_mu);
-        else if(pthread_cond_timedwait(&pwq_cv, &pwq_mu, &until) == ETIMEDOUT) break;
-    }
-    pthread_mutex_unlock(&pwq_mu);
-}
-
-static pthread_mutex_t g_art_mu = PTHREAD_MUTEX_INITIALIZER;
 static int g_art_title_pending;
 static uint64_t g_art_token;
 static unsigned g_art_generation;
-static art_req_t g_art_target;
-static unsigned  g_art_req      = 0;
-static int       g_art_inflight = 0;
-static int       g_art_ready    = 0;
-static int       g_art_rc       = -1;
-static unsigned  g_art_done_req = 0;
-static art_req_t g_art_result;
-
-static void apply_art(const art_req_t *job)
+static void apply_art(const coverart_job_t *job)
 {
     snprintf(cover_src,    sizeof cover_src,    "A:/tmp/cover%d.bmp",    job->idx);
     snprintf(thumb_src,    sizeof thumb_src,    "A:/tmp/thumb%d.bmp",    job->idx);
@@ -1162,7 +911,7 @@ static void apply_art(const art_req_t *job)
     ui_np_cover_changed();
     np_sharp_demand();
     if(g_accent_mode != 1){
-        int acc_rgb = mdb_song_accent(job->track);
+        int acc_rgb = coverart_accent(job->track);
         if(acc_rgb){ accent = theme_accent_from_rgb(acc_rgb); apply_accent(); }
     }
     copy_cstr(last_art_key, sizeof last_art_key, job->art_key);
@@ -1175,70 +924,13 @@ static void apply_art(const art_req_t *job)
     g_art_applied = 1;
 }
 
-static void *art_worker(void *arg)
-{
-    (void)arg;
-    for(;;){
-        art_req_t job; unsigned my_req, my_gen;
-        pthread_mutex_lock(&g_art_mu);
-        job = g_art_target; my_req = g_art_req;
-        my_gen = art_cancel_gen();
-        pthread_mutex_unlock(&g_art_mu);
-
-        int rc, from_net = 0;
-        char fp0[24] = "";
-        if(job.is_clear) rc = -1;
-        else if(!job.online_only && artcache_get(job.track, job.out, job.tout, job.bout) == 0){ rc = 0;
-               if(artcache_key(job.track, fp0, sizeof fp0) != 0) fp0[0] = 0; }
-        else { int have_fp = artcache_key(job.track, fp0, sizeof fp0) == 0;
-               pthread_mutex_lock(&g_decode_mu);
-               rc = job.online_only ? -1 : art_make_all_ex_gen(job.track, job.out, job.tout, job.bout, 1, my_gen);
-               char np[300];
-               if(rc != 0 && rc != -2 && job.online && netart_have(job.artist, job.album, job.title, np, sizeof np)){
-                   if(netart_touch(np)){
-                       rc = art_make_all_ex_gen(np, job.out, job.tout, job.bout, 1, my_gen);
-                       from_net = rc == 0;
-                       int ex = art_last_exit();
-                       if(rc != 0 && (ex == 3 || ex == 4 || ex == 5)) netart_reject(np);
-                   }
-               }
-               pthread_mutex_unlock(&g_decode_mu);
-               if(rc == 0 && have_fp && !from_net) artcache_put_if(job.track, fp0, job.out, job.tout, job.bout); }
-
-        if(rc == 0 && !from_net && !job.is_clear && !ui_accent_is_static() && fp0[0] && !mdb_song_accent_fresh(job.track, fp0)){
-            uint8_t *buf = malloc(CBMP*CBMP*4);
-            if(buf){
-                uint32_t rgb;
-                if(read_cover_bmp(job.out, buf) == 0 && accent_from_buf(buf, &rgb))
-                    mdb_set_song_accent(job.track, (int)(rgb & 0xFFFFFF), fp0);
-                free(buf);
-            }
-        }
-
-        job.from_net = from_net;
-        pthread_mutex_lock(&g_art_mu);
-        if(g_art_req == my_req){
-            g_art_rc = rc; g_art_result = job; g_art_done_req = my_req;
-            g_art_ready = 1; g_art_inflight = 0;
-            pthread_mutex_unlock(&g_art_mu);
-            return NULL;
-        }
-        pthread_mutex_unlock(&g_art_mu);
-    }
-}
-
 static void art_request_clear(void)
 {
     g_art_title_pending = 0;
     g_np_small_valid = 0;
     sharp_cover_set_source("");
     clear_art_state();
-    pthread_mutex_lock(&g_art_mu);
-    g_art_req++;
-    memset(&g_art_target, 0, sizeof g_art_target);
-    g_art_target.is_clear = 1;
-    pthread_mutex_unlock(&g_art_mu);
-    art_cancel();
+    coverart_clear();
 }
 
 #define NP_MAXCHAP 256
@@ -1435,11 +1127,8 @@ static void update_cover_for_path(const track_state_t *st)
         if(!g_art_title_pending) return;
         if(!st->have_track){ g_art_title_pending = 0; return; }
         if(!st->title_ready) return;
-        pthread_mutex_lock(&g_art_mu);
-        int waiting = g_art_inflight || g_art_ready;
-        int missed = g_art_rc != 0 && g_art_rc != -2;
-        pthread_mutex_unlock(&g_art_mu);
-        if(waiting) return;
+        int missed;
+        if(coverart_busy(&missed)) return;
         g_art_title_pending = 0;
         if(!missed || !cfg_get_int("online_art", 0)) return;
         online_only = 1;
@@ -1467,7 +1156,7 @@ static void update_cover_for_path(const track_state_t *st)
     coverdsc_valid = 0;
 
     int nidx = displayed_idx ^ 1;
-    art_req_t job; memset(&job, 0, sizeof job);
+    coverart_job_t job; memset(&job, 0, sizeof job);
     job.idx = nidx;
     copy_cstr(job.track, sizeof job.track, st->path);
     copy_cstr(job.art_key, sizeof job.art_key, art_key);
@@ -1480,23 +1169,7 @@ static void update_cover_for_path(const track_state_t *st)
     snprintf(job.tout, sizeof job.tout, "/tmp/thumb%d.bmp",    nidx);
     snprintf(job.bout, sizeof job.bout, "/tmp/backdrop%d.bmp", nidx);
 
-    int launch = 0;
-    pthread_mutex_lock(&g_art_mu);
-    g_art_req++;
-    g_art_target = job;
-    if(!g_art_inflight){ g_art_inflight = 1; launch = 1; }
-    else art_cancel();
-    pthread_mutex_unlock(&g_art_mu);
-
-    if(launch){
-        pthread_t th;
-        if(pthread_create(&th, NULL, art_worker, NULL) == 0){
-            pthread_detach(th);
-        } else {
-            pthread_mutex_lock(&g_art_mu); g_art_inflight = 0; pthread_mutex_unlock(&g_art_mu);
-            clear_art_state();
-        }
-    }
+    if(coverart_request(&job) != 0) clear_art_state();
 }
 
 void ui_art_poll(lv_timer_t *t)
@@ -1505,31 +1178,13 @@ void ui_art_poll(lv_timer_t *t)
     if(g_art_title_pending){
         track_state_t st; ipc_get_state(&st); update_cover_for_path(&st);
     }
-    { char got[512];
-      if(netart_take_ready(got, sizeof got) && cfg_get_int("online_art", 0) && strcmp(got, last_path) == 0) ui_art_retry(); }
-    int ready = 0, rc = -1; art_req_t res; unsigned done_req = 0, cur_req = 0;
-    pthread_mutex_lock(&g_art_mu);
-    if(g_art_ready){
-        ready = 1; g_art_ready = 0;
-        rc = g_art_rc; res = g_art_result; done_req = g_art_done_req; cur_req = g_art_req;
-    }
-    pthread_mutex_unlock(&g_art_mu);
-    if(!ready) return;
-    if(done_req != cur_req) return;
-    if(res.is_clear)      clear_art_state();
-    else if(rc == 0 && res.from_net && !cfg_get_int("online_art", 0)){
-        clear_art_state();
-    }
-    else if(rc == 0){
-        if(strcmp(res.art_key, want_art_key) == 0){
-            apply_art(&res);
-            if(res.from_net) last_art_key[0] = '\0';
-        }
-    }
-    else {
-        clear_art_state();
-        if(rc != -2 && res.online && cfg_get_int("online_art", 0) && strcmp(res.art_key, want_art_key) == 0)
-            netart_request(res.track, res.artist, res.album, res.title);
+    if(coverart_online_ready(last_path, cfg_get_int("online_art", 0))) ui_art_retry();
+    coverart_job_t res;
+    coverart_event_t ev = coverart_poll(want_art_key, cfg_get_int("online_art", 0), &res);
+    if(ev == COVERART_CLEAR) clear_art_state();
+    else if(ev == COVERART_SHOW){
+        apply_art(&res);
+        if(res.from_net) last_art_key[0] = '\0';
     }
 }
 
@@ -1552,114 +1207,6 @@ void ui_set_accent_config(int mode, int rgb){
     apply_accent();
     g_static_last = g_accent_mode ? g_accent_color : 0xFFFFFFFFu;
     g_art_applied = 1;
-}
-
-static int pw_temp_dc(void){
-    FILE *f=fopen("/sys/class/power_supply/cw221X-bat/temp","r"); if(!f) return -1;
-    int t=-1; if(fscanf(f,"%d",&t)!=1) t=-1; fclose(f); return t;
-}
-static int pw_charging(void){
-    long cur=0;
-    FILE *f=fopen("/sys/class/power_supply/cw221X-bat/current_now","r"); if(!f) return 0;
-    if(fscanf(f,"%ld",&cur)!=1) cur=0; fclose(f);
-    return cur > 0;
-}
-static int pw_window_open(void){
-    if(!sd_io_allowed()) return 0;
-    int m=g_prewarm_mode; if(m==0) return 0;
-    if(!ui_main_is_idle()) return 0;
-    if(m==2) return pw_charging();
-    return 1;
-}
-
-static void pw_wait_window(int *hot){
-    for(;;){
-        if(!sd_io_allowed()){ usleep(200000); continue; }
-        int t = pw_temp_dc();
-        if(t < 0){ sleep(15); continue; }
-        if(*hot){ if(t < 400) *hot=0; else { sleep(15); continue; } }
-        else if(t >= 420){ *hot=1; sleep(15); continue; }
-        int busy; pthread_mutex_lock(&g_art_mu); busy=g_art_inflight; pthread_mutex_unlock(&g_art_mu);
-        if(busy){ usleep(300*1000); continue; }
-        return;
-    }
-}
-
-static void *art_prewarm_worker(void *arg)
-{
-    (void)arg;
-    nice(15);
-    const char *PC="/tmp/pw_cover.bmp", *PT="/tmp/pw_thumb.bmp", *PB="/tmp/pw_backdrop.bmp";
-    int id = 0, hot = 0, did_work = 0;
-    for(;;){
-        char qpath[512];
-        if(pwq_pop(qpath, sizeof qpath)){
-            pw_wait_window(&hot);
-            char fp0[24];
-            int cached = artcache_lookup(qpath, fp0, sizeof fp0);
-            if(cached == 1){ usleep(15*1000); continue; }
-            if(cached == 0){
-                pthread_mutex_lock(&g_decode_mu);
-                int r = art_make_all(qpath, PC, PT, PB);
-                pthread_mutex_unlock(&g_decode_mu);
-                if(r == 0) artcache_put_if(qpath, fp0, PC, PT, PB);
-            }
-            usleep(120*1000);
-            continue;
-        }
-        if(!pw_window_open()){ id=0; did_work=0; pw_sleep(5); continue; }
-
-        int t = pw_temp_dc();
-        if(t < 0){ sleep(15); continue; }
-        if(hot){ if(t < 400) hot=0; else { sleep(15); continue; } }
-        else if(t >= 420){ hot=1; sleep(15); continue; }
-
-        { int busy; pthread_mutex_lock(&g_art_mu); busy=g_art_inflight; pthread_mutex_unlock(&g_art_mu);
-          if(busy){ usleep(300*1000); continue; } }
-
-        char path[300];
-        if(!mdb_prewarm_next(id, &id, path, sizeof path)){
-            id=0; pw_sleep(did_work?60:1800); did_work=0; continue;
-        }
-        if(!path[0]) continue;
-
-        int have_art = artcache_has(path);
-        char acc_fp[24];
-        int need_acc = !ui_accent_is_static() && artcache_key(path, acc_fp, sizeof acc_fp) == 0
-                       && !mdb_song_accent_fresh(path, acc_fp);
-        if(have_art && !need_acc){ usleep(15*1000); continue; }
-
-        if(!have_art){
-            char fp0[24];
-            if(artcache_key(path, fp0, sizeof fp0) != 0){ usleep(300*1000); continue; }
-            pthread_mutex_lock(&g_decode_mu);
-            int r = art_make_all(path, PC, PT, PB);
-            pthread_mutex_unlock(&g_decode_mu);
-            if(r == 0) artcache_put_if(path, fp0, PC, PT, PB);
-            else { usleep(300*1000); continue; }
-        }
-        if(need_acc){
-            int cover_ready = have_art ? (artcache_get_cover(path, PC) == 0) : 1;
-            if(cover_ready){
-                uint8_t *buf = malloc(CBMP*CBMP*4);
-                if(buf){
-                    uint32_t rgb;
-                    if(read_cover_bmp(PC, buf) == 0 && accent_from_buf(buf, &rgb))
-                        mdb_set_song_accent(path, (int)(rgb & 0xFFFFFF), acc_fp);
-                    free(buf);
-                }
-            }
-        }
-        did_work = 1;
-        sleep(3);
-    }
-    return NULL;
-}
-
-void ui_start_art_prewarm(void)
-{
-    pthread_t th;
-    if(pthread_create(&th, NULL, art_prewarm_worker, NULL) == 0) pthread_detach(th);
 }
 
 const char *ui_current_cover_src(void)
@@ -1688,7 +1235,7 @@ void ui_create(lv_obj_t *root)
     if(theme_screen_plain(THEME_PLAIN_NOWPLAYING)) theme_screen_solid(scr);
 
     ui_fonts_init();
-    lin_lut_init();
+    coverart_init();
     accent = (g_accent_mode == 1) ? theme_accent_from_rgb(g_accent_color) : TC(ACCENT_PRIMARY);
     last_path[0] = '\0';
     last_art_key[0] = '\0';

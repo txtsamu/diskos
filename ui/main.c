@@ -37,6 +37,7 @@
 #include "outseq.h"
 #include "session.h"
 #include "srcswitch.h"
+#include "coverart.h"
 #include "admit.h"
 #include "timekeep.h"
 #include "bootsel.h"
@@ -1486,7 +1487,7 @@ static void sd_features_gate_cb(lv_timer_t *t){
             srcswitch_set_launch_verdict(1);
             coldplug_start();
             ui_art_retry();
-            ui_start_art_prewarm();
+            coverart_prewarm_start();
             albumwall_prewarm_seed();
             lv_timer_set_period(t, 5000);
         }
