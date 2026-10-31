@@ -28,7 +28,7 @@ Built with **LVGL 9.2.2** (software renderer) on a static-musl mipsel toolchain.
 | Area | Files |
 |---|---|
 | Core / loop / nav | `main.c`, `screenmgr.c` / `screens.h`, `fb_pan.c`, `ipc.c` / `ipc.h`, `config.c` |
-| Now Playing + art | `ui.c` / `ui.h`, `art.c` / `art.h`, `artcache.c`, `saver.c`, `songinfo.c`, `npmenus.c` |
+| Now Playing + art | `ui.c` / `ui.h`, `art.c` / `art.h`, `artcache.c`, `coverart.c` / `coverart.h` (cover art and accent pipeline; `coverart_accent.c`, `coverart_prod.c`), `saver.c`, `songinfo.c`, `npmenus.c` |
 | Library / browse | `home.c`, `library.c`, `musicdb.c`, `search.c`, `playlistview.c`, `scanner.c` |
 | Settings / features | `settings.c`, `eqcustom.c`, `quicksettings.c`, `modes.c` (Working Mode picker), `srcswitch.c` (Source-mode / Output-route switch), `kbinput.c`, `colorpick.c`, `toast.c`, `apps.c`, `debug_ui.c`, `fwcaps.c` |
 | Connectivity | `wifi.c`, `bt.c`, `weather.c`, `lyrics.c` |

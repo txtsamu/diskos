@@ -21,7 +21,9 @@
 
 static int64_t art_now_ms(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec*1000LL + t.tv_nsec/1000000LL; }
 
+#ifndef ARTDEC_PATH
 #define ARTDEC_PATH "/opt/diskos/bin/diskos-artdec"
+#endif
 static uint32_t le32_(const unsigned char *p){ return (uint32_t)p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
 int art_bmp_valid(const char *path, int n){
     uint32_t stride = ((uint32_t)n * 3 + 3) & ~3u, dsz = stride * (uint32_t)n, want = 54 + dsz;

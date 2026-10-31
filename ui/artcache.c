@@ -13,8 +13,18 @@
 #include <errno.h>
 #include <stdatomic.h>
 
+#ifndef CACHE_ROOT
 #define CACHE_ROOT "/tmp/sdcard/.diskos/artcache"
+#endif
+#ifndef ARTCACHE_BASE_DIR
+#define ARTCACHE_BASE_DIR "/tmp/sdcard/.diskos"
+#endif
+#ifndef ARTCACHE_FREE_PATH
+#define ARTCACHE_FREE_PATH "/tmp/sdcard"
+#endif
+#ifndef MIN_FREE_BYTES
 #define MIN_FREE_BYTES (1024ULL*1024*1024)
+#endif
 #define ART_RECIPE_VER 7
 
 static int fingerprint(const char *track, char *out, int cap){
@@ -71,7 +81,7 @@ static int copy_file(const char *src, const char *dst){
 }
 static int enough_free(void){
     struct statvfs v;
-    if(statvfs("/tmp/sdcard", &v) != 0) return 0;
+    if(statvfs(ARTCACHE_FREE_PATH, &v) != 0) return 0;
     return ((uint64_t)v.f_bavail * v.f_frsize) > MIN_FREE_BYTES;
 }
 
@@ -127,7 +137,7 @@ static void artcache_put_leased(const char *track, const char *fp_before, const 
     if(!enough_free()) return;
     if(!sd_write_begin()) return;
     char dir[600];
-    mkdir("/tmp/sdcard/.diskos", 0755);
+    mkdir(ARTCACHE_BASE_DIR, 0755);
     mkdir(CACHE_ROOT, 0755);
     snprintf(dir,sizeof dir,"%s/%s",CACHE_ROOT,fp);
     mkdir(dir, 0755);

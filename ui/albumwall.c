@@ -5,6 +5,7 @@
 #include "sdio.h"
 #include "musicdb.h"
 #include "artcache.h"
+#include "coverart.h"
 #include "config.h"
 #include <stdio.h>
 #include <string.h>
@@ -340,7 +341,7 @@ static void aw_seed_cb(lv_timer_t *t){
                 char track[512]; track[0]=0;
                 if(mdb_song_path(ids[i], track, sizeof track) && track[0]){
                     found = 1;
-                    if(!ui_prewarm_enqueue(track)){
+                    if(!coverart_prewarm_enqueue(track)){
                         lv_timer_set_period(t, 2000);
                         return;
                     }
