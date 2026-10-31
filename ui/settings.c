@@ -8,6 +8,7 @@
 #include "phonehome.h"
 #include "anim.h"
 #include "musicdb.h"
+#include "sysconfig.h"
 #include "fwcaps.h"
 #include "version.h"
 #include "md5.h"
@@ -170,7 +171,7 @@ static void apply_rescan(int v){ (void)v;
 }
 
 static void apply_auto_time(int v){
-    if(mdb_sysconfig_set_auto_time(v) != 0){
+    if(sysconfig_set(SC_AUTO_TIME, v ? 1 : 0) != 0){
         cfg_set_int("auto_time", g_set_prev);
         ui_toast("Couldn't change it - try again");
         lv_async_call(detail_refresh_async, NULL);
@@ -592,12 +593,12 @@ static void apply_brightness(int v){ if(v < 1) v = 1; ui_backlight(v); }
 void settings_apply_startup(int restore_brightness){
     scanner_set_old_tags(cfg_get_int("old_tags", OLD_TAGS_AUTO));
     if(restore_brightness) apply_brightness(ui_effective_brightness());
-    { int at = mdb_sysconfig_auto_time();
+    { int at = sysconfig_get(SC_AUTO_TIME);
       if(at >= 0 && at != cfg_get_int("auto_time", 1)) cfg_set_int("auto_time", at); }
-    { int ac = mdb_artist_class_type();
+    { int ac = sysconfig_get(SC_ARTIST_CLASS);
       if(ac >= 0 && ac != cfg_get_int("artist_class", 0)) cfg_set_int("artist_class", ac);
       mdb_set_artist_mode(ac == 1); }
-    { int fj = mdb_sysconfig_folder_jump();
+    { int fj = sysconfig_get(SC_FOLDER_JUMP);
       if(fj >= 0 && fj != cfg_get_int("folder_jump", 0)) cfg_set_int("folder_jump", fj); }
     power_startup_mirror();
     controls_startup_mirror();

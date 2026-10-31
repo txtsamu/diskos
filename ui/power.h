@@ -16,7 +16,6 @@ int  power_apply_charge_via(int (*send)(const char *), int on);
 int  power_temp_state(int tenths_c);
 const char *power_temp_msg(int state);
 
-int  power_read_sysconfig(const char *db_path, const char *column);
 
 int  power_idle_tick(uint32_t now_ms, uint32_t limit_secs, int playing, uint32_t last_input_ms, int (*request)(void));
 void power_idle_reset(void);

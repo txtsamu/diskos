@@ -3,6 +3,7 @@
 #include "sdio.h"
 #include "musicdb.h"
 #include "sqlite3.h"
+#include "sysconfig.h"
 #define JSMN_HEADER
 #include "jsmn.h"
 #include <stdio.h>
@@ -332,26 +333,6 @@ int mdb_current_play(mdb_song_t *out, int *pos_ms, int *is_playing){
     return got;
 }
 
-#ifndef MDB_SYSCONFIG_PATH
-#define MDB_SYSCONFIG_PATH "/usr/data/fiio/db/sysconfig.db"
-#endif
-int mdb_artist_class_type(void){
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, "SELECT ARTIST_CLASS_TYPE FROM SYSCONFIG WHERE ID=1;", -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x == 0 || x == 1) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
-}
-
 int mdb_play_pos(int id, int list_type, const char *name){
     static const char *ORDER_TAIL =
         "CASE WHEN IS_CUE=0 AND IS_ISO=0 THEN 1 WHEN IS_CUE=1 OR IS_ISO=1 THEN 2 END,"
@@ -368,7 +349,7 @@ int mdb_play_pos(int id, int list_type, const char *name){
     const char *order = (list_type==3) ? ORDER_ALBUM : ORDER_TAIL;
     const char *col   = (list_type==3) ? "ALBUM" : (list_type==2) ? "ARTIST" : (list_type==10) ? "GENRE" : NULL;
     if(list_type == 2){
-        int cls = mdb_artist_class_type();
+        int cls = sysconfig_get(SC_ARTIST_CLASS);
         if(cls < 0) return 0;
         if(cls == 1) col = "COALESCE(ALBUM_ARTIST,ARTIST)";
     }
@@ -458,7 +439,7 @@ int mdb_album_plan(const mdb_album_key_t *k, mdb_plan_t *plan){
     if(same_seq(a, n, b, m)){
         plan->list_type = 3; snprintf(plan->name, sizeof plan->name, "%s", k->album);
     } else {
-        int cls = mdb_artist_class_type();
+        int cls = sysconfig_get(SC_ARTIST_CLASS);
         int quotable = !k->owner_null && !strchr(k->owner, '"') && !strchr(k->album, '"')
                     && strlen(k->owner) < MDB_TYPE7_MAX && strlen(k->album) < MDB_TYPE7_MAX;
         m = -1;
@@ -983,7 +964,7 @@ int mdb_artist_plan(const char *key, mdb_plan_t *plan){
         for(int i = 0; same && i < n; i++)
             same = bsearch(&b[i], a, (size_t)n, sizeof *a, mdb_id_cmp) != NULL;
     }
-    if(same && mdb_artist_class_type() == 1 && strlen(key) < MDB_STR - 1 && strlen(key) < sizeof plan->name){
+    if(same && sysconfig_get(SC_ARTIST_CLASS) == 1 && strlen(key) < MDB_STR - 1 && strlen(key) < sizeof plan->name){
         plan->list_type = 2; snprintf(plan->name, sizeof plan->name, "%s", key);
         memcpy(a, b, (size_t)n * sizeof *a);
     } else {
@@ -1088,7 +1069,7 @@ int mdb_scope_album_plan(int kind, const char *key, const char *album, mdb_plan_
     if(kind == MDB_SCOPE_GENRE){
         where = "GENRE=?1 AND ALBUM=?2"; lt = 8; fmt = "{\"style\":\"%s\", \"album\":\"%s\"}";
     } else {
-        int cls = mdb_artist_class_type();
+        int cls = sysconfig_get(SC_ARTIST_CLASS);
         if(cls >= 0){
             where = cls == 1 ? "COALESCE(ALBUM_ARTIST,ARTIST)=?1 AND ALBUM=?2" : "ARTIST=?1 AND ALBUM=?2";
             lt = 7; fmt = "{\"artist\":\"%s\", \"album\":\"%s\"}";
@@ -2577,86 +2558,4 @@ int mdb_queue_row_valid(int base_id, int ord, const char *path){
     } else v = rc == SQLITE_DONE ? 0 : -1;
     sqlite3_finalize(q);
     return v;
-}
-
-int mdb_sysconfig_play_mode(void){
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, "SELECT PLAY_MODE FROM SYSCONFIG WHERE ID=1;", -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x >= 0 && x <= 4) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
-}
-
-static int sysconfig_flag(const char *sql){
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, sql, -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x == 0 || x == 1) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
-}
-int mdb_sysconfig_folder_jump(void){ return sysconfig_flag("SELECT FOLDER_JUMP FROM SYSCONFIG WHERE ID=1;"); }
-int mdb_sysconfig_language(void){
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, "SELECT LANGUAGE FROM SYSCONFIG WHERE ID=1;", -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x >= 0 && x < 64) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
-}
-int mdb_sysconfig_auto_time(void){
-    sqlite3 *c = NULL; int v = -1;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 200);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, "SELECT AUTO_TIME FROM SYSCONFIG WHERE ID=1;", -1, &st, NULL) == SQLITE_OK){
-            if(sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER){
-                int x = sqlite3_column_int(st, 0);
-                if(x == 0 || x == 1) v = x;
-            }
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return v;
-}
-int mdb_sysconfig_set_auto_time(int on){
-    sqlite3 *c = NULL; int ok = -1;
-    on = on ? 1 : 0;
-    if(sqlite3_open_v2(MDB_SYSCONFIG_PATH, &c, SQLITE_OPEN_READWRITE, NULL) == SQLITE_OK){
-        sqlite3_busy_timeout(c, 1500);
-        sqlite3_stmt *st;
-        if(sqlite3_prepare_v2(c, "UPDATE SYSCONFIG SET AUTO_TIME=? WHERE ID=1;", -1, &st, NULL) == SQLITE_OK){
-            sqlite3_bind_int(st, 1, on);
-            if(sqlite3_step(st) == SQLITE_DONE && sqlite3_changes(c) == 1) ok = 0;
-            sqlite3_finalize(st);
-        }
-    }
-    if(c) sqlite3_close(c);
-    return (ok == 0 && mdb_sysconfig_auto_time() == on) ? 0 : -1;
 }

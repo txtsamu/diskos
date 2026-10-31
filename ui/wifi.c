@@ -8,6 +8,7 @@
 #include "fwcaps.h"
 #include "ipc.h"
 #include "radio.h"
+#include "sysconfig.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -173,10 +174,8 @@ static int wifi_sanitize_savenets(void){
 
 void wifi_init_intent(void){
     if(cfg_get_int("wifi_on", -1) >= 0) return;
-    char buf[32];
-    run_cap("sqlite3 /usr/data/fiio/db/sysconfig.db \"SELECT WIFI_STATUS FROM SYSCONFIG WHERE ID=1\" 2>/dev/null",
-            buf, sizeof buf);
-    if(buf[0]=='0' || buf[0]=='1') cfg_set_int("wifi_on", buf[0]-'0');
+    int on = sysconfig_get_via(ui_run_cap_bounded, SC_WIFI_STATUS, 1000);
+    if(on >= 0) cfg_set_int("wifi_on", on);
 }
 
 #define RECO_SETTLE_MS 9000
@@ -194,13 +193,11 @@ static int wifi_reco_decide(int db_wifi, int db_bt, int eff_wifi, int eff_bt, in
 }
 
 static int read_saved_radios(int *wifi, int *bt){
-    char buf[32] = {0};
-    ui_run_cap_bounded("sqlite3 /usr/data/fiio/db/sysconfig.db \"SELECT WIFI_STATUS||'|'||BT_STATUS FROM SYSCONFIG WHERE ID=1\" 2>/dev/null",
-                       buf, sizeof buf, RECO_PROBE_MS);
-    if((buf[0] == '0' || buf[0] == '1') && buf[1] == '|' && (buf[2] == '0' || buf[2] == '1') && (buf[3] == '\n' || buf[3] == 0)){
-        *wifi = buf[0] - '0'; *bt = buf[2] - '0'; return 1;
-    }
-    return 0;
+    static const sc_col_t cols[2] = { SC_WIFI_STATUS, SC_BT_STATUS };
+    int v[2];
+    if(sysconfig_get_many_via(ui_run_cap_bounded, cols, 2, v, RECO_PROBE_MS) != 2) return 0;
+    *wifi = v[0]; *bt = v[1];
+    return 1;
 }
 static int wifi_rfkill_blocked(void){
     for(int i = 0; i < 12; i++){

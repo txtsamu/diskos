@@ -3,6 +3,7 @@
 #include "netart.h"
 #include "md5.h"
 #include "musicdb.h"
+#include "sysconfig.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -304,7 +305,7 @@ static int lookup(const na_job_t *j, const char *country){
 static void *worker(void *arg){
     (void)arg;
     set_lowest_priority();
-    const char *country = netart_country(mdb_sysconfig_language());
+    const char *country = netart_country(sysconfig_get(SC_LANGUAGE));
     for(;;){
         na_job_t j;
         pthread_mutex_lock(&g_mu);

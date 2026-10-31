@@ -49,6 +49,7 @@
 #include "opustitle_worker.h"
 #include "fwcaps.h"
 #include "musicdb.h"
+#include "sysconfig.h"
 #include "prof.h"
 #include "lvgl/src/drivers/evdev/lv_evdev.h"
 #include "config.h"
@@ -529,7 +530,7 @@ int ui_play_mode_now(void){
     if(g_mode_applied >= 0) return g_mode_applied;
     if(book_session_active()) return -1;
     int wm = cfg_get_int("work_mode", -1);
-    if(wm < 0) return mdb_sysconfig_play_mode();
+    if(wm < 0) return sysconfig_get(SC_PLAY_MODE);
     if(g_mode_applied == -2 && wm <= 4) return wm;
     return -1;
 }
@@ -841,11 +842,9 @@ static int startup_player_old(void){
     return ok && uptime >= 0 && uptime - (double)start / (double)hz >= 12.0;
 }
 static int startup_saved_bt_route(void){
-    char buf[32] = {0};
-    ui_run_cap_bounded("sqlite3 /usr/data/fiio/db/sysconfig.db 'SELECT OUT_DEV FROM SYSCONFIG WHERE ID=1' 2>/dev/null",
-                       buf, sizeof buf, 250);
-    if(!strcmp(buf, "2\n") || !strcmp(buf, "2")) return 1;
-    if(!strcmp(buf, "6\n") || !strcmp(buf, "6") || !strcmp(buf, "4\n") || !strcmp(buf, "4")) return 0;
+    int dev = sysconfig_get_via(ui_run_cap_bounded, SC_OUT_DEV, 250);
+    if(dev == 2) return 1;
+    if(dev == 6 || dev == 4) return 0;
     return -1;
 }
 static int startup_connected_sink(const char *mac){
@@ -1958,12 +1957,8 @@ int main(int argc, char **argv){
       al.sa_handler = boot_alarm_handler; sigemptyset(&al.sa_mask); al.sa_flags = 0;
       sigaction(SIGALRM,&al,NULL); alarm(BOOT_DEADLINE_S); }
     fprintf(stderr,"=== diskos main start argc=%d ===\n", argc); fflush(stderr);
-    { char *a[] = { "sh", "-c",
-                    "[ -f /usr/data/fiio/db/sysconfig.db ] && sqlite3 -cmd '.timeout 3000' /usr/data/fiio/db/sysconfig.db 'UPDATE SYSCONFIG SET WORK_MODE=0 WHERE ID=1 AND WORK_MODE IS NOT 0'", NULL };
-      run_bounded(a, 8000);   }
-    { char *v[] = { "sh", "-c",
-                    "[ -f /usr/data/fiio/db/sysconfig.db ] && [ \"$(sqlite3 -cmd '.timeout 3000' /usr/data/fiio/db/sysconfig.db 'SELECT WORK_MODE FROM SYSCONFIG WHERE ID=1')\" = \"0\" ]", NULL };
-      if(run_bounded(v, 5000) != 0){ srcswitch_hold(); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); } }
+    sysconfig_work_mode_reset_via(run_bounded, 8000);
+    if(sysconfig_work_mode_confirm_via(run_bounded, 5000) != 0){ srcswitch_hold(); fprintf(stderr,"WORK_MODE reset UNCONFIRMED -> diskOS SD activity held this boot\n"); fflush(stderr); }
     if(!rmguard_ensure()){ srcswitch_hold(); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
