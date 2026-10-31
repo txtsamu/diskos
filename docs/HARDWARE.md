@@ -197,6 +197,10 @@ userspace stack and the connected device; see [COMMAND_MAP.md](COMMAND_MAP.md).
 The stock player provides a USB host audio route for an external USB DAC,
 pairing output route `0666=3` with gadget selector `0642=5`. diskOS contains
 this route, but its USB Audio control is absent from normal builds.
+On this route the attached IEM or DAC's buttons arrive as a HID consumer-control
+input node under a `/usb` sysfs path; `ui/usbhid.c` reads it read-only and counts
+play/pause clicks into play/pause, next and previous. Which key code a given
+device sends is unverified until its press shows in the `usbhid:` log lines.
 The stock player also provides a `storage_demo` card-reader gadget. Do not
 mount or access the SD locally while it is exported to a computer;
 concurrent access can corrupt the card.

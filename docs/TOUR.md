@@ -242,7 +242,7 @@ Playback controls what plays next and how the player treats a resumed track. Tap
 
 ### Settings: Audio and working mode
 
-Audio rows control the output path, DAC options, and volume limits. Tap Working Mode to choose Local Playback, USB DAC, Bluetooth Receiving, or USB Storage; the selected mode is marked in the list. USB Storage gives the computer the card: eject it safely there before returning to Local Playback. The SPDIF and external USB Audio controls are absent from the normal build.
+Audio rows control the output path, DAC options, and volume limits. Tap Working Mode to choose Local Playback, USB DAC, Bluetooth Receiving, or USB Storage; the selected mode is marked in the list. USB Storage gives the computer the card: eject it safely there before returning to Local Playback. The SPDIF and external USB Audio controls are absent from the normal build. In builds that show USB Audio, the buttons on a USB IEM or DAC control playback: its play/pause button also takes two clicks for next and three clicks for previous, and its volume buttons change volume; one click waits about 350 ms for further clicks before it plays or pauses.
 
 | Row | Action and default |
 |---|---|

@@ -53380,6 +53380,15 @@ player only knows its own hardware keys, so diskOS reads those nodes itself and 
 UI uses. Read-only (never EVIOCGRAB), opened only while the output route is USB, and event0/event1 (the Disc's
 own keys and touch) are never touched: a node must resolve to a sysfs path containing "/usb". A press never
 wakes a blanked panel (player-originated events must not call ui_backlight()); it only counts as activity.
+
+Click gestures. Most single-button IEMs and DAC dongles send only the play/pause key, so that key is counted instead
+of acted on at once (clicks.c): 1 click = play/pause, 2 = next, 3 = previous. A click sequence ends when 350 ms pass
+after the last click (CLICKS_WINDOW_MS), or at once on the third click, so a single click's play/pause lands ~350 ms
+late, as on any headset. Dedicated next / previous / volume keys are not counted and act immediately as before. The
+play/pause key's debounce is 40 ms (CLICK_DEBOUNCE_MS) rather than 150 ms, or a quick triple click would lose clicks.
+A pending sequence is dropped when the route leaves USB or the charge screen / keyboard is up. The window and the
+2- and 3-click actions are fixed, not settings. Unverified on the JA11: which key code its button sends; usbhid logs
+every action as "usbhid: eventN key C -> ...", so check that log first if a button does nothing.
 ~~~
 
 **L17** `#define VOL_STEP 2` *(trailing)*

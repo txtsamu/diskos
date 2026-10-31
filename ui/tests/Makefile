@@ -35,6 +35,9 @@ timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 tama_test: ../tama.c tama_test.c ../tama.h
 	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
 
+clicks_test: ../clicks.c clicks_test.c ../clicks.h
+	$(CC) $(CFLAGS) -I.. ../clicks.c clicks_test.c -o $@
+
 transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
 	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
 
@@ -51,7 +54,7 @@ ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
 	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
 .PHONY: run run-py check clean
-run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -79,9 +82,11 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	./radio_test
 	@echo "--- transport ---"
 	./transport_test
+	@echo "--- clicks ---"
+	./clicks_test
 
 clean:
-	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

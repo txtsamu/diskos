@@ -27,8 +27,12 @@ Where Local playback's sound goes: the internal DAC, SPDIF, USB Audio, or a Blue
 _Avoid_: output device, out mode
 
 **USB Audio**:
-An output route in which the Disc drives an external USB DAC. It is not a source mode, even where the picker shows it as a row.
+An output route in which the Disc drives an external USB DAC. It is not a source mode, even where the picker shows it as a row. The DAC or IEM's own buttons control playback; see **Click gestures**.
 _Avoid_: USB DAC (that is a source mode: the Disc acting as a DAC for a phone or computer)
+
+**Click gestures**:
+Counting repeated presses of a USB Audio headset's play/pause button: one click plays or pauses, two go to the next track, three to the previous. A sequence ends 350 ms after the last click, or at the third.
+_Avoid_: double tap (that is a touchscreen gesture), key press (the Disc's own physical keys are handled by the Player)
 
 **Player work mode**:
 The Player's own record of what it is doing: playing local files, acting as a USB sound card, receiving Bluetooth, or nothing. After changing an output route or source mode, the Player must be left with a valid one, or it stops playing.

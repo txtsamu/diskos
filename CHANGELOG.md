@@ -10,6 +10,10 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Added
 
+- **Headset click gestures** for USB Audio: a USB IEM or DAC with a single button now maps one click to
+  play/pause, two clicks to next and three clicks to previous. Dedicated next, previous and volume keys
+  still act at once. Play/pause lands about 350 ms after the click while diskOS waits for more clicks.
+  Needs a build that shows the USB Audio route, and is not yet checked on a device.
 - **Pet** app on the Apps page: a Tamagotchi-style virtual pet (Agumon line) that lives in real
   time, with Feed, Play, Clean, Sleep and Heal, mood and sickness, and a Digi-Egg to start over.
 - **Persistent debug** checkbox in Debug Mode: keeps Wi-Fi on and re-enables SSH at every boot.
