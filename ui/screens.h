@@ -63,7 +63,6 @@ void colorpick_create(lv_obj_t *root);
 void colorpick_open(void);
 void modes_create(lv_obj_t *root);
 void modes_open(void);
-int  ui_get_source_mode(void);
 void chargemode_boot(void);
 void chargemode_tick(void);
 int  chargemode_active(void);

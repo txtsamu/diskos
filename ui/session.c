@@ -4,6 +4,7 @@
 #include "config.h"
 #include "ipc.h"
 #include "outseq.h"
+#include "outroute.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,26 +15,10 @@
 
 #define NO_GEN 0xFFFFFFFFu
 
-static int g_route = OUT_INTERNAL;
-static unsigned g_route_gen = 0;
 static _Atomic int g_source_mode = 0;
 
-void session_set_route(int route){
-    g_route = route; g_route_gen = ipc_generation();
-    if(cfg_get_int("spdif", 0) != (route == OUT_SPDIF)) cfg_set_int("spdif", route == OUT_SPDIF);
-}
-int session_route(void){
-    if(g_route != OUT_INTERNAL && g_route_gen != ipc_generation()) session_set_route(OUT_INTERNAL);
-    return g_route;
-}
 int  session_source_mode(void){ return g_source_mode; }
 void session_set_source_mode(int mode){ g_source_mode = mode; }
-
-static char g_bt_mac[20] = "";
-const char *session_bt_mac(void){ return g_bt_mac; }
-int  session_bt_routed(void){ return g_bt_mac[0] != 0; }
-void session_set_bt_mac(const char *mac){ snprintf(g_bt_mac, sizeof g_bt_mac, "%s", mac ? mac : ""); }
-void session_clear_bt_mac(void){ g_bt_mac[0] = 0; }
 
 static session_entry_t g_entry = SESSION_COLD_BOOT;
 static struct { int valid, route, src; } g_hand;
@@ -55,7 +40,7 @@ int session_adopt(unsigned gen){
     if(!g_hand.valid) return 0;
     g_hand.valid = 0;
     session_set_source_mode(g_hand.src);
-    session_set_route(g_hand.route);
+    outroute_set(g_hand.route);
     g_adopted_gen = gen;
     g_startup_route_checked = 1;
     return 1;
@@ -72,24 +57,21 @@ int session_adopt_detected(unsigned gen, int detected){
 void session_handoff_export(void){
     char v[16];
     setenv(ENV_RELOAD, "1", 1);
-    snprintf(v, sizeof v, "%d", session_route());       setenv(ENV_ROUTE, v, 1);
+    snprintf(v, sizeof v, "%d", outroute_route());       setenv(ENV_ROUTE, v, 1);
     snprintf(v, sizeof v, "%d", session_source_mode()); setenv(ENV_SRC, v, 1);
 }
 void session_handoff_cancel(void){ unsetenv(ENV_RELOAD); unsetenv(ENV_ROUTE); unsetenv(ENV_SRC); }
 
 #define PREF_SRC "src_mode"
-#define PREF_USB "usb_audio_on"
 int  session_saved_source(void){ return cfg_get_int(PREF_SRC, 0); }
-int  session_saved_usb_audio(void){ return cfg_get_int(PREF_USB, 0) == 1; }
-void session_save_source(int mode){ if(mode < 0 || mode > 2) return; cfg_set_int(PREF_SRC, mode); cfg_set_int(PREF_USB, 0); }
-void session_save_usb_audio(int on){ cfg_set_int(PREF_USB, on ? 1 : 0); }
+void session_save_source(int mode){ if(mode < 0 || mode > 2) return; cfg_set_int(PREF_SRC, mode); outroute_save_usb_audio(0); }
 
 static struct { int armed; uint32_t t0; } g_restore;
 void session_restore_arm(uint32_t now_ms){ g_restore.armed = 1; g_restore.t0 = now_ms; }
 session_restore_t session_restore_poll(uint32_t now_ms, int busy, int blocked, int *src){
     if(!g_restore.armed) return SESSION_RESTORE_NONE;
     uint32_t age = now_ms - g_restore.t0;
-    int want = session_saved_source(), usb = session_saved_usb_audio();
+    int want = session_saved_source(), usb = outroute_saved_usb_audio();
     if((want != 1 && want != 2 && !usb) || age > 120000){ g_restore.armed = 0; return SESSION_RESTORE_NONE; }
     if(age < 15000) return SESSION_RESTORE_WAIT;
     if(session_source_mode() != 0){ g_restore.armed = 0; return SESSION_RESTORE_NONE; }
@@ -98,7 +80,7 @@ session_restore_t session_restore_poll(uint32_t now_ms, int busy, int blocked, i
         g_restore.armed = 0; if(src) *src = want;
         return SESSION_RESTORE_SOURCE;
     }
-    if(session_route() == OUT_USB){ g_restore.armed = 0; return SESSION_RESTORE_NONE; }
+    if(outroute_route() == OUT_USB){ g_restore.armed = 0; return SESSION_RESTORE_NONE; }
     if(busy || blocked) return SESSION_RESTORE_WAIT;
     g_restore.armed = 0;
     return SESSION_RESTORE_USB_AUDIO;
@@ -116,7 +98,7 @@ static int  local_init_done(unsigned gen){ return gen == g_local_init_gen; }
 static void local_init_mark(unsigned gen){ g_local_init_gen = gen; }
 static int  local_init_send(unsigned gen){
     if(!local_init_allowed(gen) || local_init_done(gen)) return 1;
-    if(outseq_local_boot((outseq_route_t)session_route()) < 0) return -1;
+    if(outseq_local_boot(outroute_route()) < 0) return -1;
     g_local_init_gen = gen;
     return 0;
 }
@@ -139,15 +121,15 @@ static unsigned g_sink_retry_gen = NO_GEN;
 static uint32_t g_sink_retry_at = 0;
 static int startup_route_reconcile(unsigned gen, uint32_t now){
     if(!startup_route_pending()) return 0;
-    if(session_route() != OUT_INTERNAL || cfg_get_int("spdif", 0)){
+    if(outroute_route() != OUT_INTERNAL || outroute_spdif_chosen()){
         session_startup_route_settled(); return 0;
     }
     if(g_sink_retry_gen == gen && now - g_sink_retry_at < 5000) return -1;
-    if(!session_bt_routed()){
+    if(!outroute_bt_routed()){
         int saved_bt = SE->saved_bt_route();
         if(saved_bt <= 0){ session_startup_route_settled(); return 0; }
     }
-    int sink = SE->connected_sink(session_bt_mac());
+    int sink = SE->connected_sink(outroute_bt_mac());
     if(sink < 0){ g_sink_retry_gen = gen; g_sink_retry_at = now; return -1; }
     if(sink){ session_startup_route_settled(); return 1; }
     if(SE->route_analog() < 0) return -1;
@@ -181,7 +163,7 @@ session_startup_t session_startup_tick(uint32_t now){
     if(startup_route_pending() && startup_playback_busy(gen, now)) return SESSION_STARTUP_WAIT;
     int startup = startup_route_reconcile(gen, now);
     if(startup < 0) return SESSION_STARTUP_WAIT;
-    if(session_bt_routed()){ local_init_mark(gen); return SE->fw_needs_init() ? SESSION_STARTUP_WAIT : SESSION_STARTUP_DONE; }
+    if(outroute_bt_routed()){ local_init_mark(gen); return SE->fw_needs_init() ? SESSION_STARTUP_WAIT : SESSION_STARTUP_DONE; }
     if(!SE->fw_needs_init()) return SESSION_STARTUP_DONE;
     if(startup > 0){ local_init_mark(gen); return SESSION_STARTUP_WAIT; }
     if(g_play_sent_gen == gen){

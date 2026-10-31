@@ -37,12 +37,6 @@ int  modes_source_switch_busy(void);
 int  srcswitch_via_local_pending(void);
 const char *srcswitch_switch_msg(int mode);
 
-int  modes_output_route(void);
-int  modes_output_switch(int target);
-int  modes_output_mode_switch(int target);
-void modes_output_reset(void);
-void modes_output_adopt(void);
-int  modes_output_busy(void);
 void modes_output_boot_restore(void);
 
 typedef enum {

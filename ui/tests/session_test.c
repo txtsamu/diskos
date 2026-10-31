@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "session.h"
+#include "outroute.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,8 @@ static int g_send_rc = 0;
 int ipc_send_cmd(const char *frame){ assert(g_n < MAXF); snprintf(g_log[g_n++], sizeof g_log[0], "%s", frame); return g_send_rc; }
 static unsigned g_gen = 1;
 unsigned ipc_generation(void){ return g_gen; }
+int ipc_is_ready(void){ return 1; }
+void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); }
 static struct { char key[24]; int v; } g_cfg[8]; static int g_ncfg;
 int cfg_get_int(const char *key, int def){ for(int i = 0; i < g_ncfg; i++) if(!strcmp(g_cfg[i].key, key)) return g_cfg[i].v; return def; }
 int cfg_set_int(const char *key, int v){
@@ -40,7 +43,7 @@ static int f_saved_bt(void){ F.n_saved_bt++; return F.saved_bt; }
 static int f_sink(const char *mac){ (void)mac; F.n_sink++; return F.sink; }
 static int f_route_analog(void){
     F.n_route_analog++;
-    if(F.route_analog_rc == 0 && F.clear_bt_on_analog) session_clear_bt_mac();
+    if(F.route_analog_rc == 0 && F.clear_bt_on_analog) outroute_set_bt(NULL);
     return F.route_analog_rc;
 }
 static const struct session_startup_env k_env = {
@@ -73,30 +76,19 @@ static void expect_frames(const char *what, const char *const *want, int n){
 }
 
 static void old_process_exports(int route, int src){
-    session_set_source_mode(src); session_set_route(route);
+    session_set_source_mode(src); outroute_set(route);
     session_handoff_export();
 }
 static int new_process_starts(void){ session_init(); return session_adopt(ipc_generation()); }
 static void clear_env(void){ unsetenv("DISKOS_THEME_RELOAD"); unsetenv("DISKOS_RELOAD_ROUTE"); unsetenv("DISKOS_RELOAD_SRC"); }
 
-static void route_and_source(void){
-    assert(session_route() == OUT_INTERNAL && session_source_mode() == 0);
-    session_set_route(OUT_SPDIF); session_set_source_mode(2);
-    assert(session_route() == OUT_SPDIF && session_source_mode() == 2);
-    assert(cfg_get_int("spdif", 0) == 1);
-    session_set_route(OUT_USB);
-    assert(cfg_get_int("spdif", 0) == 0);
-}
-static void player_restart_clears_route(void){
-    session_set_route(OUT_USB); session_set_source_mode(0);
-    assert(session_route() == OUT_USB);
-    g_gen++;
-    assert(session_route() == OUT_INTERNAL);
-    session_set_route(OUT_SPDIF); assert(cfg_get_int("spdif", 0) == 1);
-    g_gen++; assert(session_route() == OUT_INTERNAL && cfg_get_int("spdif", 1) == 0);
+static void source_mode_is_a_session_fact(void){
+    assert(session_source_mode() == 0);
+    session_set_source_mode(2);
+    assert(session_source_mode() == 2);
 }
 static void player_restart_reruns_local_init(void){
-    session_set_route(OUT_USB);
+    outroute_set(OUT_USB);
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
     const char *usb[] = { R3, G5, W8 };
@@ -120,10 +112,10 @@ static void cold_boot_entry(void){
 static void relaunch_on_usb_audio_sends_nothing(void){
     cfg_set_int("usb_audio_on", 1);
     old_process_exports(OUT_USB, 0);
-    session_save_usb_audio(1);
+    outroute_save_usb_audio(1);
     assert(new_process_starts() == 1);
     assert(session_entry() == SESSION_RELAUNCH);
-    assert(session_route() == OUT_USB && session_source_mode() == 0);
+    assert(outroute_route() == OUT_USB && session_source_mode() == 0);
     F.rx = 3;
     for(uint32_t t = 0; t <= 60000; t += 500){
         F.rx++;
@@ -142,7 +134,7 @@ static void relaunch_on_usb_dac_keeps_source(void){
     cfg_set_int("src_mode", 1);
     old_process_exports(OUT_INTERNAL, 1);
     assert(new_process_starts() == 1);
-    assert(session_source_mode() == 1 && session_route() == OUT_INTERNAL);
+    assert(session_source_mode() == 1 && outroute_route() == OUT_INTERNAL);
     session_restore_arm(0);
     int src = -1;
     assert(session_restore_poll(14999, 0, 0, &src) == SESSION_RESTORE_WAIT);
@@ -157,13 +149,13 @@ static void relaunch_adopts_env(void){
     g_gen = 7;
     assert(new_process_starts() == 1);
     assert(getenv("DISKOS_THEME_RELOAD") == NULL && getenv("DISKOS_RELOAD_ROUTE") == NULL && getenv("DISKOS_RELOAD_SRC") == NULL);
-    assert(session_route() == OUT_SPDIF && session_source_mode() == 2);
+    assert(outroute_route() == OUT_SPDIF && session_source_mode() == 2);
     assert(session_adopt(7) == 0);
     F.rx = 3;
     for(uint32_t t = 0; t <= 20000; t += 500){ F.rx++; assert(TICK(t) == SESSION_STARTUP_WAIT); }
     assert(g_n == 0);
     g_gen = 8;
-    assert(session_route() == OUT_INTERNAL);
+    assert(outroute_route() == OUT_INTERNAL);
     player_answers(30000);
     assert(TICK(39000) == SESSION_STARTUP_WAIT);
     const char *init[] = { G0, R6, W8 };
@@ -181,13 +173,13 @@ static void relaunch_ignores_default_and_bad_state(void){
 }
 static void relaunch_rejects_out_of_range(void){
     setenv("DISKOS_THEME_RELOAD", "1", 1); setenv("DISKOS_RELOAD_ROUTE", "3", 1); setenv("DISKOS_RELOAD_SRC", "0", 1);
-    assert(!new_process_starts() && session_route() == OUT_INTERNAL);
+    assert(!new_process_starts() && outroute_route() == OUT_INTERNAL);
 }
 static void failed_exec_cancels_handoff(void){
     old_process_exports(OUT_USB, 0);
     session_handoff_cancel();
     assert(getenv("DISKOS_THEME_RELOAD") == NULL && getenv("DISKOS_RELOAD_ROUTE") == NULL && getenv("DISKOS_RELOAD_SRC") == NULL);
-    assert(session_route() == OUT_USB);
+    assert(outroute_route() == OUT_USB);
 }
 static void entry_is_cold_boot_without_a_handoff(void){
     clear_env();
@@ -313,9 +305,9 @@ static void restore_stands_down_when_already_moved(void){
     clear_env();
     cfg_set_int("usb_audio_on", 1); session_restore_arm(0);
     int src = -1;
-    session_set_route(OUT_USB);
+    outroute_set(OUT_USB);
     assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_NONE);
-    cfg_set_int("usb_audio_on", 1); session_set_route(OUT_INTERNAL); session_set_source_mode(1); session_restore_arm(0);
+    cfg_set_int("usb_audio_on", 1); outroute_set(OUT_INTERNAL); session_set_source_mode(1); session_restore_arm(0);
     assert(session_restore_poll(15000, 0, 0, &src) == SESSION_RESTORE_NONE);
 }
 static const char *const INIT_INTERNAL[] = { G0, R6, W8 };
@@ -419,7 +411,7 @@ static void startup_busy_playback_holds_the_recovery(void){
     assert(F.n_saved_bt == 1);
 }
 static void startup_bt_route_marks_the_generation_without_frames(void){
-    session_set_bt_mac("AA:BB:CC:DD:EE:FF");
+    outroute_set_bt("AA:BB:CC:DD:EE:FF");
     F.sink = 1;
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
@@ -428,17 +420,17 @@ static void startup_bt_route_marks_the_generation_without_frames(void){
 }
 static void startup_bt_route_on_a_firmware_without_the_init_is_done(void){
     F.fw_needs_init = 0;
-    session_set_bt_mac("AA:BB:CC:DD:EE:FF");
+    outroute_set_bt("AA:BB:CC:DD:EE:FF");
     F.sink = 1;
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_DONE && g_n == 0);
 }
 static void startup_bt_route_without_a_sink_goes_back_to_analog(void){
-    session_set_bt_mac("AA:BB:CC:DD:EE:FF");
+    outroute_set_bt("AA:BB:CC:DD:EE:FF");
     F.sink = 0; F.clear_bt_on_analog = 1;
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
-    assert(F.n_route_analog == 1 && !session_bt_routed());
+    assert(F.n_route_analog == 1 && !outroute_bt_routed());
     assert(g_n == 0);
     assert(TICK(10500) == SESSION_STARTUP_WAIT && F.n_route_analog == 1 && g_n == 0);
 }
@@ -457,7 +449,7 @@ static void startup_saved_analog_or_unknown_route_runs_the_init(void){
     expect_init("init when the saved route is unknown");
 }
 static void startup_spdif_intent_skips_the_recovery(void){
-    cfg_set_int("spdif", 1); session_set_route(OUT_SPDIF);
+    cfg_set_int("spdif", 1); outroute_set(OUT_SPDIF);
     player_answers(1000);
     assert(TICK(10000) == SESSION_STARTUP_WAIT);
     assert(F.n_saved_bt == 0 && F.n_sink == 0 && F.n_route_analog == 0);
@@ -517,22 +509,6 @@ static void startup_intentional_route_supersedes_the_recovery(void){
     expect_init("init after an intentional route");
 }
 
-static void bt_route_is_a_session_fact(void){
-    assert(!session_bt_routed() && !strcmp(session_bt_mac(), ""));
-    session_set_bt_mac("AA:BB:CC:DD:EE:FF");
-    assert(session_bt_routed() && !strcmp(session_bt_mac(), "AA:BB:CC:DD:EE:FF"));
-    session_set_bt_mac("11:22:33:44:55:66");
-    assert(!strcmp(session_bt_mac(), "11:22:33:44:55:66"));
-    session_set_route(OUT_SPDIF);
-    assert(session_bt_routed());
-    session_clear_bt_mac();
-    assert(!session_bt_routed() && !strcmp(session_bt_mac(), ""));
-    session_set_bt_mac(NULL);
-    assert(!session_bt_routed());
-    session_set_bt_mac("AA:BB:CC:DD:EE:FF:00:11:22:33");
-    assert(strlen(session_bt_mac()) == 19);
-}
-
 static void run(const char *name, void (*fn)(void)){
     fflush(stdout);
     startup_env_reset();
@@ -546,9 +522,7 @@ static void run(const char *name, void (*fn)(void)){
 #define RUN(f) run(#f, f)
 
 int main(void){
-    RUN(route_and_source);
-    RUN(bt_route_is_a_session_fact);
-    RUN(player_restart_clears_route);
+    RUN(source_mode_is_a_session_fact);
     RUN(player_restart_reruns_local_init);
     RUN(cold_boot_entry);
     RUN(relaunch_on_usb_audio_sends_nothing);

@@ -1,6 +1,6 @@
 #include "usbhid.h"
 #include "screens.h"
-#include "modes.h"
+#include "outroute.h"
 #include "power.h"
 #include "clicks.h"
 #include <stdio.h>
@@ -79,7 +79,7 @@ static void send_clicks(int idx, int c, int count){
 int usbhid_poll(int screen_lit){
     uint32_t now = lv_tick_get();
     int handled = 0, quiet = chargemode_active() || kbinput_active();
-    if(modes_output_route() != OUT_USB){ clicks_reset(&g_clicks); if(g_was_usb){ close_all(); g_was_usb = 0; } return 0; }
+    if(outroute_route() != OUT_USB){ clicks_reset(&g_clicks); if(g_was_usb){ close_all(); g_was_usb = 0; } return 0; }
     g_was_usb = 1;
     if(quiet) clicks_reset(&g_clicks);
     else {

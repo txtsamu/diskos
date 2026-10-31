@@ -32,9 +32,8 @@
 #include "fb_pan.h"
 #include "controls.h"
 #include "screens.h"
-#include "modes.h"
+#include "outroute.h"
 #include "usbhid.h"
-#include "outseq.h"
 #include "session.h"
 #include "srcswitch.h"
 #include "admit.h"
@@ -273,7 +272,7 @@ int ui_eq_select(int preset){
 
 void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C0001"); }
 void ui_set_gain(int high){     if(high<0) return; const char *tag=fw_gain_tag(); if(!tag){ fprintf(stderr,"gain: unverified firmware (MAIN_OS_VER=%d) -> not sending\n", fw_os_ver()); return; } char f[16]; snprintf(f,sizeof f,"%s000C%04X", tag, high?1:0); ipc_send_cmd(f); }
-void ui_set_output(int spdif){  if(spdif<0) return; modes_output_switch(spdif ? OUT_SPDIF : OUT_INTERNAL); }
+void ui_set_output(int spdif){  if(spdif<0) return; outroute_pick(spdif ? OUT_SPDIF : OUT_INTERNAL, OUTROUTE_SETTING); }
 void ui_set_dac_filter(int idx){ if(idx<0||idx>5) return; char f[16]; snprintf(f,sizeof f,"0653000C%04X",idx); ipc_send_cmd(f); }
 void ui_set_replay_gain(int v){ if(v<0||v>2) return; char f[16]; snprintf(f,sizeof f,"0718000C%04X",(unsigned)v); ipc_send_cmd(f); }
 void ui_set_gapless(int on){   if(on<0) return; ipc_send_cmd(on ? "0647000C0001" : "0647000C0000"); }
@@ -295,161 +294,37 @@ void ui_set_balance(int v){ if(v < -10 || v > 10) return;
                             int fv = (v>0) ? (v & 0xFF) : (v<0) ? (0x0100 | ((-v) & 0xFF)) : 0;
                             char f[16]; snprintf(f,sizeof f,"0713000C%04X",fv); ipc_send_cmd(f); }
 
-static void route_uppercase(const char *in, char *out, int cap);
-#ifndef ROUTE_STATE_PATH
-#define ROUTE_STATE_PATH "/tmp/.diskos-ui/route"
-#endif
-#ifndef ROUTE_STATE_DIR
-#define ROUTE_STATE_DIR "/tmp/.diskos-ui"
-#endif
-#ifndef ROUTE_STATE_UID
-#define ROUTE_STATE_UID 0
-#endif
-#ifndef ROUTE_PROC_ROOT
-#define ROUTE_PROC_ROOT "/proc"
-#endif
-static int route_player_identity(long *pid, unsigned long long *start){
-    DIR *dir = opendir(ROUTE_PROC_ROOT);
-    if(!dir) return -1;
-    int found = 0;
-    struct dirent *ent;
-    while((ent = readdir(dir))){
-        char *end; errno = 0;
-        long p = strtol(ent->d_name, &end, 10);
-        if(errno || p <= 0 || *end) continue;
-        char path[256];
-        if(snprintf(path, sizeof path, "%s/%ld/stat", ROUTE_PROC_ROOT, p) >= (int)sizeof path) continue;
-        FILE *f = fopen(path, "r");
-        if(!f) continue;
-        char line[1024]; int ok = fgets(line, sizeof line, f) != NULL && strchr(line, '\n') != NULL;
-        fclose(f);
-        if(!ok) continue;
-        char *lp = strchr(line, '('), *rp = strrchr(line, ')');
-        if(!lp || !rp || rp <= lp || (size_t)(rp-lp-1) != strlen("mq_player") ||
-           strncmp(lp+1, "mq_player", rp-lp-1) || rp[1] != ' ') continue;
-        char *save = NULL, *tok = strtok_r(rp+2, " \n", &save);
-        if(!tok || tok[0] == 'Z' || tok[0] == 'X') continue;
-        for(int field=3; field<22 && tok; field++) tok = strtok_r(NULL, " \n", &save);
-        if(!tok) continue;
-        errno = 0;
-        unsigned long long ticks = strtoull(tok, &end, 10);
-        if(errno || !ticks || *end) continue;
-        *pid = p; *start = ticks;
-        found++;
-        if(found > 1) break;
-    }
-    closedir(dir);
-    return found == 1 ? 0 : -1;
-}
-static int route_state_dir(int create){
-    struct stat st;
-    if(create && mkdir(ROUTE_STATE_DIR, 0700) < 0 && errno != EEXIST) return 0;
-    return lstat(ROUTE_STATE_DIR, &st) == 0 && S_ISDIR(st.st_mode) &&
-           st.st_uid == ROUTE_STATE_UID && (st.st_mode & 07777) == 0700;
-}
-static void route_state_remove(void){ if(route_state_dir(0)) (void)unlink(ROUTE_STATE_PATH); }
-static void route_state_save(const char *mac){
-    if(!route_state_dir(1)) return;
-    long pid; unsigned long long start;
-    if(route_player_identity(&pid, &start) < 0){ route_state_remove(); return; }
-    char data[128];
-    int n = snprintf(data, sizeof data, "pid=%ld start=%llu gen=%u mac=%s\n",
-                     pid, start, ipc_generation(), mac);
-    if(n <= 0 || n >= (int)sizeof data){ route_state_remove(); return; }
-    char tmp[sizeof ROUTE_STATE_PATH + 16];
-    if(snprintf(tmp, sizeof tmp, "%s.XXXXXX", ROUTE_STATE_PATH) >= (int)sizeof tmp){ route_state_remove(); return; }
-    int fd = mkstemp(tmp);
-    if(fd < 0){ route_state_remove(); return; }
-    size_t pos = 0;
-    while(pos < (size_t)n){ ssize_t w = write(fd, data+pos, (size_t)n-pos);
-        if(w < 0 && errno == EINTR) continue;
-        if(w <= 0) break;
-        pos += (size_t)w;
-    }
-    int ok = pos == (size_t)n && fchmod(fd, 0600) == 0;
-    close(fd);
-    if(!ok || rename(tmp, ROUTE_STATE_PATH) != 0){ unlink(tmp); route_state_remove(); }
-}
-static int route_state_restore(void){
-    if(!route_state_dir(0)) return 0;
-    int fd = open(ROUTE_STATE_PATH, O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
-    if(fd < 0){ if(errno != ENOENT) route_state_remove(); return 0; }
-    struct stat st;
-    char data[128]; ssize_t n = -1;
-    if(fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_uid == ROUTE_STATE_UID &&
-       (st.st_mode & 07777) == 0600 && st.st_size > 0 && st.st_size < (off_t)sizeof data)
-        n = read(fd, data, sizeof data);
-    close(fd);
-    if(n <= 0 || n >= (ssize_t)sizeof data || n != st.st_size || memchr(data, 0, (size_t)n)){
-        route_state_remove(); return 0;
-    }
-    data[n] = 0;
-    long pid = -1, current_pid; unsigned long long start = 0, current_start;
-    unsigned gen; char mac[20], canonical[128];
-    if(sscanf(data, "pid=%ld start=%llu gen=%u mac=%19s", &pid, &start, &gen, mac) != 4 ||
-       snprintf(canonical, sizeof canonical, "pid=%ld start=%llu gen=%u mac=%s\n", pid, start, gen, mac) <= 0 ||
-       strcmp(data, canonical) || pid <= 0 || !start ||
-       route_player_identity(&current_pid, &current_start) < 0 ||
-       pid != current_pid || start != current_start){ route_state_remove(); return 0; }
-    char norm[20]; route_uppercase(mac, norm, sizeof norm);
-    if(strlen(norm) != 17){ route_state_remove(); return 0; }
-    for(int i=0;i<17;i++){
-        if((i+1)%3 == 0 ? norm[i] != ':' :
-           !((norm[i]>='0'&&norm[i]<='9') || (norm[i]>='A'&&norm[i]<='F'))){
-            route_state_remove(); return 0;
-        }
-    }
-    session_set_bt_mac(norm);
-    return 1;
-}
-static int g_playing = 0;
 static void route_uppercase(const char *in, char *out, int cap){
     int j=0; for(int i=0; in[i] && j<cap-1; i++){ char c=in[i]; if(c>='a'&&c<='z') c-=32; out[j++]=c; } out[j]=0;
 }
-const char *ui_route_mac(void){ return session_bt_mac(); }
-static outseq_rc bt_route_step(const admit_held_t *held, void *frame){
-    outseq_rc rc = outseq_bt_sink((const char *)frame);
-    if(rc != OUTSEQ_REFUSED) modes_output_reset();
-    if(rc == OUTSEQ_OK && held->st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", held->st.volume); ipc_send_cmd(v); }
-    return rc;
-}
+static int g_playing = 0;
+const char *ui_route_mac(void){ return outroute_bt_mac(); }
 int ui_route_bt(const char *mac){
     if(admit_check(ADMIT_ROUTE_BT)) return -1;
-    if(!mac) return -1;
-    char norm[20]; route_uppercase(mac, norm, sizeof norm);
-    if((int)strlen(norm) != 17) return -1;
-    for(int i=0;i<17;i++){
-        if((i+1)%3 == 0){ if(norm[i] != ':') return -1; }
-        else if(!((norm[i]>='0'&&norm[i]<='9') || (norm[i]>='A'&&norm[i]<='F'))) return -1;
-    }
-    if(!strcmp(norm, session_bt_mac())){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }
+    char norm[OUTROUTE_MAC_LEN];
+    if(outroute_mac_normalize(mac, norm) < 0) return -1;
+    if(!strcmp(norm, outroute_bt_mac())){ ui_bt_codec_upgrade_arm(norm, 0); return 0; }
     if(admit_check(ADMIT_ROUTE_BT_SEND)) return -1;
     char f[48];
     if(ui_bt_codec_frame(norm, f, sizeof f) < 0) return -1;
-    admit_held_t held;
-    if(admit_switch(bt_route_step, f, &held) < 0) return -1;
-    session_set_bt_mac(norm);
-    route_state_save(norm);
+    outroute_held_t held;
+    if(outroute_to_bt(norm, f, &held) < 0) return -1;
     session_startup_route_settled();
     ui_bt_codec_upgrade_arm(norm, 1);
     fprintf(stderr,"route BT %s (playing=%d pos=%ldms)\n", norm, held.was_playing, held.st.position_ms); fflush(stderr);
     return 0;
 }
-static outseq_rc analog_route_step(const admit_held_t *held, void *arg){ (void)held; (void)arg; return outseq_analog(); }
 static int route_analog(int force){
     if(admit_check(ADMIT_ROUTE_ANALOG)) return -1;
-    if(!force && !session_bt_routed()){ route_state_remove(); return 0; }
-    admit_held_t held;
-    if(admit_switch(analog_route_step, NULL, &held) < 0) return -1;
-    session_clear_bt_mac();
-    route_state_remove();
-    ui_bt_codec_upgrade_cancel();
-    fprintf(stderr,"route analog (playing=%d)\n", held.was_playing); fflush(stderr);
-    return 0;
+    outroute_held_t held;
+    int rc = outroute_to_analog(force, &held);
+    if(rc > 0){
+        ui_bt_codec_upgrade_cancel();
+        fprintf(stderr,"route analog (playing=%d)\n", held.was_playing); fflush(stderr);
+    }
+    return rc < 0 ? -1 : 0;
 }
 int ui_route_analog(void){ return route_analog(0); }
-
-int ui_get_source_mode(void){ return session_source_mode(); }
 
 
 static int sd_exported_to_host(void);
@@ -513,6 +388,11 @@ static const struct srcswitch_env g_srcswitch_env = {
     .toast = ui_toast, .set_volume = env_set_volume,
     .seek_to = ui_seek_to,
 };
+static const char *env_switch_blocked(void){ return admit_check(ADMIT_OUTPUT_SWITCH); }
+static const struct outroute_env g_outroute_env = {
+    .now = lv_tick_get, .playing = env_playing, .switch_blocked = env_switch_blocked,
+    .toast = ui_toast, .seek_to = ui_seek_to,
+};
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
 
@@ -560,7 +440,7 @@ static void reapply_retry_cb(lv_timer_t *t){
 }
 static void reapply_audio_body(void){
     g_mode_applied = -1;
-    modes_output_reset();
+    outroute_reset();
 }
 static void reapply_sends(void){
     ui_set_dre(cfg_get_int("audio_dre",    1));
@@ -827,19 +707,7 @@ static int play_start_failed(const track_state_t *st){
     return 1;
 }
 void ui_note_transport_sent(void){ session_note_transport_sent(ipc_generation(), lv_tick_get()); }
-static int startup_player_old(void){
-    long pid, hz = sysconf(_SC_CLK_TCK);
-    unsigned long long start;
-    if(hz <= 0 || route_player_identity(&pid, &start) < 0) return 0;
-    char path[sizeof ROUTE_PROC_ROOT + 16];
-    if(snprintf(path, sizeof path, "%s/uptime", ROUTE_PROC_ROOT) >= (int)sizeof path) return 0;
-    FILE *f = fopen(path, "r");
-    if(!f) return 0;
-    double uptime = 0;
-    int ok = fscanf(f, "%lf", &uptime) == 1;
-    fclose(f);
-    return ok && uptime >= 0 && uptime - (double)start / (double)hz >= 12.0;
-}
+static int startup_player_old(void){ return outroute_player_age_s() >= 12.0; }
 static int startup_saved_bt_route(void){
     char buf[32] = {0};
     ui_run_cap_bounded("sqlite3 /usr/data/fiio/db/sysconfig.db 'SELECT OUT_DEV FROM SYSCONFIG WHERE ID=1' 2>/dev/null",
@@ -935,7 +803,7 @@ int ui_is_playing(void){ return g_playing; }
 static int env_play_pending(void){ return g_play_pending != 0; }
 static int env_book_active(void){ return book_session_active(); }
 static const struct admit_env g_admit_env = {
-    .now = lv_tick_get, .local_playback_allowed = ui_local_playback_allowed, .output_busy = modes_output_busy,
+    .now = lv_tick_get, .local_playback_allowed = ui_local_playback_allowed, .output_busy = outroute_busy,
     .play_pending = env_play_pending, .book_active = env_book_active, .playing = env_playing,
     .fw_needs_local_init = fw_needs_localplayer_init,
 };
@@ -1789,7 +1657,7 @@ static void *coldplug_thread(void *arg){
     for(int i = 0; i < 120; i++){
         if(coldplug_mounted()){ coldplug_log("SD mounted - done"); return NULL; }
         pthread_mutex_lock(srcswitch_mode_mutex());
-        if(ui_get_source_mode() == 0 && !sd_exported_to_host() && !coldplug_mounted() && srcswitch_sd_writable()){
+        if(session_source_mode() == 0 && !sd_exported_to_host() && !coldplug_mounted() && srcswitch_sd_writable()){
             if(!direct_sd_mount || nudged || i >= 10){
                 if(direct_sd_mount && !nudged) coldplug_log("direct mount failed -> falling back to the player's uevent listener (one-way: no more direct mounts)");
                 nudged = 1;
@@ -1837,7 +1705,7 @@ static int coldplug_should_run(void){
     FILE *u = fopen("/proc/uptime", "r");
     if(u){ if(fscanf(u, "%lf", &up) != 1) up = -1.0; fclose(u); }
     if(up < 0.0 || up > 150.0){ coldplug_log("skip: uptime unreadable or late (not a verified cold boot)"); return 0; }
-    if(ui_get_source_mode() != 0){ coldplug_log("skip: not in Local mode (card may be exported to a host)"); return 0; }
+    if(session_source_mode() != 0){ coldplug_log("skip: not in Local mode (card may be exported to a host)"); return 0; }
     return 1;
 }
 static void coldplug_start(void){
@@ -1889,7 +1757,7 @@ static void sd_features_gate_cb(lv_timer_t *t){
 
 int ui_theme_reload(const char *screen){
     if(scanner_active()){ ui_toast("Library scan running - try again when it finishes"); return -1; }
-    if(modes_output_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }
+    if(outroute_busy()){ ui_toast("Output is switching - try again in a moment"); return -1; }
     if(modes_source_switch_busy()){ ui_toast("Mode is switching - try again in a moment"); return -1; }
     art_kill_all();
     if(g_bounded_pgid > 0) kill(-(pid_t)g_bounded_pgid, SIGKILL);
@@ -1967,6 +1835,7 @@ int main(int argc, char **argv){
     if(!rmguard_ensure()){ srcswitch_hold(); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
+    outroute_init(&g_outroute_env);
     srcswitch_set_env(&g_srcswitch_env);
     admit_set_env(&g_admit_env);
     srcswitch_init();
@@ -1978,7 +1847,7 @@ int main(int argc, char **argv){
     if(!fbok){ fprintf(stderr,"fbpan failed (gave up)\n"); return 1; }
     cfg_load();
     phonehome_apply();
-    (void)route_state_restore();
+    outroute_restore();
     fontft_init();
     theme_init();
     swipe_thresh_load();
@@ -2104,13 +1973,13 @@ int main(int argc, char **argv){
     { void system_ota_health_init(void); system_ota_health_init(); }
     if(session_entry() == SESSION_RELAUNCH){
         if(session_adopt(ipc_generation())){
-            modes_output_adopt();
-            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", session_route(), session_source_mode(), ipc_generation()); fflush(stderr);
+            outroute_adopt();
+            fprintf(stderr, "theme reload: kept route %d, source mode %d (gen %u)\n", outroute_route(), session_source_mode(), ipc_generation()); fflush(stderr);
         }
     }
     else splash_start();
     if(session_adopt_detected(ipc_generation(), ui_detect_source_mode())){
-        modes_output_adopt();
+        outroute_adopt();
         fprintf(stderr, "startup: Player already in USB DAC mode - adopted, no restore (gen %u)\n", ipc_generation()); fflush(stderr);
     }
     lv_refr_now(NULL);
@@ -2134,8 +2003,7 @@ int main(int argc, char **argv){
                 ui_cancel_book_resume();
                 g_book_noadopt_until = lv_tick_get() + 4000;
             }
-            session_clear_bt_mac();
-            route_state_remove();
+            outroute_bt_forget();
             bt_notify_player_restart();
             ui_reapply_audio();
         }

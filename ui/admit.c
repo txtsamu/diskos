@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "admit.h"
 #include "session.h"
+#include "outroute.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -44,7 +45,7 @@ const char *admit_check(admit_what_t what){
     case ADMIT_OUTPUT_SWITCH:
         if(!E->local_playback_allowed()) return "SD card is not ready";
         if(!local_source()) return REASON_LOCAL_FIRST;
-        if(session_bt_routed()) return "Bluetooth output is active";
+        if(outroute_bt_routed()) return "Bluetooth output is active";
         if(admit_settling()) return "Player is starting - try again";
         if(play_recent()) return "Player is busy - try again";
         if(E->book_active()) return "Stop the audiobook first";
@@ -72,18 +73,6 @@ int ui_seek_to(long ms){
     return rc;
 }
 
-int admit_switch(admit_step_fn step, void *arg, admit_held_t *held){
-    admit_held_t h;
-    ipc_get_state(&h.st);
-    h.was_playing = E->playing();
-    if(held) *held = h;
-    if(h.was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) return ADMIT_SWITCH_NOT_PAUSED;
-    if(step(&h, arg) != OUTSEQ_OK) return ADMIT_SWITCH_STEP_FAILED;
-    if(h.st.have_track && h.st.position_ms > 0) ui_seek_to(h.st.position_ms);
-    if(h.was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);
-    return ADMIT_SWITCH_OK;
-}
-
 typedef struct { int fw_needs_local_init, source_mode, bt_route, output_route, playing, play_recent; } situation_t;
 
 static int local_route(const situation_t *s){ return s->source_mode == 0 && !s->bt_route; }
@@ -95,7 +84,7 @@ static admit_sent_t play_decide(admit_play_t kind, const situation_t *s){
         return ADMIT_SENT_WORKMODE;
     }
     if(s->fw_needs_local_init && local_route(s) && !s->playing && !s->play_recent){
-        outseq_local_preamble((outseq_route_t)s->output_route);
+        outseq_local_preamble(s->output_route);
         return ADMIT_SENT_PREAMBLE;
     }
     return ADMIT_SENT_NONE;
@@ -105,8 +94,8 @@ admit_sent_t admit_play_start(admit_play_t kind){
     situation_t s = {
         .fw_needs_local_init = E->fw_needs_local_init(),
         .source_mode         = session_source_mode(),
-        .bt_route            = session_bt_routed(),
-        .output_route        = session_route(),
+        .bt_route            = outroute_bt_routed(),
+        .output_route        = outroute_route(),
         .playing             = E->playing(),
         .play_recent         = play_recent(),
     };

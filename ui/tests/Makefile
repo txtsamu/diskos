@@ -15,16 +15,21 @@ playstate_test: ../playstate.c playstate_test.c ../playstate.h
 outseq_test: ../outseq.c outseq_test.c ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../outseq.c outseq_test.c -o $@
 
-session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
-	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
+outroute_test: ../outroute.c ../outseq.c outroute_test.c ../outroute.h ../outseq.h
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/outroute/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/outroute/card*/usbid"' \
+	  -DROUTE_TEST_ROOT='"$(TDIR)/outroute"' -DROUTE_STATE_DIR='"$(TDIR)/outroute/state"' -DROUTE_STATE_PATH='"$(TDIR)/outroute/state/route"' \
+	  -DROUTE_STATE_UID=$(shell id -u) -DROUTE_PROC_ROOT='"$(TDIR)/outroute/proc"' -I.. ../outroute.c ../outseq.c outroute_test.c -o $@
 
-srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../modes.h ../session.h ../outseq.h
+session_test: ../session.c ../outroute.c ../outseq.c session_test.c ../session.h ../outroute.h ../outseq.h
+	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c session_test.c -o $@
+
+srcswitch_test: ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../outroute.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
-	  ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c -o $@
+	  ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../sdio.c srcswitch_test.c -o $@
 
-admit_test: ../admit.c ../outseq.c ../session.c admit_test.c ../admit.h ../outseq.h ../session.h
-	$(CC) $(CFLAGS) -I.. ../admit.c ../outseq.c ../session.c admit_test.c -o $@
+admit_test: ../admit.c ../outroute.c ../outseq.c ../session.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
+	$(CC) $(CFLAGS) -I.. ../admit.c ../outroute.c ../outseq.c ../session.c admit_test.c -o $@
 
 dacinfo_test: ../dacinfo.c dacinfo_test.c ../dacinfo.h
 	$(CC) $(CFLAGS) -I.. ../dacinfo.c dacinfo_test.c -o $@
@@ -54,7 +59,7 @@ ipc_tx_test: ../ipc.c ipc_tx_test.c ../ipc.h
 	$(CC) $(CFLAGS) -pthread -I.. ipc_tx_test.c -o $@
 
 .PHONY: run run-py check clean
-run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -63,6 +68,9 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	@echo "--- outseq ---"
 	./outseq_test
 	python3 -I outseq_guard_test.py
+	@echo "--- outroute ---"
+	@mkdir -p $(TDIR)
+	./outroute_test
 	@echo "--- session ---"
 	./session_test
 	@echo "--- srcswitch ---"
@@ -86,7 +94,7 @@ run: transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq
 	./clicks_test
 
 clean:
-	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
+	rm -f transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

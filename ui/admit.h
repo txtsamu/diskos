@@ -31,13 +31,6 @@ typedef enum {
 
 const char *admit_check(admit_what_t what);
 
-typedef struct { int was_playing; track_state_t st; } admit_held_t;
-typedef outseq_rc (*admit_step_fn)(const admit_held_t *held, void *arg);
-#define ADMIT_SWITCH_OK            0
-#define ADMIT_SWITCH_NOT_PAUSED  (-1)
-#define ADMIT_SWITCH_STEP_FAILED (-2)
-int admit_switch(admit_step_fn step, void *arg, admit_held_t *held);
-
 int ui_seek_to(long ms);
 
 typedef enum { ADMIT_PLAY_LIST, ADMIT_PLAY_RESERVED_SLOT } admit_play_t;
