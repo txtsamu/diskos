@@ -47,6 +47,14 @@ timekeep_test: ../timekeep.c timekeep_test.c ../timekeep.h
 tama_test: ../tama.c tama_test.c ../tama.h
 	$(CC) $(CFLAGS) -I.. ../tama.c tama_test.c -o $@
 
+dacvol_test: ../dacvol.c dacvol_test.c ../dacvol.h ../ipc.h
+	$(CC) $(CFLAGS) -I.. ../dacvol.c dacvol_test.c -lm -o $@
+
+dacvol_sys_test: ../dacvol_sys.c ../dacvol.c ../command_spawn.c dacvol_sys_test.c ../dacvol_sys.h ../dacvol.h
+	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DDACVOL_TEST_DIR='"$(TDIR)/dacvol"' -DDACVOL_AMIXER='"$(TDIR)/dacvol/amixer"' \
+	  -DDACVOL_KEY_SYSFS='"$(TDIR)/dacvol/sys/event%d/name"' -DDACVOL_KEY_DEV='"$(TDIR)/dacvol/dev/event%d"' -I.. \
+	  ../dacvol_sys.c ../dacvol.c ../command_spawn.c dacvol_sys_test.c -lm -o $@
+
 clicks_test: ../clicks.c clicks_test.c ../clicks.h
 	$(CC) $(CFLAGS) -I.. ../clicks.c clicks_test.c -o $@
 
@@ -101,7 +109,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test
+run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -138,6 +146,11 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./radio_test
 	@echo "--- transport ---"
 	./transport_test
+	@echo "--- dacvol ---"
+	./dacvol_test
+	@echo "--- dacvol_sys ---"
+	@mkdir -p $(TDIR)
+	./dacvol_sys_test
 	@echo "--- clicks ---"
 	./clicks_test
 	@echo "--- booksess ---"
@@ -156,7 +169,7 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./coverart_pipeline_test
 
 clean:
-	rm -f vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test
+	rm -f vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard
