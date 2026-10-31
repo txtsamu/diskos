@@ -258,7 +258,7 @@ int main(void){
     exe = root / "test"
     subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",
                     "-fsanitize=address,undefined", "-g", "-pthread", '-DSD_IO_FAULT_MARKER="' + str(root / "fault") + '"', '-DSD_EXPORT_MARKER="' + str(root / "handoff") + '"', "-I", str(app),
-                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), str(app / "session.c"), "-o", str(exe)], check=True)
+                    str(c), str(app / "sdio.c"), str(app / "outseq.c"), str(app / "session.c"), str(app / "playreq.c"), str(app / "playstate.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
 print('COMPLETE storage_test.py')

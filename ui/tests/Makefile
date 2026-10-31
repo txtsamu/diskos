@@ -15,16 +15,19 @@ playstate_test: ../playstate.c playstate_test.c ../playstate.h
 outseq_test: ../outseq.c outseq_test.c ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../outseq.c outseq_test.c -o $@
 
-session_test: ../session.c ../outseq.c session_test.c ../session.h ../outseq.h
-	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c session_test.c -o $@
+session_test: ../session.c ../outseq.c ../playreq.c ../playstate.c session_test.c ../session.h ../outseq.h ../playreq.h
+	$(CC) $(CFLAGS) -I.. ../session.c ../outseq.c ../playreq.c ../playstate.c session_test.c -o $@
 
-srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../modes.h ../session.h ../outseq.h
+srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../modes.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
-	  ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c -o $@
+	  ../srcswitch.c ../session.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
 
-admit_test: ../admit.c ../outseq.c ../session.c admit_test.c ../admit.h ../outseq.h ../session.h
-	$(CC) $(CFLAGS) -I.. ../admit.c ../outseq.c ../session.c admit_test.c -o $@
+admit_test: ../admit.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c ../admit.h ../outseq.h ../session.h
+	$(CC) $(CFLAGS) -I.. ../admit.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c -o $@
+
+playreq_test: ../playreq.c ../playstate.c playreq_test.c ../playreq.h ../playstate.h
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -DPCM_DIR='"$(TDIR)/pcm"' -DPLAY_PCM_GLOB='"$(TDIR)/pcm/*/status"' -I.. ../playreq.c ../playstate.c playreq_test.c -o $@
 
 dacinfo_test: ../dacinfo.c dacinfo_test.c ../dacinfo.h
 	$(CC) $(CFLAGS) -I.. ../dacinfo.c dacinfo_test.c -o $@
@@ -63,7 +66,7 @@ sysconfig_test: ../sysconfig.c sysconfig_test.c ../sysconfig.h sqlite3_host.o
 	$(CC) $(CFLAGS) -I.. ../sysconfig.c sysconfig_test.c sqlite3_host.o -lm -o $@
 
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
+run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -77,6 +80,9 @@ run: sysconfig_test transport_test config_test playstate_test ipc_guard_test ipc
 	@echo "--- srcswitch ---"
 	@mkdir -p $(TDIR) && rm -f $(TDIR)/fault
 	./srcswitch_test
+	@echo "--- playreq ---"
+	@mkdir -p $(TDIR)/pcm && rm -rf $(TDIR)/pcm/*
+	./playreq_test
 	@echo "--- admit ---"
 	./admit_test
 	@echo "--- dacinfo ---"
@@ -99,7 +105,7 @@ run: sysconfig_test transport_test config_test playstate_test ipc_guard_test ipc
 	./sysconfig_test
 
 clean:
-	rm -f sysconfig_test sqlite3_host.o transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
+	rm -f sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test session_test srcswitch_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

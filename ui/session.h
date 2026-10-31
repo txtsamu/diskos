@@ -47,8 +47,6 @@ struct session_startup_env {
 };
 void session_startup_set_env(const struct session_startup_env *env);
 
-void session_note_transport_sent(unsigned gen, uint32_t now_ms);
-
 typedef enum { SESSION_STARTUP_WAIT, SESSION_STARTUP_PROBE, SESSION_STARTUP_DONE } session_startup_t;
 session_startup_t session_startup_tick(uint32_t now_ms);
 

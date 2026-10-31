@@ -24,6 +24,7 @@ mq_ui.manifest
 # host test binaries (built under tests/)
 tests/config_test
 tests/playstate_test
+tests/playreq_test
 tests/session_test
 
 # UI and FreeType build products

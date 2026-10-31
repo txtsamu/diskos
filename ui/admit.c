@@ -21,13 +21,6 @@ int admit_settling(void){
 }
 void admit_tick(void){ if(g_settle_armed) (void)admit_settling(); }
 
-static unsigned g_play_last_gen = 0xFFFFFFFFu;
-static uint32_t g_play_last_tick = 0;
-void admit_note_play_sent(void){ g_play_last_gen = ipc_generation(); g_play_last_tick = E->now(); }
-static int play_recent(void){
-    return E->play_pending() || (g_play_last_gen == ipc_generation() && (uint32_t)(E->now() - g_play_last_tick) < 10000);
-}
-
 static int local_source(void){ return session_source_mode() == 0; }
 static const char *idle_reason(void){ return E->output_busy() ? REASON_SWITCHING : NULL; }
 static const char *card_reason(void){ return E->local_playback_allowed() ? NULL : REASON_LOCAL_FIRST; }
@@ -46,7 +39,7 @@ const char *admit_check(admit_what_t what){
         if(!local_source()) return REASON_LOCAL_FIRST;
         if(session_bt_routed()) return "Bluetooth output is active";
         if(admit_settling()) return "Player is starting - try again";
-        if(play_recent()) return "Player is busy - try again";
+        if(E->play_recent()) return "Player is busy - try again";
         if(E->book_active()) return "Stop the audiobook first";
         return NULL;
     case ADMIT_ROUTE_BT:
@@ -108,7 +101,7 @@ admit_sent_t admit_play_start(admit_play_t kind){
         .bt_route            = session_bt_routed(),
         .output_route        = session_route(),
         .playing             = E->playing(),
-        .play_recent         = play_recent(),
+        .play_recent         = E->play_recent(),
     };
     return play_decide(kind, &s);
 }
