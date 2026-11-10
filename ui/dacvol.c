@@ -21,6 +21,7 @@
 #define ASSERT_RETRY_MS 400
 #define ASSERT_TRIES    3
 #define KEY_WINDOW_MS   700
+#define DBL_SUPPRESS_MS 700
 #define PERSIST_MS      1500
 #define SETTLE_MS       300
 #define LEAVE_RETRY_MS  500
@@ -39,7 +40,7 @@ static struct {
     int level, hold, ref, prev, orig, card, pending_user;
     int need_assert, tries, maxvol_tried;
     unsigned seen_seq;
-    uint32_t last_assert, last_key, persist_due, rec_t;
+    uint32_t last_assert, last_key, last_dbl, persist_due, rec_t;
     int persist_dirty, keys_open, announce, announce_level;
     int leave_target, leave_player_done, leave_mix_done, leave_after_fallback;
     uint32_t leave_t0, leave_retry;
@@ -260,13 +261,15 @@ static void tick_mix(void){
 
 static void on_key(int code, int value){
     if(value < 1) return;
+    if(code == DACVOL_KEY_DBL_UP || code == DACVOL_KEY_DBL_DOWN){ S.last_dbl = now_ms() ? now_ms() : 1; return; }
     int dir = code == DACVOL_KEY_UP ? 1 : code == DACVOL_KEY_DOWN ? -1 : 0;
     if(!dir){
         for(int i = 0; i < S.n_codes; i++) if(S.logged_codes[i] == code) return;
         if(S.n_codes < LOG_CODES){ S.logged_codes[S.n_codes++] = code; say("dacvol: key code %d seen (not a volume key)", code); }
         return;
     }
-    if(E->keys_adjust_volume && !E->keys_adjust_volume()) return;
+    if(E->single_click_volume && !E->single_click_volume()) return;
+    if(S.last_dbl && now_ms() - S.last_dbl < DBL_SUPPRESS_MS) return;
     S.last_key = now_ms() ? now_ms() : 1;
     set_level(S.level + dir * key_step(), 1);
 }

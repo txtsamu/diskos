@@ -688,10 +688,9 @@ static int dacvol_env_usb_ready(void){ return outroute_usb_ready() && session_so
 static int dacvol_env_player_maxvol(int v){ return maxvol_send(v); }
 static void dacvol_env_maxvol_restore(void){ int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && mv < VOL_MAX) maxvol_send(mv); }
 static int dacvol_env_keys_adjust_volume(void){
-    static const char *const K[] = { "key_single", "key_double", "key_long" };
-    for(int i = 0; i < 3; i++) if(cfg_get_int(K[i], CTL_ACT_VOLUME) != CTL_ACT_VOLUME) return 0;
-    return 1;
+    return cfg_get_int("key_single", CTL_ACT_VOLUME) == CTL_ACT_VOLUME || cfg_get_int("key_long", CTL_ACT_VOLUME) == CTL_ACT_VOLUME;
 }
+static int dacvol_env_single_click_volume(void){ return cfg_get_int("key_single", CTL_ACT_VOLUME) == CTL_ACT_VOLUME; }
 static int dacvol_env_user_cap(void){ int mv = cfg_get_int("max_vol", -1); return (mv >= 10 && mv < VOL_MAX) ? mv : VOL_MAX; }
 static void dacvol_env_log(const char *msg){ bootlog_event("%s", msg); }
 static const struct dacvol_env g_dacvol_env = {
@@ -700,7 +699,7 @@ static const struct dacvol_env g_dacvol_env = {
     .mixer_set = dacvol_sys_mixer_set, .mixer_state = dacvol_sys_mixer_state,
     .player_send = player_volume_send, .player_maxvol = dacvol_env_player_maxvol, .player_maxvol_restore = dacvol_env_maxvol_restore,
     .key_active = dacvol_sys_key_active, .key_poll = dacvol_sys_key_poll,
-    .keys_adjust_volume = dacvol_env_keys_adjust_volume, .user_cap = dacvol_env_user_cap, .log = dacvol_env_log,
+    .keys_adjust_volume = dacvol_env_keys_adjust_volume, .single_click_volume = dacvol_env_single_click_volume, .user_cap = dacvol_env_user_cap, .log = dacvol_env_log,
 };
 void ui_disarm_book_eoc(void);
 static int g_book_single_mode = 0;

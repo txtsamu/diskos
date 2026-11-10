@@ -13,6 +13,7 @@
 
 - [A tour of diskOS](TOUR.md) - screens, controls, settings, and limitations.
 - [Settings page tree](SETTINGS_TREE.md) - the Settings groups and sub pages, and where each setting lives.
+- [USB Audio volume](USB_AUDIO_VOLUME.md) - how the DAC volume and the Disc's volume keys work on USB Audio, with the key codes
 - [Design system](DESIGN_SYSTEM.md) - round-screen layout and visual choices.
 
 ## Develop
