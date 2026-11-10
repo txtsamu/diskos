@@ -33,6 +33,7 @@ void usbdbg_init(void){
     g_state = E->bound() ? USBDBG_ON : USBDBG_OFF;
     g_host = g_state == USBDBG_ON ? E->host_connected() : 0;
     g_polled = E->now();
+    if(g_state == USBDBG_ON){ fprintf(stderr, "usb debug: gadget already bound at start, adopted (host %s)\n", g_host ? "connected" : "not connected"); fflush(stderr); }
 }
 
 static const char *start_failure(int rc){
