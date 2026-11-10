@@ -8,6 +8,8 @@
 #include "srcswitch.h"
 #include "config.h"
 #include "sdio.h"
+#include "usbdbg.h"
+#include "i18n.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,17 +20,41 @@ static const modeinfo_t MODES[] = {
     { "USB DAC",             "Be a DAC for a phone or PC" },
     { "Bluetooth Receiving", "Play audio sent from a phone" },
     { "USB Storage",         "Open the card on a computer" },
+    { "USB Debug",           "Shell over the USB cable" },
 #ifdef DISKOS_TEST_OUTPUTS
     { "USB Audio",           "Play to an external USB DAC" },
 #endif
 };
 #define N_MODES ((int)(sizeof(MODES)/sizeof(MODES[0])))
-#define ROW_USB_AUDIO 4
+#define ROW_USB_DEBUG SRCSWITCH_MODE_USB_DEBUG
+#define ROW_USB_AUDIO 5
 
 static lv_obj_t *g_check[N_MODES];
 static lv_obj_t *g_row[N_MODES];
+static lv_obj_t *g_sub[N_MODES];
+static lv_obj_t *g_dbg_info;
 
-static int shown_mode(int src){ return (src == 0 && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src; }
+static int shown_mode(int src){
+    if(usbdbg_state() != USBDBG_OFF) return ROW_USB_DEBUG;
+    return (src == 0 && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src;
+}
+
+static void debug_row_refresh(void){
+    if(!g_sub[ROW_USB_DEBUG] || !g_dbg_info) return;
+    usbdbg_state_t st = usbdbg_state();
+    const char *sub = tr(MODES[ROW_USB_DEBUG].sub);
+    if(st == USBDBG_STARTING) sub = tr("Starting...");
+    else if(st == USBDBG_STOPPING) sub = tr("Stopping...");
+    else if(st == USBDBG_ON) sub = usbdbg_host() ? tr("Open /dev/ttyACM0 on the PC") : tr("Plug USB-C into a PC");
+    lv_label_set_text(g_sub[ROW_USB_DEBUG], sub);
+    if(st != USBDBG_ON){ lv_obj_add_flag(g_dbg_info, LV_OBJ_FLAG_HIDDEN); return; }
+    char b[160];
+    snprintf(b, sizeof b, "%s\npicocom -b 115200 /dev/ttyACM0\n%s", tr("On the PC:"), tr("Root shell, no password"));
+    lv_label_set_text(g_dbg_info, b);
+    int was_hidden = lv_obj_has_flag(g_dbg_info, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_dbg_info, LV_OBJ_FLAG_HIDDEN);
+    if(was_hidden) lv_obj_scroll_to_view(g_dbg_info, LV_ANIM_ON);
+}
 
 static void mark_selected_mode(int cur){
     for(int i=0;i<N_MODES;i++){
@@ -44,6 +70,7 @@ static void mark_selected_mode(int cur){
 static void mark_selected(void){ mark_selected_mode(sd_switch_failed() ? -1 : shown_mode(session_source_mode())); }
 static void modes_ui_refresh(void){
     mark_selected();
+    debug_row_refresh();
     setting_detail_refresh();
     setlist_refresh();
 }
@@ -84,7 +111,7 @@ static void settle_cb(lv_timer_t *t){
         show = actual;
         if(actual != intended) ui_toast("Mode didn't switch");
     }
-    if(intended == ROW_USB_AUDIO) show = session_source_mode();
+    if(intended == ROW_USB_AUDIO || intended == ROW_USB_DEBUG) show = session_source_mode();
     mark_selected_mode(shown_mode(show));
 }
 
@@ -147,13 +174,14 @@ void modes_create(lv_obj_t *root){
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "modes.row", UI_CORE);
 
         lv_obj_t *nm = lv_label_create(row);
-        lv_label_set_text(nm, MODES[i].name);
+        lv_label_set_text(nm, tr(MODES[i].name));
         lv_obj_set_pos(nm, 16, 9);
         lv_obj_set_style_text_font(nm, TF(UI_16), 0);
         lv_obj_set_style_text_color(nm, TC(TEXT_PRIMARY), 0);
 
         lv_obj_t *sb = lv_label_create(row);
-        lv_label_set_text(sb, MODES[i].sub);
+        g_sub[i] = sb;
+        lv_label_set_text(sb, tr(MODES[i].sub));
         lv_obj_set_pos(sb, 16, 30);
         lv_obj_set_width(sb, 202);
         lv_label_set_long_mode(sb, LV_LABEL_LONG_DOT);
@@ -167,5 +195,15 @@ void modes_create(lv_obj_t *root){
         lv_obj_set_style_text_font(g_check[i], TF(UI_18), 0);
     }
     if(N_MODES > ROW_USB_AUDIO) lv_obj_move_to_index(g_row[ROW_USB_AUDIO], 1);
+
+    g_dbg_info = lv_label_create(col);
+    lv_obj_set_width(g_dbg_info, 268);
+    lv_label_set_long_mode(g_dbg_info, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_hor(g_dbg_info, 14, 0);
+    lv_obj_set_style_text_font(g_dbg_info, TF(UI_12), 0);
+    lv_obj_set_style_text_color(g_dbg_info, TC(TEXT_MUTED), 0);
+    lv_obj_add_flag(g_dbg_info, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_to_index(g_dbg_info, (int32_t)lv_obj_get_index(g_row[ROW_USB_DEBUG]) + 1);
     mark_selected();
+    debug_row_refresh();
 }

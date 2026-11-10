@@ -37,6 +37,7 @@
 #include "usbhid.h"
 #include "session.h"
 #include "srcswitch.h"
+#include "usbdbg.h"
 #include "coverart.h"
 #include "admit.h"
 #include "bootstate.h"
@@ -379,6 +380,61 @@ static int usb_host_attached(void){
     return on;
 }
 static int env_dac_gadget_present(void){ return access("/sys/kernel/config/usb_gadget/uac_demo", F_OK) == 0; }
+#define USBDBG_GADGET_DIR "/sys/kernel/config/usb_gadget/diskos_dbg"
+#define USBDBG_SCRIPT     "/usr/project/diskos-debug.sh"
+static int usbdbg_env_present(void){ return access(USBDBG_GADGET_DIR, F_OK) == 0; }
+static int usbdbg_env_bound(void){
+    FILE *f = fopen(USBDBG_GADGET_DIR "/UDC", "r");
+    if(!f) return 0;
+    char b[64] = {0}; size_t n = fread(b, 1, sizeof b - 1, f); int err = ferror(f); fclose(f);
+    if(err) return 0;
+    for(size_t i = 0; i < n; i++) if(b[i] > ' ') return 1;
+    return 0;
+}
+static int usbdbg_env_stock_gadget(void){
+    static const char *const names[] = { "uac_demo", "storage_demo", "adb_demo" };
+    char p[96];
+    for(size_t i = 0; i < sizeof names / sizeof names[0]; i++){
+        snprintf(p, sizeof p, "/sys/kernel/config/usb_gadget/%s", names[i]);
+        if(access(p, F_OK) == 0) return 1;
+    }
+    return 0;
+}
+static int usbdbg_env_host_connected(void){
+    glob_t g; int on = 0;
+    if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 0;
+    for(size_t i = 0; i < g.gl_pathc && !on; i++){
+        FILE *f = fopen(g.gl_pathv[i], "r"); char s[32] = "";
+        if(!f) continue;
+        if(fgets(s, sizeof s, f)) on = strncmp(s, "configured", 10) == 0 || strncmp(s, "suspended", 9) == 0;
+        fclose(f);
+    }
+    globfree(&g);
+    return on;
+}
+static int usbdbg_env_spawn(const char *verb){
+    char *argv[] = { USBDBG_SCRIPT, (char *)verb, NULL };
+    pid_t pid;
+    if(command_spawn(&pid, argv) != 0) return -1;
+    return (int)pid;
+}
+static int usbdbg_env_reap(int pid){
+    int st = 0;
+    pid_t w = waitpid((pid_t)pid, &st, WNOHANG);
+    if(w == 0) return USBDBG_RUNNING;
+    if(w < 0) return 255;
+    return WIFEXITED(st) ? WEXITSTATUS(st) : 255;
+}
+static void usbdbg_env_abort(int pid){
+    kill(-(pid_t)pid, SIGKILL); kill((pid_t)pid, SIGKILL);
+    for(int k = 0; k < 20; k++){ if(waitpid((pid_t)pid, NULL, WNOHANG) != 0) break; usleep(10000); }
+}
+static const struct usbdbg_env g_usbdbg_env = {
+    .now = lv_tick_get, .spawn = usbdbg_env_spawn, .reap = usbdbg_env_reap, .abort = usbdbg_env_abort,
+    .bound = usbdbg_env_bound, .present = usbdbg_env_present, .stock_gadget = usbdbg_env_stock_gadget,
+    .host_connected = usbdbg_env_host_connected, .toast = ui_toast,
+};
+static int env_usb_debug_active(void){ return usbdbg_active(); }
 static int env_playing(void){ return playreq_playing(); }
 static void env_scan_if_library_empty(void){ if(mdb_total_song_count() == 0 && !mdb_load_failed()) scanner_start(); }
 static void env_art_cancel(void){ art_cancel(); }
@@ -408,6 +464,7 @@ static const struct outroute_env g_outroute_env = {
     .toast = ui_toast, .seek_to = ui_seek_to,
     .charge_limit_reapply = env_charge_limit_reapply,
     .release_volume = dacvol_release_now,
+    .usb_debug_active = env_usb_debug_active,
 };
 static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
@@ -1500,6 +1557,7 @@ int main(int argc, char **argv){
     outroute_init(&g_outroute_env);
     dacvol_init(&g_dacvol_env);
     srcswitch_set_env(&g_srcswitch_env);
+    usbdbg_set_env(&g_usbdbg_env);
     sd_set_env(&g_sd_env);
     admit_set_env(&g_admit_env);
     booksess_set_env(&g_booksess_env);

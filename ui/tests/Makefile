@@ -23,10 +23,10 @@ outroute_test: ../outroute.c ../outseq.c outroute_test.c ../outroute.h ../outseq
 session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c -o $@
 
-srcswitch_test: ../bootstate.c ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../outroute.h ../session.h ../outseq.h
+srcswitch_test: ../bootstate.c ../srcswitch.c ../usbdbg.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../usbdbg.h ../outroute.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
-	  ../srcswitch.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
+	  ../srcswitch.c ../usbdbg.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
 
 admit_test: ../bootstate.c ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
 	$(CC) $(CFLAGS) -I.. ../admit.c ../bootstate.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c -o $@

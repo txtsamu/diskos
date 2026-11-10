@@ -6,6 +6,7 @@
 #include "outseq.h"
 #include "outroute.h"
 #include "admit.h"
+#include "usbdbg.h"
 #include "ipc.h"
 #include "config.h"
 #include <assert.h>
@@ -83,7 +84,39 @@ static const struct sd_env sd_env = {
     .send_source = srcswitch_send_source,
 };
 static const char *env_switch_blocked(void){ return g_blocked; }
-static const struct outroute_env renv = { .now = env_now, .playing = env_playing, .switch_blocked = env_switch_blocked, .toast = env_toast, .seek_to = env_seek };
+static int env_dbg_active(void){ return usbdbg_active(); }
+static const struct outroute_env renv = { .now = env_now, .playing = env_playing, .switch_blocked = env_switch_blocked, .toast = env_toast, .seek_to = env_seek, .usb_debug_active = env_dbg_active };
+
+static int g_dbg_bound, g_dbg_present, g_dbg_stock, g_dbg_host, g_dbg_pid, g_dbg_aborts, g_job_never, g_job_ms = 2000;
+static int g_on_rc, g_on_leaves, g_off_rc;
+static char g_spawned[8][12]; static int g_nspawn;
+static struct { int pid, verb_on; uint32_t t0; } g_job;
+static int dbg_spawn(const char *verb){
+    assert(g_nspawn < 8);
+    snprintf(g_spawned[g_nspawn++], sizeof g_spawned[0], "%s", verb);
+    g_job.pid = ++g_dbg_pid; g_job.t0 = g_now; g_job.verb_on = !strcmp(verb, "usb-on");
+    return g_job.pid;
+}
+static int dbg_reap(int pid){
+    assert(pid == g_job.pid);
+    if(g_job_never || g_now - g_job.t0 < (uint32_t)g_job_ms) return USBDBG_RUNNING;
+    if(g_job.verb_on){
+        if(g_on_rc == 0) g_dbg_bound = g_dbg_present = 1;
+        else if(g_on_leaves) g_dbg_present = 1;
+        return g_on_rc;
+    }
+    if(g_off_rc == 0) g_dbg_bound = g_dbg_present = 0;
+    return g_off_rc;
+}
+static void dbg_abort(int pid){ assert(pid == g_job.pid); g_dbg_aborts++; }
+static int dbg_bound(void){ return g_dbg_bound; }
+static int dbg_present(void){ return g_dbg_present; }
+static int dbg_stock(void){ return g_dbg_stock; }
+static int dbg_host(void){ return g_dbg_host; }
+static const struct usbdbg_env uenv = {
+    .now = env_now, .spawn = dbg_spawn, .reap = dbg_reap, .abort = dbg_abort, .bound = dbg_bound,
+    .present = dbg_present, .stock_gadget = dbg_stock, .host_connected = dbg_host, .toast = env_toast,
+};
 static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = ev; }
 
 #define R6 "0666000C0006"
@@ -104,7 +137,7 @@ static void setup(void){
     char *slash = strrchr(d, '/'); if(slash){ *slash = 0; mkdir(d, 0700); *slash = '/'; }
     mkdir(d, 0700); usb_card(0); unlink(SD_EXPORT_MARKER);
     g_now = 1000;
-    outroute_init(&renv); srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event);
+    outroute_init(&renv); srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event); usbdbg_set_env(&uenv);
     assert(sd_gate_poll(1) == SD_GATE_OPENED);
     srcswitch_init();
     assert(sd_local_playback_allowed());
@@ -120,6 +153,14 @@ static void expect_frames(const char *what, const char *const *want, int n){
         if(strcmp(g_log[i], want[i])){ fprintf(stderr, "%s: frame %d is %s, want %s\n", what, i, g_log[i], want[i]); assert(0); }
 }
 
+static int spawned(const char *verb, int from){ for(int i = from; i < g_nspawn; i++) if(!strcmp(g_spawned[i], verb)) return i; return -1; }
+static void usb_debug_on(void){
+    setup();
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && !modes_source_switch_busy());
+    g_n = 0; g_ntoast = 0; g_nev = 0; g_nspawn = 0;
+}
 static void usb_audio_to_usb_dac_via_local(void){
     setup(); usb_card(1);
     outroute_set(OUT_USB);
@@ -325,6 +366,192 @@ static void working_mode_local_off_usb_audio_stays_direct(void){
     expect_frames("direct Local again", want, 3);
 }
 
+static void usb_debug_from_local_runs_the_script_and_sends_no_player_frames(void){
+    setup();
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-on") && usbdbg_state() == USBDBG_STARTING);
+    assert(modes_source_switch_busy() && usbdbg_active() && usbdbg_busy());
+    assert(ui_set_source_mode(3) < 0 && g_n == 0);
+    run(1900); assert(usbdbg_state() == USBDBG_STARTING);
+    run(300);
+    assert(usbdbg_state() == USBDBG_ON && !modes_source_switch_busy() && usbdbg_active() && !usbdbg_busy());
+    assert(g_n == 0 && session_source_mode() == 0 && outroute_route() == OUT_INTERNAL);
+    assert(toasted("USB Debug is on") && evented(SRCSWITCH_EV_CHANGED));
+    assert(cfg_get_int("src_mode", -1) == -1 && cfg_get_int("usb_audio_on", -1) == -1);
+}
+static void usb_debug_is_not_restored_at_boot(void){
+    setup();
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON);
+    assert(cfg_get_int("src_mode", -1) == -1 && session_saved_source() == 0 && outroute_saved_usb_audio() == 0);
+}
+static void usb_debug_from_usb_dac_leaves_the_dac_first(void){
+    setup(); session_set_source_mode(1); g_attached = 1; g_gadget = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    g_gadget = 0; run(2000);
+    const char *s1[] = { G0, R6, G0, W8 };
+    expect_frames("exit + Local", s1, 4);
+    assert(session_source_mode() == 0 && g_nspawn == 0 && srcswitch_via_local_pending());
+    run(2400); assert(g_nspawn == 0);
+    run(300);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-on") && !srcswitch_via_local_pending());
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && g_n == 4 && session_source_mode() == 0);
+}
+static void usb_debug_from_usb_dac_with_a_slow_exit(void){
+    setup(); session_set_source_mode(1); g_attached = 1; g_gadget = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(14000); assert(g_nspawn == 0 && modes_source_switch_busy());
+    g_gadget = 0; run(1800);
+    const char *s1[] = { G0, R6, G0, W8 };
+    expect_frames("slow exit + Local", s1, 4);
+    run(3500);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-on") && !evented(SRCSWITCH_EV_ABANDONED));
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && !toasted("Couldn't return to Local - mode not changed"));
+}
+static void usb_debug_from_usb_audio_returns_to_internal_first(void){
+    setup(); usb_card(1);
+    outroute_set(OUT_USB);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    assert(g_n == 0 && g_nspawn == 0 && toasted("Leaving USB Audio..."));
+    run(1000);
+    const char *internal[] = { R6, G0, W8 };
+    expect_frames("route to internal", internal, 3);
+    assert(g_nspawn == 0);
+    run(2500);
+    assert(g_nspawn == 1 && outroute_route() == OUT_INTERNAL);
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && g_n == 3);
+}
+static void usb_debug_is_refused_while_a_stock_gadget_exists(void){
+    setup(); g_dbg_stock = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) < 0);
+    assert(g_nspawn == 0 && g_n == 0 && toasted("Leave USB DAC or USB Storage first") && usbdbg_state() == USBDBG_OFF);
+}
+static void usb_debug_start_failure_toasts_and_cleans_up(void){
+    setup(); g_on_rc = 3; g_on_leaves = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(2200);
+    assert(toasted("No USB controller found") && usbdbg_state() == USBDBG_STOPPING);
+    assert(spawned("usb-off", 0) == 1);
+    run(2200);
+    assert(usbdbg_state() == USBDBG_OFF && !g_dbg_present && !modes_source_switch_busy() && g_n == 0);
+}
+static void usb_debug_start_with_an_old_script_says_so(void){
+    setup(); g_on_rc = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(2200);
+    assert(toasted("USB Debug needs a newer diskOS image") && usbdbg_state() == USBDBG_OFF && g_nspawn == 1);
+}
+static void usb_debug_start_that_never_finishes_is_aborted(void){
+    setup(); g_job_never = 1;
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    run(44000); assert(usbdbg_state() == USBDBG_STARTING && g_dbg_aborts == 0);
+    run(1200);
+    assert(g_dbg_aborts == 1 && toasted("USB Debug timed out") && usbdbg_state() == USBDBG_OFF && g_nspawn == 1);
+}
+static void usb_debug_on_twice_is_refused(void){
+    usb_debug_on();
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) < 0 && g_nspawn == 0 && toasted("USB Debug is already on"));
+}
+static void usb_debug_to_local_stops_the_gadget_and_sends_no_frames(void){
+    usb_debug_on();
+    assert(ui_set_source_mode(0) == 0);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-off") && usbdbg_state() == USBDBG_STOPPING);
+    assert(toasted("Leaving USB Debug...") && modes_source_switch_busy() && srcswitch_via_local_pending());
+    run(1900); assert(usbdbg_state() == USBDBG_STOPPING);
+    run(300);
+    assert(usbdbg_state() == USBDBG_OFF && modes_source_switch_busy());
+    run(600); assert(modes_source_switch_busy() && !toasted("USB Debug is off"));
+    run(400);
+    assert(!modes_source_switch_busy() && !srcswitch_via_local_pending() && toasted("USB Debug is off"));
+    assert(g_n == 0 && session_source_mode() == 0 && evented(SRCSWITCH_EV_SETTLE_RESTART) && !evented(SRCSWITCH_EV_ABANDONED));
+}
+static void usb_debug_to_usb_dac_switches_only_after_the_gadget_is_gone(void){
+    usb_debug_on();
+    assert(ui_set_source_mode(1) == 0);
+    run(2000); assert(usbdbg_state() == USBDBG_OFF && g_n == 0);
+    run(900); assert(g_n == 0);
+    run(300);
+    const char *want[] = { R6, G2, W1 };
+    expect_frames("USB DAC after USB Debug", want, 3);
+    assert(session_source_mode() == 1 && !modes_source_switch_busy() && !g_dbg_present);
+}
+static void usb_debug_to_usb_storage_exports_only_after_the_gadget_is_gone(void){
+    usb_debug_on();
+    assert(ui_set_source_mode(3) == 0);
+    run(2000); assert(usbdbg_state() == USBDBG_OFF && g_n == 0 && !g_dbg_present);
+    run(1300);
+    assert(session_source_mode() == 3 && sd_switch_pending());
+    run(200);
+    const char *want[] = { R6, G1, W8 };
+    expect_frames("storage after USB Debug", want, 3);
+    assert(idx(G1, 0) >= 0 && !g_dbg_present);
+}
+static void usb_debug_to_bluetooth_receiving_is_ordered_too(void){
+    usb_debug_on();
+    assert(ui_set_source_mode(2) == 0);
+    run(2000); assert(g_n == 0);
+    run(1300);
+    assert(session_source_mode() == 2 && idx("0657000C0006", 0) > 0 && !g_dbg_present);
+}
+static void usb_debug_stop_failure_abandons_and_stays_on(void){
+    usb_debug_on(); g_off_rc = 1;
+    assert(ui_set_source_mode(1) == 0);
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && toasted("Couldn't stop USB Debug") && evented(SRCSWITCH_EV_ABANDONED));
+    assert(!modes_source_switch_busy() && g_n == 0 && session_source_mode() == 0 && g_dbg_bound);
+    assert(!srcswitch_via_local_pending());
+}
+static void usb_debug_stop_that_never_finishes_is_aborted(void){
+    usb_debug_on(); g_job_never = 1;
+    assert(ui_set_source_mode(0) == 0);
+    run(30000); assert(usbdbg_state() == USBDBG_STOPPING && g_dbg_aborts == 0);
+    run(300);
+    assert(g_dbg_aborts == 1 && usbdbg_state() == USBDBG_ON && evented(SRCSWITCH_EV_ABANDONED));
+}
+static void usb_debug_blocks_the_usb_audio_route_but_not_the_others(void){
+    usb_debug_on(); usb_card(1);
+    assert(outroute_pick(OUT_USB, OUTROUTE_MODE) < 0);
+    assert(toasted("Leave USB Debug first") && g_n == 0 && !outroute_busy());
+    assert(outroute_pick(OUT_SPDIF, OUTROUTE_SETTING) == 0);
+}
+static void usb_debug_boot_usb_audio_restore_is_refused_while_on(void){
+    setup(); usb_card(1); cfg_set_int("usb_audio_on", 1); g_dbg_bound = 1;
+    srcswitch_init(); assert(usbdbg_state() == USBDBG_ON);
+    modes_output_boot_restore();
+    run(17000);
+    assert(g_n == 0 && outroute_route() == OUT_INTERNAL && toasted("Leave USB Debug first"));
+}
+static void usb_debug_adopts_a_gadget_that_is_already_bound(void){
+    setup(); g_dbg_bound = 1; g_dbg_present = 1;
+    srcswitch_init();
+    assert(usbdbg_state() == USBDBG_ON && usbdbg_active());
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) < 0 && toasted("USB Debug is already on"));
+    assert(ui_set_source_mode(0) == 0 && g_nspawn == 1 && !strcmp(g_spawned[0], "usb-off"));
+}
+static void usb_debug_noticing_an_outside_stop(void){
+    usb_debug_on();
+    g_dbg_bound = 0; g_dbg_present = 0;
+    run(1200);
+    assert(usbdbg_state() == USBDBG_OFF && evented(SRCSWITCH_EV_CHANGED) && !modes_source_switch_busy());
+}
+static void usb_debug_tracks_the_host_while_on(void){
+    usb_debug_on();
+    assert(!usbdbg_host());
+    g_dbg_host = 1; run(1200);
+    assert(usbdbg_host() && evented(SRCSWITCH_EV_CHANGED));
+    g_nev = 0; g_dbg_host = 0; run(1200);
+    assert(!usbdbg_host() && evented(SRCSWITCH_EV_CHANGED));
+}
+static void usb_debug_does_not_disturb_local_playback(void){
+    usb_debug_on(); g_playing = 1;
+    run(3000);
+    assert(g_n == 0 && g_playing && usbdbg_state() == USBDBG_ON && session_source_mode() == 0);
+}
+
 static void scenario(const char *name, void (*fn)(void)){
     fflush(stdout);
     pid_t p = fork();
@@ -354,6 +581,28 @@ int main(void){
     S(working_mode_local_from_usb_audio_stops_when_the_player_restarts);
     S(working_mode_local_from_usb_audio_honours_admission);
     S(working_mode_local_off_usb_audio_stays_direct);
+    S(usb_debug_from_local_runs_the_script_and_sends_no_player_frames);
+    S(usb_debug_is_not_restored_at_boot);
+    S(usb_debug_from_usb_dac_leaves_the_dac_first);
+    S(usb_debug_from_usb_dac_with_a_slow_exit);
+    S(usb_debug_from_usb_audio_returns_to_internal_first);
+    S(usb_debug_is_refused_while_a_stock_gadget_exists);
+    S(usb_debug_start_failure_toasts_and_cleans_up);
+    S(usb_debug_start_with_an_old_script_says_so);
+    S(usb_debug_start_that_never_finishes_is_aborted);
+    S(usb_debug_on_twice_is_refused);
+    S(usb_debug_to_local_stops_the_gadget_and_sends_no_frames);
+    S(usb_debug_to_usb_dac_switches_only_after_the_gadget_is_gone);
+    S(usb_debug_to_usb_storage_exports_only_after_the_gadget_is_gone);
+    S(usb_debug_to_bluetooth_receiving_is_ordered_too);
+    S(usb_debug_stop_failure_abandons_and_stays_on);
+    S(usb_debug_stop_that_never_finishes_is_aborted);
+    S(usb_debug_blocks_the_usb_audio_route_but_not_the_others);
+    S(usb_debug_boot_usb_audio_restore_is_refused_while_on);
+    S(usb_debug_adopts_a_gadget_that_is_already_bound);
+    S(usb_debug_noticing_an_outside_stop);
+    S(usb_debug_tracks_the_host_while_on);
+    S(usb_debug_does_not_disturb_local_playback);
     puts("srcswitch_test: ok");
     return 0;
 }
