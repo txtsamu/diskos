@@ -40224,7 +40224,7 @@ pitch splits it into two small spectra, cut into eight tracks by the grooves, wi
 The hub (the real screen) warms in the theme's accent and shows "diskOS"; the light leaves, the hub is the only
 light left, and it opens: the disc is pushed outwards past the edge, the hub's edge becomes the screen's edge, and
 Home is underneath.
-2.4 s, once per boot, on lv_layer_top; it swallows taps and deletes itself.
+2.4 s, once per boot, on lv_layer_top; it swallows taps and deletes itself. If the system is still starting when the intro ends (bootstate_starting()), the intro replays until it is ready, then the opening plays once.
 
 Cost on the GPU-less renderer: plain circles, rings and short arcs moved by one integer timeline; no images, no
 transforms, no shadows, no masks beyond the renderer's own circle edges. The light only ever changes arc angles,
@@ -40551,6 +40551,13 @@ the face, so the first frames are one black
 
 ~~~text
 the website's -0.02 em
+~~~
+
+
+**L(SP_INTRO)** `#define SP_INTRO 1500`
+
+~~~text
+The animation runs in two stages on the one integer timeline. Stage 0 is t = 0..SP_INTRO (ring drawn, light swept, hub warm, wordmark fully in, before the wordmark fades at 1740 and the opening starts at 1800). When stage 0 ends, splash_stage_done() asks bootstate_starting(): if the Player and SD gate are not both up yet it replays stage 0 (splash_run(0, SP_INTRO); g_sp.replays counts it) instead of revealing Home; otherwise it runs stage 1 (SP_INTRO..SP_MS) once and deletes the splash. With everything ready on the first pass the two linear stages add up to the old 2400 ms, so the normal boot looks the same. The replay is bounded by bootstate's own 30 s give-up, after which stage 1 plays and the normal errors return. The splash line in diskos_boot.log gained "(N intro replays while starting)".
 ~~~
 
 ## ui/srcswitch.c

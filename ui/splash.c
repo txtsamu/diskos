@@ -3,6 +3,7 @@
 #include "screens.h"
 #include "theme.h"
 #include "theme_kit.h"
+#include "bootstate.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +11,7 @@ LV_FONT_DECLARE(diskos_brand_disk_32)
 LV_FONT_DECLARE(diskos_brand_os_32)
 
 #define SP_MS    2400
+#define SP_INTRO 1500
 #define SP_CX    180
 #define SP_R     178
 #define SP_SLICE 5
@@ -25,7 +27,7 @@ LV_FONT_DECLARE(diskos_brand_os_32)
 static struct {
     lv_obj_t *root, *face, *rim, *rim_hl, *lobe[2], *slice[2][SP_SLICE], *streak, *shade[2], *gap[2][(SP_GAPS + 1) / 2],
              *glow[SP_GLOW], *hub, *hub_edge, *word;
-    int th, warm, opened, frames;
+    int th, warm, opened, frames, stage, replays;
     uint32_t t0;
 } g_sp;
 
@@ -198,12 +200,33 @@ static void splash_frame(int t){
 
 static void splash_anim_cb(void *var, int32_t v){ (void)var; if(g_sp.root){ splash_frame((int)v); } }
 static void splash_drawn_cb(lv_event_t *e){ (void)e; g_sp.frames++; }
-static void splash_done(lv_anim_t *a){
-    (void)a;
+static void splash_stage_done(lv_anim_t *a);
+static void splash_run(int from, int to){
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, g_sp.root);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_duration(&a, (uint32_t)(to - from));
+    lv_anim_set_exec_cb(&a, splash_anim_cb);
+    lv_anim_set_completed_cb(&a, splash_stage_done);
+    lv_anim_start(&a);
+}
+static void splash_done(void){
     lv_display_remove_event_cb_with_user_data(lv_display_get_default(), splash_drawn_cb, NULL);
-    fprintf(stderr, "splash: %d frames drawn in %u ms\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0));
+    fprintf(stderr, "splash: %d frames drawn in %u ms (%d intro replays while starting)\n", g_sp.frames, (unsigned)lv_tick_elaps(g_sp.t0), g_sp.replays);
     if(g_sp.root) lv_obj_delete(g_sp.root);
     memset(&g_sp, 0, sizeof g_sp);
+}
+static void splash_stage_done(lv_anim_t *a){
+    (void)a;
+    if(!g_sp.root) return;
+    if(g_sp.stage == 0){
+        if(bootstate_starting()){ g_sp.replays++; splash_run(0, SP_INTRO); return; }
+        g_sp.stage = 1;
+        splash_run(SP_INTRO, SP_MS);
+        return;
+    }
+    splash_done();
 }
 
 void splash_start(void){
@@ -273,12 +296,5 @@ void splash_start(void){
     g_sp.t0 = lv_tick_get();
     lv_display_add_event_cb(lv_display_get_default(), splash_drawn_cb, LV_EVENT_RENDER_READY, NULL);
     splash_frame(0);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, g_sp.root);
-    lv_anim_set_values(&a, 0, SP_MS);
-    lv_anim_set_duration(&a, SP_MS);
-    lv_anim_set_exec_cb(&a, splash_anim_cb);
-    lv_anim_set_completed_cb(&a, splash_done);
-    lv_anim_start(&a);
+    splash_run(0, SP_INTRO);
 }
