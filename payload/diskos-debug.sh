@@ -189,21 +189,9 @@ wait_udc() {
 
 role_take() {
     [ -w "$ROLEF" ] || return 0
-    mkdir -p "$RUN" 2>/dev/null
-    _cur=$(cat "$ROLEF" 2>/dev/null)
-    [ -f "$RUN/role.prev" ] || echo "$_cur" > "$RUN/role.prev" 2>/dev/null
-    [ "$_cur" = device ] && return 0
+    [ "$(cat "$ROLEF" 2>/dev/null)" = device ] && return 0
     echo device > "$ROLEF" 2>/dev/null
     sleep 1
-    return 0
-}
-
-role_give_back() {
-    [ -f "$RUN/role.prev" ] || return 0
-    _prev=$(cat "$RUN/role.prev" 2>/dev/null)
-    rm -f "$RUN/role.prev"
-    [ -w "$ROLEF" ] || return 0
-    [ "$(cat "$ROLEF" 2>/dev/null)" = device ] && [ -n "$_prev" ] && [ "$_prev" != device ] && echo "$_prev" > "$ROLEF" 2>/dev/null
     return 0
 }
 
@@ -283,7 +271,6 @@ usb_clean() {
     serial_stop
     usbdbg_unbind
     usbdbg_remove
-    role_give_back
 }
 
 usb_abort() {
@@ -318,7 +305,6 @@ usb_off() {
     serial_stop
     if ! usbdbg_unbind; then echo "err: could not unbind the gadget"; return 1; fi
     if ! usbdbg_remove; then echo "err: could not remove the gadget"; return 1; fi
-    role_give_back
     usbdbg_umount
     echo off
     return 0

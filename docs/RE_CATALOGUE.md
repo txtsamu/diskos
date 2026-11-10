@@ -365,7 +365,8 @@ the UI's `0642` storage selector is **1**, a different enum.
 The storage handoff unmounts `/tmp/sdcard` via `unmount_udisk` @0x668ed4, with
 five retries and a lazy-force fallback. Use the UI's storage mode rather than
 exporting the raw card while the player holds it. Local and host access must
-never overlap. On dev builds, switching gadgets drops the USB serial connection.
+never overlap. Switching gadgets drops the USB serial connection: leaving USB Debug (or a dev image's boot
+serial gadget) removes `diskos_dbg` first, then the Player builds the next gadget.
 Use the screen to exit reader mode. Safely eject the card on the host before
 reconnecting USB or power-cycling the player.
 

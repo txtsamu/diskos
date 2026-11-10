@@ -152,11 +152,17 @@ class UsbDebugScriptTests(unittest.TestCase):
         self.assertEqual([c for c in self.shim_calls() if c.startswith('umount')], [f'umount {self.cfg}'])
         self.assertFalse((self.self_dir / 'serial.pid').exists())
 
-    def test_role_is_set_to_device_and_given_back(self):
+    def test_role_is_set_to_device_like_the_player_does_and_left_there(self):
         self.sh('usb-on')
         self.assertEqual(self.role.read_text().strip(), 'device')
         self.sh('usb-off')
-        self.assertEqual(self.role.read_text().strip(), 'none')
+        self.assertEqual(self.role.read_text().strip(), 'device')
+
+    def test_a_role_that_is_host_is_not_touched_by_usb_off(self):
+        self.sh('usb-on')
+        self.role.write_text('host\n')
+        self.sh('usb-off')
+        self.assertEqual(self.role.read_text().strip(), 'host')
 
     def test_role_already_device_is_left_alone(self):
         self.role.write_text('device\n')

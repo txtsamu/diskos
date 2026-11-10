@@ -72,7 +72,8 @@ After setup, run commands through `./diskos-installer`; it selects the local env
 1. Run `./diskos-installer gui`.
 2. Select your official FiiO firmware `.zip`, then select a variant:
    - **Public** *(recommended):* no always-on root shell. SSH can still be enabled temporarily
-     from Debug Mode in the UI.
+     from Debug Mode in the UI, and a passwordless USB-serial shell can be started on request from the
+     **USB Debug** row of the Working Mode picker (off at every boot, ended by leaving the row).
    - **Dev** (under **Advanced**): adds a passwordless USB-serial root shell on every boot. Use this only on a dedicated
      development device you control.
    - **Allow diskOS updates over Wi-Fi:** checked by default in the 1.2.1 release package, which

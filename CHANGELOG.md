@@ -10,6 +10,13 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Added
 
+- **USB Debug** row in the Working Mode picker (Quick Settings > source): puts the USB-C port into a diskOS-owned CDC-ACM
+  gadget with a root serial shell (`/dev/ttyGS0` on the Disc, `/dev/ttyACM0` on the computer). It is an overlay on Local
+  Playback: playback keeps going, no Player frame is sent, it is not saved and never restored at boot, and leaving it runs
+  the same ordered exit as the other USB modes (gadget removed, then the next mode). The row shows the command to run on the
+  computer. Needs the new `diskos-debug.sh` (`usb-on`, `usb-off`, `usb-status`), which ships in the image, so it takes a flash.
+  USB Ethernet (ECM/RNDIS) was asked for and is not possible: the Disc kernel has no such gadget function (`docs/USB_DEBUG.md`).
+  Not yet checked on a flashed image or with USB DAC / USB Storage entered afterwards.
 - **Headset click gestures** for USB Audio: a USB IEM or DAC with a single button now maps one click to
   play/pause, two clicks to next and three clicks to previous. Dedicated next, previous and volume keys
   still act at once. Play/pause lands about 350 ms after the click while diskOS waits for more clicks.
@@ -31,6 +38,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Changed
 
+- Dev images: `S99usbserial` no longer re-binds the serial gadget every 2 s. It runs `diskos-debug.sh usb-on` once at boot (three
+  tries) and exits, so USB Storage and USB DAC can bind the port; a dev image still starts with USB Debug on.
 - Terminal theme Home: the banner is gone, the date sits centred under the clock, the layout has
   more room, the cursor blinks like the title cursors and the prompt reads "$ now playing".
 - Working Mode: USB Audio is listed under Local Playback, and the USB Audio and USB DAC
