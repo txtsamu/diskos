@@ -16381,6 +16381,13 @@ the accent action, like Date & Time's Set: LVGL's default button blue and an inh
 the live accent can be any album colour
 ~~~
 
+
+**L(debug_create)** `void debug_create(lv_obj_t *root){`
+
+~~~text
+Layout (2026-11-10 rework): the Debug Mode screen is one vertical flex list at the same place and size as the Song Info list (x 35, UI_LIST_Y, 290 wide, scrolls, no scrollbar), instead of widgets placed by hand at fixed y. The old fixed positions made the two-line red warning run into the Persistent debug checkbox and mixed 12, 16, 24 px text. Now every row is a centred column cell: a muted 14 px key above a 16 px value (Status or Connect, Password in 24 px accent, Serial), then the warning/hint line (14 px, warning colour while Debug is on or an error is shown, muted when off), then the two checkboxes (16 px) each with a 14 px muted caption. The Enable/Disable button (190x44) is pinned to the bottom of the screen outside the list (the list is 206 px high, y 72 to 278), so the main action is always visible while the details scroll. Nothing in the list is positioned by y, so a wrapped line pushes the rows below it down instead of overlapping them; hidden rows (Password and Serial while Debug is off) drop out of the flow. debug_open() scrolls back to the top. The Serial row is shown only when /dev/ttyGS0 exists (no "Not available" line), which keeps the Enable/Disable button out of the faded bottom edge of the list at the top scroll position. Strings were shortened for the 268 px column: "Join Wi-Fi first", "Port 2222, keys only" (the checkbox itself now reads just "Key SSH"; its state is the tick and the warning colour). Disable Debug still does not stop Key SSH; docs/INSTALL.md says so.
+~~~
+
 ## ui/eqcustom.c
 
 **L13** `int ui_apply_eq(int preset);`

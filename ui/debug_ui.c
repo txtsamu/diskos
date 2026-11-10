@@ -5,6 +5,7 @@
 #include "theme_kit.h"
 #include "config.h"
 #include "procnet.h"
+#include "ui_round.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,7 +26,7 @@
 #define KEYSSH_PORT 2222
 #define KEYSSH_KEYS "/usr/data/sshd/root_home/.ssh/authorized_keys"
 
-static lv_obj_t *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl, *g_keycb, *g_keysub;
+static lv_obj_t *g_list, *g_c_pw, *g_c_serial, *g_k_ssh, *g_ssh, *g_pw, *g_serial, *g_warn, *g_btnlbl, *g_keycb, *g_keysub;
 static int  g_on = 0;
 static char g_pwtext[16] = "";
 
@@ -104,25 +105,33 @@ static void pw_store(void){
 
 static void refresh_key(const char *note);
 
+static void warn_msg(const char *text, int alert){
+    lv_label_set_text(g_warn, text);
+    lv_obj_set_style_text_color(g_warn, alert ? TC(STATUS_WARNING) : TC(TEXT_MUTED), 0);
+}
+
 static void refresh(void){
     char b[96];
     if(g_on){
         char ip[40] = "";
+        lv_label_set_text(g_k_ssh, "Connect");
         if(wlan_ip(ip, sizeof ip)) snprintf(b, sizeof b, "ssh root@%s", ip);
-        else                       snprintf(b, sizeof b, "SSH: connect to WiFi first");
+        else                       snprintf(b, sizeof b, "Join Wi-Fi first");
         lv_label_set_text(g_ssh, b);
-        snprintf(b, sizeof b, "Password:  %s", g_pwtext);       lv_label_set_text(g_pw, b);
-        if(access("/dev/ttyGS0", F_OK) == 0) lv_label_set_text(g_serial, "Serial: USB-C (/dev/ttyACM0)");
-        else                                 lv_label_set_text(g_serial, "Serial: not available (SSH only)");
-        lv_label_set_text(g_warn, "This gives ROOT access to the device. Turn it OFF when finished.");
+        lv_label_set_text(g_pw, g_pwtext[0] ? g_pwtext : "-");
+        warn_msg("Gives ROOT access. Turn it off when finished.", 1);
         lv_label_set_text(g_btnlbl, "Disable Debug");
-        lv_obj_remove_flag(g_pw, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(g_serial, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(g_c_pw, LV_OBJ_FLAG_HIDDEN);
+        if(access("/dev/ttyGS0", F_OK) == 0){
+            lv_label_set_text(g_serial, "USB-C (/dev/ttyACM0)");
+            lv_obj_remove_flag(g_c_serial, LV_OBJ_FLAG_HIDDEN);
+        } else lv_obj_add_flag(g_c_serial, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_label_set_text(g_ssh, "Debug access is OFF");
-        lv_obj_add_flag(g_pw, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(g_serial, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(g_warn, "Enables SSH over Wi-Fi with a fresh random password.");
+        lv_label_set_text(g_k_ssh, "Status");
+        lv_label_set_text(g_ssh, "Debug is OFF");
+        lv_obj_add_flag(g_c_pw, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_c_serial, LV_OBJ_FLAG_HIDDEN);
+        warn_msg("Turns on SSH over Wi-Fi with a new random password.", 0);
         lv_label_set_text(g_btnlbl, "Enable Debug");
     }
     refresh_key(NULL);
@@ -130,14 +139,13 @@ static void refresh(void){
 
 static void refresh_key(const char *note){
     int up = keyssh_up(), keys = keyssh_has_keys();
-    lv_checkbox_set_text(g_keycb, up ? "Key SSH :2222  ON (keys only)" : "Key SSH :2222  OFF");
     if(up) lv_obj_add_state(g_keycb, LV_STATE_CHECKED); else lv_obj_remove_state(g_keycb, LV_STATE_CHECKED);
     if(!up && !keys) lv_obj_add_state(g_keycb, LV_STATE_DISABLED); else lv_obj_remove_state(g_keycb, LV_STATE_DISABLED);
     lv_obj_set_style_text_color(g_keycb, up ? TC(STATUS_WARNING) : TC(TEXT_PRIMARY), 0);
     lv_label_set_text(g_keysub, note ? note
-                      : up    ? "Disable does not stop it. Back at boot."
-                      : keys  ? "Starts again at boot while a key is installed"
-                              : "No key installed, so it stays off");
+                      : up    ? "Port 2222, keys only"
+                      : keys  ? "Port 2222, starts at boot"
+                              : "No key installed");
 }
 
 static int enable_core(const char **why){
@@ -156,12 +164,12 @@ static int enable_core(const char **why){
 }
 static void enable_dbg(void){
     const char *why = NULL;
-    if(enable_core(&why) < 0){ lv_label_set_text(g_warn, why); return; }
+    if(enable_core(&why) < 0){ warn_msg(why, 1); return; }
     refresh();
     if(g_on && !g_pwtext[0])
-        lv_label_set_text(g_warn, "SSH did not start cleanly - press Disable to reset, then try again.");
+        warn_msg("SSH did not start cleanly. Press Disable, then try again.", 1);
     else if(!g_on)
-        lv_label_set_text(g_warn, "Could not start SSH - check WiFi and try again.");
+        warn_msg("Could not start SSH. Check Wi-Fi and try again.", 1);
 }
 
 static void disable_dbg(void){
@@ -170,7 +178,7 @@ static void disable_dbg(void){
     if(!ssh_running() && !overlay_mounted()){ unlink(PWFILE); memset(g_pwtext, 0, sizeof g_pwtext); g_on = 0; }
     else g_on = 1;
     refresh();
-    if(g_on) lv_label_set_text(g_warn, "SSH did not fully stop - still ON. Try Disable again.");
+    if(g_on) warn_msg("SSH did not fully stop and is still ON. Try Disable again.", 1);
 }
 
 static void btn_cb(lv_event_t *e){ (void)e; if(g_on) disable_dbg(); else enable_dbg(); }
@@ -200,11 +208,43 @@ void debug_open(void){
     g_on = ssh_running() || overlay_mounted();
     if(g_on) pw_load(); else g_pwtext[0] = 0;
     refresh();
+    if(g_list) lv_obj_scroll_to_y(g_list, 0, LV_ANIM_OFF);
     screen_show(SCR_DEBUG);
 }
 
-static lv_obj_t *dbg_checkbox(lv_obj_t *root, const char *text, int y){
-    lv_obj_t *cb = lv_checkbox_create(root);
+static lv_obj_t *dbg_row(lv_obj_t *list){
+    lv_obj_t *c = lv_obj_create(list);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_width(c, 268);
+    lv_obj_set_height(c, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(c, 2, 0);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    return c;
+}
+
+static lv_obj_t *dbg_text(lv_obj_t *parent, const lv_font_t *f, lv_color_t col){
+    lv_obj_t *l = lv_label_create(parent);
+    lv_obj_set_width(l, 268);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, col, 0);
+    return l;
+}
+
+static lv_obj_t *dbg_field(lv_obj_t *list, const char *key, lv_obj_t **cell, lv_obj_t **keylbl, const lv_font_t *vf, lv_color_t vc){
+    lv_obj_t *c = dbg_row(list);
+    lv_obj_t *k = dbg_text(c, TF(UI_14), TC(TEXT_MUTED));
+    lv_label_set_text(k, key);
+    if(cell) *cell = c;
+    if(keylbl) *keylbl = k;
+    return dbg_text(c, vf, vc);
+}
+
+static lv_obj_t *dbg_checkbox(lv_obj_t *parent, const char *text){
+    lv_obj_t *cb = lv_checkbox_create(parent);
     lv_checkbox_set_text(cb, text);
     lv_obj_set_style_text_font(cb, TF(UI_16), 0);
     lv_obj_set_style_text_color(cb, TC(TEXT_PRIMARY), 0);
@@ -217,66 +257,52 @@ static lv_obj_t *dbg_checkbox(lv_obj_t *root, const char *text, int y){
     lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(cb, LV_OPA_TRANSP, LV_PART_INDICATOR);
     lv_obj_set_style_shadow_width(cb, 0, LV_PART_INDICATOR);
-    lv_obj_align(cb, LV_ALIGN_TOP_MID, 0, y);
-    return cb;
-}
-static lv_obj_t *pdbg_checkbox(lv_obj_t *root, const char *text, int y){
-    lv_obj_t *cb = dbg_checkbox(root, text, y);
-    if(cfg_get_int(CFG_PDBG, 0)) lv_obj_add_state(cb, LV_STATE_CHECKED);
-    ui_on(cb, pdbg_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.pdbg.value", UI_CORE);
     return cb;
 }
 
 void debug_create(lv_obj_t *root){
     ui_header(root, "Debug Mode");
 
-    g_ssh = lv_label_create(root);
-    lv_obj_set_width(g_ssh, 320); lv_obj_set_style_text_align(g_ssh, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(g_ssh, TC(TEXT_PRIMARY), 0);
-    lv_obj_align(g_ssh, LV_ALIGN_TOP_MID, 0, 88);
+    lv_obj_t *list = lv_obj_create(root);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, 35, UI_LIST_Y); lv_obj_set_size(list, 290, 206);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_bottom(list, 6, 0);
+    lv_obj_set_style_pad_row(list, 10, 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    g_list = list;
 
-    g_pw = lv_label_create(root);
-    lv_obj_set_width(g_pw, 320); lv_obj_set_style_text_align(g_pw, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_font(g_pw, TF(UI_24), 0);
-    lv_obj_set_style_text_color(g_pw, ui_current_accent(), 0);
-    lv_obj_align(g_pw, LV_ALIGN_TOP_MID, 0, 108);
+    g_ssh    = dbg_field(list, "Status", NULL, &g_k_ssh, TF(UI_16), TC(TEXT_PRIMARY));
+    g_pw     = dbg_field(list, "Password", &g_c_pw, NULL, TF(UI_24), ui_current_accent());
+    g_serial = dbg_field(list, "Serial", &g_c_serial, NULL, TF(UI_16), TC(TEXT_PRIMARY));
 
-    g_serial = lv_label_create(root);
-    lv_obj_set_width(g_serial, 300); lv_obj_set_style_text_align(g_serial, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(g_serial, TC(TEXT_MUTED), 0);
-    lv_obj_align(g_serial, LV_ALIGN_TOP_MID, 0, 136);
+    g_warn = dbg_text(list, TF(UI_14), TC(STATUS_WARNING));
 
-    g_warn = lv_label_create(root);
-    lv_obj_set_width(g_warn, 280); lv_label_set_long_mode(g_warn, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(g_warn, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(g_warn, TC(STATUS_WARNING), 0);
-    lv_obj_align(g_warn, LV_ALIGN_TOP_MID, 0, 156);
+    lv_obj_t *prow = dbg_row(list);
+    lv_obj_t *pcb = dbg_checkbox(prow, "Persistent debug");
+    if(cfg_get_int(CFG_PDBG, 0)) lv_obj_add_state(pcb, LV_STATE_CHECKED);
+    ui_on(pcb, pdbg_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.pdbg.value", UI_CORE);
+    lv_label_set_text(dbg_text(prow, TF(UI_14), TC(TEXT_MUTED)), "Wi-Fi and SSH on at every boot");
 
-    pdbg_checkbox(root, "Persistent debug", 198);
-    lv_obj_t *sub = lv_label_create(root);
-    lv_label_set_text(sub, "Wi-Fi and SSH on at every boot");
-    lv_obj_set_style_text_font(sub, TF(UI_12), 0);
-    lv_obj_set_style_text_color(sub, TC(TEXT_MUTED), 0);
-    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 222);
-
-    g_keycb = dbg_checkbox(root, "Key SSH :2222  OFF", 240);
+    lv_obj_t *krow = dbg_row(list);
+    g_keycb = dbg_checkbox(krow, "Key SSH");
     ui_on(g_keycb, key_cb, LV_EVENT_VALUE_CHANGED, NULL, "debug_ui.key.value", UI_CORE);
-    g_keysub = lv_label_create(root);
-    lv_obj_set_width(g_keysub, 300); lv_label_set_long_mode(g_keysub, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(g_keysub, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_font(g_keysub, TF(UI_12), 0);
-    lv_obj_set_style_text_color(g_keysub, TC(TEXT_MUTED), 0);
-    lv_obj_align(g_keysub, LV_ALIGN_TOP_MID, 0, 264);
+    g_keysub = dbg_text(krow, TF(UI_14), TC(TEXT_MUTED));
 
     lv_obj_t *btn = lv_button_create(root);
-    lv_obj_set_size(btn, 190, 40);
+    lv_obj_set_size(btn, 190, 44);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -34);
     lv_obj_set_style_shadow_width(btn, 0, 0);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -38);
     ui_on(btn, btn_cb, LV_EVENT_CLICKED, NULL, "debug_ui.btn", UI_CORE);
     lv_color_t acc = ui_current_accent();
     lv_obj_set_style_bg_color(btn, acc, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     g_btnlbl = lv_label_create(btn); lv_obj_center(g_btnlbl);
+    lv_obj_set_style_text_font(g_btnlbl, TF(UI_16), 0);
     lv_obj_set_style_text_color(g_btnlbl, theme_on_color(acc), 0);
 
     refresh();
