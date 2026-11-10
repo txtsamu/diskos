@@ -461,7 +461,10 @@ int ipc_start(void){
         return -1;
     }
     g_tx=mq_open("/player", O_WRONLY|O_NONBLOCK);
-    if(g_tx==(mqd_t)-1) fprintf(stderr,"mq_open /player fail: %s\n",strerror(errno));
+    if(g_tx==(mqd_t)-1){
+        if(errno==ENOENT) fprintf(stderr,"ipc: player not up yet, waiting for /player\n");
+        else fprintf(stderr,"mq_open /player fail: %s\n",strerror(errno));
+    }
     else mq_identity(g_tx, &g_tx_dev, &g_tx_ino);
     mq_identity(g_rx, &g_rx_dev, &g_rx_ino);
     memset(&g_state,0,sizeof g_state);
@@ -588,7 +591,7 @@ static long tx_depth(void){
 
 #define TX_MAX 48
 #define TX_HOLD_MS 6000
-#define TX_HOLD_BOOT_MS 30000
+#define TX_HOLD_BOOT_MS IPC_BOOT_HOLD_MS
 static int tx_not_yet(int err){ return err == ENOENT; }
 static uint32_t tx_hold(void){ return ipc_rx_frames() ? TX_HOLD_MS : TX_HOLD_BOOT_MS; }
 #define TX_REOPEN_MS 2000
@@ -657,7 +660,7 @@ static int ipc_send_raw(const char*frame, int quiet){
     else {
         txe_t *e = &g_txq[(g_txh + g_txn) % TX_MAX];
         snprintf(e->f, sizeof e->f, "%s", frame); e->t0 = e->s0 = tx_ms(); e->quiet = quiet; g_txn++;
-        fprintf(stderr,"ipc: player busy, '%.12s' waits (%d in line)\n", frame, g_txn);
+        fprintf(stderr,"ipc: %s, '%.12s' waits (%d in line)\n", g_tx==(mqd_t)-1 ? "player not up yet" : "player busy", frame, g_txn);
     }
     pthread_mutex_unlock(&g_txmu);
     return rc;
@@ -687,6 +690,11 @@ int ipc_send_probe(const char*frame){
 }
 int ipc_is_ready(void){
     pthread_mutex_lock(&g_recov_mu); int r=g_rx_ready; pthread_mutex_unlock(&g_recov_mu); return r;
+}
+int ipc_player_up(void){
+    if(ipc_rx_frames()) return 1;
+    pthread_mutex_lock(&g_txmu); int up = tx_open(); pthread_mutex_unlock(&g_txmu);
+    return up;
 }
 int ipc_take_send_error(void){ int e=g_send_err; g_send_err=0; return e; }
 

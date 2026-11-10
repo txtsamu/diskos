@@ -116,6 +116,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/bootlog.c](#uibootlogc) | 4 |
 | [ui/bootsel.c](#uibootselc) | 4 |
 | [ui/bootsel.h](#uibootselh) | 3 |
+| [ui/bootstate.c](#uibootstatec) | 3 |
 | [ui/bt.c](#uibtc) | 163 |
 | [ui/chargemode.c](#uichargemodec) | 6 |
 | [ui/colorpick.c](#uicolorpickc) | 18 |
@@ -13808,6 +13809,26 @@ size, NUL-containing or any other content is 0 = stock. Non-blocking open, so a 
 ~~~text
 Returns only for a positive diskOS record. Anything else hands this process to the stock UI (handoff_exec), and that is
 TERMINAL: if the stock exec fails it exits 127 rather than run diskOS against the boot's decision.
+~~~
+
+## ui/bootstate.c
+
+**L9** `static int g_starting, g_changed;`
+
+~~~text
+The one owner of "the system is still starting". True from bootstate_start() (called once in main() after ipc_start(), skipped for a theme-reload relaunch because the Player is already running then) until both real signals are in: ipc_player_up() (the Player has spoken on /ui, or its /player queue can be opened) and sd_gate_settled() (the launcher's verdict was read: opened, or denied/held). It is latched: once false it stays false for this process, so a later Player restart is not "starting" (that is admit_settling's 9 s window). Consumers: admit.c, sdio.c and transport.c swap their not-ready reasons for BOOTSTATE_REASON through bootstate_reason() (a reason that is about something else, such as "Switching output - try again" or "Return to local playback first" from a USB DAC source, keeps its text); toast.c shows that toast once while it is on screen; home.c shows "Starting..." / "Please wait" in the Now Playing capsule while there is no track. main() forces a home refresh when bootstate_take_change() reports the flip.
+~~~
+
+**L27** `} else if(ms >= IPC_BOOT_HOLD_MS){`
+
+~~~text
+The only time-based part, and it is a give-up, not a readiness guess: it equals the IPC boot hold (ipc.c: a queued command waits up to 30 s for a Player that was never heard from, then fails with "Player didn't respond"; the SD gate also waits at most 60 polls x 500 ms = 30 s before denying). After that the normal error messages are shown again, so a Player that never comes up is not hidden behind "Starting...". The log names the missing signal. Measured on the Disc (diskos_journal.log, 2026-11-10): the UI starts at u=7.3 s, the launcher execs the stock Player at u=9.4 s and the SD gate opens at u=9.6 s, so the window is roughly 2 to 3 s plus whatever the Player needs to open /player.
+~~~
+
+**L37** `const char *bootstate_reason(const char *msg){ return g_starting ? BOOTSTATE_REASON : msg; }`
+
+~~~text
+Log lines this change added or renamed, all in diskos_boot.log: "boot: player ready after N ms" (N counts from bootstate_start, i.e. after the UI's own init), "boot: gave up waiting after N ms (player up|not up, SD gate settled|pending)", "ipc: player not up yet, waiting for /player" (was "mq_open /player fail: No such file or directory", ipc.c ipc_start) and "ipc: player not up yet, 'FRAME' waits (N in line)" (was "ipc: player busy" when the /player queue is not open; "player busy" now means the queue is open but full). Other mq_open errors keep the old "mq_open /player fail" text.
 ~~~
 
 ## ui/bt.c

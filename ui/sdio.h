@@ -42,6 +42,7 @@ sd_gate_t sd_gate_poll(int launch_status);
 void sd_hold(void);
 int  sd_held(void);
 
+int  sd_gate_settled(void);
 int  sd_local_playback_allowed(void);
 int  sd_switch_pending(void);
 int  sd_switch_failed(void);

@@ -3,9 +3,12 @@
 #include "i18n.h"
 #include "screens.h"
 #include "theme.h"
+#include "bootstate.h"
+#include <string.h>
 
 static lv_obj_t   *g_toast;
 static lv_timer_t *g_toast_timer;
+static int g_toast_starting;
 
 static void toast_hide_cb(lv_timer_t *t)
 {
@@ -23,6 +26,9 @@ int ui_toast_hint(const char *msg)
 void ui_toast(const char *msg)
 {
     if(!msg) return;
+    int starting = bootstate_is_reason(msg);
+    if(starting && g_toast && g_toast_starting) return;
+    g_toast_starting = starting;
     msg = tr(msg);
     if(g_toast){ lv_obj_delete_async(g_toast); g_toast = NULL; }
     if(g_toast_timer){ lv_timer_delete(g_toast_timer); g_toast_timer = NULL; }

@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #endif
 #include "sdio.h"
+#include "bootstate.h"
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -166,6 +167,7 @@ sd_gate_t sd_gate_poll(int launch_status){
     return SD_GATE_DENIED;
 }
 
+int sd_gate_settled(void){ return atomic_load(&g_launch_verdict) >= 0; }
 int sd_local_playback_allowed(void){
     return atomic_load(&g_launch_verdict) == 1 && g_sd_phase == SD_LOCAL && !g_sd_hold && sd_io_healthy();
 }
@@ -176,7 +178,7 @@ int sd_switch_pending(void){
 const char *sd_switch_refusal(void){
     if(sd_switch_pending()) return "Storage is switching";
     if(g_sd_phase == SD_UNKNOWN || g_sd_hold || !sd_io_healthy()) return "SD access is held this boot";
-    if(atomic_load(&g_launch_verdict) != 1) return "SD access is not ready yet";
+    if(atomic_load(&g_launch_verdict) != 1) return bootstate_reason("SD access is not ready yet");
     return NULL;
 }
 int sd_host_owned(void){ return g_sd_phase == SD_HOST; }
@@ -207,7 +209,7 @@ int sd_export_begin(void){
     if(g_sd_phase == SD_HOST) return 0;
     if(SDE->scan_active()){ SDE->toast("Let the library scan finish first"); return -1; }
     if(!SDE->player_guarded()){ SDE->toast("Storage protection is unavailable"); return -1; }
-    if(!media_local()){ SDE->toast("SD card is not ready"); return -1; }
+    if(!media_local()){ SDE->toast(bootstate_reason("SD card is not ready")); return -1; }
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
     ts.tv_nsec += 200000000L; if(ts.tv_nsec >= 1000000000L){ ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
     if(pthread_mutex_timedlock(&g_sd_mode_mu, &ts) != 0){ SDE->toast("SD card is busy - try again"); return -1; }

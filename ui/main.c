@@ -39,6 +39,7 @@
 #include "srcswitch.h"
 #include "coverart.h"
 #include "admit.h"
+#include "bootstate.h"
 #include "timekeep.h"
 #include "bootsel.h"
 #include "rmguard.h"
@@ -901,6 +902,14 @@ static void ipc_connect_retry_cb(lv_timer_t *t){
     }
 }
 
+static const struct bootstate_env g_bootstate_env = {
+    .now = lv_tick_get, .player_up = ipc_player_up, .gate_settled = sd_gate_settled,
+};
+static void bootstate_tick_cb(lv_timer_t *t){
+    bootstate_tick();
+    if(!bootstate_starting()) lv_timer_del(t);
+}
+
 static void ipc_health_cb(lv_timer_t *t){
     (void)t;
     if(!ipc_is_ready()) ipc_start();
@@ -1555,6 +1564,11 @@ int main(int argc, char **argv){
         lv_timer_create(ipc_connect_retry_cb, 1000, NULL);
     }
     ipc_send_probe("02020008");
+    if(session_entry() != SESSION_RELAUNCH){
+        bootstate_start(&g_bootstate_env);
+        bootstate_tick();
+        if(bootstate_starting()) lv_timer_create(bootstate_tick_cb, 200, NULL);
+    }
     lv_timer_t *sync_t = lv_timer_create(state_sync_retry_cb, 2000, NULL);
     lv_timer_set_repeat_count(sync_t, 5);
     lv_timer_create(ipc_health_cb, 30000, NULL);
@@ -1662,6 +1676,7 @@ int main(int argc, char **argv){
             ui_reapply_audio();
         }
         admit_tick();
+        if(bootstate_take_change()) last = ~0u;
         opus_title_tick();
         ipc_get_state(&st);
         wifi_supervise();

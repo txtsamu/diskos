@@ -3,6 +3,7 @@
 #include "admit.h"
 #include "session.h"
 #include "outroute.h"
+#include "bootstate.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@ void admit_tick(void){ if(g_settle_armed) (void)admit_settling(); }
 
 static int local_source(void){ return session_source_mode() == 0; }
 static const char *idle_reason(void){ return E->output_busy() ? REASON_SWITCHING : NULL; }
-static const char *card_reason(void){ return E->local_playback_allowed() ? NULL : REASON_LOCAL_FIRST; }
+static const char *card_reason(void){ return E->local_playback_allowed() ? NULL : bootstate_reason(REASON_LOCAL_FIRST); }
 
 const char *admit_check(admit_what_t what){
     const char *why;
@@ -36,11 +37,11 @@ const char *admit_check(admit_what_t what){
         if((why = idle_reason())) return why;
         return card_reason();
     case ADMIT_OUTPUT_SWITCH:
-        if(!E->local_playback_allowed()) return "SD card is not ready";
+        if(!E->local_playback_allowed()) return bootstate_reason("SD card is not ready");
         if(!local_source()) return REASON_LOCAL_FIRST;
         if(outroute_bt_routed()) return "Bluetooth output is active";
-        if(admit_settling()) return "Player is starting - try again";
-        if(E->play_recent()) return "Player is busy - try again";
+        if(admit_settling()) return bootstate_reason("Player is starting - try again");
+        if(E->play_recent()) return bootstate_reason("Player is busy - try again");
         if(E->book_active()) return "Stop the audiobook first";
         return NULL;
     case ADMIT_ROUTE_BT:
@@ -48,7 +49,7 @@ const char *admit_check(admit_what_t what){
         if((why = card_reason())) return why;
         return local_source() ? NULL : REASON_LOCAL_FIRST;
     case ADMIT_ROUTE_BT_SEND:
-        return admit_settling() ? "Player is starting - try again" : NULL;
+        return admit_settling() ? bootstate_reason("Player is starting - try again") : NULL;
     case ADMIT_LOCAL_INIT:
         if((why = card_reason())) return why;
         if(!local_source()) return REASON_LOCAL_FIRST;

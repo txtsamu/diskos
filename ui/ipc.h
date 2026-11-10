@@ -4,6 +4,7 @@
 #define IPC_H
 #include <stdint.h>
 #define IPC_TITLE_CAPACITY 256
+#define IPC_BOOT_HOLD_MS 30000
 unsigned ipc_transport_seq(void);
 typedef struct {
     char title[IPC_TITLE_CAPACITY];
@@ -61,6 +62,7 @@ int  ipc_tx_waiting(void);
 void ipc_quiet_begin(void);
 int  ipc_quiet_end(void);
 int  ipc_is_ready(void);
+int  ipc_player_up(void);
 int  ipc_take_send_error(void);
 void ipc_health_check(void);
 int  ipc_take_reconnected(void);

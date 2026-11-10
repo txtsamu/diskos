@@ -12,6 +12,10 @@ _Avoid_: device, unit
 The stock playback firmware process on the Disc that the UI sends commands to. It owns decoding, output and the USB port; the UI only asks.
 _Avoid_: engine, daemon, mq_player (a binary name, not the concept)
 
+**Starting state**:
+The first seconds after the UI starts, until the Player's IPC is up and the SD gate has settled (opened or denied). One module (`bootstate`) owns it. While it lasts, "not ready" reasons from admission, SD access and the scan button read "Starting up..." instead of "Player is busy", "Return to local playback first" or "SD card is not ready", and the home screen shows "Starting...". It ends once, and gives up after 30 s so a Player that never comes up shows the normal errors.
+_Avoid_: boot mode, loading
+
 **Player config**:
 The Player's own configuration database (`sysconfig.db`, table SYSCONFIG, one row). The Player owns it and loads it at start: the UI reads it to seed its own settings, changes only AUTO_TIME in it directly, and resets the work mode column to Local at boot and before handing off to the Player. All access goes through one module (`sysconfig`).
 _Avoid_: sysconfig (a file and table name, not the concept), settings DB, stock config

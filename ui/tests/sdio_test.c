@@ -87,9 +87,11 @@ static void nothing_is_admitted_before_a_positive_verdict(void){
     setup(); sd_init();
     assert(!sd_io_begin() && !sd_io_allowed() && !sd_local_playback_allowed());
     assert(sd_switch_refusal() && !strcmp(sd_switch_refusal(), "SD access is not ready yet"));
+    assert(!sd_gate_settled());
     run(500);
     assert(!sd_io_begin() && !sd_io_allowed());
     assert(sd_gate_poll(1) == SD_GATE_OPENED);
+    assert(sd_gate_settled());
     assert(!sd_io_begin());
     run(100);
     assert(sd_io_begin()); sd_io_end();
@@ -99,7 +101,9 @@ static void gate_waits_then_denies_without_a_verdict(void){
     setup(); sd_init();
     for(int i = 0; i < 59; i++) assert(sd_gate_poll(-1) == SD_GATE_WAIT);
     assert(!sd_held());
+    assert(!sd_gate_settled());
     assert(sd_gate_poll(-1) == SD_GATE_DENIED);
+    assert(sd_gate_settled());
     assert(sd_held() && sd_switch_failed() && !sd_local_playback_allowed());
     assert(!sd_io_begin() && !sd_write_begin() && !sd_writable());
     assert(sd_gate_poll(1) == SD_GATE_OPENED);

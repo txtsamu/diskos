@@ -3,6 +3,7 @@
 #include "admit.h"
 #include "session.h"
 #include "outroute.h"
+#include "bootstate.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,6 +147,44 @@ static void rules(void){
     assert(admit_check((admit_what_t)99) != NULL);
 }
 
+static int k_up, k_gate;
+static int env_up(void){ return k_up; }
+static int env_gate(void){ return k_gate; }
+static const struct bootstate_env boot_env = { env_now, env_up, env_gate };
+
+#define STARTING "Starting up..."
+static void starting_window(void){
+    static const facts_t not_ready = { .allowed = 0 };
+    static const facts_t recent = { .allowed = 1, .recent = 1 };
+    static const facts_t restart = { .allowed = 1, .settling = 1 };
+    static const facts_t busy = { .allowed = 1, .busy = 1 };
+    static const facts_t usb_dac = { .allowed = 1, .src = 1 };
+    apply(&not_ready); k_up = 0; k_gate = 0; bootstate_start(&boot_env);
+    expect_reason("starting, local playback", admit_check(ADMIT_LOCAL_PLAYBACK), STARTING);
+    expect_reason("starting, command", admit_check(ADMIT_PLAYER_COMMAND), STARTING);
+    expect_reason("starting, output switch", admit_check(ADMIT_OUTPUT_SWITCH), STARTING);
+    expect_reason("starting, route bt", admit_check(ADMIT_ROUTE_BT), STARTING);
+    expect_reason("starting, route analog", admit_check(ADMIT_ROUTE_ANALOG), STARTING);
+    expect_reason("starting, local init", admit_check(ADMIT_LOCAL_INIT), STARTING);
+    expect_reason("starting, output idle", admit_check(ADMIT_OUTPUT_IDLE), NULL);
+    apply(&recent); bootstate_start(&boot_env);
+    expect_reason("starting, play recent", admit_check(ADMIT_OUTPUT_SWITCH), STARTING);
+    apply(&restart); bootstate_start(&boot_env);
+    expect_reason("starting, restart settle", admit_check(ADMIT_OUTPUT_SWITCH), STARTING);
+    expect_reason("starting, restart settle bt send", admit_check(ADMIT_ROUTE_BT_SEND), STARTING);
+    apply(&busy); bootstate_start(&boot_env);
+    expect_reason("starting, a real output switch keeps its reason", admit_check(ADMIT_PLAYER_COMMAND), SW);
+    apply(&usb_dac); bootstate_start(&boot_env);
+    expect_reason("starting, USB DAC source keeps its reason", admit_check(ADMIT_OUTPUT_SWITCH), LOC);
+    apply(&not_ready); bootstate_start(&boot_env); k_up = 1; k_gate = 1; bootstate_tick();
+    expect_reason("ready, local playback", admit_check(ADMIT_LOCAL_PLAYBACK), LOC);
+    expect_reason("ready, output switch", admit_check(ADMIT_OUTPUT_SWITCH), SD);
+    apply(&recent);
+    expect_reason("ready, play recent", admit_check(ADMIT_OUTPUT_SWITCH), BSY);
+    apply(&restart);
+    expect_reason("ready, restart settle", admit_check(ADMIT_OUTPUT_SWITCH), STA);
+}
+
 static void seek(void){
     apply(&IDLE_LOCAL); reset_log();
     assert(ui_seek_to(5000) == 0);
@@ -281,6 +320,7 @@ int main(void){
     RUN(rules);
     RUN(seek);
     RUN(settle_window);
+    RUN(starting_window);
     RUN(play_start_table);
     run("cross_product", cross_product);
     puts("admit_test: ok");

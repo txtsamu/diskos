@@ -23,20 +23,23 @@ outroute_test: ../outroute.c ../outseq.c outroute_test.c ../outroute.h ../outseq
 session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c -o $@
 
-srcswitch_test: ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../outroute.h ../session.h ../outseq.h
+srcswitch_test: ../bootstate.c ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../outroute.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
-	  ../srcswitch.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
+	  ../srcswitch.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
 
-admit_test: ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
-	$(CC) $(CFLAGS) -I.. ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c -o $@
+admit_test: ../bootstate.c ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
+	$(CC) $(CFLAGS) -I.. ../admit.c ../bootstate.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c -o $@
 
 playreq_test: ../playreq.c ../playstate.c playreq_test.c ../playreq.h ../playstate.h
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -DPCM_DIR='"$(TDIR)/pcm"' -DPLAY_PCM_GLOB='"$(TDIR)/pcm/*/status"' -I.. ../playreq.c ../playstate.c playreq_test.c -o $@
 
-sdio_test: ../sdio.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c ../sdio.h ../session.h ../outseq.h
+sdio_test: ../bootstate.c ../sdio.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c ../sdio.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DSD_EXPORT_MARKER='"$(TDIR)/sdio_handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/sdio_fault"' -I.. \
-	  ../sdio.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c -o $@
+	  ../sdio.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c -o $@
+
+bootstate_test: ../bootstate.c bootstate_test.c ../bootstate.h ../ipc.h
+	$(CC) $(CFLAGS) -I.. ../bootstate.c bootstate_test.c -o $@
 
 dacinfo_test: ../dacinfo.c dacinfo_test.c ../dacinfo.h
 	$(CC) $(CFLAGS) -I.. ../dacinfo.c dacinfo_test.c -o $@
@@ -58,8 +61,8 @@ dacvol_sys_test: ../dacvol_sys.c ../dacvol.c ../command_spawn.c dacvol_sys_test.
 clicks_test: ../clicks.c clicks_test.c ../clicks.h
 	$(CC) $(CFLAGS) -I.. ../clicks.c clicks_test.c -o $@
 
-transport_test: ../transport.c transport_test.c ../transport.h ../ipc.h ../admit.h
-	$(CC) $(CFLAGS) -I.. ../transport.c transport_test.c -o $@
+transport_test: ../transport.c ../bootstate.c transport_test.c ../transport.h ../ipc.h ../admit.h
+	$(CC) $(CFLAGS) -I.. ../transport.c ../bootstate.c transport_test.c -o $@
 
 booksess_test: ../booksess.c booksess_test.c ../booksess.h ../ipc.h
 	$(CC) $(CFLAGS) -I.. ../booksess.c booksess_test.c -o $@
@@ -109,7 +112,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -134,6 +137,8 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./sdio_test
 	@echo "--- admit ---"
 	./admit_test
+	@echo "--- bootstate ---"
+	./bootstate_test
 	@echo "--- dacinfo ---"
 	./dacinfo_test
 	@echo "--- timekeep ---"
@@ -169,7 +174,7 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./coverart_pipeline_test
 
 clean:
-	rm -f vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher storage
 PY_UNITTEST := outseq_guard rmguard

@@ -6,6 +6,7 @@
 #include "musicdb.h"
 #include "scanner.h"
 #include "sdio.h"
+#include "bootstate.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -59,7 +60,7 @@ int ui_transport_command(const char *cmd)
 void ui_rescan_library(void){
     if(scanner_active()){ if(scanner_cancel()) ui_toast("Cancelling scan..."); return; }   
     if(admit_check(ADMIT_LOCAL_PLAYBACK)){ ui_toast("Return to local playback to scan"); return; }
-    if(!sd_io_allowed()){ ui_toast("SD card is not ready"); return; }
+    if(!sd_io_allowed()){ ui_toast(bootstate_reason("SD card is not ready")); return; }
     if(scanner_start() != 0){ ui_toast("Couldn't start library scan"); return; }
     ui_toast("Scanning library...");
 }

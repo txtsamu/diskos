@@ -4,6 +4,7 @@
 #include "i18n.h"
 #include "theme.h"
 #include "theme_kit.h"
+#include "bootstate.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -422,8 +423,9 @@ void home_set_now_playing(const char *title, const char *artist,
 {
     g_accent = accent;
 
-    int changed = ui_label_set_changed(g_np_title, title ? title : tr("Not Playing"));
-    changed |= ui_label_set_changed(g_np_artist, artist ? artist : tr("Library"));
+    int starting = !title && bootstate_starting();
+    int changed = ui_label_set_changed(g_np_title, title ? title : tr(starting ? "Starting..." : "Not Playing"));
+    changed |= ui_label_set_changed(g_np_artist, artist ? artist : tr(starting ? "Please wait" : "Library"));
     if (g_np_state) ui_pp_glyph(g_np_state, ui_pp_icon_playing(playing));
     np_fit(changed);
 
