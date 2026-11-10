@@ -72,7 +72,7 @@ static void bounded_detached(const char *cmd, int ms){
     kill_and_reap(p);
 }
 
-typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE } st_type_t;
+typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE, ST_PAGE } st_type_t;
 
 typedef struct setting_s {
     const char *group;
@@ -86,6 +86,7 @@ typedef struct setting_s {
     int  def;
     const char *desc;
     const char *const *opt_descs;
+    const char *to_page;
 } setting_t;
 
 void screen_set_anim(int on);
@@ -665,34 +666,34 @@ static const char *const D_NPSTYLE[] = {
 static const setting_t TABLE[] = {
     { "Playback", "Play Mode",   ST_CYCLER, "work_mode", 0,0,0, OPT_MODE, 5, NULL, apply_mode, 0,
       "How the player advances through tracks.", D_MODE },
+    { "Playback", "Resume Playback", ST_CYCLER, "memory_play", 0,0,0, OPT_MEMORY, 3, NULL, apply_memory, 0,
+      "On power-on: Off = start fresh, Position = resume the exact spot, Song = reopen the last track.", NULL },
     { "Playback", "Equalizer",   ST_CYCLER, "eq_preset", 0,0,0, OPT_EQ,  21, NULL, apply_eq,   0,
       "Tone preset sent to the player; audible effect is still being verified.", NULL },
     { "Playback", "Custom EQ",    ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_eq_custom, 0,
       "Adjust the 10-band custom EQ. Applies live and saves on the device.", NULL },
-    { "Playback", "DSD Output",  ST_READONLY, NULL, 0,0,0, NULL,0, "Auto", NULL, 0,
-      "The player auto-selects the DSD mode; this control isn't user-adjustable yet.", NULL },
-    { "Playback", "Resume Playback", ST_CYCLER, "memory_play", 0,0,0, OPT_MEMORY, 3, NULL, apply_memory, 0,
-      "On power-on: Off = start fresh, Position = resume the exact spot, Song = reopen the last track.", NULL },
     { "Playback", "Artists",     ST_CYCLER, "artist_class", 0,0,0, OPT_ARTISTCLASS, 2, NULL, apply_artist_class, 0,
       "Group the Artists list by each song's artist, or by its album artist - the same choice as the stock player.", NULL },
     { "Playback", "Play Through Folders", ST_TOGGLE, "folder_jump", 0,1,1, NULL, 0, NULL, apply_folder_jump, 0,
       "When an album, artist, genre or folder finishes, keep playing the next one. Works with Sequential, Shuffle and Loop All.", NULL },
+    { "Playback", "DSD Output",  ST_READONLY, NULL, 0,0,0, NULL,0, "Auto", NULL, 0,
+      "The player auto-selects the DSD mode; this control isn't user-adjustable yet.", NULL },
     { "Audio",    "Working Mode", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_workmode, 0,
       "Switch the audio source: local playback, USB DAC, Bluetooth receiving, or USB storage.", NULL },
     { "Audio",    "Gain",        ST_CYCLER, "audio_gain",   0,0,0, OPT_GAIN, 2, NULL, apply_gain, 0,
       "Headphone output gain. High drives demanding headphones louder.", NULL },
-    { "Audio",    "DAC Filter",  ST_CYCLER, "audio_filter", 0,0,0, OPT_DFILTER, 6, NULL, apply_dac_filter, 1,
-      "CS43131 digital filter roll-off. A subtle tone/transient tradeoff.", NULL },
-    { "Audio",    "ReplayGain",  ST_CYCLER, "replay_gain",  0,0,0, OPT_REPLAYGAIN, 3, NULL, apply_replay_gain, 0,
-      "Level the volume across tracks. Track uses each song's gain; Album keeps an album's relative dynamics.", NULL },
-    { "Audio",    "DRE",         ST_CYCLER, "audio_dre",    0,0,0, OPT_DRE, 2, NULL, apply_dre, 1,
-      "Dynamic Range Enhancement (CS43131) for quieter listening.", NULL },
-    { "Audio",    "Gapless",     ST_CYCLER, "gapless",      0,0,0, OPT_DRE, 2, NULL, apply_gapless, 0,
-      "Play tracks with no silent gap between them.", NULL },
     { "Audio",    "Max Volume",  ST_SLIDER, "max_vol",      10,120,5, NULL,0, NULL, apply_maxvol, 120,
       "Cap the maximum volume level (protects your ears / headphones).", NULL },
     { "Audio",    "Balance",     ST_SLIDER, "balance",      -10,10,1, NULL,0, NULL, apply_balance, 0,
       "Left/right channel balance. 0 = centred; negative = left, positive = right.", NULL },
+    { "Audio",    "ReplayGain",  ST_CYCLER, "replay_gain",  0,0,0, OPT_REPLAYGAIN, 3, NULL, apply_replay_gain, 0,
+      "Level the volume across tracks. Track uses each song's gain; Album keeps an album's relative dynamics.", NULL },
+    { "Audio",    "Gapless",     ST_CYCLER, "gapless",      0,0,0, OPT_DRE, 2, NULL, apply_gapless, 0,
+      "Play tracks with no silent gap between them.", NULL },
+    { "Audio",    "DAC Filter",  ST_CYCLER, "audio_filter", 0,0,0, OPT_DFILTER, 6, NULL, apply_dac_filter, 1,
+      "CS43131 digital filter roll-off. A subtle tone/transient tradeoff.", NULL },
+    { "Audio",    "DRE",         ST_CYCLER, "audio_dre",    0,0,0, OPT_DRE, 2, NULL, apply_dre, 1,
+      "Dynamic Range Enhancement (CS43131) for quieter listening.", NULL },
 #ifdef DISKOS_TEST_OUTPUTS
     { "Audio",    "SPDIF Output", ST_TOGGLE, "spdif",   0,1,1, NULL,0, NULL, apply_spdif, 0,
       "Send audio to the digital SPDIF output instead of the internal DAC. Playback pauses for a moment while it switches.", NULL },
@@ -705,39 +706,39 @@ static const setting_t TABLE[] = {
       "Dark or light screens. Changing it redraws the screen in a moment; music keeps playing.", NULL },
     { "Display",  "Font Size",   ST_CYCLER, "font_size", 0,0,0, OPT_FONTSIZE, 3, NULL, apply_font_size, 1,
       "Size of list and body text: Small, Medium or Large. Titles and clocks keep their size. The screen redraws in a moment.", NULL },
-    { "Display",  "Screen Rotation", ST_CYCLER, CTL_CFG_ROT, 0,0,0, OPT_ROTATION, CTL_ROT_N, NULL, apply_screen_rot, 0,
-      "Turn the picture and touch clockwise: Normal, 90, 180 or 270 degrees. Stored by the player, as in the stock menu.", NULL },
-    { "Display",  "Outdoor Mode", ST_TOGGLE, "outdoor",  0,1,1, NULL, 0, NULL, apply_outdoor, 0,
+    { "Display", "Screen & Saver", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Screen & Saver" },
+    { "Display", "Player & Lists", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Player & Lists" },
+    { "Display", "Home & Swipes", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Home & Swipes" },
+    { "Screen & Saver",  "Outdoor Mode", ST_TOGGLE, "outdoor",  0,1,1, NULL, 0, NULL, apply_outdoor, 0,
       "Light screens at full brightness, easier to read in sunlight. Uses more battery. Turning it off returns your own brightness.", NULL },
-    { "Display",  "Track Numbers", ST_TOGGLE, "track_numbers", 0,1,1, NULL, 0, NULL, apply_track_numbers, 0,
-      "Show each song's track number in album lists.", NULL },
-    { "Display",  "Online Album Art", ST_TOGGLE, "online_art", 0,1,1, NULL, 0, NULL, apply_online_art, 0,
-      "Songs with no cover of their own get one from the internet (Wi-Fi). Each album is looked up once; playback is never touched.", NULL },
-    { "Display",  "Online Lyrics", ST_TOGGLE, "online_lyrics", 0,1,1, NULL, 0, NULL, NULL, 1,
-      "Songs with no lyrics of their own (no .lrc file, none in the song's tags) are looked up on lrclib.net (Wi-Fi). Off stops diskOS's own lookup; lyrics from the SD card or the song's tags still show.", NULL },
-    { "Display",  "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_qsconfig, 0,
-      "Choose which tiles appear in the pull-down Quick Settings drawer.", NULL },
-    { "Display",  "Now Playing", ST_CYCLER, "np_style",   0,0,0, OPT_NPSTYLE, 2, NULL, apply_np_style, 0,
-      "Album art style on the Now Playing screen.", D_NPSTYLE },
-    { "Display",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
-      "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
-    { "Display",  "Accent Colour", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_colorpick, 0,
-      "Now Playing accent: derived from album art, or any fixed colour you pick.", NULL },
-    { "Display",  "Album Art Cache", ST_CYCLER, "artcache", 0,0,0, OPT_ARTCACHE, 3, NULL, apply_artcache, 0,
-      "Pre-decode album art so covers load instantly. Background decoding can warm the player; it throttles on heat.", D_ARTCACHE },
-    { "Display",  "Screensaver", ST_CYCLER, "saver_idx",  0,0,0, OPT_POWER, 5, NULL, NULL, 2,
+    { "Screen & Saver",  "Screensaver", ST_CYCLER, "saver_idx",  0,0,0, OPT_POWER, 5, NULL, NULL, 2,
       "Idle time before the clock screensaver appears and the screen dims.", NULL },
-    { "Display",  "Saver Style", ST_CYCLER, "saver_style", 0,0,0, OPT_SAVERSTYLE, 5, NULL, NULL, 0,
+    { "Screen & Saver",  "Saver Style", ST_CYCLER, "saver_style", 0,0,0, OPT_SAVERSTYLE, 5, NULL, NULL, 0,
       "Screensaver look: Cover art, Analog clock, Minimal, Digital, or spinning Vinyl.", NULL },
-    { "Display",  "Screen Off",  ST_CYCLER, "screenoff_idx", 0,0,0, OPT_POWER, 5, NULL, NULL, 3,
+    { "Screen & Saver",  "Screen Off",  ST_CYCLER, "screenoff_idx", 0,0,0, OPT_POWER, 5, NULL, NULL, 3,
       "How long after the screensaver the screen turns fully off.", NULL },
-    { "Display",  "24-Hour Time", ST_TOGGLE, "time_24h",  0,1,1, NULL, 0, NULL, apply_time, 1,
-      "Use a 24-hour clock instead of AM/PM.", NULL },
-    { "Display",  "Animations",  ST_TOGGLE, "anim",      0,1,1, NULL, 0, NULL, apply_anim, 1,
-      "Slide animations between screens.", NULL },
-    { "Display",  "Weather on Home", ST_TOGGLE, "weather_on", 0,1,1, NULL, 0, NULL, apply_weather, 1,
+    { "Screen & Saver",  "Screen Rotation", ST_CYCLER, CTL_CFG_ROT, 0,0,0, OPT_ROTATION, CTL_ROT_N, NULL, apply_screen_rot, 0,
+      "Turn the picture and touch clockwise: Normal, 90, 180 or 270 degrees. Stored by the player, as in the stock menu.", NULL },
+    { "Player & Lists",  "Now Playing", ST_CYCLER, "np_style",   0,0,0, OPT_NPSTYLE, 2, NULL, apply_np_style, 0,
+      "Album art style on the Now Playing screen.", D_NPSTYLE },
+    { "Player & Lists",  "Accent Colour", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_colorpick, 0,
+      "Now Playing accent: derived from album art, or any fixed colour you pick.", NULL },
+    { "Player & Lists",  "Album View",  ST_CYCLER, "album_view", 0,0,0, OPT_ALBUMVIEW, 2, NULL, NULL, 0,
+      "How the Albums list looks: a text list, or a cover flow you flick through.", NULL },
+    { "Player & Lists",  "Track Numbers", ST_TOGGLE, "track_numbers", 0,1,1, NULL, 0, NULL, apply_track_numbers, 0,
+      "Show each song's track number in album lists.", NULL },
+    { "Player & Lists",  "Album Art Cache", ST_CYCLER, "artcache", 0,0,0, OPT_ARTCACHE, 3, NULL, apply_artcache, 0,
+      "Pre-decode album art so covers load instantly. Background decoding can warm the player; it throttles on heat.", D_ARTCACHE },
+    { "Home & Swipes",  "Quick Settings", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_qsconfig, 0,
+      "Choose which tiles appear in the pull-down Quick Settings drawer.", NULL },
+    { "Home & Swipes",  "Weather on Home", ST_TOGGLE, "weather_on", 0,1,1, NULL, 0, NULL, apply_weather, 1,
       "Show the weather glance on the home screen and screensaver (tap it to open the full forecast). Off skips the background fetch to save battery.", NULL },
-    { "Display",  "Back-swipe",  ST_SLIDER, "swipe_thresh", 30,120,5, NULL,0, NULL, apply_swipe, 60,
+    { "Home & Swipes",  "Animations",  ST_TOGGLE, "anim",      0,1,1, NULL, 0, NULL, apply_anim, 1,
+      "Slide animations between screens.", NULL },
+    { "Home & Swipes",  "Back-swipe",  ST_SLIDER, "swipe_thresh", 30,120,5, NULL,0, NULL, apply_swipe, 60,
       "Swipe distance needed to go back. Lower is more sensitive.", NULL },
     { "Network",  "Wi-Fi",       ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_wifi, 0,
       "Scan for and connect to Wi-Fi networks.", NULL },
@@ -745,62 +746,80 @@ static const setting_t TABLE[] = {
       "Pair Bluetooth devices. Audio routes to connected headphones or speakers (SBC, beta).", NULL },
     { "Network",  "Bluetooth Codec", ST_CYCLER, "bt_codec", 0,0,0, BT_CODEC_LABEL, BT_CODEC_N, NULL, NULL, 0,
       "Codec for Bluetooth headphones, as in the stock player. Applies the next time the headphones connect. If they lack the codec, SBC is used. AAC and LDAC are heavier for this player and may stutter.", NULL },
-    { "System",   "Language",    ST_CHOICE, "language", 0,0,0, i18n_lang_names, LANG_COUNT, NULL, apply_language, LANG_EN,
-      "Interface language. Song, artist and album names are always shown as they are tagged.", NULL },
-    { "System",   "Sleep Timer", ST_CYCLER, "sleep_idx", 0,0,0, OPT_SLEEP, 6, NULL, apply_sleep, 0,
-      "Pause playback, or shut the device down (see When Sleep Ends), after this long. Resets on restart.", NULL },
-    { "System",   "When Sleep Ends", ST_CYCLER, "sleep_action", 0,0,0, OPT_SLEEP_ACT, 2, NULL, NULL, POWER_SLEEP_PAUSE,
-      "What the Sleep Timer does. Shut down closes the card safely first, then powers the device off.", NULL },
-    { "System",   "Idle Power-off", ST_CYCLER, "idle_off_idx", 0,0,0, OPT_IDLE_OFF, POWER_IDLE_N, NULL, NULL, 0,
-      "Power the device off after this long with nothing playing and no touch or key press. Closes the card safely first.", NULL },
-    { "System",   "Charging Limit", ST_TOGGLE, "charge_protect", 0,1,1, NULL, 0, NULL, apply_charge_protect, 0,
-      "The player's Charging optimization: stops charging at about 80% to slow battery wear.", NULL },
-    { "System",   "Vol Keys: Press", ST_CYCLER, "key_single", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_single, CTL_ACT_VOLUME,
-      "What the volume keys do on a single press: adjust the volume or switch track. Stored by the player, as in the stock menu.", NULL },
-    { "System",   "Vol Keys: Double Press", ST_CYCLER, "key_double", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_double, CTL_ACT_VOLUME,
-      "What the volume keys do on a double press: adjust the volume or switch track.", NULL },
-    { "System",   "Vol Keys: Long Press", ST_CYCLER, "key_long", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_long, CTL_ACT_VOLUME,
-      "What the volume keys do when held: adjust the volume or switch track.", NULL },
-    { "System",   "Old tags", ST_CYCLER, "old_tags", 0,0,0, OPT_OLDTAGS, 3, NULL, apply_old_tags, OLD_TAGS_AUTO,
-      "Legacy text: guess, Latin-1 or CP1251. Rescan Library to apply.", NULL },
-    { "System",   "Rescan Library", ST_ACTION, NULL, 0,0,0, NULL,0, "Scan", apply_rescan, 0,
-      "Re-scan the SD card for new or removed music.", NULL },
-    { "System",   "Import Playlists", ST_ACTION, NULL, 0,0,0, NULL,0, "Import", apply_import_m3u, 0,
-      "Import .m3u / .m3u8 playlists found on the SD card.", NULL },
-    { "System",   "Default UI",  ST_CYCLER, "boot_default", 0,0,0, OPT_BOOTDEF, 2, NULL, apply_boot_default, 0,
-      "Which UI boots by default. To boot the other one, hold Vol-Up from power-on until it appears.", NULL },
-    { "System",   "Automatic Time", ST_TOGGLE, "auto_time", 0,1,1, NULL, 0, NULL, apply_auto_time, 1,
-      "Set the time and time zone from the internet whenever Wi-Fi connects. A change applies after the next restart.", NULL },
-    { "System",   "Block FiiO update checks", ST_TOGGLE, "block_fiio_checks", 0,1,1, NULL, 0, NULL, apply_block_fiio, 0,
-      "Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics and weather still work. While on, the stock firmware update prompts will not appear.", NULL },
-    { "System",   "Set Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_datetime, 0,
-      "Set the clock by hand. With Automatic Time on, Wi-Fi may correct it later.", NULL },
-    { "System",   "Time Zone",   ST_CHOICE, "tz_idx", 0,0,0, TZ_LABEL, TZ_COUNT, NULL, apply_timezone, 0,
-      "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
-    { "System",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
-      "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
-    { "System",   "Power off",   ST_ACTION, NULL, 0,0,0, NULL,0, "Power off", apply_poweroff, 0,
-      "Shut the device down. The card is closed safely first.", NULL },
-#ifdef DISKOS_SWB_FLASHMODE
-    { "System",   "Restart to Flash Mode", ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart_flash, 0,
-      "Restart straight into flash (USB boot) mode for the installer, without holding Vol-Down. Nothing is erased.", NULL },
-#endif
-    { "System",   "Device Info", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_about_open, 0,
-      "Model, stock firmware, diskOS build, MAC addresses, storage and battery.", NULL },
-    { "System",   "Update from SD Card", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_update_sd_open, 0,
-      "Look for a file on the SD card named like a stock update and show how it is used. Information only: diskOS never runs it.", NULL },
-    { "System",   "Allow diskOS Updates", ST_TOGGLE, "ota_allow", 0,1,1, NULL, 0, NULL, system_ota_allow_changed, 1,
-      "diskOS only updates when you tap Update diskOS, and only with signed releases.", NULL },
-    { "System",   "Update diskOS", ST_ACTION, NULL, 0,0,0, NULL,0, "Check", system_check_update_open, 0,
-      "Look up the newest diskOS release on GitHub (needs Wi-Fi). If it carries a signed update, download and verify it, then restart to finish. Nothing changes until you confirm.", NULL },
-    { "System",   "Reset diskOS Settings", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", system_reset_open, 0,
-      "Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, EQ and audio settings are kept.", NULL },
+    { "Network",  "Online Album Art", ST_TOGGLE, "online_art", 0,1,1, NULL, 0, NULL, apply_online_art, 0,
+      "Songs with no cover of their own get one from the internet (Wi-Fi). Each album is looked up once; playback is never touched.", NULL },
+    { "Network",  "Online Lyrics", ST_TOGGLE, "online_lyrics", 0,1,1, NULL, 0, NULL, NULL, 1,
+      "Songs with no lyrics of their own (no .lrc file, none in the song's tags) are looked up on lrclib.net (Wi-Fi). Off stops diskOS's own lookup; lyrics from the SD card or the song's tags still show.", NULL },
+    { "System", "Time & Language", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Time & Language" },
+    { "System", "Power & Sleep", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Power & Sleep" },
+    { "System", "Volume Keys", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Volume Keys" },
+    { "System", "Library", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Library" },
+    { "System", "Updates", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "Updates" },
+    { "System", "About", ST_PAGE, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, NULL, 0,
+      NULL, NULL, "About" },
     { "System",   "Debug Mode",  ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_debug_mode, 0,
       "Enable temporary SSH over Wi-Fi (fresh random password) for debugging. Off by default.", NULL },
-    { "System",   "Temperature", ST_READONLY, NULL, 0,0,0, NULL,0, "@temp", NULL, 0,
-      "Battery/board temperature from the fuel gauge (this SoC exposes no core sensor).", NULL },
-    { "System",   "About",       ST_READONLY, NULL, 0,0,0, NULL,0, "@about", NULL, 0,
+    { "Time & Language",   "Language",    ST_CHOICE, "language", 0,0,0, i18n_lang_names, LANG_COUNT, NULL, apply_language, LANG_EN,
+      "Interface language. Song, artist and album names are always shown as they are tagged.", NULL },
+    { "Time & Language",  "24-Hour Time", ST_TOGGLE, "time_24h",  0,1,1, NULL, 0, NULL, apply_time, 1,
+      "Use a 24-hour clock instead of AM/PM.", NULL },
+    { "Time & Language",   "Automatic Time", ST_TOGGLE, "auto_time", 0,1,1, NULL, 0, NULL, apply_auto_time, 1,
+      "Set the time and time zone from the internet whenever Wi-Fi connects. A change applies after the next restart.", NULL },
+    { "Time & Language",   "Time Zone",   ST_CHOICE, "tz_idx", 0,0,0, TZ_LABEL, TZ_COUNT, NULL, apply_timezone, 0,
+      "Automatic follows your location when Wi-Fi connects (with Automatic Time on). Pick a zone to set it yourself.", NULL },
+    { "Time & Language",   "Set Date & Time", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_open_datetime, 0,
+      "Set the clock by hand. With Automatic Time on, Wi-Fi may correct it later.", NULL },
+    { "Power & Sleep",   "Sleep Timer", ST_CYCLER, "sleep_idx", 0,0,0, OPT_SLEEP, 6, NULL, apply_sleep, 0,
+      "Pause playback, or shut the device down (see When Sleep Ends), after this long. Resets on restart.", NULL },
+    { "Power & Sleep",   "When Sleep Ends", ST_CYCLER, "sleep_action", 0,0,0, OPT_SLEEP_ACT, 2, NULL, NULL, POWER_SLEEP_PAUSE,
+      "What the Sleep Timer does. Shut down closes the card safely first, then powers the device off.", NULL },
+    { "Power & Sleep",   "Idle Power-off", ST_CYCLER, "idle_off_idx", 0,0,0, OPT_IDLE_OFF, POWER_IDLE_N, NULL, NULL, 0,
+      "Power the device off after this long with nothing playing and no touch or key press. Closes the card safely first.", NULL },
+    { "Power & Sleep",   "Charging Limit", ST_TOGGLE, "charge_protect", 0,1,1, NULL, 0, NULL, apply_charge_protect, 0,
+      "The player's Charging optimization: stops charging at about 80% to slow battery wear.", NULL },
+    { "Power & Sleep",   "Default UI",  ST_CYCLER, "boot_default", 0,0,0, OPT_BOOTDEF, 2, NULL, apply_boot_default, 0,
+      "Which UI boots by default. To boot the other one, hold Vol-Up from power-on until it appears.", NULL },
+    { "Power & Sleep",   "Restart",     ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart, 0,
+      "Restart the device. Boots your default UI; hold Vol-Up for the other one.", NULL },
+    { "Power & Sleep",   "Power off",   ST_ACTION, NULL, 0,0,0, NULL,0, "Power off", apply_poweroff, 0,
+      "Shut the device down. The card is closed safely first.", NULL },
+#ifdef DISKOS_SWB_FLASHMODE
+    { "Power & Sleep",   "Restart to Flash Mode", ST_ACTION, NULL, 0,0,0, NULL,0, "Restart", apply_restart_flash, 0,
+      "Restart straight into flash (USB boot) mode for the installer, without holding Vol-Down. Nothing is erased.", NULL },
+#endif
+    { "Volume Keys",   "Vol Keys: Press", ST_CYCLER, "key_single", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_single, CTL_ACT_VOLUME,
+      "What the volume keys do on a single press: adjust the volume or switch track. Stored by the player, as in the stock menu.", NULL },
+    { "Volume Keys",   "Vol Keys: Double Press", ST_CYCLER, "key_double", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_double, CTL_ACT_VOLUME,
+      "What the volume keys do on a double press: adjust the volume or switch track.", NULL },
+    { "Volume Keys",   "Vol Keys: Long Press", ST_CYCLER, "key_long", 0,0,0, OPT_VOLKEY, 2, NULL, apply_key_long, CTL_ACT_VOLUME,
+      "What the volume keys do when held: adjust the volume or switch track.", NULL },
+    { "Library",   "Rescan Library", ST_ACTION, NULL, 0,0,0, NULL,0, "Scan", apply_rescan, 0,
+      "Re-scan the SD card for new or removed music.", NULL },
+    { "Library",   "Import Playlists", ST_ACTION, NULL, 0,0,0, NULL,0, "Import", apply_import_m3u, 0,
+      "Import .m3u / .m3u8 playlists found on the SD card.", NULL },
+    { "Library",   "Old tags", ST_CYCLER, "old_tags", 0,0,0, OPT_OLDTAGS, 3, NULL, apply_old_tags, OLD_TAGS_AUTO,
+      "Legacy text: guess, Latin-1 or CP1251. Rescan Library to apply.", NULL },
+    { "Updates",   "Update diskOS", ST_ACTION, NULL, 0,0,0, NULL,0, "Check", system_check_update_open, 0,
+      "Look up the newest diskOS release on GitHub (needs Wi-Fi). If it carries a signed update, download and verify it, then restart to finish. Nothing changes until you confirm.", NULL },
+    { "Updates",   "Allow diskOS Updates", ST_TOGGLE, "ota_allow", 0,1,1, NULL, 0, NULL, system_ota_allow_changed, 1,
+      "diskOS only updates when you tap Update diskOS, and only with signed releases.", NULL },
+    { "Updates",   "Update from SD Card", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_update_sd_open, 0,
+      "Look for a file on the SD card named like a stock update and show how it is used. Information only: diskOS never runs it.", NULL },
+    { "Updates",   "Block FiiO update checks", ST_TOGGLE, "block_fiio_checks", 0,1,1, NULL, 0, NULL, apply_block_fiio, 0,
+      "Stops the stock player from checking FiiO's servers for firmware and Bluetooth updates when Wi-Fi connects. The clock (NTP), Automatic Time, lyrics and weather still work. While on, the stock firmware update prompts will not appear.", NULL },
+    { "About",   "About",       ST_READONLY, NULL, 0,0,0, NULL,0, "@about", NULL, 0,
       "diskOS - a custom music player UI. The code in brackets identifies this exact build.", NULL },
+    { "About",   "Device Info", ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, system_about_open, 0,
+      "Model, stock firmware, diskOS build, MAC addresses, storage and battery.", NULL },
+    { "About",   "Temperature", ST_READONLY, NULL, 0,0,0, NULL,0, "@temp", NULL, 0,
+      "Battery/board temperature from the fuel gauge (this SoC exposes no core sensor).", NULL },
+    { "About",   "Reset diskOS Settings", ST_ACTION, NULL, 0,0,0, NULL,0, "Reset", system_reset_open, 0,
+      "Put diskOS's look and behaviour settings back to defaults. Music, Wi-Fi, Bluetooth, EQ and audio settings are kept.", NULL },
 };
 #define N_SETTINGS ((int)(sizeof(TABLE)/sizeof(TABLE[0])))
 
@@ -879,6 +898,7 @@ static const char *val_text(const setting_t *s, char *buf, int n){
             else if(s->ro_val && !strcmp(s->ro_val, "@about")) read_about(buf, n);
             else return tr(s->ro_val?s->ro_val:"");
             break;
+        case ST_PAGE:
         case ST_ACTION:   return tr((s->apply==apply_rescan && scanner_active()) ? "Stop" : (s->ro_val?s->ro_val:""));
     }
     return buf;
@@ -909,7 +929,12 @@ static void rescan_row_del_cb(lv_event_t *e){
 static const setting_t *g_active;
 static lv_obj_t *g_detail_root;
 static lv_obj_t *g_setlist_root;
+static lv_obj_t *g_setsub_root;
 static const char *g_active_group;
+static const char *g_active_sub;
+static lv_obj_t *g_page_list[2];
+static const char *g_scroll_page[2];
+static int32_t g_scroll_y[2];
 static const char *const GROUPS[] = { "Playback", "Audio", "Display", "Network", "System" };
 #define N_GROUPS ((int)(sizeof(GROUPS)/sizeof(GROUPS[0])))
 
@@ -1110,15 +1135,32 @@ void settings_open_key(const char *key){
 
 static void list_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
 
+static void page_scroll_save(lv_obj_t *row){
+    lv_obj_t *list = lv_obj_get_parent(row);
+    for(int lv = 0; lv < 2; lv++)
+        if(list == g_page_list[lv]){
+            const char *page = lv ? g_active_sub : g_active_group;
+            g_scroll_page[lv] = page;
+            g_scroll_y[lv] = lv_obj_get_scroll_y(list);
+        }
+}
+
 static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int idx = (int)(uintptr_t)lv_event_get_user_data(e);
     const setting_t *s = &TABLE[idx];
+    page_scroll_save(lv_event_get_target_obj(e));
     if(s->type == ST_TOGGLE){
         if(setting_unavailable(s)){ ui_toast(tr("Not supported on this install")); return; }
         int nv = !get_val(s); set_val(s, nv);
         char b[16];
         if(g_list_rows[idx]) lv_label_set_text(g_list_rows[idx], val_text(s,b,sizeof b));
+        return;
+    }
+    if(s->type == ST_PAGE){
+        g_active_sub = s->to_page;
+        g_scroll_page[1] = NULL;
+        screen_show(SCR_SETSUB);
         return;
     }
     if(s->type == ST_ACTION){
@@ -1157,6 +1199,7 @@ static lv_obj_t *setting_card(lv_obj_t *list){
     lv_obj_set_style_bg_opa(row, LV_OPA_70, 0);
     lv_obj_set_style_bg_color(row, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     return row;
 }
 
@@ -1165,12 +1208,14 @@ static void cat_cb(lv_event_t *e){
     int gi = (int)(uintptr_t)lv_event_get_user_data(e);
     if(gi<0 || gi>=N_GROUPS) return;
     g_active_group = GROUPS[gi];
+    g_scroll_page[0] = NULL;
+    g_scroll_page[1] = NULL;
     screen_show(SCR_SETLIST);
 }
 
 void setlist_open(const char *group){
     for(int gi = 0; group && gi < N_GROUPS; gi++)
-        if(!strcmp(GROUPS[gi], group)){ g_active_group = GROUPS[gi]; screen_show(SCR_SETLIST); return; }
+        if(!strcmp(GROUPS[gi], group)){ g_active_group = GROUPS[gi]; g_scroll_page[0] = NULL; g_scroll_page[1] = NULL; screen_show(SCR_SETLIST); return; }
 }
 
 void settings_create(lv_obj_t *root){
@@ -1207,18 +1252,19 @@ void settings_row_values_refresh(void){
 }
 
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
+void setsub_create(lv_obj_t *root){ g_setsub_root = root; }
 
-void setlist_refresh(void){
-    if(!g_setlist_root || !g_active_group) return;
-    lv_obj_clean(g_setlist_root);
-    lv_obj_set_style_bg_color(g_setlist_root, TC(CANVAS), 0);
-    lv_obj_set_style_bg_opa(g_setlist_root, LV_OPA_COVER, 0);
-    ui_header_cb(g_setlist_root, g_active_group, list_back_cb);
+static void page_build(int lv, lv_obj_t *root, const char *page){
+    lv_obj_clean(root);
+    lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    ui_header_cb(root, page, list_back_cb);
 
-    lv_obj_t *list = make_list(g_setlist_root);
+    lv_obj_t *list = make_list(root);
+    g_page_list[lv] = list;
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
-        if(strcmp(s->group, g_active_group)) continue;
+        if(strcmp(s->group, page)) continue;
 
         lv_obj_t *row = setting_card(list);
         ui_on(row, row_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i, "settings.row", UI_CORE);
@@ -1240,7 +1286,7 @@ void setlist_refresh(void){
         lv_obj_set_style_text_align(vl, LV_TEXT_ALIGN_LEFT, 0);
         lv_obj_set_style_text_font(vl, s->opts == i18n_lang_names ? TF(USER_14) : TF(UI_14), 0);
         lv_obj_set_style_text_color(vl, (s->type==ST_READONLY || setting_unavailable(s)) ? TC(TEXT_MUTED) : TC(TEXT_SECONDARY), 0);
-        if(s->type == ST_ACTION){
+        if(s->type == ST_ACTION || s->type == ST_PAGE){
             lv_point_t sz;
             lv_text_get_size(&sz, value, TF(UI_14), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
             int32_t vw = sz.x + 4; if(vw < 46) vw = 46; if(vw > 96) vw = 96;
@@ -1262,4 +1308,18 @@ void setlist_refresh(void){
         }
         theme_list_row(row);
     }
+    if(g_scroll_page[lv] && !strcmp(g_scroll_page[lv], page)){
+        lv_obj_update_layout(list);
+        lv_obj_scroll_to_y(list, g_scroll_y[lv], LV_ANIM_OFF);
+    }
+}
+
+void setlist_refresh(void){
+    if(!g_setlist_root || !g_active_group) return;
+    page_build(0, g_setlist_root, g_active_group);
+}
+
+void setsub_refresh(void){
+    if(!g_setsub_root || !g_active_sub) return;
+    page_build(1, g_setsub_root, g_active_sub);
 }

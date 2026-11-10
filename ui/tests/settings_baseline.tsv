@@ -1,0 +1,68 @@
+label	type	cfg_key	old_page	build_flag
+Play Mode	ST_CYCLER	"work_mode"	Playback	
+Equalizer	ST_CYCLER	"eq_preset"	Playback	
+Custom EQ	ST_ACTION	NULL	Playback	
+DSD Output	ST_READONLY	NULL	Playback	
+Resume Playback	ST_CYCLER	"memory_play"	Playback	
+Artists	ST_CYCLER	"artist_class"	Playback	
+Play Through Folders	ST_TOGGLE	"folder_jump"	Playback	
+Working Mode	ST_ACTION	NULL	Audio	
+Gain	ST_CYCLER	"audio_gain"	Audio	
+DAC Filter	ST_CYCLER	"audio_filter"	Audio	
+ReplayGain	ST_CYCLER	"replay_gain"	Audio	
+DRE	ST_CYCLER	"audio_dre"	Audio	
+Gapless	ST_CYCLER	"gapless"	Audio	
+Max Volume	ST_SLIDER	"max_vol"	Audio	
+Balance	ST_SLIDER	"balance"	Audio	
+SPDIF Output	ST_TOGGLE	"spdif"	Audio	DISKOS_TEST_OUTPUTS
+Brightness	ST_SLIDER	"brightness"	Display	
+Theme	ST_CHOICE	"theme_preset"	Display	
+Appearance	ST_CYCLER	"theme_variant"	Display	
+Font Size	ST_CYCLER	"font_size"	Display	
+Screen Rotation	ST_CYCLER	CTL_CFG_ROT	Display	
+Outdoor Mode	ST_TOGGLE	"outdoor"	Display	
+Track Numbers	ST_TOGGLE	"track_numbers"	Display	
+Online Album Art	ST_TOGGLE	"online_art"	Display	
+Online Lyrics	ST_TOGGLE	"online_lyrics"	Display	
+Quick Settings	ST_ACTION	NULL	Display	
+Now Playing	ST_CYCLER	"np_style"	Display	
+Album View	ST_CYCLER	"album_view"	Display	
+Accent Colour	ST_ACTION	NULL	Display	
+Album Art Cache	ST_CYCLER	"artcache"	Display	
+Screensaver	ST_CYCLER	"saver_idx"	Display	
+Saver Style	ST_CYCLER	"saver_style"	Display	
+Screen Off	ST_CYCLER	"screenoff_idx"	Display	
+24-Hour Time	ST_TOGGLE	"time_24h"	Display	
+Animations	ST_TOGGLE	"anim"	Display	
+Weather on Home	ST_TOGGLE	"weather_on"	Display	
+Back-swipe	ST_SLIDER	"swipe_thresh"	Display	
+Wi-Fi	ST_ACTION	NULL	Network	
+Bluetooth	ST_ACTION	NULL	Network	
+Bluetooth Codec	ST_CYCLER	"bt_codec"	Network	
+Language	ST_CHOICE	"language"	System	
+Sleep Timer	ST_CYCLER	"sleep_idx"	System	
+When Sleep Ends	ST_CYCLER	"sleep_action"	System	
+Idle Power-off	ST_CYCLER	"idle_off_idx"	System	
+Charging Limit	ST_TOGGLE	"charge_protect"	System	
+Vol Keys: Press	ST_CYCLER	"key_single"	System	
+Vol Keys: Double Press	ST_CYCLER	"key_double"	System	
+Vol Keys: Long Press	ST_CYCLER	"key_long"	System	
+Old tags	ST_CYCLER	"old_tags"	System	
+Rescan Library	ST_ACTION	NULL	System	
+Import Playlists	ST_ACTION	NULL	System	
+Default UI	ST_CYCLER	"boot_default"	System	
+Automatic Time	ST_TOGGLE	"auto_time"	System	
+Block FiiO update checks	ST_TOGGLE	"block_fiio_checks"	System	
+Set Date & Time	ST_ACTION	NULL	System	
+Time Zone	ST_CHOICE	"tz_idx"	System	
+Restart	ST_ACTION	NULL	System	
+Power off	ST_ACTION	NULL	System	
+Restart to Flash Mode	ST_ACTION	NULL	System	DISKOS_SWB_FLASHMODE
+Device Info	ST_ACTION	NULL	System	
+Update from SD Card	ST_ACTION	NULL	System	
+Allow diskOS Updates	ST_TOGGLE	"ota_allow"	System	
+Update diskOS	ST_ACTION	NULL	System	
+Reset diskOS Settings	ST_ACTION	NULL	System	
+Debug Mode	ST_ACTION	NULL	System	
+Temperature	ST_READONLY	NULL	System	
+About	ST_READONLY	NULL	System	

@@ -8,7 +8,7 @@
 #include "fontchain.h"
 #include "transport.h"
 #include <stdbool.h>
-enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_TAMA, SCR_DAC, SCR_COUNT };
+enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_TAMA, SCR_DAC, SCR_SETSUB, SCR_COUNT };
 void screens_init(void);
 void screen_show(int which);
 void screen_back(void);
@@ -133,6 +133,8 @@ void settings_refresh_list(void);
 void setlist_create(lv_obj_t *root);
 void setlist_open(const char *group);
 void setlist_refresh(void);
+void setsub_create(lv_obj_t *root);
+void setsub_refresh(void);
 void settings_apply_startup(int restore_brightness);
 
 lv_color_t ui_current_accent(void);

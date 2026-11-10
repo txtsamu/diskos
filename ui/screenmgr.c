@@ -46,7 +46,7 @@ static const unsigned char s_figure[SCR_COUNT] = {
     [SCR_QSCONFIG] = 25, [SCR_COLORPICK] = 26, [SCR_DATETIME] = 27,
     [SCR_WIFI] = 28, [SCR_WIFI_INFO] = 29, [SCR_BT] = 30,
     [SCR_BT_INFO] = 31, [SCR_WORKMODE] = 32,
-    [SCR_DEBUG] = 34, [SCR_TAMA] = 35, [SCR_DAC] = 36,
+    [SCR_DEBUG] = 34, [SCR_TAMA] = 35, [SCR_DAC] = 36, [SCR_SETSUB] = 37,
 };
 int screen_figure_number(int which){
     return which >= 0 && which < SCR_COUNT ? s_figure[which] : 0;
@@ -137,6 +137,7 @@ static void transition(int from, int to, int dir)
 
     if (to == SCR_SETTINGS) settings_refresh_list();
     else if (to == SCR_SETLIST) setlist_refresh();
+    else if (to == SCR_SETSUB) setsub_refresh();
     else if (to == SCR_SETTING_DETAIL) setting_detail_refresh();
     else if (to == SCR_QSCONFIG) qsconfig_refresh();
     else if (to == SCR_QUICK) quicksettings_build();
@@ -292,6 +293,7 @@ void screens_init(void)
     s_roots[SCR_BOOKS] = screen_make_root(parent);
     s_roots[SCR_CHAPTERS] = screen_make_root(parent);
     s_roots[SCR_SETLIST] = screen_make_root(parent);
+    s_roots[SCR_SETSUB] = screen_make_root(parent);
     s_roots[SCR_QSCONFIG] = screen_make_root(parent);
     s_roots[SCR_ALBUMWALL] = screen_make_root(parent);
     s_roots[SCR_UPNEXT] = screen_make_root(parent);
@@ -318,6 +320,7 @@ void screens_init(void)
     settings_create(s_roots[SCR_SETTINGS]);
     setting_detail_create(s_roots[SCR_SETTING_DETAIL]);
     setlist_create(s_roots[SCR_SETLIST]);
+    setsub_create(s_roots[SCR_SETSUB]);
     qsconfig_create(s_roots[SCR_QSCONFIG]);
     albumwall_create(s_roots[SCR_ALBUMWALL]);
     search_create(s_roots[SCR_SEARCH]);
