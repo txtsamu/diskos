@@ -532,6 +532,14 @@ static void usb_debug_adopts_a_gadget_that_is_already_bound(void){
     assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) < 0 && toasted("USB Debug is already on"));
     assert(ui_set_source_mode(0) == 0 && g_nspawn == 1 && !strcmp(g_spawned[0], "usb-off"));
 }
+static void usb_debug_adopts_a_gadget_started_from_outside(void){
+    setup();
+    assert(usbdbg_state() == USBDBG_OFF);
+    g_dbg_bound = 1; g_dbg_present = 1; g_dbg_host = 1;
+    run(1200);
+    assert(usbdbg_state() == USBDBG_ON && usbdbg_host() && evented(SRCSWITCH_EV_CHANGED) && g_nspawn == 0);
+    assert(ui_set_source_mode(0) == 0 && g_nspawn == 1 && !strcmp(g_spawned[0], "usb-off"));
+}
 static void usb_debug_noticing_an_outside_stop(void){
     usb_debug_on();
     g_dbg_bound = 0; g_dbg_present = 0;
@@ -600,6 +608,7 @@ int main(void){
     S(usb_debug_blocks_the_usb_audio_route_but_not_the_others);
     S(usb_debug_boot_usb_audio_restore_is_refused_while_on);
     S(usb_debug_adopts_a_gadget_that_is_already_bound);
+    S(usb_debug_adopts_a_gadget_started_from_outside);
     S(usb_debug_noticing_an_outside_stop);
     S(usb_debug_tracks_the_host_while_on);
     S(usb_debug_does_not_disturb_local_playback);

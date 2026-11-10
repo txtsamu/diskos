@@ -132,9 +132,19 @@ static void on_tick(uint32_t now){
     if(h != g_host){ g_host = h; notify(USBDBG_EV_CHANGED); }
 }
 
+static void off_tick(uint32_t now){
+    if(now - g_polled < POLL_MS) return;
+    g_polled = now;
+    if(!E->bound()) return;
+    g_state = USBDBG_ON; g_host = E->host_connected();
+    fprintf(stderr, "usb debug: adopted a gadget that was started from outside\n"); fflush(stderr);
+    notify(USBDBG_EV_CHANGED);
+}
+
 void usbdbg_tick(void){
     uint32_t now = E->now();
     if(g_state == USBDBG_STARTING) starting_tick(now);
     else if(g_state == USBDBG_STOPPING) stopping_tick(now);
     else if(g_state == USBDBG_ON) on_tick(now);
+    else off_tick(now);
 }

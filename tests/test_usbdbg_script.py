@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'payload' / 'diskos-debug.sh'
+BOOT_HOOK = Path(__file__).resolve().parents[1] / 'payload' / 'S99usbserial'
 
 SHIMS = {
     'rmdir': '#!/bin/sh\nexec rm -rf "$@"\n',
@@ -190,6 +191,63 @@ class UsbDebugScriptTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         for verb in ('usb-on', 'usb-off', 'usb-status'):
             self.assertIn(verb, r.stdout)
+
+
+@unittest.skipIf(os.name == 'nt', 'needs a POSIX shell')
+class BootHookTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='diskos-s99-')
+        self.root = Path(self.tmp.name)
+        self.calls = self.root / 'calls'
+        self.log = self.root / 'usbserial.log'
+        self.fake = self.root / 'diskos-debug.sh'
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fake_script(self, codes):
+        self.fake.write_text('#!/bin/sh\necho "$1" >> "%s"\nn=$(wc -l < "%s")\nset -- %s\nshift $((n-1))\necho "result $1"\nexit $1\n'
+                             % (self.calls, self.calls, ' '.join(str(c) for c in codes)))
+        self.fake.chmod(0o755)
+
+    def start(self):
+        env = dict(os.environ, DISKOS_DEBUG_SCRIPT=str(self.fake), DISKOS_USBSERIAL_LOG=str(self.log),
+                   DISKOS_USBSERIAL_PAUSE='0', DISKOS_USBSERIAL_TRIES='3')
+        r = subprocess.run(['sh', str(BOOT_HOOK), 'start'], env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 0)
+        for _ in range(100):
+            if self.log.exists() and ('usb-on rc=' in self.log.read_text()):
+                break
+            subprocess.run(['sleep', '0.05'])
+        subprocess.run(['sleep', '0.3'])
+        return self.calls.read_text().split() if self.calls.exists() else []
+
+    def test_one_success_runs_usb_on_once(self):
+        self.fake_script([0])
+        self.assertEqual(self.start(), ['usb-on'])
+        self.assertIn('usb-on rc=0', self.log.read_text())
+
+    def test_no_udc_is_retried_a_bounded_number_of_times(self):
+        self.fake_script([3, 3, 3, 3, 3])
+        self.assertEqual(self.start(), ['usb-on'] * 3)
+
+    def test_a_late_udc_succeeds_on_a_retry(self):
+        self.fake_script([3, 0])
+        self.assertEqual(self.start(), ['usb-on'] * 2)
+
+    def test_a_stock_gadget_is_not_retried(self):
+        self.fake_script([2, 0])
+        self.assertEqual(self.start(), ['usb-on'])
+
+    def test_other_actions_are_refused(self):
+        r = subprocess.run(['sh', str(BOOT_HOOK), 'stop'], capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+
+    def test_the_hook_no_longer_binds_the_udc_or_loops(self):
+        text = BOOT_HOOK.read_text()
+        self.assertNotIn('while true', text)
+        self.assertNotIn('/UDC', text)
+        self.assertNotIn('serial_demo', text)
 
 
 if __name__ == '__main__':

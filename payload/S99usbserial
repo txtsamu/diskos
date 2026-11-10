@@ -1,72 +1,30 @@
 #!/bin/sh
 
-LOG=/usr/data/fiio/usbserial.log
-G=/sys/kernel/config/usb_gadget/serial_demo
+LOG="${DISKOS_USBSERIAL_LOG:-/usr/data/fiio/usbserial.log}"
+DEBUG="${DISKOS_DEBUG_SCRIPT:-/usr/project/diskos-debug.sh}"
+TRIES="${DISKOS_USBSERIAL_TRIES:-3}"
+PAUSE="${DISKOS_USBSERIAL_PAUSE:-5}"
 
 log() { echo "$(date 2>/dev/null) $*" >> "$LOG" 2>/dev/null; }
 
-build_gadget() {
-	[ -d /sys/kernel/config/usb_gadget ] || mount -t configfs none /sys/kernel/config 2>/dev/null
-	[ -d "$G" ] && return 0
-	mkdir -p "$G" || return 1
-	echo 0x0525 > "$G/idVendor"
-	echo 0xa4a7 > "$G/idProduct"
-	echo 0x0200 > "$G/bcdUSB"
-	echo 0x2400 > "$G/bcdDevice"
-	echo 0x02   > "$G/bDeviceClass"
-	echo 0x00   > "$G/bDeviceSubClass"
-	echo 0x00   > "$G/bDeviceProtocol"
-	mkdir -p "$G/strings/0x409"
-	echo "INGENIC"       > "$G/strings/0x409/manufacturer"
-	echo "diskOS Serial" > "$G/strings/0x409/product"
-	echo "diskos-serial" > "$G/strings/0x409/serialnumber"
-	mkdir -p "$G/configs/c.1/strings/0x409"
-	echo 120  > "$G/configs/c.1/MaxPower"
-	echo 0x80 > "$G/configs/c.1/bmAttributes"
-	echo "serial" > "$G/configs/c.1/strings/0x409/configuration"
-	mkdir -p "$G/functions/acm.0"
-	ln -sf "$G/functions/acm.0" "$G/configs/c.1/" 2>/dev/null
-	log "gadget built"
-}
-
-force_device_mode() {
-	for f in /sys/devices/platform/*otg*/dwc2_mode \
-	         /sys/devices/platform/*otg*/dwc2_force_dr_mode \
-	         /sys/devices/platform/*/13500000.otg/dwc2_mode; do
-		[ -e "$f" ] || continue
-		echo device > "$f" 2>/dev/null && log "wrote device-mode to $f"
+start_usb_debug() {
+	: > "$LOG" 2>/dev/null
+	log "S99usbserial start"
+	n=0
+	while [ "$n" -lt "$TRIES" ]; do
+		out=$("$DEBUG" usb-on 2>&1)
+		rc=$?
+		log "usb-on rc=$rc: $out"
+		[ "$rc" -eq 0 ] && return 0
+		[ "$rc" -eq 2 ] && return 1
+		n=$((n+1))
+		sleep "$PAUSE"
 	done
-}
-
-bound() { [ -n "$(cat "$G/UDC" 2>/dev/null)" ]; }
-
-bind_when_ready() {
-	udc=$(ls /sys/class/udc/ 2>/dev/null | head -n1)
-	[ -n "$udc" ] || return 1
-	echo "$udc" > "$G/UDC" 2>/dev/null && { log "bound UDC=$udc"; return 0; }
 	return 1
 }
 
-DEBUG=/usr/project/diskos-debug.sh
-ensure_shell() {
-	[ -c /dev/ttyGS0 ] || return 0
-	[ -x "$DEBUG" ] && "$DEBUG" serial-on >/dev/null 2>&1
-}
-
-main() {
-	: > "$LOG" 2>/dev/null
-	log "S99usbserial start"
-	build_gadget
-	force_device_mode
-	while true; do
-		bound || bind_when_ready
-		ensure_shell
-		sleep 2
-	done
-}
-
 case "$1" in
-	start) main & ;;
+	start) ( start_usb_debug ) </dev/null >/dev/null 2>&1 & ;;
 	*) exit 1 ;;
 esac
 exit 0
