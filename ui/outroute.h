@@ -19,6 +19,7 @@ struct outroute_env {
     int         (*seek_to)(long ms);
     void        (*charge_limit_reapply)(void);
     int         (*release_volume)(int current);
+    int         (*usb_debug_active)(void);
 };
 void outroute_init(const struct outroute_env *env);
 void outroute_set_listener(void (*cb)(void));

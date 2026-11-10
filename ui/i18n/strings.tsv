@@ -322,3 +322,20 @@ Power off
 Power off?										
 Closes the card safely, then switches the device off. Press the power key to turn it on again.										
 Shut the device down. The card is closed safely first.										
+USB Debug	USB 调试	USB 除錯	USBデバッグ	USB 디버그	Depuración USB	Depuração USB	Debug USB	USB-Debugging	Débogage USB	Отладка по USB
+Shell over the USB cable	通过 USB 线使用命令行	透過 USB 線使用命令列	USBケーブルでシェル接続	USB 케이블로 셸 연결	Shell por el cable USB	Shell pelo cabo USB	Shell tramite cavo USB	Shell über das USB-Kabel	Shell via le câble USB	Оболочка по кабелю USB
+Starting...	正在启动...	正在啟動...	起動中...	시작 중...	Iniciando...	A iniciar...	Avvio...	Wird gestartet...	Démarrage...	Запуск...
+Stopping...	正在停止...	正在停止...	停止中...	중지 중...	Deteniendo...	A parar...	Arresto...	Wird beendet...	Arrêt...	Остановка...
+Open /dev/ttyACM0 on the PC	在电脑上打开 /dev/ttyACM0	在電腦上開啟 /dev/ttyACM0	PCで /dev/ttyACM0 を開く	PC에서 /dev/ttyACM0 열기	Abre /dev/ttyACM0 en el PC	Abre /dev/ttyACM0 no PC	Apri /dev/ttyACM0 sul PC	Auf dem PC /dev/ttyACM0 öffnen	Ouvrez /dev/ttyACM0 sur le PC	Откройте /dev/ttyACM0 на ПК
+Plug USB-C into a PC	将 USB-C 接到电脑	將 USB-C 接到電腦	USB-CをPCに接続	USB-C를 PC에 연결	Conecta el USB-C a un PC	Liga o USB-C a um PC	Collega l'USB-C a un PC	USB-C an einen PC anschließen	Branchez l'USB-C à un PC	Подключите USB-C к ПК
+On the PC:	在电脑上：	在電腦上：	PCで:	PC에서:	En el PC:	No PC:	Sul PC:	Am PC:	Sur le PC :	На ПК:
+Root shell, no password	Root 命令行，无密码	Root 命令列，無密碼	rootシェル、パスワードなし	루트 셸, 비밀번호 없음	Shell root, sin contraseña	Shell root, sem palavra-passe	Shell root, senza password	Root-Shell, ohne Passwort	Shell root, sans mot de passe	Root-оболочка, без пароля
+USB Debug is on	USB 调试已开启	USB 除錯已開啟	USBデバッグをオンにしました	USB 디버그 켜짐	Depuración USB activada	Depuração USB ativada	Debug USB attivo	USB-Debugging ist an	Débogage USB activé	Отладка по USB включена
+USB Debug is off	USB 调试已关闭	USB 除錯已關閉	USBデバッグをオフにしました	USB 디버그 꺼짐	Depuración USB desactivada	Depuração USB desativada	Debug USB disattivato	USB-Debugging ist aus	Débogage USB désactivé	Отладка по USB выключена
+USB Debug is already on	USB 调试已经开启	USB 除錯已經開啟	USBデバッグはすでにオンです	USB 디버그가 이미 켜져 있습니다	La depuración USB ya está activada	A depuração USB já está ativada	Il debug USB è già attivo	USB-Debugging ist bereits an	Le débogage USB est déjà activé	Отладка по USB уже включена
+Leaving USB Debug...	正在退出 USB 调试...	正在退出 USB 除錯...	USBデバッグを終了中...	USB 디버그 종료 중...	Saliendo de la depuración USB...	A sair da depuração USB...	Uscita dal debug USB...	USB-Debugging wird beendet...	Sortie du débogage USB...	Выход из отладки по USB...
+Switching to USB Debug	正在切换到 USB 调试	正在切換到 USB 除錯	USBデバッグに切り替え中	USB 디버그로 전환 중	Cambiando a depuración USB	A mudar para depuração USB	Passaggio al debug USB	Wechsel zu USB-Debugging	Passage au débogage USB	Переключение на отладку по USB
+Leave USB Debug first	请先退出 USB 调试	請先退出 USB 除錯	先にUSBデバッグを終了してください	먼저 USB 디버그를 종료하세요	Sal antes de la depuración USB	Sai primeiro da depuração USB	Esci prima dal debug USB	Erst USB-Debugging beenden	Quittez d'abord le débogage USB	Сначала выйдите из отладки по USB
+Leave USB DAC or USB Storage first	请先退出 USB DAC 或 USB 存储	請先退出 USB DAC 或 USB 儲存	先にUSB DACまたはUSBストレージを終了してください	먼저 USB DAC 또는 USB 저장소를 종료하세요	Sal antes de USB DAC o Almacenamiento USB	Sai primeiro de USB DAC ou Armazenamento USB	Esci prima da USB DAC o Archivio USB	Erst USB-DAC oder USB-Speicher beenden	Quittez d'abord USB DAC ou Stockage USB	Сначала выйдите из USB DAC или USB-накопителя
+Couldn't start USB Debug	无法启动 USB 调试	無法啟動 USB 除錯	USBデバッグを開始できませんでした	USB 디버그를 시작할 수 없습니다	No se pudo iniciar la depuración USB	Não foi possível iniciar a depuração USB	Impossibile avviare il debug USB	USB-Debugging konnte nicht gestartet werden	Impossible de démarrer le débogage USB	Не удалось запустить отладку по USB
+Couldn't stop USB Debug	无法停止 USB 调试	無法停止 USB 除錯	USBデバッグを停止できませんでした	USB 디버그를 중지할 수 없습니다	No se pudo detener la depuración USB	Não foi possível parar a depuração USB	Impossibile fermare il debug USB	USB-Debugging konnte nicht beendet werden	Impossible d'arrêter le débogage USB	Не удалось остановить отладку по USB

@@ -363,6 +363,7 @@ static void osw_tick(void){
 int outroute_pick(int target, outroute_how_t how){
     if(target < OUT_INTERNAL || target > OUT_USB) return -1;
     if(outroute_busy()){ E->toast("Switching..."); return -1; }
+    if(target == OUT_USB && E->usb_debug_active && E->usb_debug_active()){ outroute_set(outroute_route()); E->toast("Leave USB Debug first"); return -1; }
     const char *why = E->switch_blocked();
     if(why){ outroute_set(outroute_route()); E->toast(why); return -1; }
     int was_playing = E->playing();

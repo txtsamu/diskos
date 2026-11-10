@@ -16,6 +16,8 @@ struct srcswitch_env {
     int  (*external_power)(void);
 };
 
+#define SRCSWITCH_MODE_USB_DEBUG 4
+
 void srcswitch_set_env(const struct srcswitch_env *env);
 void srcswitch_init(void);
 void srcswitch_tick(void);

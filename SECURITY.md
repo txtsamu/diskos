@@ -43,9 +43,10 @@ While it is on, it grants **root access over the network**.
   Root or physical access can expose the stored password.
 - **SSH server:** Dropbear **2022.83**, which predates the CVE-2023-48795 "Terrapin" Strict-KEX
   mitigation. Use Debug Mode only for short sessions on a trusted network and turn it off when finished.
-- **Serial:** the local USB-serial root shell exists only on **dev** builds and is passwordless-root by
-  design (physical-USB access only); **public builds have no serial shell**. Report only if it is
-  reachable without physical access.
+- **Serial:** the local USB-serial root shell is passwordless-root by design (physical-USB access only). **Dev**
+  builds start it at every boot. **Public** builds have no always-on serial shell: it exists only while **USB Debug**
+  (Working Mode picker) is switched on, is never restored at boot and ends when you leave that row (`docs/USB_DEBUG.md`).
+  Report only if it is reachable without physical access, or if it is still up after leaving USB Debug or after a reboot.
 
 In scope: anything that exposes the debug password, leaves SSH running (or the shadow overlay mounted)
 after it should be off, lets the overlay corrupt/leak the on-disk credentials, or reaches the stock

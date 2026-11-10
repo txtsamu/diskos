@@ -58,6 +58,10 @@ _Avoid_: output device, out mode
 An output route in which the Disc drives an external USB DAC. It is not a source mode, even where the picker shows it as a row. The DAC or IEM's own buttons control playback; see **Click gestures**.
 _Avoid_: USB DAC (that is a source mode: the Disc acting as a DAC for a phone or computer)
 
+**USB Debug**:
+A diskOS-owned gadget on the USB port with one serial port, switched on from a row of the Working Mode picker. Like **USB Audio** it is not a source mode even where the picker shows it as a row: the source mode stays Local, playback continues, the Player is sent nothing, and nothing is saved or restored at boot. The module `usbdbg` runs `diskos-debug.sh usb-on` / `usb-off` and watches the gadget; leaving it always removes the gadget before any other gadget is built.
+_Avoid_: debug mode (that is the Wi-Fi SSH screen), serial mode, USB console
+
 **Click gestures**:
 Counting repeated presses of a USB Audio headset's play/pause button: one click plays or pauses, two go to the next track, three to the previous. A sequence ends 350 ms after the last click, or at the third.
 _Avoid_: double tap (that is a touchscreen gesture), key press (the Disc's own physical keys are handled by the Player)
@@ -67,7 +71,7 @@ The Player's own record of what it is doing: playing local files, acting as a US
 _Avoid_: work mode, mode
 
 **Gadget**:
-The role the Disc's USB port is playing: nothing, a storage drive for a computer, a sound card for a computer, or a host driving an external DAC.
+The role the Disc's USB port is playing: nothing, a storage drive for a computer, a sound card for a computer, a host driving an external DAC, or the serial port of **USB Debug**. The Player owns the first four; diskOS owns the last one.
 _Avoid_: port mode, network mode
 
 ### Switching

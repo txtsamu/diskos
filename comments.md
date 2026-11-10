@@ -56,8 +56,8 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [payload/S96diskos_select](#payloads96diskosselect) | 39 |
 | [payload/S97diskos_install](#payloads97diskosinstall) | 196 |
 | [payload/S98diskos_sshkey](#payloads98diskossshkey) | 3 |
-| [payload/S99usbserial](#payloads99usbserial) | 16 |
-| [payload/diskos-debug.sh](#payloaddiskos-debugsh) | 80 |
+| [payload/S99usbserial](#payloads99usbserial) | 2 |
+| [payload/diskos-debug.sh](#payloaddiskos-debugsh) | 91 |
 | [payload/diskos-rmguard](#payloaddiskos-rmguard) | 13 |
 | [payload/diskos-selected](#payloaddiskos-selected) | 17 |
 | [payload/diskos-verify.sh](#payloaddiskos-verifysh) | 41 |
@@ -159,7 +159,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/lyrics.c](#uilyricsc) | 77 |
 | [ui/main.c](#uimainc) | 668 |
 | [ui/md5.h](#uimd5h) | 1 |
-| [ui/modes.c](#uimodesc) | 33 |
+| [ui/modes.c](#uimodesc) | 36 |
 | [ui/modes.h](#uimodesh) | 2 |
 | [ui/mqcap.c](#uimqcapc) | 3 |
 | [ui/mqfeed.c](#uimqfeedc) | 2 |
@@ -174,7 +174,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/opustitle_worker.h](#uiopustitleworkerh) | 6 |
 | [ui/ota.c](#uiotac) | 61 |
 | [ui/ota.h](#uiotah) | 38 |
-| [ui/outroute.c](#uioutroutec) | 5 |
+| [ui/outroute.c](#uioutroutec) | 6 |
 | [ui/outroute.h](#uioutrouteh) | 5 |
 | [ui/outseq.c](#uioutseqc) | 10 |
 | [ui/outseq.h](#uioutseqh) | 14 |
@@ -209,7 +209,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/settings.c](#uisettingsc) | 195 |
 | [ui/songinfo.c](#uisonginfoc) | 57 |
 | [ui/splash.c](#uisplashc) | 53 |
-| [ui/srcswitch.c](#uisrcswitchc) | 90 |
+| [ui/srcswitch.c](#uisrcswitchc) | 94 |
 | [ui/srcswitch.h](#uisrcswitchh) | 37 |
 | [ui/sysconfig.h](#uisysconfigh) | 6 |
 | [ui/system.c](#uisystemc) | 40 |
@@ -277,6 +277,8 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/ui.h](#uiuih) | 1 |
 | [ui/ui_round.h](#uiuiroundh) | 8 |
 | [ui/upnext.c](#uiupnextc) | 27 |
+| [ui/usbdbg.c](#uiusbdbgc) | 6 |
+| [ui/usbdbg.h](#uiusbdbgh) | 2 |
 | [ui/usbhid.c](#uiusbhidc) | 9 |
 | [ui/usbhid.h](#uiusbhidh) | 1 |
 | [ui/vbus.c](#uivbusc) | 1 |
@@ -6887,100 +6889,16 @@ provisioned key exposes no new service. Backgrounded so a slow /usr/data never d
 
 ## payload/S99usbserial
 
-**L2** ``
+**L10** `start_usb_debug() {`
 
 ~~~text
-diskOS dev/recovery: USB CDC-ACM serial console on the device USB-C port.
+Dev images only (the installer copies this file for --variant dev). One bounded series of diskos-debug.sh usb-on attempts at boot: up to 3, 5 s apart, no retry when a stock gadget is already there (exit 2). It exits afterwards. The earlier version looped every 2 s, re-bound serial_demo to the UDC whenever it was unbound and restarted ttyGS0 shells, so the stock USB Storage and USB DAC gadgets could never bind while it ran, and it would have fought every mode switch. Now the UI owns the port: ui/usbdbg.c adopts the bound diskos_dbg at start, a dev image simply starts with USB Debug on, and Local Playback in the picker turns it off through the normal ordered exit. The old force_device_mode writes to dwc2_mode files are gone: those files do not exist on this kernel, usb-on writes the usb_role file like the Player.
 ~~~
 
-**L2** ``
+**L4** `DEBUG="${DISKOS_DEBUG_SCRIPT:-/usr/project/diskos-debug.sh}"`
 
 ~~~text
-Host enumerates 0525:a4a7 -> /dev/ttyACM0 -> root shell (raw, no login).
-~~~
-
-**L2** ``
-
-~~~text
-
-~~~
-
-**L2** ``
-
-~~~text
-Robust against the failure that killed the previous attempt: the stock
-~~~
-
-**L2** ``
-
-~~~text
-serial_config.sh binds the UDC exactly once and never retries, so a UDC that
-~~~
-
-**L2** ``
-
-~~~text
-registers (or a host that plugs in) a moment later was missed. This runs a
-~~~
-
-**L2** ``
-
-~~~text
-persistent supervisor: (re)bind whenever a UDC is present, keep a shell alive
-~~~
-
-**L2** ``
-
-~~~text
-on ttyGS0. All steps best-effort + logged to a persistent (rw) partition.
-~~~
-
-**L32** `force_device_mode() {`
-
-~~~text
-Best-effort nudge into peripheral mode. dr_mode=otg already auto-switches to
-~~~
-
-**L32** `force_device_mode() {`
-
-~~~text
-device when plugged into a host (CC/pin), so this is only a safety net. Only
-~~~
-
-**L32** `force_device_mode() {`
-
-~~~text
-the unambiguous "device" token is written -- never anything that could select
-~~~
-
-**L32** `force_device_mode() {`
-
-~~~text
-host mode and break enumeration.
-~~~
-
-**L50** `DEBUG=/usr/project/diskos-debug.sh`
-
-~~~text
-Delegate the ttyGS0 shell to diskos-debug (the SINGLE owner - fuser-guarded + self-respawning).
-~~~
-
-**L50** `DEBUG=/usr/project/diskos-debug.sh`
-
-~~~text
-Two independent shell respawners on one tty is the classic "answers once then goes silent" wedge,
-~~~
-
-**L50** `DEBUG=/usr/project/diskos-debug.sh`
-
-~~~text
-so this script no longer binds its own shell; it only builds the gadget and asks diskos-debug to
-~~~
-
-**L50** `DEBUG=/usr/project/diskos-debug.sh`
-
-~~~text
-attach the one shell. Idempotent: serial-on is a no-op if a shell already owns ttyGS0.
+DISKOS_DEBUG_SCRIPT, DISKOS_USBSERIAL_LOG, DISKOS_USBSERIAL_TRIES and DISKOS_USBSERIAL_PAUSE are test seams (tests/test_usbdbg_script.py); the defaults are the device values.
 ~~~
 
 ## payload/diskos-debug.sh
@@ -7463,6 +7381,72 @@ Only release /root once the daemon is CONFIRMED gone (a survivor keeps its keys;
 
 ~~~text
 lazy: a leftover shell may still hold the cwd
+~~~
+
+**L9** `CFGFS="${DISKOS_CONFIGFS:-/sys/kernel/config}"`
+
+~~~text
+Test seams for the USB Debug verbs: DISKOS_SELF (serial.pid location), DISKOS_CONFIGFS, DISKOS_UDC_DIR, DISKOS_USB_ROLE, DISKOS_TTY_SHELL and DISKOS_USBDBG_RUN let tests/test_usbdbg_script.py run usb-on and usb-off against a fake tree. The defaults are the device paths.
+~~~
+
+**L111** `serial_off() {`
+
+~~~text
+While the USB Debug gadget is bound, serial-off (Debug Mode > Disable) leaves the shell alone and says so: the shell belongs to the USB Debug row, which ends it through usb-off. Debug Mode manages SSH; USB Debug manages the port.
+~~~
+
+**L171** `stock_gadget_present() {`
+
+~~~text
+The Player builds uac_demo (USB DAC), storage_demo (USB Storage) and adb_demo (unused) in configfs, and only the Player may change the selector while one exists. usb-on refuses (exit 2) instead of racing it: a second gadget cannot bind the one UDC, and the Player removes its own gadget only in its mode thread.
+~~~
+
+**L190** `role_take() {`
+
+~~~text
+Mirrors the Player: every stock mode that needs the device role writes "device" to /sys/class/usb_role/13500000.otg_new-role-switch/role and sleeps 1 s before it builds a gadget (FUN_004e5af4, all_mode_control.c). The role is not written back on usb-off: the Player leaves it at "device" after every mode, and restoring "none" would race a Player that is already switching modes. After a boot it reads "none".
+~~~
+
+**L198** `cfgfs_up() {`
+
+~~~text
+The Player mounts configfs only while it has a gadget (mount -t configfs none /sys/kernel/config, and umount when it removes the gadget), so configfs is normally not mounted. usb-on mounts it when missing and records that in $RUN/mounted; usb-off unmounts only when it created that mount and no gadget is left, so it never pulls configfs from under a Player that is building one.
+~~~
+
+**L206** `usbdbg_build() {`
+
+~~~text
+One gadget "diskos_dbg" with one function, acm.0, copied from the stock serial_config.sh / the old S99usbserial gadget: VID 0x0525 PID 0xa4a7 (Linux-USB Serial Gadget, CDC ACM mode, so existing host-side notes and Windows usbser keep working), bDeviceClass 0x02, string "diskOS USB Debug". No second ACM and no network function: the kernel has no ecm/rndis/ncm/eem/u_ether (docs/USB_DEBUG.md), so an ssh-over-cable link cannot be built on this kernel.
+~~~
+
+**L225** `usbdbg_unbind() {`
+
+~~~text
+An empty write to UDC detaches the gadget from the controller; the attribute reads empty when it is done, which is what the loop waits for (10 s). Only then are the configfs directories removed (links, functions, strings, config, gadget) in the order configfs requires.
+~~~
+
+**L244** `legacy_serial_remove() {`
+
+~~~text
+Dev images flashed before USB Debug existed run the old S99usbserial loop, which built serial_demo and kept it bound. That gadget would hold the UDC, so usb-on removes it first. The old loop keeps polling but only writes to serial_demo/UDC, which no longer exists, so it does nothing.
+~~~
+
+**L281** `usb_on() {`
+
+~~~text
+Exit codes the UI maps to a toast (ui/usbdbg.c): 0 on, 2 a stock gadget is active, 3 no UDC within 10 s, 4 the UDC write failed, 5 configfs or gadget build failed, 6 /dev/ttyGS0 did not appear within 8 s. Every failure after the build cleans up (usb_abort: shell, unbind, remove, configfs). Already on (bound and ttyGS0 present) is a success that only makes sure the shell supervisor is running. trap "" HUP: the UI starts it detached and a UI restart must not kill it half way.
+~~~
+
+**L303** `usb_off() {`
+
+~~~text
+Shell first (supervisor, then anything holding ttyGS0), then unbind, then remove. Failure to unbind returns 1 and leaves everything as it is so the UI can report it and refuse to switch modes; nothing is removed from under a bound gadget.
+~~~
+
+**L313** `usb_status() {`
+
+~~~text
+One line for people and tests: USBDBG=off|unbound|on, the UDC name, the UDC state with spaces as underscores (not_attached, powered, default, configured, suspended), and whether the shell supervisor is alive. The UI does not parse it: it reads the same sysfs files itself.
 ~~~
 
 ## payload/diskos-rmguard
@@ -26252,6 +26236,24 @@ USB Audio is an output route of Local playback, so it sits right under Local Pla
 changes: rows keep their ids (the row index is the mode id everywhere above), so nothing else moves.
 ~~~
 
+**L29** `#define ROW_USB_DEBUG`
+
+~~~text
+Row ids are the mode ids srcswitch takes (0..3 stock, 4 USB Debug), so USB Debug is row 4 and the test-builds-only USB Audio row moved from 4 to 5; it is still shown directly under Local Playback (lv_obj_move_to_index), only the id changed.
+~~~
+
+**L42** `static void debug_row_refresh(void){`
+
+~~~text
+The row's sub-label follows the usbdbg state (Starting..., Stopping..., "Plug USB-C into a PC" while no computer has configured the port, "Open /dev/ttyACM0 on the PC" once one has) and a panel under the row shows what to run on the computer; it is hidden while USB Debug is off and scrolled into view when it appears, because the row sits below the fold of the 250 px list. Refreshed from the srcswitch listener, which usbdbg events feed.
+~~~
+
+**L38** `if(usbdbg_state() != USBDBG_OFF) return ROW_USB_DEBUG;`
+
+~~~text
+While USB Debug is on (or starting or stopping) the check mark is on its row even though the Source mode is Local.
+~~~
+
 ## ui/modes.h
 
 **L6** `enum { OUT_INTERNAL = 0, OUT_SPDIF = 1, OUT_USB = 2 };`
@@ -31376,6 +31378,12 @@ Called from srcswitch_tick every 100 ms; each internal timer keeps its own perio
 
 ~~~text
 UNPROVEN. The Player's 0642 0 branch turns the OTG boost off, writes charger-IC charge-off and flips the role back after a 1 s sleep, and charging is only re-enabled by its polling threads. Two seconds after a successful exit from the USB Audio route the configured Charging Limit (0808) is sent again through the charge_limit_reapply env hook so the Player re-evaluates its charge conditions. Not armed for other routes; dropped if the route moves again, the Player restarts or a switch is in flight. May be a no-op (e.g. when the limit is off). Revert fa442e6 to drop it.
+~~~
+
+**L366** `if(target == OUT_USB && E->usb_debug_active`
+
+~~~text
+The USB Audio route puts the port in host mode (0642 5 and the role file), the one transition the Player does not undo for a gadget it does not own. While USB Debug is on, starting or stopping, picking it is refused ("Leave USB Debug first"); that covers the picker row and the boot-time USB Audio restore. Other output routes (internal, SPDIF, Bluetooth) never touch the port and are unaffected. The hook is optional (NULL in older tests).
 ~~~
 
 ## ui/outroute.h
@@ -41224,6 +41232,30 @@ A saved USB Audio is not replayed while the charger IC reports an external input
 
 ~~~text
 Working Mode Local from the USB Audio route is the ordered outroute_pick(OUT_INTERNAL, OUTROUTE_MODE) (pause, quiet, 0666 6, 65 ms, 0642 0, 0657 8, resume), the same exit every other USB Audio exit uses, not the unsettled SRC_LOCAL burst. The via-Local paths use MODE_STAY_PAUSED only because another switch follows.
+~~~
+
+**L175** `static int dbg_enter(int exit_done){`
+
+~~~text
+USB Debug is not a Source mode: the session stays Local, the Player gets no frame, and nothing is saved (session_save_source only keeps 0..2) or restored at boot. Mode id 4 (SRCSWITCH_MODE_USB_DEBUG) is only the picker row index. Entering needs the Player at Local with the internal route, because the Player's own mode thread would otherwise change the gadget under it: a DAC, a Bluetooth source, an exported card or the USB Audio route (host role) first go through via_local, exactly like the other USB modes. Refused while a stock gadget exists ("Leave USB DAC or USB Storage first").
+~~~
+
+**L110** `static int dbg_leave_begin(int mode){`
+
+~~~text
+Leaving USB Debug to any other mode first stops the gadget (usb-off, detached) and only then continues. The order matters: the Player writes the usb_role file and builds uac_demo / storage_demo / the host role from its own thread the moment the 0642 selector changes, and a diskos_dbg bound to the UDC would make that fail or race. The USB DAC exit with a host attached still runs first (dac_exit_begin) because the DAC gadget cannot be the one we are leaving here.
+~~~
+
+**L118** `static void dbg_exit_tick(void){`
+
+~~~text
+One second after the gadget is gone (the margin the USB DAC exit uses before the next switch), the pending switch continues: source_switch(mode, 1) for USB DAC, Bluetooth Receiving and USB Storage. For Local nothing is sent at all (the Player is already Local): sending the Local sequence would toggle play/pause on a playing Player for no reason.
+~~~
+
+**L188** `if(mode == SRCSWITCH_MODE_USB_DEBUG) return dbg_enter(exit_done);`
+
+~~~text
+Placed after the USB DAC safe-exit check so a DAC with a host attached is left the slow, safe way before USB Debug starts (14-17 s with a phone attached, 30 s limit); via_local alone would give up after 10 s.
 ~~~
 
 ## ui/srcswitch.h
@@ -53789,6 +53821,58 @@ last row scrolls clear of the round bezel
 
 ~~~text
 Called on every SCR_UPNEXT show (screenmgr), so a deep link or a back-navigation also reads the queue fresh.
+~~~
+
+## ui/usbdbg.c
+
+**L14** `static usbdbg_state_t g_state = USBDBG_OFF;`
+
+~~~text
+The module behind the Working Mode picker's USB Debug row. No LVGL; everything it touches comes through struct usbdbg_env (spawn/reap/abort of diskos-debug.sh, the gadget directory, the UDC attribute, the host state, toasts), so ui/tests/srcswitch_test.c runs the real module against fakes. States: OFF, STARTING (usb-on running), ON (diskos_dbg bound), STOPPING (usb-off running). The truth is the UDC attribute of /sys/kernel/config/usb_gadget/diskos_dbg, not the script's exit code: ON needs both rc 0 and a bound gadget.
+~~~
+
+**L6** `#define START_LIMIT_MS 45000`
+
+~~~text
+usb-on can legitimately take about 30 s in the worst case (10 s for the UDC, 10 s unbind during clean-up, 1 s role, 8 s for ttyGS0). 45 s then abort (kill the process group) and clean up. usb-off is limited to 30 s (10 s unbind plus margin); on a timeout the state goes back to ON if the gadget is still bound, so the caller never believes the port is free when it is not.
+~~~
+
+**L32** `void usbdbg_init(void){`
+
+~~~text
+At UI start a bound diskos_dbg is adopted as ON without sending anything: a UI restart or crash must not tear the debug link down, and a dev image's boot hook starts USB Debug before the UI exists. The USB Debug state is never saved and never restored: after a reboot the port is idle until someone selects the row. Log line: "usb debug: gadget already bound at start, adopted (host connected|not connected)".
+~~~
+
+**L136** `static void off_tick(uint32_t now){`
+
+~~~text
+Polled once a second while OFF: a gadget that appears from outside (ssh into the Disc and run usb-on, or the dev boot hook finishing after the UI started) is adopted as ON, and an ON gadget that disappears is dropped (on_tick). Both log a line ("adopted a gadget that was started from outside", "the gadget was removed from outside"). The state machine never starts or stops anything on its own.
+~~~
+
+**L52** `static void end_stop(int ok){`
+
+~~~text
+A stop counts as done when the script said so OR the gadget is no longer bound: a half-removed directory with an unbound UDC leaves the controller free, which is all the next mode needs. A stop that leaves the gadget bound sends USBDBG_EV_STOP_FAILED, and srcswitch abandons the pending switch so the Player is never asked to change the gadget selector while ours is bound.
+~~~
+
+**L39** `static const char *start_failure(int rc){`
+
+~~~text
+Exit-code to toast map for usb-on (see payload/diskos-debug.sh usb_on). Exit 1 (usage) or 127 means the image still has an old diskos-debug.sh without usb-on: a hot-loaded mq_ui alone is not enough for this feature, the script ships in the image.
+~~~
+
+## ui/usbdbg.h
+
+**L13** `struct usbdbg_env {`
+
+~~~text
+spawn() starts /usr/project/diskos-debug.sh <verb> detached and returns a pid; reap() returns USBDBG_RUNNING (-1) while it runs, else the exit status; abort() kills the process group. bound/present/stock_gadget/host_connected read sysfs. host_connected is true for UDC state configured or suspended (a computer has configured the port); a charger that only supplies power does not count.
+~~~
+
+**L33** `int  usbdbg_stop(void);`
+
+~~~text
+USBDBG_STOP_STARTED: usb-off is running (or already was); USBDBG_STOP_NOOP: nothing to stop; -1: refused (still starting, or the script could not be started).
 ~~~
 
 ## ui/usbhid.c

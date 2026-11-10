@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include "config.h"  /* cfg_get_int() */
 #include "session.h" /* the real session.c is linked: Source mode and Output route */
 #include "srcswitch.h"
+#include "usbdbg.h"
 #include "admit.h"   /* admit_check(): faked below */
 static uint32_t test_clock;
 static int test_mounted=1, test_exported, test_host, test_guarded=1, test_scan, test_playing;
@@ -101,6 +102,14 @@ static const struct srcswitch_env test_env = {
     .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
     .seek_to = env_seek,
 };
+static int env_zero(void){ return 0; }
+static int env_spawn_none(const char *verb){ (void)verb; return -1; }
+static int env_reap_done(int pid){ (void)pid; return 0; }
+static void env_abort(int pid){ (void)pid; }
+static const struct usbdbg_env test_usbdbg_env = {
+    .now = env_now, .spawn = env_spawn_none, .reap = env_reap_done, .abort = env_abort, .bound = env_zero,
+    .present = env_zero, .stock_gadget = env_zero, .host_connected = env_zero, .toast = env_toast,
+};
 static const struct sd_env test_sd_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
     .player_guarded = env_guarded, .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_scan_empty,
@@ -112,14 +121,14 @@ static const struct sd_env test_sd_env = {
 '''
     tests = r'''
 static void reset(void){
-    srcswitch_set_env(&test_env); sd_set_env(&test_sd_env);
+    srcswitch_set_env(&test_env); sd_set_env(&test_sd_env); usbdbg_set_env(&test_usbdbg_env);
     g_launch_verdict = 1;   /* a confirmed launch; the gate itself is covered by launcher_test */
     assert(sd_drained());
     unlink(SD_EXPORT_MARKER);
     test_clock=0; test_mounted=1; test_exported=0; test_host=0;
     test_guarded=1; test_scan=0; test_playing=0; test_attached=0; test_gadget=0; test_restarts=0; test_scans=0; test_volume_set=0; test_local_vol=0; g_dac_vol_due=0; g_dacx.active=0; test_sends=0; test_fail=0; test_export_sends=0; test_seed=0;
     g_sd_hold=0; g_sd_phase=SD_LOCAL; session_set_source_mode(0); g_sd_reissue=0;
-    outroute_init(&test_route_env); memset(&g_leave,0,sizeof g_leave); memset(&g_bootusb,0,sizeof g_bootusb); g_listener=NULL;
+    outroute_init(&test_route_env); memset(&g_leave,0,sizeof g_leave); memset(&g_dbgx,0,sizeof g_dbgx); memset(&g_bootusb,0,sizeof g_bootusb); g_listener=NULL;
     g_sd_writable=1; g_sd_writers=0;
     srcswitch_init(); assert(sd_io_allowed() && sd_local_playback_allowed());
 }
@@ -265,7 +274,7 @@ int main(void){
     exe = root / "test"
     subprocess.run([os.environ.get("CC", "cc"), "-Wall", "-Wextra", "-Werror",
                     "-fsanitize=address,undefined", "-g", "-pthread", '-DSD_IO_FAULT_MARKER="' + str(root / "fault") + '"', '-DSD_EXPORT_MARKER="' + str(root / "handoff") + '"', "-I", str(app),
-                    str(c), str(app / "outseq.c"), str(app / "bootstate.c"), str(app / "outroute.c"), str(app / "session.c"), str(app / "playreq.c"), str(app / "playstate.c"), "-o", str(exe)], check=True)
+                    str(c), str(app / "outseq.c"), str(app / "usbdbg.c"), str(app / "bootstate.c"), str(app / "outroute.c"), str(app / "session.c"), str(app / "playreq.c"), str(app / "playstate.c"), "-o", str(exe)], check=True)
     run_harness(exe, 10)
 
 print('COMPLETE storage_test.py')

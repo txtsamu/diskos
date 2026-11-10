@@ -191,7 +191,9 @@ userspace stack and the connected device; see [COMMAND_MAP.md](COMMAND_MAP.md).
 | Item | Value |
 |---|---|
 | Controller | **DWC2 OTG** (`13500000.otg_new`) - **dual-role** (host *or* device) |
-| Serial gadget | `serial_demo` exposing **ACM** (VID 0x0525 / PID 0xa4a7); the passwordless serial shell is limited to dev builds |
+| Serial gadget | `diskos_dbg` exposing one **ACM** (VID 0x0525 / PID 0xa4a7), built by `diskos-debug.sh usb-on` when the Working Mode picker's **USB Debug** row is selected (dev images also run it once at boot); the shell on `/dev/ttyGS0` is passwordless root |
+| USB Ethernet | **not available**: the kernel has no ECM/RNDIS/NCM/EEM/`u_ether`, no TUN and no PPP (`docs/USB_DEBUG.md`) |
+| Gadget functions in the kernel | `acm gser obex mass_storage ffs uac1 uac2 hid mtp ptp` (ten `*usb_func` entries in `/proc/kallsyms`; checked with configfs `mkdir functions/<name>`) |
 | USB-DAC mode | stock "UAC" work-mode reconfigures the gadget to **USB Audio Class** (device-as-DAC for a host PC) |
 
 The stock player provides a USB host audio route for an external USB DAC,
