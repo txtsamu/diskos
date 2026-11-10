@@ -38615,6 +38615,16 @@ An intentional Bluetooth route supersedes the startup recovery (ui_route_bt).
 
 ## ui/settings.c
 
+**Page tree (ST_PAGE, SCR_SETSUB)** `typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE, ST_PAGE } st_type_t;`
+
+~~~text
+A row of type ST_PAGE opens the group page named by its to_page column on SCR_SETSUB; GROUPS[] holds the five top groups.
+Group pages use the same page_build() list as the top groups (level 0 = SCR_SETLIST, level 1 = SCR_SETSUB), so the header,
+back button, edge back-swipe, row look and scroll restore are shared. g_scroll_page[level] / g_scroll_y[level] remember the
+tapped row's list offset so a return from a detail or a sub page lands where it left; opening a sub page resets level 1 so
+it starts at the top. The page tree and what moved are tabled in docs/SETTINGS_TREE.md; settings_tree_test.py guards it.
+~~~
+
 **L21** `#include <sys/mman.h>` *(trailing)*
 
 ~~~text

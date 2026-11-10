@@ -14,7 +14,7 @@ is published under GPL-3.0-or-later in [`ui/`](../ui/).
 
 ## The diskOS UI (`mq_ui`) on the device
 
-diskOS is a local music player. Weather on Home is **on by default**; turning it off in Settings > Display > Weather on Home stops automatic fetches and hides the glance. The table below describes when each online feature sends a request. Each request reveals the device's public IP to the service it contacts.
+diskOS is a local music player. Weather on Home is **on by default**; turning it off in Settings > Display > Home & Swipes > Weather on Home stops automatic fetches and hides the glance. The table below describes when each online feature sends a request. Each request reveals the device's public IP to the service it contacts.
 
 | Feature | Endpoint | Protocol | What is sent |
 |---|---|---|---|

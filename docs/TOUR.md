@@ -27,7 +27,7 @@ Home shows the time, date, battery, current song, and a weather glance when weat
 
 ### Quick Settings
 
-Pull down from the top edge to open the drawer and swipe up to close it. Drag Brightness at the top; an optional row adds previous, play or pause, and next. Choose up to six tiles under Display > Quick Settings, or five when playback controls are shown. A tap acts immediately; holding Wi-Fi, Bluetooth, EQ, Shuffle, Gapless, High Gain, DRE, Outdoor, or Theme opens its full setting.
+Pull down from the top edge to open the drawer and swipe up to close it. Drag Brightness at the top; an optional row adds previous, play or pause, and next. Choose up to six tiles under Display > Home & Swipes > Quick Settings, or five when playback controls are shown. A tap acts immediately; holding Wi-Fi, Bluetooth, EQ, Shuffle, Gapless, High Gain, DRE, Outdoor, or Theme opens its full setting.
 
 | Tile | Tap action |
 |---|---|
@@ -75,7 +75,7 @@ Song text appears while playing and hides when paused; optional weather appears 
 
 Now Playing shows the current song, elapsed and remaining time, playback controls, play mode, and a Favourites heart; most themes also show cover art and album. Tap previous, play or pause, and next for transport; tap the heart to add or remove the current music track from Favourites, and tap the mode icon to cycle Sequential, Shuffle, Repeat One, Repeat All, and Single. Drag the progress control to seek, tap visible cover art for full-screen art, and tap the moon to choose a sleep timer; a book also offers End of chapter. Swipe left across the page to the Options hub, or open its context and tuning panels with the on-screen side controls; a deliberate right swipe returns, while a short drag on the seek control stays a seek.
 
-The Display > Now Playing choice sets Cover or a spinning Vinyl image. halo and something place art inside a round seek ring; hi-fi adds an LCD-like time readout, blueprint adds cover crop marks, and stone uses a thick ring and pill-shaped play key. Bauhaus splits the art and controls with a straight seek bar, zine tapes art above a highlighter-style bar, and terminal hides art for a text readout and straight bar. Vinyl freezes when paused and spins while the screen is showing a playing track that has cover art; a missing cover uses a still placeholder where art is shown.
+The Display > Player & Lists > Now Playing choice sets Cover or a spinning Vinyl image. halo and something place art inside a round seek ring; hi-fi adds an LCD-like time readout, blueprint adds cover crop marks, and stone uses a thick ring and pill-shaped play key. Bauhaus splits the art and controls with a straight seek bar, zine tapes art above a highlighter-style bar, and terminal hides art for a text readout and straight bar. Vinyl freezes when paused and spins while the screen is showing a playing track that has cover art; a missing cover uses a still placeholder where art is shown.
 
 <table>
 <tr>
@@ -212,7 +212,7 @@ Library > Folders opens the microSD card as folders and files. Tap a folder to d
 
 ### Settings
 
-Settings groups the controls into Playback, Audio, Display, Network, and System. Tap a group, scroll its rows, and tap a row to cycle a choice, open its detail, or run the named action; sliders can be dragged. Read-only rows show information without changing it. The tables show diskOS's default values. Artists, Play Through Folders, Automatic Time, Charging Limit, Screen Rotation, and volume-key actions initially follow the saved stock-player values. Play Mode, Resume Playback, Gapless, Max Volume, and Balance keep the player's existing state at startup until a diskOS choice is saved.
+Settings groups the controls into Playback, Audio, Display, Network, and System. Display and System open short group pages of their own (the full tree is in [Settings page tree](SETTINGS_TREE.md)). Tap a group, scroll its rows, and tap a row to cycle a choice, open its detail, or run the named action; sliders can be dragged. Read-only rows show information without changing it. The tables show diskOS's default values. Artists, Play Through Folders, Automatic Time, Charging Limit, Screen Rotation, and volume-key actions initially follow the saved stock-player values. Play Mode, Resume Playback, Gapless, Max Volume, and Balance keep the player's existing state at startup until a diskOS choice is saved.
 
 <table>
 <tr>
@@ -264,7 +264,7 @@ Audio rows control the output path, DAC options, and volume limits. Tap Working 
 
 ### Settings: Display
 
-Display controls the look of the interface and its idle behavior. Tap choices to cycle, switches to toggle, and sliders to drag; Theme, Accent Colour, and Quick Settings open pickers. Changing the theme or text size redraws the interface while music continues. Outdoor Mode holds a light appearance and full brightness until switched off, then restores the saved appearance and brightness.
+Display controls the look of the interface and its idle behavior. Brightness, Theme, Appearance, and Font Size sit on the Display page; Screen & Saver (Outdoor Mode, Screensaver, Saver Style, Screen Off, Screen Rotation), Player & Lists (Now Playing, Accent Colour, Album View, Track Numbers, Album Art Cache), and Home & Swipes (Quick Settings, Weather on Home, Animations, Back-swipe) open from it, and 24-Hour Time moved to System > Time & Language. Tap choices to cycle, switches to toggle, and sliders to drag; Theme, Accent Colour, and Quick Settings open pickers. Changing the theme or text size redraws the interface while music continues. Outdoor Mode holds a light appearance and full brightness until switched off, then restores the saved appearance and brightness.
 
 | Row | Action and default |
 |---|---|
@@ -319,7 +319,7 @@ Chinese, Japanese, and Korean names and titles use the stock font fallback acros
 
 ### Settings: Network
 
-Network opens radio controls and Bluetooth codec selection. Tap a radio row, switch its power control, rescan, and tap a listed device or network. The codec row is available on V2.57; it says "Not on this firmware" on older bases.
+Network opens radio controls and Bluetooth codec selection, and holds the two online lookups (Online Album Art and Online Lyrics, listed in the Display table below with their defaults). Tap a radio row, switch its power control, rescan, and tap a listed device or network. The codec row is available on V2.57; it says "Not on this firmware" on older bases.
 
 | Row | Action and default |
 |---|---|
@@ -357,7 +357,7 @@ With Weather on Home enabled, tap the glance to open Weather. "Weather unavailab
 
 ### Settings: System
 
-System covers language, power, library maintenance, time, updates, recovery, and device information. Tap an action row to open it; actions such as Restart, Reset, and updates ask for confirmation where a change will be made. Some rows are available only with V2.57 or with an update key in the installed image. Read-only rows show device information.
+System opens group pages: Time & Language (Language, 24-Hour Time, Automatic Time, Time Zone, Set Date & Time), Power & Sleep (Sleep Timer, When Sleep Ends, Idle Power-off, Charging Limit, Default UI, Restart, Power off), Volume Keys, Library (Rescan Library, Import Playlists, Old tags), Updates (Update diskOS, Allow diskOS Updates, Update from SD Card, Block FiiO update checks), and About (About, Device Info, Temperature, Reset diskOS Settings); Debug Mode is a direct row. The table keeps every row with its default. Tap an action row to open it; actions such as Restart, Reset, and updates ask for confirmation where a change will be made. Some rows are available only with V2.57 or with an update key in the installed image. Read-only rows show device information.
 
 | Row | Action and default |
 |---|---|
@@ -432,4 +432,4 @@ If Wi-Fi is off, turn it on in Settings > Network > Wi-Fi; if it shows no IP, re
 
 ### Safety and stock UI
 
-Settings > System > Default UI > Stock makes the stock interface the normal boot choice. To use the other interface for one boot, hold Volume Up from power-on until it appears; keep holding long enough for the switch to register. Both choices leave the diskOS image installed. The installer's `restore-stock` command restores the saved stock root filesystem when you want to remove that image.
+Settings > System > Power & Sleep > Default UI > Stock makes the stock interface the normal boot choice. To use the other interface for one boot, hold Volume Up from power-on until it appears; keep holding long enough for the switch to register. Both choices leave the diskOS image installed. The installer's `restore-stock` command restores the saved stock root filesystem when you want to remove that image.

@@ -31,6 +31,9 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Changed
 
+- Settings: the long Display and System pages are split into short group pages (Display > Screen & Saver,
+  Player & Lists, Home & Swipes; System > Time & Language, Power & Sleep, Volume Keys, Library, Updates, About), and
+  the online lookups moved to Network. Nothing was removed and no saved setting changed; see docs/SETTINGS_TREE.md.
 - Terminal theme Home: the banner is gone, the date sits centred under the clock, the layout has
   more room, the cursor blinks like the title cursors and the prompt reads "$ now playing".
 - Working Mode: USB Audio is listed under Local Playback, and the USB Audio and USB DAC

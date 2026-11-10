@@ -12,6 +12,7 @@
 ## Explore
 
 - [A tour of diskOS](TOUR.md) - screens, controls, settings, and limitations.
+- [Settings page tree](SETTINGS_TREE.md) - the Settings groups and sub pages, and where each setting lives.
 - [Design system](DESIGN_SYSTEM.md) - round-screen layout and visual choices.
 
 ## Develop

@@ -274,7 +274,7 @@ see the [release notes](docs/RELEASE_NOTES_1.2.1.md).
 The 1.2.1 release image includes the diskOS release key by default. Turn updates off
 on the Disc, or untick **Allow diskOS updates over Wi-Fi** when flashing. See [upgrading](docs/INSTALL.md#upgrading-to-121).
 
-To use the stock interface without reflashing, set **Settings > System > Default UI > Stock**.
+To use the stock interface without reflashing, set **Settings > System > Power & Sleep > Default UI > Stock**.
 Holding **Volume Up** from power-on boots the other interface once: Stock when diskOS is the
 default, or diskOS when Stock is the default. To remove the diskOS image, select
 **Restore stock firmware...** in the installer, or run `restore-stock`. It uses the saved stock

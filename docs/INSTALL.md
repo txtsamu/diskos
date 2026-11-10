@@ -238,9 +238,9 @@ V2.57 firmware. Before writing, it checks that the Disc's kernel and recovery ma
 firmware. The saved stock image remains available for restore.
 
 The 1.2.1 release image includes the diskOS release key by default.
-Settings > System > Update diskOS checks for a newer signed release and updates only the diskOS app,
+Settings > System > Updates > Update diskOS checks for a newer signed release and updates only the diskOS app,
 not stock firmware or the whole flashed image. After a trial update, choose Keep or Go back;
-a broken update rolls back automatically. Settings > System > Allow diskOS Updates can stop
+a broken update rolls back automatically. Settings > System > Updates > Allow diskOS Updates can stop
 downloads. Off still allows a release check, but nothing is downloaded or staged. Turning it off
 while an update is pending offers Discard or Cancel. An install without a key shows "Not supported
 on this install". Untick the GUI checkbox when flashing or use `--no-ota` to leave the key out.
@@ -343,7 +343,7 @@ storage.
 
 You can also switch without reflashing:
 
-- **Persistently:** Settings > System > Default UI > Stock
+- **Persistently:** Settings > System > Power & Sleep > Default UI > Stock
 - **Once:** hold **Volume Up** from power-on until the other UI appears
 
 Both keep the diskOS delete guard, because the diskOS image stays installed. Restoring the saved
