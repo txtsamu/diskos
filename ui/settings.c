@@ -942,6 +942,8 @@ static const char *const GROUPS[] = { "Playback", "Audio", "Display", "Network",
 
 static void detail_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_back(); }
 
+#define MAXVOL_STEP 10
+void setting_detail_refresh(void);
 static void detail_slider_cb(lv_event_t *e){
     lv_obj_t *sl = lv_event_get_target(e);
     int v = lv_slider_get_value(sl);
@@ -955,6 +957,15 @@ static void detail_slider_release_cb(lv_event_t *e){
     if(outdoor_holds(g_active)) return;
     if(g_active->apply == apply_brightness_row) ui_set_brightness(lv_slider_get_value(sl));
     else if(g_active->cfg_key) cfg_set_int(g_active->cfg_key, lv_slider_get_value(sl));
+}
+static void detail_maxvol_step_cb(lv_event_t *e){
+    if(!g_active || !g_active->cfg_key || strcmp(g_active->cfg_key, "max_vol")) return;
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    int v = get_val(g_active) + dir * MAXVOL_STEP;
+    if(v < g_active->min) v = g_active->min;
+    if(v > g_active->max) v = g_active->max;
+    set_val(g_active, v);
+    setting_detail_refresh();
 }
 static void detail_cycle_cb(lv_event_t *e){
     if(theme_outdoor() && g_active->cfg_key && !strcmp(g_active->cfg_key, "theme_variant")){
@@ -1012,6 +1023,45 @@ void setting_detail_refresh(void){
         ui_on(sl, detail_slider_cb, LV_EVENT_VALUE_CHANGED, vl, "settings.detail_slider.value", UI_CORE);
         lv_obj_add_event_cb(sl, detail_slider_release_cb, LV_EVENT_RELEASED, NULL);
         lv_obj_add_event_cb(sl, detail_slider_release_cb, LV_EVENT_PRESS_LOST, NULL);
+        if(s->cfg_key && !strcmp(s->cfg_key, "max_vol")){
+            static const lv_point_precise_t LEFT_PTS[3] = {{14, 0}, {0, 20}, {14, 40}};
+            static const lv_point_precise_t RIGHT_PTS[3] = {{0, 0}, {14, 20}, {0, 40}};
+            lv_obj_align(sl, LV_ALIGN_CENTER, 0, 52);
+            lv_obj_align(vl, LV_ALIGN_CENTER, 0, -26);
+            lv_obj_set_width(vl, 120);
+            lv_obj_set_style_text_font(vl, TF(UI_28), 0);
+            kit_keep(vl);
+            lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+            lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+            lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_KNOB);
+            lv_obj_set_style_pad_all(sl, 7, LV_PART_KNOB);
+            lv_obj_set_style_shadow_width(sl, 0, LV_PART_KNOB);
+            lv_obj_set_style_border_width(sl, 0, LV_PART_KNOB);
+            kit_keep(sl);
+            for(int i = 0; i < 2; i++){
+                int dir = i ? 1 : -1;
+                lv_obj_t *bt = lv_button_create(g_detail_root);
+                lv_obj_remove_style_all(bt);
+                lv_obj_set_size(bt, 64, 64);
+                lv_obj_set_ext_click_area(bt, 8);
+                lv_obj_set_style_radius(bt, LV_RADIUS_CIRCLE, 0);
+                lv_obj_set_style_bg_color(bt, TC(CONTROL_TRACK), 0);
+                lv_obj_set_style_bg_opa(bt, LV_OPA_COVER, 0);
+                lv_obj_set_style_border_width(bt, 2, 0);
+                lv_obj_set_style_border_color(bt, ui_current_accent(), 0);
+                lv_obj_set_style_clip_corner(bt, true, 0);
+                lv_obj_set_style_bg_color(bt, TC(SURFACE_SELECTED), LV_STATE_PRESSED);
+                kit_keep(bt);
+                lv_obj_align(bt, LV_ALIGN_CENTER, dir * 110, -26);
+                lv_obj_t *ch = lv_line_create(bt);
+                lv_line_set_points(ch, dir > 0 ? RIGHT_PTS : LEFT_PTS, 3);
+                lv_obj_set_style_line_width(ch, 6, 0);
+                lv_obj_set_style_line_rounded(ch, true, 0);
+                lv_obj_set_style_line_color(ch, ui_current_accent(), 0);
+                lv_obj_center(ch);
+                ui_on(bt, detail_maxvol_step_cb, LV_EVENT_CLICKED, (void*)(intptr_t)dir, "settings.detail_maxvol_step", UI_CORE);
+            }
+        }
     } else if(s->type == ST_TOGGLE){
         lv_obj_t *sw = lv_switch_create(g_detail_root);
         lv_obj_align(sw, LV_ALIGN_CENTER, 0, 0);

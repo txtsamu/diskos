@@ -351,6 +351,7 @@ void home_set_weather(const char *text)
 
 void home_set_status(int batt, int charging, int wifi, int bt)
 {
+    quicksettings_set_battery(batt, charging);
     if (!g_status) return;
     char buf[80]; char *p = buf; *p = 0;
     if (wifi) { p += sprintf(p, LV_SYMBOL_WIFI "  "); }

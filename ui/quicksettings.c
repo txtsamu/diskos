@@ -320,12 +320,30 @@ static void build_brightness(lv_obj_t *root, int y){
     }
 }
 
+static lv_obj_t *g_batt;
+static int g_batt_pct = -1, g_batt_chg;
+static void batt_paint(void){
+    if(!g_batt) return;
+    const int b = g_batt_pct;
+    const char *bs = b >= 90 ? LV_SYMBOL_BATTERY_FULL : b >= 65 ? LV_SYMBOL_BATTERY_3 :
+                     b >= 40 ? LV_SYMBOL_BATTERY_2 : b >= 15 ? LV_SYMBOL_BATTERY_1 : LV_SYMBOL_BATTERY_EMPTY;
+    char buf[40];
+    if(b < 0) buf[0] = 0;
+    else snprintf(buf, sizeof buf, "%s %d%%%s", bs, b, g_batt_chg ? "  " LV_SYMBOL_CHARGE : "");
+    if(strcmp(lv_label_get_text(g_batt), buf)) lv_label_set_text(g_batt, buf);
+}
+void quicksettings_set_battery(int batt, int charging){
+    g_batt_pct = batt; g_batt_chg = charging;
+    batt_paint();
+}
+
 void quicksettings_create(lv_obj_t *root){ g_qs_root = root; }
 
 void quicksettings_build(void){
     if(!g_qs_root) return;
     lv_obj_clean(g_qs_root);
     g_bright = NULL; g_pp_glyph = NULL; g_prev_glyph = NULL; g_next_glyph = NULL;
+    g_batt = NULL;
     for(int i=0;i<QT_COUNT;i++){ g_tile_dot[i] = NULL; g_tile_lbl[i] = NULL; }
 
     lv_obj_set_style_bg_color(g_qs_root, TC(CANVAS), 0);
@@ -339,6 +357,15 @@ void quicksettings_build(void){
     lv_obj_set_style_radius(grab, 3, 0);
     lv_obj_set_style_bg_color(grab, TC(GRABBER), 0);
     lv_obj_set_style_bg_opa(grab, LV_OPA_COVER, 0);
+
+    g_batt = lv_label_create(g_qs_root);
+    lv_obj_set_width(g_batt, 200);
+    lv_obj_set_style_text_align(g_batt, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(g_batt, TF(UI_16), 0);
+    lv_obj_set_style_text_color(g_batt, TC(TEXT_SECONDARY), 0);
+    lv_obj_align(g_batt, LV_ALIGN_BOTTOM_MID, 0, -26);
+    lv_label_set_text(g_batt, "");
+    batt_paint();
 
     int have_tr = cfg_get_int("qs_transport", 0) ? 1 : 0;
     int ids[QT_COUNT]; int nt = qs_enabled(ids, qs_cap());

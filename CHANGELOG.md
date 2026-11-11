@@ -56,6 +56,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Fixed
 
+- Settings > Audio > Max Volume has round left/right buttons that lower or raise the cap by 10, and a round slider knob
+- Quick Settings shows the battery level (and a charge mark while charging) at the bottom
 - USB Audio: the volume keys did nothing when Double click was set to Switch Track. A single click now adjusts the DAC volume
   whatever the double-click action is, a double click stays a track skip without nudging the volume, and holding a volume
   key repeats the change on the DAC when Long press is set to Adjust Volume

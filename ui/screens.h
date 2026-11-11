@@ -35,6 +35,7 @@ void quicksettings_build(void);
 void qsconfig_create(lv_obj_t *root);
 void qsconfig_refresh(void);
 void quicksettings_refresh(int playing);
+void quicksettings_set_battery(int batt, int charging);
 void songinfo_create(lv_obj_t *root);
 void songinfo_set(const track_state_t *st);
 void npmenu_create(lv_obj_t *root);
