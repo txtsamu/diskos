@@ -57,7 +57,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 ### Fixed
 
 - USB Audio: the volume keys did nothing when Double click was set to Switch Track. A single click now adjusts the DAC volume
-  whatever the double-click and long-press actions are, and a double click stays a track skip without nudging the volume
+  whatever the double-click action is, a double click stays a track skip without nudging the volume, and holding a volume
+  key repeats the change on the DAC when Long press is set to Adjust Volume
   (`docs/USB_AUDIO_VOLUME.md`). Long press is not handled on USB Audio and the key codes for it are not verified.
 - Changing the theme while on USB Audio kept the route but then re-ran the whole USB Audio switch
   15 seconds later and paused the music. The route is now carried over at startup and the

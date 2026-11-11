@@ -11,6 +11,8 @@
 #define DACVOL_KEY_DOWN 252
 #define DACVOL_KEY_DBL_UP   266
 #define DACVOL_KEY_DBL_DOWN 267
+#define DACVOL_KEY_HOLD_DOWN 262
+#define DACVOL_KEY_HOLD_UP   263
 
 typedef struct {
     int  numid, channels, min, max, cur;
@@ -36,6 +38,7 @@ struct dacvol_env {
     int  (*key_poll)(int *code, int *value);
     int  (*keys_adjust_volume)(void);
     int  (*single_click_volume)(void);
+    int  (*long_press_volume)(void);
     int  (*user_cap)(void);
     void (*log)(const char *msg);
 };

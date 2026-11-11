@@ -262,14 +262,19 @@ static void tick_mix(void){
 static void on_key(int code, int value){
     if(value < 1) return;
     if(code == DACVOL_KEY_DBL_UP || code == DACVOL_KEY_DBL_DOWN){ S.last_dbl = now_ms() ? now_ms() : 1; return; }
-    int dir = code == DACVOL_KEY_UP ? 1 : code == DACVOL_KEY_DOWN ? -1 : 0;
+    int hold = code == DACVOL_KEY_HOLD_UP || code == DACVOL_KEY_HOLD_DOWN;
+    int dir = (code == DACVOL_KEY_UP || code == DACVOL_KEY_HOLD_UP) ? 1 : (code == DACVOL_KEY_DOWN || code == DACVOL_KEY_HOLD_DOWN) ? -1 : 0;
     if(!dir){
         for(int i = 0; i < S.n_codes; i++) if(S.logged_codes[i] == code) return;
         if(S.n_codes < LOG_CODES){ S.logged_codes[S.n_codes++] = code; say("dacvol: key code %d seen (not a volume key)", code); }
         return;
     }
-    if(E->single_click_volume && !E->single_click_volume()) return;
-    if(S.last_dbl && now_ms() - S.last_dbl < DBL_SUPPRESS_MS) return;
+    if(hold){
+        if(E->long_press_volume && !E->long_press_volume()) return;
+    } else {
+        if(E->single_click_volume && !E->single_click_volume()) return;
+        if(S.last_dbl && now_ms() - S.last_dbl < DBL_SUPPRESS_MS) return;
+    }
     S.last_key = now_ms() ? now_ms() : 1;
     set_level(S.level + dir * key_step(), 1);
 }

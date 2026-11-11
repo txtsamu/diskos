@@ -20,7 +20,7 @@ int cfg_set_int(const char *key, int v){
 static uint32_t g_now;
 static int g_ready, g_card, g_probe, g_mix_busy_polls, g_mix_state, g_mix_fail_on_set;
 static dacvol_ctl_t g_ctl;
-static int g_keys_vol, g_single_vol, g_cap, g_key_active, g_player_rc, g_maxvol_set, g_maxvol_restored;
+static int g_keys_vol, g_single_vol, g_long_vol, g_cap, g_key_active, g_player_rc, g_maxvol_set, g_maxvol_restored;
 static int g_keyq[32][2], g_nkey, g_keyi;
 static char g_log[32][160]; static int g_nlog;
 enum { OP_MIXSET, OP_PLAYER, OP_MAXVOL, OP_RESTORE };
@@ -49,13 +49,14 @@ static void e_key_active(int on){ g_key_active = on; }
 static int e_key_poll(int *c, int *v){ if(g_keyi >= g_nkey) return 0; *c = g_keyq[g_keyi][0]; *v = g_keyq[g_keyi][1]; g_keyi++; return 1; }
 static int e_keys_vol(void){ return g_keys_vol; }
 static int e_single_vol(void){ return g_single_vol; }
+static int e_long_vol(void){ return g_long_vol; }
 static int e_cap(void){ return g_cap; }
 static void e_log(const char *m){ if(g_nlog < 32) snprintf(g_log[g_nlog++], sizeof g_log[0], "%s", m); }
 static const struct dacvol_env env = {
     .now = e_now, .usb_ready = e_ready, .usb_card = e_card, .mixer_probe = e_probe, .mixer_probe_poll = e_probe_poll,
     .mixer_set = e_mix_set, .mixer_state = e_mix_state, .player_send = e_player, .player_maxvol = e_maxvol,
     .player_maxvol_restore = e_restore, .key_active = e_key_active, .key_poll = e_key_poll,
-    .keys_adjust_volume = e_keys_vol, .single_click_volume = e_single_vol, .user_cap = e_cap, .log = e_log,
+    .keys_adjust_volume = e_keys_vol, .single_click_volume = e_single_vol, .long_press_volume = e_long_vol, .user_cap = e_cap, .log = e_log,
 };
 
 static void reset(void){
@@ -64,7 +65,7 @@ static void reset(void){
     memset(&g_ctl, 0, sizeof g_ctl);
     g_ctl.numid = 6; g_ctl.channels = 2; g_ctl.min = 0; g_ctl.max = 100; g_ctl.cur = 100; g_ctl.db_min_cdb = -5000; g_ctl.db_max_cdb = 0;
     snprintf(g_ctl.name, sizeof g_ctl.name, "PCM Playback Volume");
-    g_keys_vol = 1; g_single_vol = 1; g_cap = VOL_MAX; g_key_active = 0; g_player_rc = 0; g_maxvol_set = g_maxvol_restored = 0;
+    g_keys_vol = 1; g_single_vol = 1; g_long_vol = 1; g_cap = VOL_MAX; g_key_active = 0; g_player_rc = 0; g_maxvol_set = g_maxvol_restored = 0;
     g_nkey = g_keyi = 0; g_nlog = 0; g_nops = 0;
     dacvol_init(&env);
 }
@@ -295,6 +296,41 @@ static void test_single_click_volume_with_double_click_as_track(void){
     run(20);
     assert(!dacvol_take_change(&level) && count_ops(OP_MIXSET) == mix);
     puts("ok a single click adjusts the DAC while a double click stays a track skip");
+}
+
+static void test_hold_repeats_volume(void){
+    reset();
+    go_active(90, 72);
+    g_keys_vol = 1; g_single_vol = 1; g_long_vol = 1;
+    int level, mix = count_ops(OP_MIXSET);
+    press(DACVOL_KEY_HOLD_UP, 1);
+    for(int i = 0; i < 5; i++) press(DACVOL_KEY_HOLD_UP, 2);
+    press(DACVOL_KEY_HOLD_UP, 0);
+    run(20);
+    assert(dacvol_take_change(&level) && level == 78);
+    assert(count_ops(OP_MIXSET) > mix);
+    player_report(VOL_MAX);
+    run(1000);
+    press(DACVOL_KEY_HOLD_DOWN, 1);
+    for(int i = 0; i < 3; i++) press(DACVOL_KEY_HOLD_DOWN, 2);
+    run(20);
+    assert(dacvol_take_change(&level) && level == 74);
+    assert(!log_has("not a volume key"));
+
+    g_long_vol = 0;
+    mix = count_ops(OP_MIXSET);
+    run(1000);
+    press(DACVOL_KEY_HOLD_UP, 1);
+    press(DACVOL_KEY_HOLD_UP, 2);
+    run(20);
+    assert(!dacvol_take_change(&level) && count_ops(OP_MIXSET) == mix);
+
+    g_long_vol = 1; g_single_vol = 0;
+    run(1000);
+    press(DACVOL_KEY_HOLD_UP, 1);
+    run(20);
+    assert(dacvol_take_change(&level) && level == 75);
+    puts("ok holding a volume key repeats the DAC volume when long press is Adjust Volume");
 }
 
 static void test_single_click_as_track_keeps_player_driven_volume(void){
@@ -635,6 +671,7 @@ int main(void){
     test_keys();
     test_keys_as_track_buttons();
     test_single_click_volume_with_double_click_as_track();
+    test_hold_repeats_volume();
     test_single_click_as_track_keeps_player_driven_volume();
     test_inference_without_key_events();
     test_echo_of_our_own_assert_is_ignored();
