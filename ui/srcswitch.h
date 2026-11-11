@@ -17,6 +17,7 @@ struct srcswitch_env {
 };
 
 #define SRCSWITCH_MODE_USB_DEBUG 4
+#define SRCSWITCH_MODE_USB_AUDIO 5
 
 void srcswitch_set_env(const struct srcswitch_env *env);
 void srcswitch_init(void);

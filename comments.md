@@ -40882,12 +40882,26 @@ it is not known to restore device role from host or to close the UAC gadget.
   1 -> 0/2     : direct (0642 0/0818 path); refused while a computer has the gadget configured (capture deadlock)
   1 -> 3       : via Local (0642 0 closes UAC first), same refusal with a computer attached
   2 -> 0/1/3   : direct (port already device after 0642 0; 0657 leaves BT sink; BT radio as the player leaves it)
-  3 -> 0/1/2   : storage return path (source_send(mode), local mount, then a device restart)
-  1/2/3 -> U   : refused by admit_check(ADMIT_OUTPUT_SWITCH) ("Return to local playback first"); 3 -> Local restarts the device,
-                 so no continuation could survive it, and 1 -> Local needs the cable unplugged first anyway
+  3 -> 0       : storage return path (source_send(0), local mount, then a device restart)
+  1/2/3 -> U   : via Local like the other hops; admit_check(ADMIT_OUTPUT_SWITCH) ("Return to local playback first") is only
+                 asked once the source is Local, from the final outroute_pick in source_switch(SRCSWITCH_MODE_USB_AUDIO)
   U -> 0       : direct (0666 6, 0642 0, 0657 8 restore device role; usb_audio_on cleared below)
   U -> 1/2/3   : via Local (out_switch to the internal DAC, then source_switch again from leave_tick): a direct 0642 1
                  from host role never reached the computer and held SD access until a restart
+  1 -> 2/3, 2 -> 1/3, 1/2 -> USB Debug / USB Audio : via Local (source_switch(0), 3 s wait in leave_tick, then source_switch(target)).
+                 needs_local() is false for the same mode (re-picking 1 or 2 stays a direct frame) and for USB Audio picked
+                 while the route is already USB.
+  3 -> 1/2/USB Debug/USB Audio : storage_leave(): the target is written to cfg "src_pending" (1 DAC, 2 BT, 3 storage is never
+                 used here, 4 USB Debug, 5 USB Audio), the card is returned with sd_return_begin(0) and the UI restarts
+                 (storage_resume_local). The new process reads the key in modes_output_boot_restore (srcswitch_init runs
+                 before cfg_load, so it cannot), clears it at once (one shot: a crash or a second restart never repeats it) and
+                 pending_tick enters the target once the Player has settled (>= 15 s, ipc ready, nothing switching, and for USB
+                 Audio admit_check(ADMIT_OUTPUT_SWITCH) clear). It gives up with a toast after 120 s or when the source is no
+                 longer Local. A UI restart for another reason inside that window loses the target; that is the safe side.
+                 The old 3 -> 1/2 carried the mode in the handoff marker (R mode); the marker reader still accepts it.
+  source_switch() refuses (toast "Switching...") while leave_tick or pending_tick is waiting, so no second request can
+                 slip in between the hop to Local and the target. leave_tick does not time out or continue while sd_switch_pending(),
+                 a USB Debug stop or an output switch is still running.
 ~~~
 
 **L288** `static struct { int active; int mode; uint32_t t0, gone_at; } g_dacx;`
