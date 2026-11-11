@@ -288,13 +288,15 @@ void eqcustom_create(lv_obj_t *root){
 
     lv_obj_t *title = ui_header(root, "Custom EQ");
     g_eq_drop = 0;
-    kit_pass(root);
     lv_obj_update_layout(root);
     if(title){
         lv_area_t a; lv_obj_get_coords(title, &a);
-        g_eq_drop = a.y2 + 8 - 48;
+        if(lv_obj_get_style_bg_opa(title, 0) > LV_OPA_50) g_eq_drop = a.y2 + 2 - 48;
+        else if(a.y2 > 56) g_eq_drop = a.y2 - 56 + 4;
         if(g_eq_drop < 0) g_eq_drop = 0;
+        if(g_eq_drop > 40) g_eq_drop = 40;
     }
+
 
     make_slot_selector(root);
 

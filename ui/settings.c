@@ -668,7 +668,7 @@ static const setting_t TABLE[] = {
       "How the player advances through tracks.", D_MODE },
     { "Playback", "Resume Playback", ST_CYCLER, "memory_play", 0,0,0, OPT_MEMORY, 3, NULL, apply_memory, 0,
       "On power-on: Off = start fresh, Position = resume the exact spot, Song = reopen the last track.", NULL },
-    { "Playback", "Equalizer",   ST_CYCLER, "eq_preset", 0,0,0, OPT_EQ,  21, NULL, apply_eq,   0,
+    { "Playback", "Equalizer",   ST_CHOICE, "eq_preset", 0,0,0, OPT_EQ,  21, NULL, apply_eq,   0,
       "Tone preset sent to the player; audible effect is still being verified.", NULL },
     { "Playback", "Custom EQ",    ST_ACTION, NULL, 0,0,0, NULL,0, LV_SYMBOL_RIGHT, apply_eq_custom, 0,
       "Adjust the 10-band custom EQ. Applies live and saves on the device.", NULL },

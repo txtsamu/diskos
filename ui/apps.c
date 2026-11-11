@@ -54,6 +54,7 @@ static void app_row_cb(lv_event_t *e){
 static void settings_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) screen_show(SCR_SETTINGS); }
 static void pet_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) tama_open(); }
 static void dac_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) dac_open(); }
+static void eq_row_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED) settings_open_key("eq_preset"); }
 
 #define TILE_W 128
 #define TILE_H 118
@@ -141,12 +142,44 @@ static void dac_icon_build(lv_obj_t *chip){
     kit_keep(ic);
 }
 
+#define EQ_ICON_W 32
+#define EQ_ICON_H 32
+static void eq_icon_draw_cb(lv_event_t *e){
+    lv_obj_t *o = lv_event_get_target_obj(e);
+    lv_layer_t *layer = lv_event_get_layer(e);
+    lv_area_t a; lv_obj_get_coords(o, &a);
+    lv_color_t col = TC(TEXT_PRIMARY);
+    static const int bar_x[3] = { 5, 15, 25 };
+    static const int knob_y[3] = { 20, 9, 16 };
+    for(int i = 0; i < 3; i++){
+        lv_draw_rect_dsc_t bd; lv_draw_rect_dsc_init(&bd);
+        bd.bg_color = col; bd.bg_opa = LV_OPA_COVER; bd.radius = 1;
+        lv_area_t ba = { a.x1 + bar_x[i], a.y1 + 3, a.x1 + bar_x[i] + 2, a.y1 + 28 };
+        lv_draw_rect(layer, &bd, &ba);
+        lv_draw_rect_dsc_t kd; lv_draw_rect_dsc_init(&kd);
+        kd.bg_color = col; kd.bg_opa = LV_OPA_COVER; kd.radius = LV_RADIUS_CIRCLE;
+        lv_area_t ka = { a.x1 + bar_x[i] - 4, a.y1 + knob_y[i] - 4, a.x1 + bar_x[i] + 6, a.y1 + knob_y[i] + 6 };
+        lv_draw_rect(layer, &kd, &ka);
+    }
+}
+static void eq_icon_build(lv_obj_t *chip){
+    lv_obj_t *ic = lv_obj_create(chip);
+    lv_obj_remove_style_all(ic);
+    lv_obj_set_size(ic, EQ_ICON_W, EQ_ICON_H);
+    lv_obj_clear_flag(ic, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ic, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(ic, eq_icon_draw_cb, LV_EVENT_DRAW_MAIN, NULL);
+    lv_obj_center(ic);
+    kit_keep(ic);
+}
+
 void apps_reload(void){
     if(!g_list) return;
     lv_obj_clean(g_list);
     scan_apps();
     make_tile("\xEF\x80\x84", TF(ICON_28), "Pet", pet_row_cb, NULL);
     make_tile_ex(NULL, NULL, dac_icon_build, "USB DAC", dac_row_cb, NULL);
+    make_tile_ex(NULL, NULL, eq_icon_build, "Equalizer", eq_row_cb, NULL);
     for(int i=0;i<g_napps;i++) make_tile(LV_SYMBOL_FILE, TF(ICON_28), g_apps[i].name, app_row_cb, (void*)(uintptr_t)i);
     make_tile(LV_SYMBOL_SETTINGS, TF(ICON_28), "Settings", settings_row_cb, NULL);
 }

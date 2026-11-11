@@ -38,8 +38,6 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Changed
 
-- Custom EQ leaves room under its title for a taller title: the slot selector and sliders start 8 px below the title's last row
-  (ported from upstream 1.2.2; not yet checked on a device).
 - Working Mode: every switch between two modes other than Local Playback now goes through Local Playback by itself, with the
   usual toasts: USB DAC to Bluetooth Receiving or USB Storage, Bluetooth Receiving to USB DAC, USB Storage, USB Audio or USB Debug,
   and any of them to the USB Audio row (which used to say "Return to local playback first"). Leaving USB Storage restarts the UI,
@@ -68,6 +66,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
   "EQ read failed, try again" toast. Before, a failed read showed a flat placeholder. The curve and its parametric check are read
   together from one database snapshot (ported from upstream 1.2.2). Custom EQ is still view-only on V2.57.
 - After leaving USB Audio the internal output is no longer quieter: the Player re-initialises the DACs on the way back and Gain, DRE and DAC Filter fell back to their defaults, so diskOS sends them again once the route is back on the internal DAC
+- Apps has an Equalizer tile that opens the preset list, and Equalizer in Settings is a list of presets to pick from instead of a
+  left/right cycler (as in upstream 1.2.2)
 - Settings > Audio > Max Volume has round left/right buttons that lower or raise the cap by 10, and a round slider knob
 - Quick Settings shows the battery level (and a charge mark while charging) at the bottom
 - USB Audio: the volume keys did nothing when Double click was set to Switch Track. A single click now adjusts the DAC volume

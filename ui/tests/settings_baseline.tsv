@@ -1,6 +1,6 @@
 label	type	cfg_key	old_page	build_flag
 Play Mode	ST_CYCLER	"work_mode"	Playback	
-Equalizer	ST_CYCLER	"eq_preset"	Playback	
+Equalizer	ST_CHOICE	"eq_preset"	Playback	
 Custom EQ	ST_ACTION	NULL	Playback	
 DSD Output	ST_READONLY	NULL	Playback	
 Resume Playback	ST_CYCLER	"memory_play"	Playback	

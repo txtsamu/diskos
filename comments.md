@@ -16877,15 +16877,13 @@ read, so a failed read keeps the previous curve and slot on screen and band_rele
 V2.57 stays view-only: fw_custom_peq_writable() is still checked before any write or select.
 ~~~
 
-**eqcustom_create title room** `g_eq_drop = a.y2 + 8 - 48;`
+**eqcustom_create title room** `if(lv_obj_get_style_bg_opa(title, 0) > LV_OPA_50) g_eq_drop = a.y2 + 2 - 48;`
 
 ~~~text
-Ported from upstream diskOS 1.2.2. kit_pass(root) runs before the title is measured so a themed header
-has its final size; the slot selector and sliders then sit 8 px below the title's last row
-(drop = title bottom + 8 - 48, never negative). The old filled-cap / 56 px special cases and the 40 px cap
-are gone, so a taller (longer, wrapped) title pushes the editor down instead of overlapping it. This fork's
-header is still the single-line one (title y2 = 55), so the default theme now drops the editor by 15 px;
-not checked on a device.
+Upstream diskOS 1.2.2 measures the title after kit_pass and drops the editor 8 px below its last row. That
+only helps with upstream's centred two-line header, which this fork has not ported (ui/ui.c, screens.h and
+theme.c), and on this fork's single-line header it would push the default theme's editor down by 15 px. So
+the fork keeps its original title-room logic (filled-cap and 56 px cases, 40 px cap) until the header is ported.
 ~~~
 
 ## ui/fb_pan.c
