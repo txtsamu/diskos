@@ -38,6 +38,12 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Changed
 
+- Working Mode: every switch between two modes other than Local Playback now goes through Local Playback by itself, with the
+  usual toasts: USB DAC to Bluetooth Receiving or USB Storage, Bluetooth Receiving to USB DAC, USB Storage, USB Audio or USB Debug,
+  and any of them to the USB Audio row (which used to say "Return to local playback first"). Leaving USB Storage restarts the UI,
+  so the chosen mode (USB DAC, Bluetooth Receiving, USB Debug or USB Audio) is saved once (`src_pending`) and entered about 15
+  seconds after the restart, or dropped with a toast after two minutes. Local Playback to a mode, a mode to Local Playback and
+  the USB Audio route to Local are unchanged. Host-tested only; not yet checked on a flashed Disc.
 - Settings: the long Display and System pages are split into short group pages (Display > Screen & Saver,
   Player & Lists, Home & Swipes; System > Time & Language, Power & Sleep, Volume Keys, Library, Updates, About), and
   the online lookups moved to Network. Nothing was removed and no saved setting changed; see docs/SETTINGS_TREE.md.

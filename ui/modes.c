@@ -27,7 +27,7 @@ static const modeinfo_t MODES[] = {
 };
 #define N_MODES ((int)(sizeof(MODES)/sizeof(MODES[0])))
 #define ROW_USB_DEBUG SRCSWITCH_MODE_USB_DEBUG
-#define ROW_USB_AUDIO 5
+#define ROW_USB_AUDIO SRCSWITCH_MODE_USB_AUDIO
 
 static lv_obj_t *g_check[N_MODES];
 static lv_obj_t *g_row[N_MODES];
@@ -120,15 +120,6 @@ static void row_cb(lv_event_t *e){
     int m = (int)(uintptr_t)lv_event_get_user_data(e);
     if(srcswitch_via_local_pending() || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
     g_last_switch = lv_tick_get();
-    if(m == ROW_USB_AUDIO){
-        if(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0){
-            g_pending_mode = m; mark_pending(m);
-            if(g_settle) lv_timer_del(g_settle);
-            g_settle = lv_timer_create(settle_cb, 500, NULL);
-            ui_toast("Switching to USB audio output");
-        }
-        return;
-    }
     if(ui_set_source_mode(m) == 0){
         g_pending_mode = m;
         mark_pending(m);

@@ -53,23 +53,25 @@ int cfg_set_int(const char *key, int v){
 }
 
 static uint32_t g_now;
-static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan, g_power;
+static int g_mounted = 1, g_exported, g_attached, g_gadget, g_scan, g_power, g_host_confirmed, g_restarts;
+static const char *g_admit;
 static const char *g_blocked;
 static char g_toast[64][96]; static int g_ntoast;
 static srcswitch_event_t g_ev[32]; static int g_nev;
 static uint32_t env_now(void){ return g_now; }
 static int env_mounted(void){ return g_mounted; }
 static int env_exported(void){ return g_exported; }
-static int env_host_confirmed(void){ return 0; }
+static int env_host_confirmed(void){ return g_host_confirmed; }
 static int env_attached(void){ return g_attached; }
 static int env_gadget(void){ return g_gadget; }
 static int env_guarded(void){ return 1; }
 static int env_playing(void){ return g_playing; }
 static int env_scan_active(void){ return g_scan; }
 static void env_nothing(void){}
+static void env_restart(void){ g_restarts++; }
 static void env_toast(const char *s){ assert(g_ntoast < 64); snprintf(g_toast[g_ntoast++], sizeof g_toast[0], "%s", s); }
 static void env_volume(int v){ (void)v; }
-const char *admit_check(admit_what_t what){ (void)what; return NULL; }
+const char *admit_check(admit_what_t what){ (void)what; return g_admit; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static int env_power(void){ return g_power; }
 static const struct srcswitch_env env = {
@@ -80,7 +82,7 @@ static const struct srcswitch_env env = {
 static const struct sd_env sd_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
     .player_guarded = env_guarded, .playing = env_playing, .scan_active = env_scan_active, .scan_if_library_empty = env_nothing,
-    .art_cancel = env_nothing, .card_returned = env_nothing, .restart = env_nothing, .toast = env_toast,
+    .art_cancel = env_nothing, .card_returned = env_nothing, .restart = env_restart, .toast = env_toast,
     .send_source = srcswitch_send_source,
 };
 static const char *env_switch_blocked(void){ return g_blocked; }
@@ -127,6 +129,9 @@ static void on_event(srcswitch_event_t ev){ assert(g_nev < 32); g_ev[g_nev++] = 
 #define G5 "0642000C0005"
 #define W8 "0657000C0008"
 #define W1 "0657000C0001"
+#define W6 "0657000C0006"
+#define B0 "0818000C0000"
+#define SRC_PENDING "src_pending"
 
 static void usb_card(int present){
     char p[160]; snprintf(p, sizeof p, "%s/usbid", OUT_USB_CARD);
@@ -560,6 +565,266 @@ static void usb_debug_does_not_disturb_local_playback(void){
     assert(g_n == 0 && g_playing && usbdbg_state() == USBDBG_ON && session_source_mode() == 0);
 }
 
+static void in_usb_storage(void){
+    setup();
+    assert(ui_set_source_mode(3) == 0);
+    run(200);
+    const char *want[] = { R6, G1, W8 };
+    expect_frames("export", want, 3);
+    g_host_confirmed = 1; g_mounted = 0;
+    run(100);
+    assert(sd_host_owned() && session_source_mode() == 3 && !sd_switch_pending());
+    g_n = 0; g_ntoast = 0; g_nev = 0;
+}
+static void relaunch(void){
+    g_n = 0; g_ntoast = 0; g_nev = 0; g_nspawn = 0;
+    outroute_init(&renv);
+    modes_output_boot_restore();
+}
+static void leave_storage_to(int mode){
+    in_usb_storage();
+    assert(ui_set_source_mode(mode) == 0);
+    assert(cfg_get_int(SRC_PENDING, 0) == mode && toasted("Leaving USB Storage...") && srcswitch_via_local_pending());
+    assert(modes_source_switch_busy() && sd_switch_pending() && g_restarts == 0);
+    const char *local[] = { R6, G0, W8 };
+    expect_frames("return to Local only", local, 3);
+    g_mounted = 1; g_host_confirmed = 0;
+    run(100);
+    assert(g_restarts == 1 && !sd_switch_pending() && session_source_mode() == 0 && !srcswitch_via_local_pending());
+    assert(g_n == 3 && session_saved_source() == 0);
+    relaunch();
+    assert(modes_source_switch_busy() && srcswitch_via_local_pending() && cfg_get_int(SRC_PENDING, -1) == 0);
+    run(14000);
+    assert(g_n == 0 && g_nspawn == 0 && outroute_route() == OUT_INTERNAL);
+}
+
+static void usb_dac_to_bluetooth_with_a_host_leaves_the_dac_then_local(void){
+    setup(); session_set_source_mode(1); g_attached = 1; g_gadget = 1;
+    assert(ui_set_source_mode(2) == 0);
+    const char *g0[] = { G0 };
+    expect_frames("exit starts with 0642 0", g0, 1);
+    g_gadget = 0; run(2000);
+    const char *s1[] = { G0, R6, G0, W8 };
+    expect_frames("exit + Local", s1, 4);
+    assert(session_source_mode() == 0 && srcswitch_via_local_pending());
+    run(2400); assert(g_n == 4);
+    run(300);
+    const char *s2[] = { G0, R6, G0, W8, R6, B0, G0, W6 };
+    expect_frames("then Bluetooth Receiving", s2, 8);
+    assert(session_source_mode() == 2 && !modes_source_switch_busy() && toasted("Switching to Bluetooth receiving"));
+    assert(!evented(SRCSWITCH_EV_ABANDONED) && cfg_get_int("src_mode", -1) == 2);
+}
+static void usb_dac_to_bluetooth_without_a_host_goes_via_local(void){
+    setup(); session_set_source_mode(1);
+    assert(ui_set_source_mode(2) == 0);
+    const char *s1[] = { R6, G0, W8 };
+    expect_frames("Local first", s1, 3);
+    assert(toasted("Leaving USB DAC...") && session_source_mode() == 0 && srcswitch_via_local_pending());
+    run(2800); assert(g_n == 3);
+    run(400);
+    const char *s2[] = { R6, G0, W8, R6, B0, G0, W6 };
+    expect_frames("then Bluetooth Receiving", s2, 7);
+    assert(session_source_mode() == 2 && !srcswitch_via_local_pending());
+}
+static void usb_dac_to_storage_without_a_host_goes_via_local(void){
+    setup(); session_set_source_mode(1);
+    assert(ui_set_source_mode(3) == 0);
+    run(3300);
+    assert(session_source_mode() == 3 && sd_switch_pending());
+    run(200);
+    const char *want[] = { R6, G0, W8, R6, G1, W8 };
+    expect_frames("Local then storage", want, 6);
+}
+static void usb_dac_to_usb_audio_goes_via_local_then_picks_usb(void){
+    setup(); usb_card(1); session_set_source_mode(1);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_AUDIO) == 0);
+    const char *s1[] = { R6, G0, W8 };
+    expect_frames("Local first", s1, 3);
+    assert(outroute_route() == OUT_INTERNAL && session_source_mode() == 0 && !toasted("Return to local playback first"));
+    run(3300);
+    assert(outroute_busy());
+    run(1000); assert(g_n == 6);
+    run(1500);
+    const char *s2[] = { R6, G0, W8, R3, G5, W8 };
+    expect_frames("then USB Audio", s2, 6);
+    assert(outroute_route() == OUT_USB && !modes_source_switch_busy() && !srcswitch_via_local_pending());
+    assert(toasted("Switching to USB audio output") && cfg_get_int("usb_audio_on", -1) == 1);
+}
+static void bluetooth_receiving_to_usb_dac_goes_via_local(void){
+    setup(); session_set_source_mode(2);
+    assert(ui_set_source_mode(1) == 0);
+    const char *s1[] = { R6, G0, W8 };
+    expect_frames("Local first", s1, 3);
+    assert(toasted("Leaving Bluetooth Receiving...") && session_source_mode() == 0 && modes_source_switch_busy());
+    assert(ui_set_source_mode(3) < 0 && toasted("Switching..."));
+    run(2800); assert(g_n == 3);
+    run(400);
+    const char *s2[] = { R6, G0, W8, R6, G2, W1 };
+    expect_frames("then USB DAC", s2, 6);
+    assert(session_source_mode() == 1 && !modes_source_switch_busy() && toasted("Switching to USB DAC"));
+    assert(evented(SRCSWITCH_EV_SETTLE_RESTART) && !evented(SRCSWITCH_EV_ABANDONED));
+}
+static void bluetooth_receiving_to_storage_goes_via_local(void){
+    setup(); session_set_source_mode(2);
+    assert(ui_set_source_mode(3) == 0 && session_source_mode() == 0);
+    run(3300);
+    assert(session_source_mode() == 3 && sd_switch_pending() && !srcswitch_via_local_pending());
+    run(200);
+    const char *want[] = { R6, G0, W8, R6, G1, W8 };
+    expect_frames("Local then storage", want, 6);
+}
+static void bluetooth_receiving_to_usb_audio_goes_via_local_then_picks_usb(void){
+    setup(); usb_card(1); session_set_source_mode(2);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_AUDIO) == 0);
+    const char *s1[] = { R6, G0, W8 };
+    expect_frames("Local first", s1, 3);
+    run(3300 + 1500);
+    const char *s2[] = { R6, G0, W8, R3, G5, W8 };
+    expect_frames("then USB Audio", s2, 6);
+    assert(outroute_route() == OUT_USB && session_source_mode() == 0 && !modes_source_switch_busy());
+}
+static void bluetooth_receiving_to_usb_debug_goes_via_local(void){
+    setup(); session_set_source_mode(2);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DEBUG) == 0);
+    const char *s1[] = { R6, G0, W8 };
+    expect_frames("Local first", s1, 3);
+    assert(g_nspawn == 0);
+    run(3300);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-on"));
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && session_source_mode() == 0 && g_n == 3);
+}
+static void bluetooth_receiving_to_itself_stays_direct(void){
+    setup(); session_set_source_mode(2);
+    assert(ui_set_source_mode(2) == 0 && !srcswitch_via_local_pending());
+    const char *want[] = { R6, B0, G0, W6 };
+    expect_frames("direct Bluetooth Receiving", want, 4);
+}
+static void usb_audio_row_from_local_stays_direct(void){
+    setup(); usb_card(1);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_AUDIO) == 0 && g_n == 0 && !srcswitch_via_local_pending());
+    run(1700);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("USB Audio", want, 3);
+    assert(outroute_route() == OUT_USB && session_source_mode() == 0);
+}
+static void usb_audio_row_from_usb_debug_leaves_the_gadget_first(void){
+    usb_debug_on(); usb_card(1);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_AUDIO) == 0);
+    assert(g_nspawn == 1 && !strcmp(g_spawned[0], "usb-off") && toasted("Leaving USB Debug..."));
+    run(2200); assert(usbdbg_state() == USBDBG_OFF && g_n == 0);
+    run(1000);
+    run(1500);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("USB Audio after USB Debug", want, 3);
+    assert(outroute_route() == OUT_USB && !g_dbg_present);
+}
+static void usb_audio_row_is_refused_by_admission_not_by_the_mode(void){
+    setup(); usb_card(1); session_set_source_mode(2); g_blocked = "Player is busy - try again";
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_AUDIO) == 0);
+    run(3300);
+    assert(toasted("Player is busy - try again") && outroute_route() == OUT_INTERNAL && !modes_source_switch_busy());
+    assert(session_source_mode() == 0);
+}
+static void usb_storage_to_local_is_unchanged(void){
+    in_usb_storage();
+    assert(ui_set_source_mode(0) == 0);
+    assert(cfg_get_int(SRC_PENDING, 0) == 0 && !toasted("Leaving USB Storage..."));
+    const char *want[] = { R6, G0, W8 };
+    expect_frames("return", want, 3);
+    g_mounted = 1; g_host_confirmed = 0; run(100);
+    assert(g_restarts == 1 && session_source_mode() == 0);
+    relaunch(); run(130000);
+    assert(g_n == 0 && g_nspawn == 0 && !toasted("Couldn't continue the mode switch - pick it again"));
+}
+static void usb_storage_to_usb_dac_returns_to_local_then_enters_it(void){
+    leave_storage_to(1);
+    run(1500);
+    const char *want[] = { R6, G2, W1 };
+    expect_frames("USB DAC after the restart", want, 3);
+    assert(session_source_mode() == 1 && !modes_source_switch_busy() && toasted("Switching to USB DAC"));
+}
+static void usb_storage_to_bluetooth_returns_to_local_then_enters_it(void){
+    leave_storage_to(2);
+    run(1500);
+    const char *want[] = { R6, B0, G0, W6 };
+    expect_frames("Bluetooth Receiving after the restart", want, 4);
+    assert(session_source_mode() == 2 && !modes_source_switch_busy());
+}
+static void usb_storage_to_usb_debug_returns_to_local_then_starts_it(void){
+    leave_storage_to(SRCSWITCH_MODE_USB_DEBUG);
+    run(1500);
+    assert(g_n == 0 && g_nspawn == 1 && !strcmp(g_spawned[0], "usb-on"));
+    run(2200);
+    assert(usbdbg_state() == USBDBG_ON && session_source_mode() == 0);
+}
+static void usb_storage_to_usb_audio_returns_to_local_then_picks_usb(void){
+    usb_card(1);
+    leave_storage_to(SRCSWITCH_MODE_USB_AUDIO);
+    usb_card(1);
+    run(1500);
+    run(1500);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("USB Audio after the restart", want, 3);
+    assert(outroute_route() == OUT_USB && !modes_source_switch_busy());
+}
+static void usb_storage_target_waits_for_admission_after_the_restart(void){
+    usb_card(1);
+    leave_storage_to(SRCSWITCH_MODE_USB_AUDIO);
+    g_admit = "Player is starting - try again";
+    run(30000);
+    assert(g_n == 0 && modes_source_switch_busy());
+    g_admit = NULL;
+    usb_card(1);
+    run(3000);
+    const char *want[] = { R3, G5, W8 };
+    expect_frames("USB Audio once admitted", want, 3);
+}
+static void usb_storage_target_is_dropped_when_admission_never_comes(void){
+    usb_card(1);
+    leave_storage_to(SRCSWITCH_MODE_USB_AUDIO);
+    g_admit = "Player is starting - try again";
+    run(125000);
+    assert(g_n == 0 && !modes_source_switch_busy() && toasted("Couldn't continue the mode switch - pick it again"));
+    assert(outroute_route() == OUT_INTERNAL && session_source_mode() == 0);
+}
+static void usb_storage_target_is_dropped_when_the_source_is_not_local(void){
+    leave_storage_to(1);
+    session_set_source_mode(2);
+    run(2000);
+    assert(g_n == 0 && !modes_source_switch_busy() && session_source_mode() == 2);
+}
+static void usb_storage_target_is_one_shot(void){
+    leave_storage_to(1);
+    run(1500);
+    assert(g_n == 3 && cfg_get_int(SRC_PENDING, -1) == 0);
+    relaunch();
+    run(130000);
+    assert(g_n == 0 && !modes_source_switch_busy());
+}
+static void usb_storage_failed_return_request_keeps_no_target(void){
+    in_usb_storage();
+    g_fail_from = 0;
+    assert(ui_set_source_mode(2) < 0);
+    assert(cfg_get_int(SRC_PENDING, -1) == 0 && !srcswitch_via_local_pending());
+    relaunch();
+    run(130000);
+    assert(!modes_source_switch_busy());
+}
+static void usb_storage_return_with_a_target_refuses_a_second_request(void){
+    in_usb_storage();
+    assert(ui_set_source_mode(1) == 0);
+    g_n = 0;
+    assert(ui_set_source_mode(2) < 0 && toasted("Storage is switching") && cfg_get_int(SRC_PENDING, 0) == 1);
+}
+static void a_stale_pending_value_is_ignored(void){
+    setup(); cfg_set_int(SRC_PENDING, 9);
+    modes_output_boot_restore();
+    assert(!modes_source_switch_busy() && cfg_get_int(SRC_PENDING, -1) == 0);
+    run(130000);
+    assert(g_n == 0 && !toasted("Couldn't continue the mode switch - pick it again"));
+}
+
 static void scenario(const char *name, void (*fn)(void)){
     fflush(stdout);
     pid_t p = fork();
@@ -612,6 +877,30 @@ int main(void){
     S(usb_debug_noticing_an_outside_stop);
     S(usb_debug_tracks_the_host_while_on);
     S(usb_debug_does_not_disturb_local_playback);
+    S(usb_dac_to_bluetooth_with_a_host_leaves_the_dac_then_local);
+    S(usb_dac_to_bluetooth_without_a_host_goes_via_local);
+    S(usb_dac_to_storage_without_a_host_goes_via_local);
+    S(usb_dac_to_usb_audio_goes_via_local_then_picks_usb);
+    S(bluetooth_receiving_to_usb_dac_goes_via_local);
+    S(bluetooth_receiving_to_storage_goes_via_local);
+    S(bluetooth_receiving_to_usb_audio_goes_via_local_then_picks_usb);
+    S(bluetooth_receiving_to_usb_debug_goes_via_local);
+    S(bluetooth_receiving_to_itself_stays_direct);
+    S(usb_audio_row_from_local_stays_direct);
+    S(usb_audio_row_from_usb_debug_leaves_the_gadget_first);
+    S(usb_audio_row_is_refused_by_admission_not_by_the_mode);
+    S(usb_storage_to_local_is_unchanged);
+    S(usb_storage_to_usb_dac_returns_to_local_then_enters_it);
+    S(usb_storage_to_bluetooth_returns_to_local_then_enters_it);
+    S(usb_storage_to_usb_debug_returns_to_local_then_starts_it);
+    S(usb_storage_to_usb_audio_returns_to_local_then_picks_usb);
+    S(usb_storage_target_waits_for_admission_after_the_restart);
+    S(usb_storage_target_is_dropped_when_admission_never_comes);
+    S(usb_storage_target_is_dropped_when_the_source_is_not_local);
+    S(usb_storage_target_is_one_shot);
+    S(usb_storage_failed_return_request_keeps_no_target);
+    S(usb_storage_return_with_a_target_refuses_a_second_request);
+    S(a_stale_pending_value_is_ignored);
     puts("srcswitch_test: ok");
     return 0;
 }

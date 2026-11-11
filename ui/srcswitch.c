@@ -35,8 +35,14 @@ static int  tm_due(tm_t *t){
     t->last = now_ms(); return 1;
 }
 
+#define PREF_PENDING "src_pending"
+#define PENDING_MIN_MS 15000
+#define PENDING_MAX_MS 120000
+
 static tm_t g_bootusb;
 static struct { tm_t tm; int mode; uint32_t t0; } g_leave;
+static struct { tm_t tm; int mode; uint32_t t0; } g_pend;
+static int g_sd_target = -1;
 
 static int source_switch(int mode, int exit_done);
 
@@ -57,10 +63,6 @@ static void bootusb_tick(void){
         }
         if(outroute_pick(OUT_USB, OUTROUTE_MODE) == 0) E->toast("Restoring USB Audio...");
     }
-}
-void modes_output_boot_restore(void){
-    session_restore_arm(now_ms());
-    if(!g_bootusb.on) tm_start(&g_bootusb, 1000);
 }
 int srcswitch_send_source(int mode){
     outseq_rc rc = outseq_source((outseq_src_t)mode);
@@ -138,16 +140,17 @@ static void dac_volume_cb(void){
 }
 
 const char *srcswitch_switch_msg(int mode){
-    static const char *const MSG[5] = {
+    static const char *const MSG[6] = {
         "Switching to local playback", "Switching to USB DAC",
         "Switching to Bluetooth receiving", "Switching to USB storage",
-        "Switching to USB Debug",
+        "Switching to USB Debug", "Switching to USB audio output",
     };
-    return mode >= 0 && mode < 5 ? MSG[mode] : "";
+    return mode >= 0 && mode < 6 ? MSG[mode] : "";
 }
 static void leave_tick(void){
-    if(elapsed(g_leave.t0) >= 10000){ leave_end("Couldn't return to Local - mode not changed"); return; }
-    if(outroute_busy() || elapsed(g_leave.t0) < 3000) return;
+    int sd_busy = sd_switch_pending();
+    if(elapsed(g_leave.t0) >= 10000 && !sd_busy){ leave_end("Couldn't return to Local - mode not changed"); return; }
+    if(outroute_busy() || sd_busy || g_dbgx.active || usbdbg_busy() || elapsed(g_leave.t0) < 3000) return;
     if(outroute_route() != OUT_INTERNAL || session_source_mode() != 0){ leave_end("Still not on Local - mode not changed"); return; }
     int m = g_leave.mode;
     tm_stop(&g_leave.tm);
@@ -158,7 +161,8 @@ static void leave_tick(void){
 }
 static int via_local(int mode, int exit_done){
     if(g_leave.tm.on){ E->toast("Switching..."); return -1; }
-    const char *msg = "Leaving USB DAC...";
+    int src = session_source_mode();
+    const char *msg = src == 2 ? "Leaving Bluetooth Receiving..." : "Leaving USB DAC...";
     if(outroute_route() == OUT_USB){
         if(outroute_pick(OUT_INTERNAL, OUTROUTE_MODE_STAY_PAUSED) != 0) return -1;
         msg = "Leaving USB Audio...";
@@ -168,19 +172,68 @@ static int via_local(int mode, int exit_done){
     E->toast(msg);
     return 0;
 }
-int srcswitch_via_local_pending(void){ return g_leave.tm.on || g_dbgx.active; }
-int modes_source_switch_busy(void){
+static int storage_target_pending(void){ return g_sd_target >= 0 && sd_switch_pending(); }
+int srcswitch_via_local_pending(void){ return g_leave.tm.on || g_dbgx.active || g_pend.tm.on || storage_target_pending(); }
+static int switch_in_progress(void){
     return outroute_pick_pending() || g_leave.tm.on || g_dacx.active || g_dbgx.active || usbdbg_busy() || sd_switch_pending();
+}
+int modes_source_switch_busy(void){ return switch_in_progress() || g_pend.tm.on; }
+static void pending_tick(void){
+    uint32_t age = elapsed(g_pend.t0);
+    int m = g_pend.mode;
+    if(age >= PENDING_MAX_MS){
+        tm_stop(&g_pend.tm);
+        E->toast("Couldn't continue the mode switch - pick it again");
+        notify(SRCSWITCH_EV_CHANGED);
+        return;
+    }
+    if(age < PENDING_MIN_MS || !ipc_is_ready() || switch_in_progress()) return;
+    if(session_source_mode() != 0){ tm_stop(&g_pend.tm); notify(SRCSWITCH_EV_CHANGED); return; }
+    if(m == SRCSWITCH_MODE_USB_AUDIO && admit_check(ADMIT_OUTPUT_SWITCH) != NULL) return;
+    tm_stop(&g_pend.tm);
+    if(source_switch(m, 0) == 0){
+        notify(SRCSWITCH_EV_SETTLE_RESTART);
+        E->toast(srcswitch_switch_msg(m));
+    }
+    notify(SRCSWITCH_EV_CHANGED);
+}
+static void pending_arm(void){
+    int m = cfg_get_int(PREF_PENDING, 0);
+    if(m == 0) return;
+    cfg_set_int(PREF_PENDING, 0);
+    if(m < 1 || m > SRCSWITCH_MODE_USB_AUDIO) return;
+    g_pend.mode = m; g_pend.t0 = now_ms();
+    tm_start(&g_pend.tm, 500);
+}
+void modes_output_boot_restore(void){
+    session_restore_arm(now_ms());
+    if(!g_bootusb.on) tm_start(&g_bootusb, 1000);
+    pending_arm();
+}
+static int storage_leave(int mode){
+    if(cfg_set_int(PREF_PENDING, mode) != 0){ E->toast("Couldn't save the next mode - try again"); return -1; }
+    g_sd_target = mode;
+    if(sd_return_begin(0) != 0){ g_sd_target = -1; cfg_set_int(PREF_PENDING, 0); return -1; }
+    E->toast("Leaving USB Storage...");
+    return 0;
+}
+static int needs_local(int mode){
+    int src = session_source_mode();
+    if(mode == 0 || mode == src) return 0;
+    if(mode == SRCSWITCH_MODE_USB_AUDIO) return src == 1 || src == 2;
+    return outroute_route() == OUT_USB || src == 1 || src == 2;
 }
 static int dbg_enter(int exit_done){
     if(usbdbg_state() != USBDBG_OFF){ E->toast(usbdbg_busy() ? "USB Debug is busy" : "USB Debug is already on"); return -1; }
     { const char *why = sd_switch_refusal(); if(why){ E->toast(why); return -1; } }
-    if(session_source_mode() != 0 || outroute_route() == OUT_USB || sd_host_owned()) return via_local(SRCSWITCH_MODE_USB_DEBUG, exit_done);
+    if(sd_host_owned()) return storage_leave(SRCSWITCH_MODE_USB_DEBUG);
+    if(session_source_mode() != 0 || outroute_route() == OUT_USB) return via_local(SRCSWITCH_MODE_USB_DEBUG, exit_done);
     return usbdbg_start() == 0 ? 0 : -1;
 }
 static int source_switch(int mode, int exit_done){
+    if(g_leave.tm.on || g_pend.tm.on){ E->toast("Switching..."); return -1; }
     { const char *why = admit_check(ADMIT_OUTPUT_IDLE); if(why){ E->toast(why); return -1; } }
-    if(mode < 0 || mode > SRCSWITCH_MODE_USB_DEBUG) return -1;
+    if(mode < 0 || mode > SRCSWITCH_MODE_USB_AUDIO) return -1;
     if(session_source_mode() == 1 && mode != 1 && !exit_done && E->host_attached()){
         if(cfg_get_int("dac_safe_exit", 1) == 0){ E->toast("Unplug the USB cable first"); return -1; }
         return dac_exit_begin(mode);
@@ -188,8 +241,11 @@ static int source_switch(int mode, int exit_done){
     if(mode == SRCSWITCH_MODE_USB_DEBUG) return dbg_enter(exit_done);
     if(usbdbg_state() != USBDBG_OFF) return dbg_leave_begin(mode);
     { const char *why = sd_switch_refusal(); if(why){ E->toast(why); return -1; } }
-    if(mode != 0 && (outroute_route() == OUT_USB || (session_source_mode() == 1 && mode == 3))) return via_local(mode, exit_done);
+    if(mode != 0 && mode != 3 && sd_host_owned()) return storage_leave(mode);
+    if(needs_local(mode)) return via_local(mode, exit_done);
     if(mode == 0 && outroute_route() == OUT_USB) return outroute_pick(OUT_INTERNAL, OUTROUTE_MODE);
+    if(mode == SRCSWITCH_MODE_USB_AUDIO) return outroute_pick(OUT_USB, OUTROUTE_MODE);
+    g_sd_target = -1;
     if(mode == 3) return sd_export_begin();
     if(sd_host_owned()) return sd_return_begin(mode);
     int was_playing = E->playing();
@@ -210,6 +266,7 @@ void srcswitch_tick(void){
     outroute_tick();
     if(tm_due(&g_leave.tm)) leave_tick();
     if(tm_due(&g_bootusb)) bootusb_tick();
+    if(tm_due(&g_pend.tm)) pending_tick();
     dac_exit_tick();
     usbdbg_tick();
     dbg_exit_tick();
