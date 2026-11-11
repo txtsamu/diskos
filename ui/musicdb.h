@@ -7,6 +7,9 @@
 #define MDB_MAX_GROUPS  600
 #define MDB_STR         160
 
+int mdb_ui_read_begin(void);
+void mdb_ui_read_end(void);
+
 #define DISKOS_AUDIOBOOKS 1
 
 #define DISKOS_RSV_LISTID -1000

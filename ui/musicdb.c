@@ -78,6 +78,34 @@ static sqlite3 *db(void){
     pthread_mutex_unlock(&g_db_mu);
     return ret;
 }
+static unsigned g_ui_read_depth;
+static int g_ui_read_owns;
+int mdb_ui_read_begin(void){
+    sqlite3 *d=db();
+    if(!d) return 0;
+    int owns=sqlite3_get_autocommit(d);
+    if(owns && !g_ui_read_depth && !mdb_playlist_sync_registry()) return 0;
+    if(sqlite3_exec(d,"SAVEPOINT ui_read;",0,0,0)!=SQLITE_OK) return 0;
+    sqlite3_stmt *st=NULL;
+    int rc=sqlite3_prepare_v2(d,"SELECT ID FROM SONG LIMIT 1;",-1,&st,NULL);
+    if(rc==SQLITE_OK) rc=sqlite3_step(st);
+    sqlite3_finalize(st);
+    if(rc==SQLITE_ROW || rc==SQLITE_DONE){
+        if(!g_ui_read_depth) g_ui_read_owns=owns;
+        g_ui_read_depth++; return 1;
+    }
+    sqlite3_exec(d,"ROLLBACK TO ui_read; RELEASE ui_read;",0,0,0);
+    return 0;
+}
+void mdb_ui_read_end(void){
+    if(!g_db || !g_ui_read_depth) return;
+    g_ui_read_depth--;
+    if(sqlite3_exec(g_db,"RELEASE ui_read;",0,0,0)!=SQLITE_OK){
+        if(!g_ui_read_depth && g_ui_read_owns) sqlite3_exec(g_db,"ROLLBACK;",0,0,0);
+        else sqlite3_exec(g_db,"ROLLBACK TO ui_read; RELEASE ui_read;",0,0,0);
+    }
+    if(!g_ui_read_depth) g_ui_read_owns=0;
+}
 static sqlite3 *g_db_w;
 static pthread_mutex_t g_db_w_mu = PTHREAD_MUTEX_INITIALIZER;
 static sqlite3 *db_w(void){

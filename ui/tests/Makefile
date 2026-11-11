@@ -94,6 +94,9 @@ sqlite3_host.o: ../sqlite3.c ../sqlite3.h
 sysconfig_test: ../sysconfig.c sysconfig_test.c ../sysconfig.h sqlite3_host.o
 	$(CC) $(CFLAGS) -I.. ../sysconfig.c sysconfig_test.c sqlite3_host.o -lm -o $@
 
+uiread_test: ../musicdb.c ../musicdb.h uiread_test.c ../sysconfig.h ../sdio.h sqlite3_host.o
+	$(CC) $(CFLAGS) -Wno-unused-function -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -DUIREAD_DB='"$(TDIR)/uiread.db"' -I.. uiread_test.c sqlite3_host.o -lm -pthread -o $@
+
 ATDIR := /tmp/diskos_arttest
 CA_DEFS := -DCA_TMP='"$(ATDIR)"' -DCOVERART_SHARP_OUT='"$(ATDIR)/vinyl-%u.bgra"' \
         -DCOVERART_PW_COVER='"$(ATDIR)/pw_cover.bmp"' -DCOVERART_PW_THUMB='"$(ATDIR)/pw_thumb.bmp"' \
@@ -112,7 +115,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: uiread_test sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -166,6 +169,9 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	@echo "--- bootlog ---"
 	@mkdir -p $(TDIR)/bootlog
 	./bootlog_test
+	@echo "--- uiread ---"
+	@mkdir -p $(TDIR)
+	./uiread_test
 	@echo "--- sysconfig ---"
 	./sysconfig_test
 	@echo "--- coverart ---"
@@ -174,7 +180,7 @@ run: sysconfig_test transport_test config_test playstate_test playreq_test ipc_g
 	./coverart_pipeline_test
 
 clean:
-	rm -f vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard

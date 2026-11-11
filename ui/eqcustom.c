@@ -24,7 +24,7 @@ static lv_obj_t *g_bval[NBAND];
 static lv_obj_t *g_master;
 static lv_obj_t *g_mval;
 static lv_obj_t *g_slotlbl;
-static int       g_curve_known = 1;
+static int       g_curve_known;
 static int       g_slot_parametric = 0;
 static int       g_slot_foreign = 0;
 
@@ -95,49 +95,47 @@ static void persist_slot(int slot){
     cfg_flush();
 }
 
-static void load_slot(int slot){
-    g_slot_parametric = 0;
-    g_slot_foreign = 0;
+static int load_slot_read(int slot){
+    int dg[NBAND]={0}, dm=0;
+    int r=mdb_get_peq(slot,&dm,dg);
+    if(r<0) return 0;
+    int gr=r>0 ? mdb_peq_is_graphic(slot) : 1;
+    if(gr<0) return 0;
+    g_slot_parametric=(gr==0);
+    g_slot_foreign=0;
+    g_curve_known=(gr==1);
     if(slot_has_cfg(slot)){
         int cg[NBAND]; char k[24];
         for(int i=0;i<NBAND;i++){ band_key(k,sizeof k,slot,i); cg[i]=cfg_get_int(k,0); }
-        char mk[24]; master_key(mk,sizeof mk,slot);
-        int cm = cfg_get_int(mk,0);
-        int dg[NBAND] = {0}, dm = 0;
-        int r  = mdb_get_peq(slot, &dm, dg);
-        int gr = (r > 0) ? mdb_peq_is_graphic(slot)
-                         : (r == 0 ? 1 : -1);
-        if(r < 0 || gr < 0){
-            show_curve(cg, cm); g_curve_known = 0; g_slot_foreign = 1;
-        } else if(gr == 0){
-            show_curve(dg, dm); g_slot_parametric = 1;
-            g_curve_known = 0;  g_slot_foreign = 1;
-        } else if(dm == cm && memcmp(dg, cg, sizeof dg) == 0){
-            show_curve(cg, cm); g_curve_known = 1;
-        } else {
-            show_curve(dg, dm); g_curve_known = 1; g_slot_foreign = 1;
-        }
-    } else {
-        int g[NBAND], m=0;
-        int r = mdb_get_peq(slot,&m,g);
-        if(r > 0){
-            show_curve(g, m);
-            int gr = mdb_peq_is_graphic(slot);
-            g_slot_parametric = (gr == 0);
-            g_curve_known = (gr == 1);
-        }
-        else if(r == 0) { show_curve(NULL, 0); g_curve_known = 1; }
-        else            { show_curve(NULL, 0); g_curve_known = 0; }
+        master_key(k,sizeof k,slot);
+        int cm=cfg_get_int(k,0);
+        g_slot_foreign=gr==0 || dm!=cm || memcmp(dg,cg,sizeof dg)!=0;
     }
+    show_curve(dg,dm);
+    return 1;
+}
+
+static int load_slot(int slot){
+    if(!mdb_ui_read_begin()){
+        g_curve_known=0; g_slot_foreign=1;
+        ui_toast("EQ read failed, try again"); return 0;
+    }
+    int ok=load_slot_read(slot);
+    mdb_ui_read_end();
+    if(!ok){
+        g_curve_known=0; g_slot_foreign=1;
+        ui_toast("EQ read failed, try again");
+    }
+    return ok;
 }
 
 static void set_slot(int slot){
     if(slot < SLOT_MIN) slot = SLOT_MIN;
     if(slot > SLOT_MAX) slot = SLOT_MAX;
+    if(!load_slot(slot)) return;
     g_slot = slot;
     cfg_set_int("eq_slot", g_slot);
     if(g_slotlbl){ char b[16]; snprintf(b,sizeof b,"USER%d", g_slot-10); lv_label_set_text(g_slotlbl, b); }
-    load_slot(g_slot);
     if(!fw_custom_peq_writable()) return;
     if(slot_has_cfg(g_slot) && !g_slot_foreign){
         if(!apply_now()) ui_toast("Couldn't apply EQ");
@@ -269,10 +267,10 @@ void eqcustom_refresh(void){
     int pre  = cfg_get_int("eq_preset", -1);
     if(pre >= SLOT_MIN && pre <= SLOT_MAX) init = pre;
     if(init < SLOT_MIN || init > SLOT_MAX) init = SLOT_MIN;
+    if(!load_slot(init)) return;
     g_slot = init;
     cfg_set_int("eq_slot", g_slot);
     char b[16]; snprintf(b, sizeof b, "USER%d", g_slot-10); lv_label_set_text(g_slotlbl, b);
-    load_slot(g_slot);
 }
 
 void eqcustom_create(lv_obj_t *root){
@@ -290,13 +288,12 @@ void eqcustom_create(lv_obj_t *root){
 
     lv_obj_t *title = ui_header(root, "Custom EQ");
     g_eq_drop = 0;
+    kit_pass(root);
     lv_obj_update_layout(root);
     if(title){
         lv_area_t a; lv_obj_get_coords(title, &a);
-        if(lv_obj_get_style_bg_opa(title, 0) > LV_OPA_50) g_eq_drop = a.y2 + 2 - 48;
-        else if(a.y2 > 56) g_eq_drop = a.y2 - 56 + 4;
+        g_eq_drop = a.y2 + 8 - 48;
         if(g_eq_drop < 0) g_eq_drop = 0;
-        if(g_eq_drop > 40) g_eq_drop = 40;
     }
 
     make_slot_selector(root);

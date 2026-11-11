@@ -133,7 +133,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/dacinfo.h](#uidacinfoh) | 9 |
 | [ui/datetime.c](#uidatetimec) | 9 |
 | [ui/debug_ui.c](#uidebuguic) | 30 |
-| [ui/eqcustom.c](#uieqcustomc) | 73 |
+| [ui/eqcustom.c](#uieqcustomc) | 74 |
 | [ui/fb_pan.c](#uifbpanc) | 12 |
 | [ui/fb_pan.h](#uifbpanh) | 2 |
 | [ui/folderbrowser.c](#uifolderbrowserc) | 42 |
@@ -163,7 +163,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/modes.h](#uimodesh) | 2 |
 | [ui/mqcap.c](#uimqcapc) | 3 |
 | [ui/mqfeed.c](#uimqfeedc) | 2 |
-| [ui/musicdb.c](#uimusicdbc) | 412 |
+| [ui/musicdb.c](#uimusicdbc) | 413 |
 | [ui/musicdb.h](#uimusicdbh) | 114 |
 | [ui/netart.c](#uinetartc) | 48 |
 | [ui/netart.h](#uinetarth) | 8 |
@@ -16862,6 +16862,32 @@ Flat pill says why instead of offering a change the player would reject or repai
 x90..270, y288..320: inside the round glass, square corners too
 ~~~
 
+**load_slot_read / load_slot** `static int load_slot(int slot){`
+
+~~~text
+Ported from upstream diskOS 1.2.2. g_curve_known starts at 0: editing needs one successful slot read.
+load_slot_read reads the stored curve (mdb_get_peq, then mdb_peq_is_graphic) and on a failure of
+either returns 0 without touching the sliders, g_slot_parametric, g_slot_foreign or g_curve_known's
+meaning for the displayed slot. A graphic slot we own in cfg is foreign when the live DB curve
+differs from cfg; a parametric slot is always foreign. The sliders always show the DB curve.
+load_slot wraps it in mdb_ui_read_begin/end (one snapshot, so both reads see the same row) and on any
+failure sets g_curve_known = 0 and g_slot_foreign = 1 and toasts "EQ read failed, try again".
+set_slot and eqcustom_refresh only move g_slot, the "USERn" label and eq_slot after a successful
+read, so a failed read keeps the previous curve and slot on screen and band_release_cb refuses edits.
+V2.57 stays view-only: fw_custom_peq_writable() is still checked before any write or select.
+~~~
+
+**eqcustom_create title room** `g_eq_drop = a.y2 + 8 - 48;`
+
+~~~text
+Ported from upstream diskOS 1.2.2. kit_pass(root) runs before the title is measured so a themed header
+has its final size; the slot selector and sliders then sit 8 px below the title's last row
+(drop = title bottom + 8 - 48, never negative). The old filled-cap / 56 px special cases and the 40 px cap
+are gone, so a taller (longer, wrapped) title pushes the editor down instead of overlapping it. This fork's
+header is still the single-line one (title y2 = 55), so the default theme now drops the editor by 15 px;
+not checked on a device.
+~~~
+
 ## ui/fb_pan.c
 
 **L19** `typedef struct {`
@@ -29157,6 +29183,18 @@ the player's UI language index (stock uses it to pick the iTunes storefront for 
 
 ~~~text
 0 = written and read back, -1 = not (the player may hold the database: bounded wait, never forced)
+~~~
+
+**mdb_ui_read_begin / mdb_ui_read_end** `int mdb_ui_read_begin(void){`
+
+~~~text
+Ported unchanged from upstream diskOS 1.2.2 (musicdb.c) so a later merge sees identical code; the rest of
+that file's refactor is not ported. A read snapshot taken before a UI page replaces what it shows: the
+playlist registry is synced first (only when not already inside a transaction), then SAVEPOINT ui_read and
+a probe SELECT on SONG take the SHARED lock, so every query until mdb_ui_read_end sees one consistent
+database. A busy or unreadable database makes begin return 0 and leave the display alone; reopening retries.
+Calls nest by depth. End releases the savepoint, or rolls back when the release fails. Used by
+eqcustom.c load_slot so mdb_get_peq and mdb_peq_is_graphic read the same PEQ row.
 ~~~
 
 ## ui/musicdb.h
