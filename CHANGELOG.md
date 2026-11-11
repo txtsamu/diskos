@@ -62,6 +62,7 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Fixed
 
+- After leaving USB Audio the internal output is no longer quieter: the Player re-initialises the DACs on the way back and Gain, DRE and DAC Filter fell back to their defaults, so diskOS sends them again once the route is back on the internal DAC
 - Settings > Audio > Max Volume has round left/right buttons that lower or raise the cap by 10, and a round slider knob
 - Quick Settings shows the battery level (and a charge mark while charging) at the bottom
 - USB Audio: the volume keys did nothing when Double click was set to Switch Track. A single click now adjusts the DAC volume
