@@ -39918,6 +39918,15 @@ the action word gets the width it needs (46..96 px, measured in this theme's fac
 live scan progress on this row while a scan runs
 ~~~
 
+**L1075** `lv_obj_t *sel = NULL;`
+
+~~~text
+How to cite the current choice in a ST_CHOICE picker (ported from upstream 1.2.2, used by Theme, Language, Saver Style
+and Equalizer): remember the row drawn with the check mark and scroll it into view once the list is built, so the picker
+opens with the saved choice visible and stays there after a pick instead of jumping back to the first row. Long lists
+made this visible: Equalizer is 21 presets, so choosing Sibilance 1 rebuilt the page at Off.
+~~~
+
 ## ui/songinfo.c
 
 **L5** `#include "musicdb.h"` *(trailing)*

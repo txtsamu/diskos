@@ -1072,6 +1072,7 @@ void setting_detail_refresh(void){
         lv_obj_t *list = make_list(g_detail_root);
         if(s->opts == i18n_lang_names) lv_obj_set_height(list, 215);
         int is_theme = !strcmp(s->cfg_key, "theme_preset");
+        lv_obj_t *sel = NULL;
         for(int i = 0; i < s->nopts; i++){
             lv_obj_t *row = setting_card(list);
             int cur = (i == v);
@@ -1105,9 +1106,11 @@ void setting_detail_refresh(void){
                 lv_label_set_text(ck, LV_SYMBOL_OK);
                 lv_obj_align(ck, LV_ALIGN_RIGHT_MID, -16, 0);
                 lv_obj_set_style_text_color(ck, ui_current_accent(), 0);
+                sel = row;
             }
             theme_list_row(row);
         }
+        if(sel) lv_obj_scroll_to_view(sel, LV_ANIM_OFF);
     } else if(s->type == ST_CYCLER){
         lv_obj_t *vl = lv_label_create(g_detail_root);
         char b[24]; lv_label_set_text(vl, val_text(s,b,sizeof b));

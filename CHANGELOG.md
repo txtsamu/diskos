@@ -65,6 +65,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 - A failed Custom EQ read keeps the previous curve and slot on screen and refuses editing until a later read succeeds, with an
   "EQ read failed, try again" toast. Before, a failed read showed a flat placeholder. The curve and its parametric check are read
   together from one database snapshot (ported from upstream 1.2.2). Custom EQ is still view-only on V2.57.
+- Choice lists (Theme, Language, Saver Style, Equalizer) open with the saved choice in view, and keep their place after a pick
+  instead of jumping back to the first row (ported from upstream 1.2.2; a 21-preset Equalizer made it obvious).
 - After leaving USB Audio the internal output is no longer quieter: the Player re-initialises the DACs on the way back and Gain, DRE and DAC Filter fell back to their defaults, so diskOS sends them again once the route is back on the internal DAC
 - Apps has an Equalizer tile that opens the preset list, and Equalizer in Settings is a list of presets to pick from instead of a
   left/right cycler (as in upstream 1.2.2)
