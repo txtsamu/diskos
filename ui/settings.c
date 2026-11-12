@@ -932,9 +932,10 @@ static lv_obj_t *g_setlist_root;
 static lv_obj_t *g_setsub_root;
 static const char *g_active_group;
 static const char *g_active_sub;
-static lv_obj_t *g_page_list[2];
-static const char *g_scroll_page[2];
-static int32_t g_scroll_y[2];
+enum { PAGE_LIST_MAIN, PAGE_LIST_SUB, PAGE_LIST_COUNT };
+static lv_obj_t *g_page_list[PAGE_LIST_COUNT];
+static const char *g_scroll_page[PAGE_LIST_COUNT];
+static int32_t g_scroll_y[PAGE_LIST_COUNT];
 static const char *const GROUPS[] = { "Playback", "Audio", "Display", "Network", "System" };
 #define N_GROUPS ((int)(sizeof(GROUPS)/sizeof(GROUPS[0])))
 
@@ -1190,11 +1191,11 @@ static void list_back_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICK
 
 static void page_scroll_save(lv_obj_t *row){
     lv_obj_t *list = lv_obj_get_parent(row);
-    for(int lv = 0; lv < 2; lv++)
-        if(list == g_page_list[lv]){
-            const char *page = lv ? g_active_sub : g_active_group;
-            g_scroll_page[lv] = page;
-            g_scroll_y[lv] = lv_obj_get_scroll_y(list);
+    for(int slot = 0; slot < PAGE_LIST_COUNT; slot++)
+        if(list == g_page_list[slot]){
+            const char *page = slot == PAGE_LIST_SUB ? g_active_sub : g_active_group;
+            g_scroll_page[slot] = page;
+            g_scroll_y[slot] = lv_obj_get_scroll_y(list);
         }
 }
 
@@ -1212,7 +1213,7 @@ static void row_cb(lv_event_t *e){
     }
     if(s->type == ST_PAGE){
         g_active_sub = s->to_page;
-        g_scroll_page[1] = NULL;
+        g_scroll_page[PAGE_LIST_SUB] = NULL;
         screen_show(SCR_SETSUB);
         return;
     }
@@ -1261,14 +1262,14 @@ static void cat_cb(lv_event_t *e){
     int gi = (int)(uintptr_t)lv_event_get_user_data(e);
     if(gi<0 || gi>=N_GROUPS) return;
     g_active_group = GROUPS[gi];
-    g_scroll_page[0] = NULL;
-    g_scroll_page[1] = NULL;
+    g_scroll_page[PAGE_LIST_MAIN] = NULL;
+    g_scroll_page[PAGE_LIST_SUB] = NULL;
     screen_show(SCR_SETLIST);
 }
 
 void setlist_open(const char *group){
     for(int gi = 0; group && gi < N_GROUPS; gi++)
-        if(!strcmp(GROUPS[gi], group)){ g_active_group = GROUPS[gi]; g_scroll_page[0] = NULL; g_scroll_page[1] = NULL; screen_show(SCR_SETLIST); return; }
+        if(!strcmp(GROUPS[gi], group)){ g_active_group = GROUPS[gi]; g_scroll_page[PAGE_LIST_MAIN] = NULL; g_scroll_page[PAGE_LIST_SUB] = NULL; screen_show(SCR_SETLIST); return; }
 }
 
 void settings_create(lv_obj_t *root){
@@ -1307,14 +1308,14 @@ void settings_row_values_refresh(void){
 void setlist_create(lv_obj_t *root){ g_setlist_root = root; }
 void setsub_create(lv_obj_t *root){ g_setsub_root = root; }
 
-static void page_build(int lv, lv_obj_t *root, const char *page){
+static void page_build(int slot, lv_obj_t *root, const char *page){
     lv_obj_clean(root);
     lv_obj_set_style_bg_color(root, TC(CANVAS), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     ui_header_cb(root, page, list_back_cb);
 
     lv_obj_t *list = make_list(root);
-    g_page_list[lv] = list;
+    g_page_list[slot] = list;
     for(int i=0;i<N_SETTINGS;i++){
         const setting_t *s = &TABLE[i];
         if(strcmp(s->group, page)) continue;
@@ -1361,18 +1362,18 @@ static void page_build(int lv, lv_obj_t *root, const char *page){
         }
         theme_list_row(row);
     }
-    if(g_scroll_page[lv] && !strcmp(g_scroll_page[lv], page)){
+    if(g_scroll_page[slot] && !strcmp(g_scroll_page[slot], page)){
         lv_obj_update_layout(list);
-        lv_obj_scroll_to_y(list, g_scroll_y[lv], LV_ANIM_OFF);
+        lv_obj_scroll_to_y(list, g_scroll_y[slot], LV_ANIM_OFF);
     }
 }
 
 void setlist_refresh(void){
     if(!g_setlist_root || !g_active_group) return;
-    page_build(0, g_setlist_root, g_active_group);
+    page_build(PAGE_LIST_MAIN, g_setlist_root, g_active_group);
 }
 
 void setsub_refresh(void){
     if(!g_setsub_root || !g_active_sub) return;
-    page_build(1, g_setsub_root, g_active_sub);
+    page_build(PAGE_LIST_SUB, g_setsub_root, g_active_sub);
 }

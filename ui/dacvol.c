@@ -3,6 +3,7 @@
 #include "dacvol.h"
 #include "config.h"
 #include "ipc.h"
+#include "now.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -42,8 +43,7 @@ static struct {
     unsigned seen_seq;
     uint32_t last_assert, last_key, last_dbl, persist_due, rec_t;
     int persist_dirty, keys_open, announce, announce_level;
-    int leave_target, leave_player_done, leave_mix_done, leave_after_fallback;
-    uint32_t leave_t0, leave_retry;
+    struct { int target, player_done, mix_done, after_fallback; uint32_t t0, retry; } leave;
     int logged_codes[LOG_CODES], n_codes;
 } S;
 
@@ -161,11 +161,11 @@ static void begin_leave(int after_fallback, int player_target){
     keys_off();
     flush_level();
     S.st = ST_LEAVE;
-    S.leave_t0 = now_ms(); S.leave_retry = 0;
-    S.leave_after_fallback = after_fallback;
-    S.leave_target = player_target;
-    S.leave_player_done = S.prev < 0 && cfg_get_int(PREF_PREV, -1) < 0;
-    S.leave_mix_done = S.orig < 0;
+    S.leave.t0 = now_ms(); S.leave.retry = 0;
+    S.leave.after_fallback = after_fallback;
+    S.leave.target = player_target;
+    S.leave.player_done = S.prev < 0 && cfg_get_int(PREF_PREV, -1) < 0;
+    S.leave.mix_done = S.orig < 0;
 }
 
 static void go_fallback(const char *why){
@@ -261,7 +261,7 @@ static void tick_mix(void){
 
 static void on_key(int code, int value){
     if(value < 1) return;
-    if(code == DACVOL_KEY_DBL_UP || code == DACVOL_KEY_DBL_DOWN){ S.last_dbl = now_ms() ? now_ms() : 1; return; }
+    if(code == DACVOL_KEY_DBL_UP || code == DACVOL_KEY_DBL_DOWN){ S.last_dbl = now_nonzero(now_ms()); return; }
     int hold = code == DACVOL_KEY_HOLD_UP || code == DACVOL_KEY_HOLD_DOWN;
     int dir = (code == DACVOL_KEY_UP || code == DACVOL_KEY_HOLD_UP) ? 1 : (code == DACVOL_KEY_DOWN || code == DACVOL_KEY_HOLD_DOWN) ? -1 : 0;
     if(!dir){
@@ -275,7 +275,7 @@ static void on_key(int code, int value){
         if(E->single_click_volume && !E->single_click_volume()) return;
         if(S.last_dbl && now_ms() - S.last_dbl < DBL_SUPPRESS_MS) return;
     }
-    S.last_key = now_ms() ? now_ms() : 1;
+    S.last_key = now_nonzero(now_ms());
     set_level(S.level + dir * key_step(), 1);
 }
 
@@ -342,30 +342,30 @@ static void tick_active(void){
 }
 
 static int leave_volume(void){
-    int target = S.leave_target >= 0 ? S.leave_target : (S.prev >= 0 ? S.prev : cfg_get_int(PREF_PREV, -1));
+    int target = S.leave.target >= 0 ? S.leave.target : (S.prev >= 0 ? S.prev : cfg_get_int(PREF_PREV, -1));
     if(target < 0) target = safe_cap();
     return clampi(target, 0, VOL_MAX);
 }
 static void tick_leave(void){
     uint32_t now = now_ms();
-    if(!S.leave_player_done && (!S.leave_retry || now - S.leave_retry >= LEAVE_RETRY_MS)){
-        S.leave_retry = now ? now : 1;
+    if(!S.leave.player_done && (!S.leave.retry || now - S.leave.retry >= LEAVE_RETRY_MS)){
+        S.leave.retry = now_nonzero(now);
         int target = leave_volume();
         if(E->player_send(target) == 0){
-            S.leave_player_done = 1;
+            S.leave.player_done = 1;
             cfg_set_int(PREF_PREV, -1);
             if(E->player_maxvol_restore) E->player_maxvol_restore();
             say("dacvol: left, Player volume back to %d", target);
         }
     }
-    if(S.leave_player_done && !S.leave_mix_done){
+    if(S.leave.player_done && !S.leave.mix_done){
         if(E->usb_card && E->usb_card() >= 0) E->mixer_set(S.orig);
-        S.leave_mix_done = 1;
+        S.leave.mix_done = 1;
     }
-    int give_up = now - S.leave_t0 >= LEAVE_GIVEUP_MS;
-    if(give_up && !S.leave_player_done) say("dacvol: Player volume not restored; the next start repairs it");
-    if((S.leave_player_done && S.leave_mix_done) || give_up){
-        S.st = (S.leave_after_fallback && E->usb_ready()) ? ST_FALLBACK : ST_IDLE;
+    int give_up = now - S.leave.t0 >= LEAVE_GIVEUP_MS;
+    if(give_up && !S.leave.player_done) say("dacvol: Player volume not restored; the next start repairs it");
+    if((S.leave.player_done && S.leave.mix_done) || give_up){
+        S.st = (S.leave.after_fallback && E->usb_ready()) ? ST_FALLBACK : ST_IDLE;
     }
 }
 
@@ -373,7 +373,7 @@ static void tick_idle(void){
     if(!E->usb_ready()){
         int marker = cfg_get_int(PREF_PREV, -1);
         if(marker >= 0 && (!S.rec_t || now_ms() - S.rec_t >= RECOVER_MS)){
-            S.rec_t = now_ms() ? now_ms() : 1;
+            S.rec_t = now_nonzero(now_ms());
             if(E->player_send(clampi(marker, 0, VOL_MAX)) == 0){
                 cfg_set_int(PREF_PREV, -1);
                 if(E->player_maxvol_restore) E->player_maxvol_restore();
@@ -423,8 +423,8 @@ int dacvol_set_user(int level){
     case ST_MIX:   S.pending_user = level; return 1;
     case ST_ACTIVE: set_level(level, 0); return 1;
     case ST_LEAVE:
-        if(S.leave_player_done) return 0;
-        S.leave_target = level; return 1;
+        if(S.leave.player_done) return 0;
+        S.leave.target = level; return 1;
     default: return 0;
     }
 }

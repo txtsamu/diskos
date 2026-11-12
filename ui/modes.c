@@ -16,13 +16,13 @@
 
 typedef struct { const char *name, *sub; } modeinfo_t;
 static const modeinfo_t MODES[] = {
-    { "Local Playback",      "Play from the microSD card" },
-    { "USB DAC",             "Be a DAC for a phone or PC" },
-    { "Bluetooth Receiving", "Play audio sent from a phone" },
-    { "USB Storage",         "Open the card on a computer" },
-    { "USB Debug",           "Shell over the USB cable" },
+    [SRCSWITCH_MODE_LOCAL]        = { "Local Playback",      "Play from the microSD card" },
+    [SRCSWITCH_MODE_USB_DAC]      = { "USB DAC",             "Be a DAC for a phone or PC" },
+    [SRCSWITCH_MODE_BT_RECEIVING] = { "Bluetooth Receiving", "Play audio sent from a phone" },
+    [SRCSWITCH_MODE_USB_STORAGE]  = { "USB Storage",         "Open the card on a computer" },
+    [SRCSWITCH_MODE_USB_DEBUG]    = { "USB Debug",           "Shell over the USB cable" },
 #ifdef DISKOS_TEST_OUTPUTS
-    { "USB Audio",           "Play to an external USB DAC" },
+    [SRCSWITCH_MODE_USB_AUDIO]    = { "USB Audio",           "Play to an external USB DAC" },
 #endif
 };
 #define N_MODES ((int)(sizeof(MODES)/sizeof(MODES[0])))
@@ -36,7 +36,7 @@ static lv_obj_t *g_dbg_info;
 
 static int shown_mode(int src){
     if(usbdbg_state() != USBDBG_OFF) return ROW_USB_DEBUG;
-    return (src == 0 && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src;
+    return (src == SRCSWITCH_MODE_LOCAL && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src;
 }
 
 static void debug_row_refresh(void){

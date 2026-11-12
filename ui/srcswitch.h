@@ -16,8 +16,12 @@ struct srcswitch_env {
     int  (*external_power)(void);
 };
 
-#define SRCSWITCH_MODE_USB_DEBUG 4
-#define SRCSWITCH_MODE_USB_AUDIO 5
+#define SRCSWITCH_MODE_LOCAL        0
+#define SRCSWITCH_MODE_USB_DAC      1
+#define SRCSWITCH_MODE_BT_RECEIVING 2
+#define SRCSWITCH_MODE_USB_STORAGE  3
+#define SRCSWITCH_MODE_USB_DEBUG    4
+#define SRCSWITCH_MODE_USB_AUDIO    5
 
 void srcswitch_set_env(const struct srcswitch_env *env);
 void srcswitch_init(void);

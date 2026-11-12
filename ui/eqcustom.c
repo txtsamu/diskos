@@ -297,7 +297,6 @@ void eqcustom_create(lv_obj_t *root){
         if(g_eq_drop > 40) g_eq_drop = 40;
     }
 
-
     make_slot_selector(root);
 
     lv_obj_t *scr = lv_obj_create(root);
