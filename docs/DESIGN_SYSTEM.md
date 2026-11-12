@@ -88,7 +88,8 @@ Keep the edge available for bezel scrolling on list screens.
 | `ANIM_FAST` | 180 ms | Fast helper animation / press return |
 | `ANIM_BASE` | 260 ms | Base helper duration |
 | `ANIM_SLOW` | 340 ms | Slow helper duration |
-| `SP_MS` | 2400 ms | Startup splash |
+| `SP_INTRO` | 1500 ms | Splash intro, repeated while the UI is still starting |
+| `SP_MS` | 2400 ms | Startup splash (one pass) |
 
 Page transitions use a cubic ease-out curve: 300 ms on entry and 240 ms on return.
 The Animations setting controls slide transitions. Keep decorative motion limited and
@@ -98,14 +99,19 @@ avoid perpetual pulsing.
 
 ### Sequence
 
-1. **Light, 150-1800 ms:** a white streak spreads into two spectra, sweeps around the
-   disc, and fades.
+1. **Light, 150-1000 ms:** a white streak spreads into two spectra and sweeps around the
+   disc; the rim completes its sweep by 1000 ms.
 2. **Hub, 650-1300 ms:** the hub warms in the current theme's accent.
-3. **Wordmark, 950-1900 ms:** the Archivo `diskOS` wordmark appears in the hub and fades.
+3. **Wordmark, 950-1400 ms:** the Archivo `diskOS` wordmark appears in the hub. It fades at
+   1740-1900 ms, as the reveal begins.
 4. **Reveal, 1800-2350 ms:** the hub opens outward to reveal Home.
 5. **Finish, 2400 ms:** the splash layer is removed.
 
-The splash is a timed reveal, not a boot-progress indicator.
+The intro (0-1500 ms) repeats instead of revealing Home while the UI is still starting: until
+the Player's IPC is up and the SD gate has settled, or bootstate gives up after 30 s. With
+everything ready on the first pass the two stages add up to 2400 ms.
+
+The splash is a reveal that also holds for boot progress, not a fixed-length animation.
 
 ### Boot states
 

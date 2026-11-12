@@ -76,6 +76,10 @@ _Avoid_: port mode, network mode
 
 ### Switching
 
+**Via Local**:
+The path a Working Mode switch takes when it cannot go direct: return to Local Playback, wait for the Player to settle, then enter the target.
+_Avoid_: hop, bounce, auto-switch
+
 **Output sequence**:
 The ordered set of commands that moves the Player to an output route, a source mode or a Bluetooth sink and leaves it with a valid Player work mode. Its order and timing matter; a sequence that fails part-way can leave the Player on a route the UI does not know about.
 _Avoid_: switch sequence, init

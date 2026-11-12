@@ -91,6 +91,26 @@ Failure and rollback:
 - A UI restart or crash keeps the gadget: the new `mq_ui` adopts a bound `diskos_dbg` at start and keeps polling, so a gadget
   started or stopped from SSH shows up in the row within a second.
 
+### `usb-on` exit codes
+
+`ui/usbdbg.c` reads the script's exit status and turns it into the toast. The numbers are a
+private contract between `payload/diskos-debug.sh` and `ui/usbdbg.c`: changing one side means
+changing the other. These are runtime script codes, not the installer's `E`/`F` codes.
+
+| Exit | Meaning | Toast |
+|---:|---|---|
+| 0 | Gadget built or already bound; shell started | none |
+| 1 | Usage (no command, or an old script) | USB Debug needs a newer diskOS image |
+| 2 | A stock gadget is present (`uac_demo`, `storage_demo`, `adb_demo`) | Leave USB DAC or USB Storage first |
+| 3 | No USB device controller appeared within the wait | No USB controller found |
+| 4 | The UDC write did not bind the gadget | Couldn't bind the USB port |
+| 5 | Setup failed: configfs, legacy serial removal, or gadget build | Couldn't set up USB Debug |
+| 6 | The serial port did not appear | USB serial port did not appear |
+| 127 | The shell could not find `usb-on` | USB Debug needs a newer diskOS image |
+
+`usb-off` returns 0 on success and 1 when it cannot unbind or remove the gadget; the UI toasts
+"Couldn't stop USB Debug", stays ON and abandons the pending switch.
+
 ## The dev-image boot hook (`S99usbserial`)
 
 Dev images (`--variant dev`) used to run a loop that re-bound `serial_demo` to the UDC every 2 s and kept ttyGS0 shells

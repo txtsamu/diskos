@@ -7,7 +7,7 @@ as before.
 
 ## What the volume keys do on USB Audio
 
-The Player decides per gesture what a volume key does. Settings > Controls stores three choices, each "Adjust Volume" or
+The Player decides per gesture what a volume key does. Settings > System > Volume Keys stores three choices, each "Adjust Volume" or
 "Switch Track": single click, double click and long press (`key_single`, `key_double`, `key_long`; the Player reads them as
 `KEY_SINGLE_CLICK_SLE`, `KEY_DOUBLE_CLICK_SLE`, `KEY_LONG_PRESS_SLE`).
 

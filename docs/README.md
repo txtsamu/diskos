@@ -19,6 +19,7 @@
 ## Develop
 
 - [Contributing](../CONTRIBUTING.md) - project and patch guidance.
+- [Architecture decisions](adr/) - why Working Mode switches and USB Debug are shaped this way.
 - [UI development workflow](DEV_WORKFLOW.md) and [UI source](../ui/README.md).
 - [Native flash tools](../build/NATIVE_TOOLS.md) and [tool scripts](../tools/README.md).
 - [Hardware](HARDWARE.md), [command map](COMMAND_MAP.md), and [reverse-engineering catalogue](RE_CATALOGUE.md).
