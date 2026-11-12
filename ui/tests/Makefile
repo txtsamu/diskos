@@ -182,7 +182,7 @@ run: uiread_test sysconfig_test transport_test config_test playstate_test playre
 clean:
 	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
-PY_COMPLETE := boot_probe boot_select font_coverage launcher settings_tree storage
+PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard
 run-py:
 	@set -e; for t in $(PY_COMPLETE); do \
