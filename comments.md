@@ -11080,7 +11080,7 @@ an audiobook is the active playback context
 **L16** `int  (*playing)(void);` *(trailing)*
 
 ~~~text
-playstate's inference: position advancing. Paused and stopped both read 0
+the play request's inference: position advancing. Paused and stopped both read 0
 ~~~
 
 **L17** `int  (*fw_needs_local_init)(void);` *(trailing)*
@@ -11229,7 +11229,7 @@ Send what this play start needs before its play frame, best effort (the result i
   LIST:          the route preamble (outseq_local_preamble) only on a firmware that needs the local init, Local
                  source, no Bluetooth route, not playing and no play still starting; 0666 under a stream would gap it.
                  "Not playing" covers paused and stopped alike on purpose: a LIST play while PAUSED gets the preamble
-                 too (re-inits the USB output, restarts the song). Skipping it needs a signal playstate lacks: have_track
+                 too (re-inits the USB output, restarts the song). Skipping it needs a signal the play request lacks: have_track
                  stays 1 for a Player that is idle after boot or stopped by a frame ipc.c does not recognise, and the
                  idle Player is exactly the one whose route/work mode have drifted.
   RESERVED_SLOT: work mode alone (outseq_assert_workmode) on Local source with no Bluetooth route; the route is
@@ -32977,7 +32977,7 @@ the active theme lays the drawer out its own way
 **L375** `void quicksettings_refresh(int playing){`
 
 ~~~text
-light update while the panel is open (playstate ticks, radio/EQ state changes) - no rebuild
+light update while the panel is open (the play request ticks, radio/EQ state changes) - no rebuild
 ~~~
 
 **L392** `static lv_obj_t *g_qscfg_root;`
@@ -38563,7 +38563,7 @@ a play was sent and its track has not arrived yet, or an audiobook is active
 **L40** `int      (*playing)(void);` *(trailing)*
 
 ~~~text
-playstate's inference: position advancing
+the play request's inference: position advancing
 ~~~
 
 **L41** `int      (*have_track)(void);` *(trailing)*
@@ -43112,7 +43112,7 @@ an audiobook is the active context
 **L77** `int playing, fw, route;` *(trailing)*
 
 ~~~text
-playstate says playing; firmware needs the local init; OUT_* route
+the play request says playing; firmware needs the local init; OUT_* route
 ~~~
 
 **L82** `k_gen++;` *(trailing)*
