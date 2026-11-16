@@ -29,6 +29,7 @@ static int g_n, g_fail_from = -1;
 static int g_fail_at = -1;
 static int g_playing;
 static int g_detected = -1;
+static int g_reapplied;
 static unsigned g_gen = 1;
 #define PAUSE "0201000C0000"
 int ipc_send_cmd(const char *frame){
@@ -76,10 +77,11 @@ const char *admit_check(admit_what_t what){ (void)what; return g_admit; }
 static int env_seek(long ms){ (void)ms; return 0; }
 static int env_power(void){ return g_power; }
 static int env_detected(void){ return g_detected >= 0 ? g_detected : session_source_mode(); }
+static void env_reapply(void){ g_reapplied++; }
 static const struct srcswitch_env env = {
     .now = env_now, .host_attached = env_attached, .dac_gadget_present = env_gadget,
     .playing = env_playing, .toast = env_toast, .set_volume = env_volume,
-    .seek_to = env_seek, .external_power = env_power, .detected_mode = env_detected,
+    .seek_to = env_seek, .external_power = env_power, .detected_mode = env_detected, .reapply_audio = env_reapply,
 };
 static const struct sd_env sd_env = {
     .now = env_now, .media_mounted = env_mounted, .exported_to_host = env_exported, .host_confirmed = env_host_confirmed,
@@ -143,7 +145,7 @@ static void setup(void){
     char d[160]; snprintf(d, sizeof d, "%s", OUT_USB_CARD);
     char *slash = strrchr(d, '/'); if(slash){ *slash = 0; mkdir(d, 0700); *slash = '/'; }
     mkdir(d, 0700); usb_card(0); unlink(SD_EXPORT_MARKER);
-    g_now = 1000; g_detected = -1;
+    g_now = 1000; g_detected = -1; g_reapplied = 0;
     outroute_init(&renv); srcswitch_set_env(&env); sd_set_env(&sd_env); srcswitch_set_listener(on_event); usbdbg_set_env(&uenv);
     assert(sd_gate_poll(1) == SD_GATE_OPENED);
     srcswitch_init();
@@ -836,6 +838,18 @@ static void scenario(const char *name, void (*fn)(void)){
     printf("  ok %s\n", name);
 }
 #define S(f) scenario(#f, f)
+static void a_source_switch_reapplies_the_audio_settings(void){
+    setup();
+    assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DAC) == 0);
+    run(1900); assert(g_reapplied == 0);
+    run(200); assert(g_reapplied == 1);
+}
+static void returning_to_local_reapplies_the_audio_settings(void){
+    setup(); session_set_source_mode(SRCSWITCH_MODE_USB_DAC);
+    assert(ui_set_source_mode(SRCSWITCH_MODE_LOCAL) == 0);
+    run(1900); assert(g_reapplied == 0);
+    run(200); assert(g_reapplied == 1);
+}
 static void status_reports_the_transaction_and_the_landed_mode(void){
     setup(); g_detected = 1;
     assert(ui_set_source_mode(SRCSWITCH_MODE_USB_DAC) == 0);
@@ -930,6 +944,8 @@ int main(void){
     S(usb_storage_failed_return_request_keeps_no_target);
     S(usb_storage_return_with_a_target_refuses_a_second_request);
     S(a_stale_pending_value_is_ignored);
+    S(a_source_switch_reapplies_the_audio_settings);
+    S(returning_to_local_reapplies_the_audio_settings);
     S(status_reports_the_transaction_and_the_landed_mode);
     S(status_reports_a_switch_that_did_not_land);
     S(status_reports_an_overlay_row_as_the_source_mode);

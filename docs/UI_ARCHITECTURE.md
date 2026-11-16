@@ -19,6 +19,12 @@ deferred step and a 3.2 s settle, `srcswitch` checks the landed mode through `de
 `main.c`) and reports `Mode didn't switch` once. The via Local policy and the ordered USB DAC exit are unchanged; see
 ADR-0001.
 
+The Local sequence itself is `0666 6` (internal analog), `0642 0` (no gadget) and `0657 8` (Local Player work
+mode), so returning to Local Playback selects the Disc's own CS43131 DAC. The Player re-initialises that DAC on the
+way back, which resets Gain, DRE and the DAC Filter. Two seconds after any source sequence lands, `srcswitch` calls
+`reapply_audio`; the adapter in `main.c` re-sends only the values diskOS has actually stored, so an unset key leaves
+the Player's own value alone instead of forcing Low.
+
 Tests: `ui/tests/srcswitch_test.c`, including the transaction, the mismatch and the overlay-row cases.
 
 ## Restart

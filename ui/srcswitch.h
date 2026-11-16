@@ -15,6 +15,7 @@ struct srcswitch_env {
     int  (*seek_to)(long ms);
     int  (*external_power)(void);
     int  (*detected_mode)(void);
+    void (*reapply_audio)(void);
 };
 
 #define SRCSWITCH_MODE_LOCAL        0

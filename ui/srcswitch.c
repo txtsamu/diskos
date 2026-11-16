@@ -41,11 +41,13 @@ static int  tm_due(tm_t *t){
 #define PENDING_MAX_MS 120000
 
 static tm_t g_bootusb;
+static tm_t g_reapply;
 static struct { tm_t tm; int mode; uint32_t t0; } g_leave;
 static struct { tm_t tm; int mode; uint32_t t0; } g_pend;
 static int g_sd_target = -1;
 
 #define TX_SETTLE_MS 3200
+#define REAPPLY_MS   2000
 static struct {
     int active, from, to, failed;
     int mode;
@@ -83,6 +85,8 @@ static void bootusb_tick(void){
 int srcswitch_send_source(int mode){
     outseq_rc rc = outseq_source((outseq_src_t)mode);
     if(rc != OUTSEQ_REFUSED) outroute_reset();
+    if(rc == OUTSEQ_OK && (mode == SRCSWITCH_MODE_LOCAL || mode == SRCSWITCH_MODE_USB_DAC || mode == SRCSWITCH_MODE_BT_RECEIVING))
+        tm_start(&g_reapply, REAPPLY_MS);
     return rc < 0 ? -1 : 0;
 }
 
@@ -233,6 +237,11 @@ static void tx_tick(void){
     notify(SRCSWITCH_EV_CHANGED);
 }
 
+static void reapply_tick(void){
+    tm_stop(&g_reapply);
+    if(E->reapply_audio) E->reapply_audio();
+}
+
 static void pending_tick(void){
     uint32_t age = elapsed(g_pend.t0);
     int m = g_pend.mode;
@@ -309,6 +318,7 @@ static int source_switch(int mode, int exit_done){
     if(session_source_mode() == SRCSWITCH_MODE_LOCAL && mode != SRCSWITCH_MODE_LOCAL){ player_view_t vs; ipc_get_view(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }
     if(srcswitch_send_source(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
     session_set_source_mode(mode);
+    if(mode == SRCSWITCH_MODE_LOCAL){ fprintf(stderr, "mode: local playback on the internal DAC (0666 6)\n"); fflush(stderr); }
     if(mode == SRCSWITCH_MODE_USB_DAC){ g_dac_enter_t = now_ms(); g_dac_vol_due = g_dac_enter_t + 4500; if(!g_dac_vol_due) g_dac_vol_due = 1; }
     if(mode == SRCSWITCH_MODE_LOCAL && was_playing) ipc_send_cmd(PLAYER_CMD_PLAYPAUSE);
     session_save_source(mode);
@@ -325,13 +335,14 @@ int ui_set_source_mode(int mode){
     return rc;
 }
 
-void srcswitch_init(void){ sd_init(); usbdbg_set_listener(dbg_event); usbdbg_init(); }
+void srcswitch_init(void){ sd_init(); usbdbg_set_listener(dbg_event); usbdbg_init(); tm_stop(&g_reapply); }
 
 void srcswitch_tick(void){
     outroute_tick();
     if(tm_due(&g_leave.tm)) leave_tick();
     if(tm_due(&g_bootusb)) bootusb_tick();
     if(tm_due(&g_pend.tm)) pending_tick();
+    if(tm_due(&g_reapply)) reapply_tick();
     dac_exit_tick();
     usbdbg_tick();
     dbg_exit_tick();

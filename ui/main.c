@@ -283,7 +283,14 @@ int ui_eq_select(int preset){
 }
 
 void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C0001"); }
-void ui_set_gain(int high){     if(high<0) return; const char *tag=fw_gain_tag(); if(!tag){ fprintf(stderr,"gain: unverified firmware (MAIN_OS_VER=%d) -> not sending\n", fw_os_ver()); return; } char f[16]; snprintf(f,sizeof f,"%s000C%04X", tag, high?1:0); ipc_send_cmd(f); }
+void ui_set_gain(int high){
+    if(high < 0) return;
+    const char *tag = fw_gain_tag();
+    if(!tag){ fprintf(stderr, "gain: unverified firmware (MAIN_OS_VER=%d) -> not sending\n", fw_os_ver()); fflush(stderr); return; }
+    char f[16]; snprintf(f, sizeof f, "%s000C%04X", tag, high ? 1 : 0);
+    int rc = ipc_send_cmd(f);
+    fprintf(stderr, "gain: %s -> %s (rc=%d)\n", f, high ? "high" : "low", rc); fflush(stderr);
+}
 void ui_set_output(int spdif){  if(spdif<0) return; outroute_pick(spdif ? OUT_SPDIF : OUT_INTERNAL, OUTROUTE_SETTING); }
 void ui_set_dac_filter(int idx){ if(idx<0||idx>5) return; char f[16]; snprintf(f,sizeof f,"0653000C%04X",idx); ipc_send_cmd(f); }
 void ui_set_replay_gain(int v){ if(v<0||v>2) return; char f[16]; snprintf(f,sizeof f,"0718000C%04X",(unsigned)v); ipc_send_cmd(f); }
@@ -446,6 +453,7 @@ static void env_card_returned(void){ albumwall_prewarm_seed(); }
 void settings_restart_now(void);
 static void env_restart(void){ settings_restart_now(); }
 static void env_set_volume(int v){ ui_set_volume(v); }
+static void env_reapply_audio(void);
 static const struct srcswitch_env g_srcswitch_env = {
     .now = lv_tick_get, .host_attached = usb_host_attached,
     .dac_gadget_present = env_dac_gadget_present,
@@ -454,6 +462,7 @@ static const struct srcswitch_env g_srcswitch_env = {
     .seek_to = ui_seek_to,
     .external_power = vbus_external_input,
     .detected_mode = ui_detect_source_mode,
+    .reapply_audio = env_reapply_audio,
 };
 static const struct sd_env g_sd_env = {
     .now = lv_tick_get, .media_mounted = coldplug_mounted, .exported_to_host = sd_exported_to_host,
@@ -525,11 +534,18 @@ static const struct nowplay_env g_nowplay_env = {
     .saver_state = np_sink_saver_state, .art = np_sink_art, .track = np_sink_track,
     .quick = np_sink_quick, .info = np_sink_info, .menu = np_sink_menu,
 };
+static void env_reapply_audio(void){
+    int gain = cfg_get_int("audio_gain", -1);
+    int dre = cfg_get_int("audio_dre", -1);
+    int filter = cfg_get_int("audio_filter", -1);
+    if(gain >= 0) ui_set_gain(gain);
+    if(dre >= 0) ui_set_dre(dre);
+    if(filter >= 0) ui_set_dac_filter(filter);
+    fprintf(stderr, "audio: reapply gain=%d dre=%d filter=%d\n", gain, dre, filter); fflush(stderr);
+}
 static void env_charge_limit_reapply(void){
     power_apply_charge(cfg_get_int("charge_protect", 0) ? 1 : 0);
-    ui_set_dre(cfg_get_int("audio_dre", 1));
-    ui_set_gain(cfg_get_int("audio_gain", 0));
-    ui_set_dac_filter(cfg_get_int("audio_filter", 1));
+    env_reapply_audio();
 }
 static const char *env_switch_blocked(void){ return admit_check(ADMIT_OUTPUT_SWITCH); }
 static const struct outroute_env g_outroute_env = {
@@ -589,9 +605,10 @@ static void reapply_audio_body(void){
     outroute_reset();
 }
 static void reapply_sends(void){
-    ui_set_dre(cfg_get_int("audio_dre",    1));
-    ui_set_gain(cfg_get_int("audio_gain",  0));
-    ui_set_dac_filter(cfg_get_int("audio_filter", 1));
+    int dre = cfg_get_int("audio_dre", -1), gain = cfg_get_int("audio_gain", -1), filter = cfg_get_int("audio_filter", -1);
+    if(dre >= 0)    ui_set_dre(dre);
+    if(gain >= 0)   ui_set_gain(gain);
+    if(filter >= 0) ui_set_dac_filter(filter);
     ui_set_replay_gain(cfg_get_int("replay_gain", 0));
     {
         int wm = cfg_get_int("work_mode", -1);
