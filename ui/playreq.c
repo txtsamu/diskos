@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "playreq.h"
-#include "playstate.h"
 #include <fcntl.h>
 #include <glob.h>
 #include <stdio.h>
@@ -22,7 +21,7 @@ void playreq_set_env(const struct playreq_env *env){ E = env; }
 
 static uint32_t g_pending;
 static int      g_playing;
-static playstate_t g_ps = { -1, 0 };
+static struct { long last_pos_ms; unsigned change_tick; } g_pos = { -1, 0 };
 
 static unsigned g_sent_gen = NO_GEN;
 static uint32_t g_sent_at;
@@ -253,9 +252,22 @@ static int start_failed(const track_state_t *st, uint32_t now){
     return 1;
 }
 
+static int advancing(const track_state_t *st, uint32_t now){
+    if(!st->have_track){ g_pos.last_pos_ms = -1; return 0; }
+    if(g_pos.last_pos_ms < 0){
+        g_pos.last_pos_ms = st->position_ms;
+        g_pos.change_tick = now;
+    } else if(st->position_ms != g_pos.last_pos_ms){
+        long delta = st->position_ms - g_pos.last_pos_ms;
+        g_pos.last_pos_ms = st->position_ms;
+        if(delta > 0) g_pos.change_tick = now;
+    }
+    return st->position_ms > 0 && (unsigned)(now - g_pos.change_tick) < PLAYING_GRACE;
+}
+
 int playreq_tick(const track_state_t *st){
     uint32_t now = E->now();
-    g_playing = playstate_playing(&g_ps, st->have_track, st->position_ms, now, PLAYING_GRACE, 0);
+    g_playing = advancing(st, now);
     if(g_playing) playreq_note_transport(E->generation(), now);
     if(g_pending && E->tx_waiting()){
         g_pending = now ? now : 1;

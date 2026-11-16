@@ -9,9 +9,6 @@ DEFS := -DCFG_PATH='"$(TDIR)/diskos.conf"' -DCFG_DIR='"$(TDIR)"' \
 config_test: ../config.c config_test.c ../config.h
 	$(CC) $(CFLAGS) $(DEFS) -I.. ../config.c config_test.c -o $@
 
-playstate_test: ../playstate.c playstate_test.c ../playstate.h
-	$(CC) $(CFLAGS) -I.. ../playstate.c playstate_test.c -o $@
-
 outseq_test: ../outseq.c outseq_test.c ../outseq.h
 	$(CC) $(CFLAGS) -I.. ../outseq.c outseq_test.c -o $@
 
@@ -20,23 +17,23 @@ outroute_test: ../outroute.c ../outseq.c outroute_test.c ../outroute.h ../outseq
 	  -DROUTE_TEST_ROOT='"$(TDIR)/outroute"' -DROUTE_STATE_DIR='"$(TDIR)/outroute/state"' -DROUTE_STATE_PATH='"$(TDIR)/outroute/state/route"' \
 	  -DROUTE_STATE_UID=$(shell id -u) -DROUTE_PROC_ROOT='"$(TDIR)/outroute/proc"' -I.. ../outroute.c ../outseq.c outroute_test.c -o $@
 
-session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
-	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c session_test.c -o $@
+session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
+	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c -o $@
 
-srcswitch_test: ../bootstate.c ../srcswitch.c ../usbdbg.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c ../srcswitch.h ../usbdbg.h ../outroute.h ../session.h ../outseq.h
+srcswitch_test: ../bootstate.c ../srcswitch.c ../usbdbg.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../sdio.c srcswitch_test.c ../srcswitch.h ../usbdbg.h ../outroute.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DOUT_USB_CARD='"$(TDIR)/card1"' -DOUT_USB_ANY_CARD='"$(TDIR)/card*/usbid"' \
 	  -DSD_EXPORT_MARKER='"$(TDIR)/handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/fault"' -I.. \
-	  ../srcswitch.c ../usbdbg.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c ../sdio.c srcswitch_test.c -o $@
+	  ../srcswitch.c ../usbdbg.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../sdio.c srcswitch_test.c -o $@
 
-admit_test: ../bootstate.c ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
-	$(CC) $(CFLAGS) -I.. ../admit.c ../bootstate.c ../outroute.c ../outseq.c ../session.c ../playreq.c ../playstate.c admit_test.c -o $@
+admit_test: ../bootstate.c ../admit.c ../outroute.c ../outseq.c ../session.c ../playreq.c admit_test.c ../admit.h ../outroute.h ../outseq.h ../session.h
+	$(CC) $(CFLAGS) -I.. ../admit.c ../bootstate.c ../outroute.c ../outseq.c ../session.c ../playreq.c admit_test.c -o $@
 
-playreq_test: ../playreq.c ../playstate.c playreq_test.c ../playreq.h ../playstate.h
-	$(CC) $(CFLAGS) -D_GNU_SOURCE -DPCM_DIR='"$(TDIR)/pcm"' -DPLAY_PCM_GLOB='"$(TDIR)/pcm/*/status"' -I.. ../playreq.c ../playstate.c playreq_test.c -o $@
+playreq_test: ../playreq.c playreq_test.c ../playreq.h
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -DPCM_DIR='"$(TDIR)/pcm"' -DPLAY_PCM_GLOB='"$(TDIR)/pcm/*/status"' -I.. ../playreq.c playreq_test.c -o $@
 
-sdio_test: ../bootstate.c ../sdio.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c ../sdio.h ../session.h ../outseq.h
+sdio_test: ../bootstate.c ../sdio.c ../session.c ../outroute.c ../outseq.c ../playreq.c sdio_test.c ../sdio.h ../session.h ../outseq.h
 	$(CC) $(CFLAGS) -pthread -D_GNU_SOURCE -DSD_EXPORT_MARKER='"$(TDIR)/sdio_handoff"' -DSD_IO_FAULT_MARKER='"$(TDIR)/sdio_fault"' -I.. \
-	  ../sdio.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c ../playstate.c sdio_test.c -o $@
+	  ../sdio.c ../bootstate.c ../session.c ../outroute.c ../outseq.c ../playreq.c sdio_test.c -o $@
 
 bootstate_test: ../bootstate.c bootstate_test.c ../bootstate.h ../ipc.h
 	$(CC) $(CFLAGS) -I.. ../bootstate.c bootstate_test.c -o $@
@@ -118,10 +115,8 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: uiread_test sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: uiread_test sysconfig_test transport_test config_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
-	@echo "--- playstate ---"
-	./playstate_test
 	./ipc_guard_test
 	./ipc_tx_test
 	@echo "--- outseq ---"
@@ -185,7 +180,7 @@ run: uiread_test sysconfig_test transport_test config_test playstate_test playre
 	./coverart_pipeline_test
 
 clean:
-	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard

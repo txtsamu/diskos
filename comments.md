@@ -181,9 +181,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/phonehome.c](#uiphonehomec) | 4 |
 | [ui/phonehome.h](#uiphonehomeh) | 1 |
 | [ui/playlistview.c](#uiplaylistviewc) | 51 |
-| [ui/playreq.c](#uiplayreqc) | 7 |
-| [ui/playstate.c](#uiplaystatec) | 2 |
-| [ui/playstate.h](#uiplaystateh) | 5 |
+| [ui/playreq.c](#uiplayreqc) | 8 |
 | [ui/power.c](#uipowerc) | 27 |
 | [ui/power.h](#uipowerh) | 33 |
 | [ui/procnet.c](#uiprocnetc) | 2 |
@@ -238,7 +236,6 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/outseq_guard_test.py](#uitestsoutseqguardtestpy) | 9 |
 | [ui/tests/outseq_test.c](#uitestsoutseqtestc) | 22 |
 | [ui/tests/playreq_test.c](#uitestsplayreqtestc) | 1 |
-| [ui/tests/playstate_test.c](#uitestsplaystatetestc) | 12 |
 | [ui/tests/radio_test.c](#uitestsradiotestc) | 47 |
 | [ui/tests/rmguard_driver.c](#uitestsrmguarddriverc) | 1 |
 | [ui/tests/rmguard_test.py](#uitestsrmguardtestpy) | 1 |
@@ -32028,6 +32025,12 @@ last row scrolls clear of the round bottom bezel
 
 ## ui/playreq.c
 
+**L25** `static struct { long last_pos_ms; unsigned change_tick; } g_pos = { -1, 0 };`
+
+~~~text
+Play/pause inference from the Player's position samples. The raw A2 state field is unreliable (it reports 0 while playing), so play/pause is derived from whether the reported position is advancing. A first observation seeds the baseline as fresh, matching the old heuristic: a track present at pos>0 reads playing within the grace window and self-corrects to paused if it never advances. We deliberately do not report a startup "paused" here: g_playing feeds autorouting, and a false-paused makes it skip the pause/resume and latch the route without retry. Only a forward advance refreshes the timestamp; a backward jump never does.
+~~~
+
 **L27** `static unsigned g_sent_gen = NO_GEN;`
 
 ~~~text
@@ -32070,71 +32073,6 @@ The main loop's only call: the playing inference (position advancing, 1600 ms gr
 Order: note transport, admit_start(LIST), read state, send, record sent, arm. arm copies the track fields before the send (the transport epoch includes the successfully queued request; the serial distinguishes requests at one tick).
 
 Known, preserved: ui_play_playlist, ui_play_plan (type 5) and ui_play_book call playreq_reserve_slot() (admit_play_start RESERVED_SLOT) and then the list start (admit_play_start LIST). On V2.40 with local route, not playing and no recent play this sends 0657 twice with a 0666 between (unverified on a device). Playlist/plan send 0102 before the reserved-slot start, book after.
-~~~
-
-## ui/playstate.c
-
-**L11** `ps->last_pos_ms = position_ms;`
-
-~~~text
-First observation: seed the baseline as FRESH (matches the original heuristic - a track
-present at pos>0 reads playing within the grace window, self-correcting to paused if it
-never advances). We deliberately do NOT report a startup "paused" here: g_playing feeds
-autorouting, and a false-paused makes it skip the pause/resume and latch the route without
-retry - worse than the transient boot-paused false-positive. Distinguishing a true UNKNOWN
-belongs with the routing rework (a 3-state model), not here.
-~~~
-
-**L16** `if(delta > 0 && (max_adv_ms == 0 || (unsigned long)delta <= max_adv_ms))`
-
-~~~text
-Only a FORWARD advance consistent with playback refreshes the "advancing" timestamp. A
-backward jump (rewind/restart) never does (an improvement over the original, which refreshed
-on ANY change); and when max_adv_ms is set, a large forward jump (a paused seek/scrub) is a
-SEEK, not playback. max_adv_ms==0 disables the upper bound (any positive change counts - the
-original behavior; the bound is device-tunable).
-~~~
-
-## ui/playstate.h
-
-**L6** `typedef struct {`
-
-~~~text
-Pure play/pause inference from the player's position samples. The raw A2 'state' field is
-unreliable (reports 0 while playing), so play/pause is derived from whether the reported
-position is advancing. Kept pure + dependency-free so it is unit-tested off-device and used as
-ONE source of truth (the main-loop transport glyph + g_playing for routing).
-~~~
-
-**L7** `long     last_pos_ms;` *(trailing)*
-
-~~~text
-last observed position; -1 = no observation yet
-~~~
-
-**L8** `unsigned change_tick;` *(trailing)*
-
-~~~text
-monotonic tick at the last position ADVANCE
-~~~
-
-**L11** `void playstate_reset(playstate_t *ps);`
-
-~~~text
-reset to "no track / no observation" (e.g. on player reconnect).
-~~~
-
-**L13** `int playstate_playing(playstate_t *ps, int have_track, long position_ms,`
-
-~~~text
-Return 1 if the track is playing. Call once per sample.
-  have_track  : 0 -> not playing (and resets the observation).
-  position_ms : the player's reported position.
-  now_tick    : a monotonic millisecond tick (wrap-safe; e.g. lv_tick_get()).
-  grace_ms    : still "playing" for this long after the last advance (absorbs a missed tick).
-  max_adv_ms  : a forward jump larger than this is treated as a SEEK, not playback (0 = disabled,
-                i.e. any positive change counts - matches the pre-extraction behavior). A BACKWARD
-                jump never counts as advancing, regardless of max_adv_ms.
 ~~~
 
 ## ui/power.c
@@ -44285,83 +44223,6 @@ an out-of-range route sends nothing
 
 ~~~text
 Fake clock, Player state and send channel through playreq_env; pcm status files under TDIR/pcm via PLAY_PCM_GLOB. Each test runs in a forked child (statics reset).
-~~~
-
-## ui/tests/playstate_test.c
-
-**L3** `#include <stdio.h>`
-
-~~~text
-Off-device host test for playstate.c (pure play/pause inference). No globals -> no fork isolation
-needed; each case uses its own playstate_t. Built under ASan/UBSan via tests/Makefile.
-~~~
-
-**L10** `{ playstate_t ps = {-1,0}; unsigned t = 100000;`
-
-~~~text
-1. a PAUSED track (position constant): reads playing within the grace window on first sight, then
-   self-corrects to paused once it never advances (matches the original heuristic; a false-paused
-   at startup would break autorouting - see the reducer's first-observation note).
-~~~
-
-**L15** `{ playstate_t ps = {-1,0}; unsigned t = 0;`
-
-~~~text
-2. an advancing position reads as playing (from the 2nd sample on)
-~~~
-
-**L16** `playstate_playing(&ps,1,1000,t,1600,0);` *(trailing)*
-
-~~~text
-first obs -> 0
-~~~
-
-**L20** `{ playstate_t ps = {-1,0}; unsigned t = 0;`
-
-~~~text
-3. playback that stalls (position stops advancing) flips to paused after the grace window
-~~~
-
-**L22** `playstate_playing(&ps,1,2000,t+1000,1600,0);` *(trailing)*
-
-~~~text
-playing, change@t+1000
-~~~
-
-**L26** `{ playstate_t ps = {-1,0}; unsigned t = 0;`
-
-~~~text
-4. a backward/rewind jump does NOT count as advancing (original code wrongly did)
-~~~
-
-**L28** `playstate_playing(&ps,1,6000,t+1000,1600,0);` *(trailing)*
-
-~~~text
-playing
-~~~
-
-**L32** `{ playstate_t ps = {-1,0};`
-
-~~~text
-5. no track -> not playing, and the observation resets
-~~~
-
-**L37** `{ playstate_t ps = {-1,0}; unsigned t = 0, bound = 1500;`
-
-~~~text
-6. with the upper bound set, a large forward PAUSED seek is not playback; a small advance is
-~~~
-
-**L39** `playstate_playing(&ps,1,60000,t+3000,1600,bound);` *(trailing)*
-
-~~~text
-paused (stale)
-~~~
-
-**L44** `{ playstate_t ps = {-1,0}; unsigned t = 0xFFFFFC00u;`
-
-~~~text
-7. monotonic tick wraparound near UINT_MAX is handled (unsigned subtraction)
 ~~~
 
 ## ui/tests/radio_test.c
