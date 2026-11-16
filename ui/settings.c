@@ -353,7 +353,7 @@ static int g_restart_next_flash;
 static void restart_poll_cb(lv_timer_t *t){
     (void)t;
     restart_tick();
-    if(!restart_busy()) lv_timer_delete(t);
+    if(!restart_busy()){ boot_modal_close(); lv_timer_delete(t); }
 }
 static void restart_poll_start(void){
     if(lv_timer_create(restart_poll_cb, 100, NULL)) return;

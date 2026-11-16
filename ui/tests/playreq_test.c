@@ -196,6 +196,14 @@ static void playing_follows_the_position(void){
     S.position_ms = 62000; tick_at(103000); assert(playreq_playing());
     S.have_track = 0; tick_at(104000); assert(!playreq_playing());
 }
+static void playing_survives_the_tick_wrap(void){
+    setup();
+    shows_track(1, 5, 1000);
+    tick_at(0xFFFFFC00u);
+    S.position_ms = 2000;
+    assert(tick_at(0xFFFFFC00u + 500) == 0 && playreq_playing());
+    assert(tick_at(0xFFFFFC00u + 500 + 2000) == 0 && !playreq_playing());
+}
 static void playing_note_is_per_generation(void){
     setup();
     shows_track(1, 2, 60000);
@@ -324,6 +332,7 @@ int main(void){
     RUN(startup_busy_after_playback_was_seen);
     RUN(startup_busy_ignores_older_generations);
     RUN(playing_follows_the_position);
+    RUN(playing_survives_the_tick_wrap);
     RUN(playing_note_is_per_generation);
     RUN(a_start_with_metadata_progress_retires_the_request);
     RUN(a_resume_of_the_current_song_retires_the_request_without_a_note);

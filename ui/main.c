@@ -470,10 +470,11 @@ static pid_t env_restart_spawn(const char *cmd){
 static int env_restart_wait(pid_t pid, int *status){ return (int)waitpid(pid, status, WNOHANG); }
 static void env_restart_kill(pid_t pid){
     if(pid <= 0) return;
+    kill(-pid, SIGKILL);
     kill(pid, SIGKILL);
-    for(int i = 0; i < 20; i++){
+    for(int i = 0; i < 30; i++){
         if(waitpid(pid, NULL, WNOHANG) == pid) return;
-        usleep(100000);
+        usleep(10000);
     }
 }
 static pid_t env_save_clock(void){

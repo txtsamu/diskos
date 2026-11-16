@@ -91,6 +91,12 @@ static void invisible_defers_the_update(void){
     publish(1);
     expect(1,1,1,1,0,0,1,1,1);
 }
+static void invalidate_forces_the_next_publish(void){
+    track("/a.flac", "A", "X"); prime();
+    nowplay_invalidate();
+    publish(1);
+    expect(1,1,1,1,0,0,1,1,1);
+}
 static void force_republishes_the_same_view(void){
     track("/a.flac", "A", "X"); prime();
     nowplay_publish(&env, &v, &e, 1, 1, 1);
@@ -105,6 +111,7 @@ int main(void){
     title_change_updates_track_only();
     playing_change_updates_without_art();
     invisible_defers_the_update();
+    invalidate_forces_the_next_publish();
     force_republishes_the_same_view();
     puts("nowplay_test: ok");
     return 0;
