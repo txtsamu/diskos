@@ -12,6 +12,7 @@
 #include "config.h"
 #include "i18n.h"
 #include "screens.h"
+#include "screens_ui.h"
 #include "sdio.h"
 #include "anim.h"
 #include "fonts_intl.h"

@@ -33,6 +33,7 @@
 #include "fb_pan.h"
 #include "controls.h"
 #include "screens.h"
+#include "screens_ui.h"
 #include "outroute.h"
 #include "dacvol_sys.h"
 #include "usbhid.h"

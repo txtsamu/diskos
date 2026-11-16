@@ -4,6 +4,7 @@
 #include "theme.h"
 #include "theme_kit.h"
 #include "screens.h"
+#include "screens_ui.h"
 #include "musicdb.h"
 #include "artcache.h"
 #include "scanner.h"

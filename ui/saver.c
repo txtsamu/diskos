@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
+#include "screens_ui.h"
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"

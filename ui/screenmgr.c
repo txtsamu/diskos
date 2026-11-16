@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "screens.h"
+#include "screens_ui.h"
 #include "theme.h"
 #include "theme_kit.h"
 #include "folderbrowser.h"
@@ -33,23 +34,54 @@ static void scrim_clip(lv_event_t *e)
         a.x2 >= layer->_clip_area.x2 && a.x1 <= layer->_clip_area.x2)
         layer->_clip_area.x2 = a.x1 - 1;
 }
-static int s_current = SCR_HOME;
-static const unsigned char s_figure[SCR_COUNT] = {
-    [SCR_HOME] = 1, [SCR_LIBRARY] = 2, [SCR_NOWPLAYING] = 3,
-    [SCR_SETTINGS] = 4, [SCR_SEARCH] = 5, [SCR_APPS] = 6,
-    [SCR_WEATHER] = 7, [SCR_UPNEXT] = 8, [SCR_LYRICS] = 9,
-    [SCR_SONGINFO] = 10, [SCR_NPMENU] = 11, [SCR_NPHUB] = 12,
-    [SCR_TUNE] = 13, [SCR_EQ] = 14, [SCR_SAVER] = 15,
-    [SCR_FOLDER] = 16, [SCR_ALBUMWALL] = 17, [SCR_PLPICK] = 18,
-    [SCR_PLVIEW] = 19, [SCR_BOOKS] = 20, [SCR_CHAPTERS] = 21,
-    [SCR_SETTING_DETAIL] = 22, [SCR_SETLIST] = 23, [SCR_QUICK] = 24,
-    [SCR_QSCONFIG] = 25, [SCR_COLORPICK] = 26, [SCR_DATETIME] = 27,
-    [SCR_WIFI] = 28, [SCR_WIFI_INFO] = 29, [SCR_BT] = 30,
-    [SCR_BT_INFO] = 31, [SCR_WORKMODE] = 32,
-    [SCR_DEBUG] = 34, [SCR_TAMA] = 35, [SCR_DAC] = 36, [SCR_SETSUB] = 37,
+typedef struct {
+    void (*create)(lv_obj_t *root);
+    void (*refresh)(void);
+    void (*visible)(int on);
+    unsigned char figure;
+} screen_def_t;
+
+static const screen_def_t SCREENS[SCR_COUNT] = {
+    [SCR_HOME]           = { home_create,           NULL,                 NULL,          1 },
+    [SCR_LIBRARY]        = { library_create,        library_enter,        NULL,          2 },
+    [SCR_NOWPLAYING]     = { ui_create,             ui_np_enter,          NULL,          3 },
+    [SCR_SETTINGS]       = { settings_create,       settings_refresh_list,NULL,          4 },
+    [SCR_SETTING_DETAIL] = { setting_detail_create, setting_detail_refresh,NULL,         22 },
+    [SCR_SEARCH]         = { search_create,         NULL,                 NULL,          5 },
+    [SCR_SAVER]          = { saver_create,          saver_show_sync,      NULL,         15 },
+    [SCR_QUICK]          = { quicksettings_create,  quicksettings_build,  NULL,         24 },
+    [SCR_SONGINFO]       = { songinfo_create,       NULL,                 NULL,         10 },
+    [SCR_NPMENU]         = { npmenu_create,         NULL,                 NULL,         11 },
+    [SCR_TUNE]           = { tune_create,           tune_refresh,         NULL,         13 },
+    [SCR_EQ]             = { eqcustom_create,       eqcustom_refresh,     NULL,         14 },
+    [SCR_APPS]           = { apps_create,           NULL,                 NULL,          6 },
+    [SCR_NPHUB]          = { nphub_create,          nphub_refresh,        NULL,         12 },
+    [SCR_PLPICK]         = { plpick_create,         NULL,                 NULL,         18 },
+    [SCR_PLVIEW]         = { plview_create,         plview_refresh,       NULL,         19 },
+    [SCR_WIFI]           = { wifi_create,           NULL,                 NULL,         28 },
+    [SCR_WIFI_INFO]      = { wifi_info_create,      NULL,                 NULL,         29 },
+    [SCR_BT]             = { bt_create,             NULL,                 NULL,         30 },
+    [SCR_BT_INFO]        = { bt_info_create,        NULL,                 NULL,         31 },
+    [SCR_WEATHER]        = { weather_app_create,    NULL,                 NULL,          7 },
+    [SCR_LYRICS]         = { lyrics_create,         NULL,                 NULL,          9 },
+    [SCR_COLORPICK]      = { colorpick_create,      NULL,                 NULL,         26 },
+    [SCR_WORKMODE]       = { modes_create,          NULL,                 NULL,         32 },
+    [SCR_DEBUG]          = { debug_create,          NULL,                 NULL,         34 },
+    [SCR_FOLDER]         = { folderbrowser_create,  NULL,                 NULL,         16 },
+    [SCR_BOOKS]          = { books_create,          NULL,                 NULL,         20 },
+    [SCR_CHAPTERS]       = { chapters_create,       NULL,                 NULL,         21 },
+    [SCR_SETLIST]        = { setlist_create,        setlist_refresh,      NULL,         23 },
+    [SCR_QSCONFIG]       = { qsconfig_create,       qsconfig_refresh,     NULL,         25 },
+    [SCR_ALBUMWALL]      = { albumwall_create,      albumwall_refresh,    NULL,         17 },
+    [SCR_UPNEXT]         = { upnext_create,         upnext_refresh,       NULL,          8 },
+    [SCR_DATETIME]       = { datetime_create,       datetime_refresh,     NULL,         27 },
+    [SCR_TAMA]           = { tama_create,           NULL,                 tama_visible, 35 },
+    [SCR_DAC]            = { dac_create,            NULL,                 dac_visible,  36 },
+    [SCR_SETSUB]         = { setsub_create,         setsub_refresh,       NULL,         37 },
 };
+static int s_current = SCR_HOME;
 int screen_figure_number(int which){
-    return which >= 0 && which < SCR_COUNT ? s_figure[which] : 0;
+    return which >= 0 && which < SCR_COUNT ? SCREENS[which].figure : 0;
 }
 static int s_stack[16];
 static int s_sp = 0;
@@ -135,27 +167,9 @@ static void transition(int from, int to, int dir)
     npmenu_close_transients();
     ui_np_close_overlays();
 
-    if (to == SCR_SETTINGS) settings_refresh_list();
-    else if (to == SCR_SETLIST) setlist_refresh();
-    else if (to == SCR_SETSUB) setsub_refresh();
-    else if (to == SCR_SETTING_DETAIL) setting_detail_refresh();
-    else if (to == SCR_QSCONFIG) qsconfig_refresh();
-    else if (to == SCR_QUICK) quicksettings_build();
-    else if (to == SCR_EQ) eqcustom_refresh();
-    else if (to == SCR_ALBUMWALL) albumwall_refresh();
-    else if (to == SCR_TUNE)  tune_refresh();
-    else if (to == SCR_UPNEXT) upnext_refresh();
-    else if (to == SCR_DATETIME) datetime_refresh();
-    else if (to == SCR_NPHUB) nphub_refresh();
-    else if (to == SCR_NOWPLAYING) ui_np_enter();
-    else if (to == SCR_SAVER) saver_show_sync();
-    else if (to == SCR_PLVIEW) plview_refresh();
-    else if (to == SCR_LIBRARY) library_enter();
-
-    if (from == SCR_TAMA && to != SCR_TAMA) tama_visible(0);
-    if (to == SCR_TAMA && from != SCR_TAMA) tama_visible(1);
-    if (from == SCR_DAC && to != SCR_DAC) dac_visible(0);
-    if (to == SCR_DAC && from != SCR_DAC) dac_visible(1);
+    if (to >= 0 && to < SCR_COUNT && SCREENS[to].refresh) SCREENS[to].refresh();
+    if (from >= 0 && from < SCR_COUNT && from != to && SCREENS[from].visible) SCREENS[from].visible(0);
+    if (to >= 0 && to < SCR_COUNT && from != to && SCREENS[to].visible) SCREENS[to].visible(1);
 
     kit_pass(nw);
     mclock_sync(ui_screen_backlight_on());
@@ -264,42 +278,7 @@ void screens_init(void)
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
 
-    s_roots[SCR_HOME] = screen_make_root(parent);
-    s_roots[SCR_LIBRARY] = screen_make_root(parent);
-    s_roots[SCR_NOWPLAYING] = screen_make_root(parent);
-    s_roots[SCR_SETTINGS] = screen_make_root(parent);
-    s_roots[SCR_SETTING_DETAIL] = screen_make_root(parent);
-    s_roots[SCR_SEARCH] = screen_make_root(parent);
-    s_roots[SCR_SAVER] = screen_make_root(parent);
-    s_roots[SCR_QUICK] = screen_make_root(parent);
-    s_roots[SCR_SONGINFO] = screen_make_root(parent);
-    s_roots[SCR_NPMENU] = screen_make_root(parent);
-    s_roots[SCR_TUNE] = screen_make_root(parent);
-    s_roots[SCR_EQ] = screen_make_root(parent);
-    s_roots[SCR_APPS] = screen_make_root(parent);
-    s_roots[SCR_NPHUB] = screen_make_root(parent);
-    s_roots[SCR_PLPICK] = screen_make_root(parent);
-    s_roots[SCR_PLVIEW] = screen_make_root(parent);
-    s_roots[SCR_WIFI] = screen_make_root(parent);
-    s_roots[SCR_WIFI_INFO] = screen_make_root(parent);
-    s_roots[SCR_BT] = screen_make_root(parent);
-    s_roots[SCR_BT_INFO] = screen_make_root(parent);
-    s_roots[SCR_WEATHER] = screen_make_root(parent);
-    s_roots[SCR_LYRICS] = screen_make_root(parent);
-    s_roots[SCR_COLORPICK] = screen_make_root(parent);
-    s_roots[SCR_WORKMODE] = screen_make_root(parent);
-    s_roots[SCR_DEBUG] = screen_make_root(parent);
-    s_roots[SCR_FOLDER] = screen_make_root(parent);
-    s_roots[SCR_BOOKS] = screen_make_root(parent);
-    s_roots[SCR_CHAPTERS] = screen_make_root(parent);
-    s_roots[SCR_SETLIST] = screen_make_root(parent);
-    s_roots[SCR_SETSUB] = screen_make_root(parent);
-    s_roots[SCR_QSCONFIG] = screen_make_root(parent);
-    s_roots[SCR_ALBUMWALL] = screen_make_root(parent);
-    s_roots[SCR_UPNEXT] = screen_make_root(parent);
-    s_roots[SCR_DATETIME] = screen_make_root(parent);
-    s_roots[SCR_TAMA] = screen_make_root(parent);
-    s_roots[SCR_DAC] = screen_make_root(parent);
+    for (int i = 0; i < SCR_COUNT; i++) s_roots[i] = screen_make_root(parent);
 
     s_scrim = lv_obj_create(parent);
     lv_obj_remove_style_all(s_scrim);
@@ -312,42 +291,7 @@ void screens_init(void)
     lv_obj_add_flag(s_scrim, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(s_scrim, scrim_clip, LV_EVENT_DRAW_MAIN_BEGIN, NULL);
 
-    home_create(s_roots[SCR_HOME]);
-    weather_app_create(s_roots[SCR_WEATHER]);
-    lyrics_create(s_roots[SCR_LYRICS]);
-    library_create(s_roots[SCR_LIBRARY]);
-    ui_create(s_roots[SCR_NOWPLAYING]);
-    settings_create(s_roots[SCR_SETTINGS]);
-    setting_detail_create(s_roots[SCR_SETTING_DETAIL]);
-    setlist_create(s_roots[SCR_SETLIST]);
-    setsub_create(s_roots[SCR_SETSUB]);
-    qsconfig_create(s_roots[SCR_QSCONFIG]);
-    albumwall_create(s_roots[SCR_ALBUMWALL]);
-    search_create(s_roots[SCR_SEARCH]);
-    saver_create(s_roots[SCR_SAVER]);
-    quicksettings_create(s_roots[SCR_QUICK]);
-    songinfo_create(s_roots[SCR_SONGINFO]);
-    npmenu_create(s_roots[SCR_NPMENU]);
-    tune_create(s_roots[SCR_TUNE]);
-    eqcustom_create(s_roots[SCR_EQ]);
-    colorpick_create(s_roots[SCR_COLORPICK]);
-    modes_create(s_roots[SCR_WORKMODE]);
-    debug_create(s_roots[SCR_DEBUG]);
-    folderbrowser_create(s_roots[SCR_FOLDER]);
-    books_create(s_roots[SCR_BOOKS]);
-    chapters_create(s_roots[SCR_CHAPTERS]);
-    upnext_create(s_roots[SCR_UPNEXT]);
-    datetime_create(s_roots[SCR_DATETIME]);
-    tama_create(s_roots[SCR_TAMA]);
-    dac_create(s_roots[SCR_DAC]);
-    apps_create(s_roots[SCR_APPS]);
-    nphub_create(s_roots[SCR_NPHUB]);
-    plpick_create(s_roots[SCR_PLPICK]);
-    plview_create(s_roots[SCR_PLVIEW]);
-    wifi_create(s_roots[SCR_WIFI]);
-    wifi_info_create(s_roots[SCR_WIFI_INFO]);
-    bt_create(s_roots[SCR_BT]);
-    bt_info_create(s_roots[SCR_BT_INFO]);
+    for (int i = 0; i < SCR_COUNT; i++) if (SCREENS[i].create) SCREENS[i].create(s_roots[i]);
 
     screen_show(SCR_HOME);
 }

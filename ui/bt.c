@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "fwcaps.h"
 #include "screens.h"
+#include "screens_ui.h"
 #include "command_spawn.h"
 #include <fcntl.h>
 #include "theme.h"
