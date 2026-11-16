@@ -20605,6 +20605,17 @@ the letter inherits these
 alphabet hint overlay (rim-scroll position indicator) - centred, hidden
 ~~~
 
+**Shuffle start (2026-11-16)** `play_list_mode()`
+
+~~~text
+The player's Shuffle list is built from the rows the player actually has. A raw
+1 + rand() % g_count can exceed that list when the UI's count is stale, and the
+stock player then loops forever dropping LIST_SONG_3 and querying POS_ID 0, with
+no audio until a reboot. shuffle_start() clamps the start to the smaller of the
+shown count and mdb_player_list_count() (LIST_SONG_0), and falls back to 1 when
+the player's count is unavailable.
+~~~
+
 ## ui/lrc.h
 
 **L3** `#ifndef DISKOS_LRC_H`
@@ -26335,6 +26346,14 @@ optional sample rate
 ~~~
 
 ## ui/musicdb.c
+
+**Player list count (2026-11-16)** `mdb_player_list_count()`
+
+~~~text
+Read-only COUNT(*) of the player's LIST_SONG_0. Zero means unknown or unavailable
+(no database, busy, or no list yet). Callers treat zero as "start at 1" rather
+than guessing a position the player does not have.
+~~~
 
 **L6** `#define JSMN_HEADER` *(trailing)*
 

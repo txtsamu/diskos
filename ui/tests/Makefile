@@ -41,6 +41,9 @@ sdio_test: ../bootstate.c ../sdio.c ../session.c ../outroute.c ../outseq.c ../pl
 bootstate_test: ../bootstate.c bootstate_test.c ../bootstate.h ../ipc.h
 	$(CC) $(CFLAGS) -I.. ../bootstate.c bootstate_test.c -o $@
 
+shuffle_test: shuffle_test.c ../shuffle.h
+	$(CC) $(CFLAGS) -I.. shuffle_test.c -o $@
+
 dacinfo_test: ../dacinfo.c dacinfo_test.c ../dacinfo.h
 	$(CC) $(CFLAGS) -I.. ../dacinfo.c dacinfo_test.c -o $@
 
@@ -115,7 +118,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: uiread_test sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: uiread_test sysconfig_test transport_test config_test playstate_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	@echo "--- playstate ---"
 	./playstate_test
@@ -142,6 +145,8 @@ run: uiread_test sysconfig_test transport_test config_test playstate_test playre
 	./admit_test
 	@echo "--- bootstate ---"
 	./bootstate_test
+	@echo "--- shuffle ---"
+	./shuffle_test
 	@echo "--- dacinfo ---"
 	./dacinfo_test
 	@echo "--- timekeep ---"
@@ -180,7 +185,7 @@ run: uiread_test sysconfig_test transport_test config_test playstate_test playre
 	./coverart_pipeline_test
 
 clean:
-	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f uiread_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test playstate_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard

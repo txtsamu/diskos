@@ -84,6 +84,7 @@ typedef struct {
 #define MDB_UPNEXT_ERROR    (-1)
 #define MDB_UPNEXT_NOTFOUND (-2)
 #define MDB_UPNEXT_BUSY     (-3)
+int mdb_player_list_count(void);
 int mdb_upnext(int shuffle, int cur_pos_id, const char *cur_path, mdb_qrow_t *out, int cap, int *more);
 int mdb_queue_row_valid(int base_id, int ord, const char *path);
 int  ui_play_plan(mdb_plan_t *plan, int song_id);

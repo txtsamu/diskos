@@ -6,6 +6,7 @@
 #include "folderbrowser.h"
 #include "books.h"
 #include "musicdb.h"
+#include "shuffle.h"
 #include "fwcaps.h"
 #include "artcache.h"
 #include <stdint.h>
@@ -521,8 +522,7 @@ static void play_list_mode(int mode){
     int lt; char nm[160];
     if(!current_list_context(&lt, nm, sizeof nm)) return;
     cfg_set_int("work_mode", mode); ui_set_workmode(mode);
-    int pos = 1;
-    if(mode == 1 && g_count > 1 && lt != 2) pos = 1 + (rand() % g_count);
+    int pos = shuffle_start(mode, lt, g_count, mdb_player_list_count(), (unsigned)rand());
     if(lt == 6 && fw_fav_play_by_love_id()){ if(pos > g_count || !ui_play_favorite(g_favs[pos-1].love_id, pos)) return; }
     else if(lt == 2 && !nm[0]){
         if(!missing_artist_play(mode == 1 ? -2 : -1)) return;

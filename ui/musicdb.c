@@ -2510,6 +2510,19 @@ static sqlite3 *qdb(void){
 }
 static int q_busy(int rc){ rc &= 0xFF; return rc == SQLITE_BUSY || rc == SQLITE_LOCKED; }
 
+int mdb_player_list_count(void){
+    sqlite3 *d = qdb(); if(!d) return 0;
+    sqlite3_stmt *q = NULL;
+    if(sqlite3_prepare_v2(d, "SELECT COUNT(*) FROM LIST_SONG_0;", -1, &q, NULL) != SQLITE_OK){
+        if(q) sqlite3_finalize(q);
+        return 0;
+    }
+    int n = 0;
+    if(sqlite3_step(q) == SQLITE_ROW) n = sqlite3_column_int(q, 0);
+    sqlite3_finalize(q);
+    return n > 0 ? n : 0;
+}
+
 int mdb_upnext(int shuffle, int cur_pos_id, const char *cur_path, mdb_qrow_t *out, int cap, int *more){
     if(more) *more = 0;
     if(!out || cap < 1) return MDB_UPNEXT_ERROR;

@@ -110,11 +110,23 @@ static void test_missing_tables(void){
     sqlite3_close(c);
 }
 
+static void test_player_list_count(void){
+    sqlite3 *c = open_other();
+    sql_exec(c, "DROP TABLE IF EXISTS LIST_SONG_0;");
+    CHECK(mdb_player_list_count() == 0, "absent player list reads as zero");
+    sql_exec(c, "CREATE TABLE LIST_SONG_0 (ID INTEGER PRIMARY KEY);");
+    CHECK(mdb_player_list_count() == 0, "empty player list reads as zero");
+    sql_exec(c, "INSERT INTO LIST_SONG_0 VALUES (1),(2),(3);");
+    CHECK(mdb_player_list_count() == 3, "player list count is read");
+    sqlite3_close(c);
+}
+
 int main(void){
     test_missing_db();
     test_good_read();
     test_locked_db();
     test_missing_tables();
+    test_player_list_count();
     if(fails){ printf("uiread_test: %d FAILED\n", fails); return 1; }
     printf("uiread_test: ALL PASS\n");
     return 0;
