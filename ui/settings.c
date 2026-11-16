@@ -355,15 +355,19 @@ static void restart_poll_cb(lv_timer_t *t){
     restart_tick();
     if(!restart_busy()) lv_timer_delete(t);
 }
+static void restart_poll_start(void){
+    if(lv_timer_create(restart_poll_cb, 100, NULL)) return;
+    restart_abort("Couldn't restart - try again");
+}
 static void restart_go(void){
     restart_kind_t kind = g_restart_next_flash ? RESTART_FLASH : RESTART_UI;
     g_restart_next_flash = 0;
     if(restart_begin(kind) != 0) return;
-    lv_timer_create(restart_poll_cb, 100, NULL);
+    restart_poll_start();
 }
 void settings_restart_now(void){
     if(restart_begin(RESTART_UI) != 0) return;
-    lv_timer_create(restart_poll_cb, 100, NULL);
+    restart_poll_start();
 }
 static void boot_cancel_cb(lv_event_t *e){
     if(lv_event_get_code(e)==LV_EVENT_CLICKED && !restart_busy()){ g_restart_next_flash = 0; boot_modal_close(); }

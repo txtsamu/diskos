@@ -114,6 +114,13 @@ static void flash_arm_failure_stops_the_restart(void){
     assert(toasted("Couldn't set flash mode - not restarted"));
 }
 
+static void abort_cleans_up_a_started_restart(void){
+    setup(); g_drained = 0;
+    assert(restart_begin(RESTART_UI) == 0);
+    restart_abort("Couldn't restart - try again");
+    assert(!restart_busy() && g_unqueued == 1 && g_killed == 1 && !g_rebooted);
+    assert(toasted("Couldn't restart - try again"));
+}
 static void flash_arm_then_reboot(void){
     setup(); g_drained = 1; g_flash_rc = 0;
     assert(restart_begin(RESTART_FLASH) == 0);
@@ -129,6 +136,7 @@ int main(void){
     sync_failure_stops_the_restart();
     sync_timeout_stops_the_restart();
     flash_arm_failure_stops_the_restart();
+    abort_cleans_up_a_started_restart();
     flash_arm_then_reboot();
     puts("restart_test: ok");
     return 0;

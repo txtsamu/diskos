@@ -20,8 +20,11 @@ static int      g_kind;
 static uint32_t g_t0;
 static pid_t    g_sync, g_clock;
 
+static void fail(const char *why);
+
 void restart_set_env(const struct restart_env *env){ E = env; }
 int  restart_busy(void){ return g_state != RS_IDLE; }
+void restart_abort(const char *why){ if(g_state != RS_IDLE) fail(why); }
 
 #ifdef DISKOS_SWB_FLASHMODE
 #define SWB_REG_PAGE 0x10000000u

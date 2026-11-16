@@ -27,5 +27,6 @@ void restart_set_env(const struct restart_env *env);
 int  restart_begin(restart_kind_t kind);
 void restart_tick(void);
 int  restart_busy(void);
+void restart_abort(const char *why);
 
 #endif
