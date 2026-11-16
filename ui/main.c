@@ -449,6 +449,7 @@ static const struct srcswitch_env g_srcswitch_env = {
     .toast = ui_toast, .set_volume = env_set_volume,
     .seek_to = ui_seek_to,
     .external_power = vbus_external_input,
+    .detected_mode = ui_detect_source_mode,
 };
 static const struct sd_env g_sd_env = {
     .now = lv_tick_get, .media_mounted = coldplug_mounted, .exported_to_host = sd_exported_to_host,

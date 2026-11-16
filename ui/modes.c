@@ -67,9 +67,15 @@ static void mark_selected_mode(int cur){
         }
     }
 }
-static void mark_selected(void){ mark_selected_mode(sd_switch_failed() ? -1 : shown_mode(session_source_mode())); }
+static void mark_pending(int m);
+static void modes_render(void){
+    srcswitch_status_t st = srcswitch_status();
+    if(st.state != SRCSWITCH_STATE_IDLE){ mark_pending(st.to); return; }
+    if(sd_switch_failed()){ mark_selected_mode(-1); return; }
+    mark_selected_mode(shown_mode(st.mode));
+}
 static void modes_ui_refresh(void){
-    mark_selected();
+    modes_render();
     debug_row_refresh();
     setting_detail_refresh();
     setlist_refresh();
@@ -88,50 +94,24 @@ static void mark_pending(int m){
     }
 }
 
-static lv_timer_t *g_settle = NULL;
-static int g_pending_mode = -1;
 static void on_switch_event(srcswitch_event_t ev){
     if(ev == SRCSWITCH_EV_SETTLE_RESTART){ g_last_switch = lv_tick_get(); return; }
-    if(ev == SRCSWITCH_EV_ABANDONED){
-        if(g_settle){ lv_timer_del(g_settle); g_settle = NULL; }
-        g_pending_mode = -1;
-    }
     modes_ui_refresh();
-}
-static void settle_cb(lv_timer_t *t){
-    (void)t;
-    if(modes_source_switch_busy()) return;
-    if(lv_tick_elaps(g_last_switch) < 3200) return;
-    lv_timer_del(g_settle); g_settle = NULL;
-    int intended = g_pending_mode; g_pending_mode = -1;
-    if(sd_switch_failed()){ mark_selected_mode(-1); return; }
-    int show = (intended >= 0) ? intended : session_source_mode();
-    if(intended == 0 || intended == 1 || intended == 3){
-        int actual = ui_detect_source_mode();
-        show = actual;
-        if(actual != intended) ui_toast("Mode didn't switch");
-    }
-    if(intended == ROW_USB_AUDIO || intended == ROW_USB_DEBUG) show = session_source_mode();
-    mark_selected_mode(shown_mode(show));
 }
 
 static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int m = (int)(uintptr_t)lv_event_get_user_data(e);
-    if(srcswitch_via_local_pending() || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
+    if(srcswitch_status().state != SRCSWITCH_STATE_IDLE || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
     g_last_switch = lv_tick_get();
     if(ui_set_source_mode(m) == 0){
-        g_pending_mode = m;
         mark_pending(m);
-        if(g_settle) lv_timer_del(g_settle);
-        g_settle = lv_timer_create(settle_cb, 500, NULL);
         if(!srcswitch_via_local_pending()) ui_toast(srcswitch_switch_msg(m));
     }
 }
 
 void modes_open(void){
-    if(g_settle && g_pending_mode >= 0) mark_pending(g_pending_mode);
-    else mark_selected();
+    modes_render();
     screen_show(SCR_WORKMODE);
 }
 
@@ -195,6 +175,6 @@ void modes_create(lv_obj_t *root){
     lv_obj_set_style_text_color(g_dbg_info, TC(TEXT_MUTED), 0);
     lv_obj_add_flag(g_dbg_info, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_to_index(g_dbg_info, (int32_t)lv_obj_get_index(g_row[ROW_USB_DEBUG]) + 1);
-    mark_selected();
+    modes_render();
     debug_row_refresh();
 }

@@ -45,6 +45,21 @@ static struct { tm_t tm; int mode; uint32_t t0; } g_leave;
 static struct { tm_t tm; int mode; uint32_t t0; } g_pend;
 static int g_sd_target = -1;
 
+#define TX_SETTLE_MS 3200
+static struct {
+    int active, from, to, failed;
+    int mode;
+    uint32_t started_at;
+    const char *reason;
+} g_tx;
+
+static void tx_fail(const char *why){
+    if(!g_tx.active) return;
+    g_tx.active = 0; g_tx.failed = 1;
+    g_tx.reason = why ? why : "Couldn't switch mode";
+    g_tx.mode = session_source_mode();
+}
+
 static int source_switch(int mode, int exit_done);
 
 static void bootusb_tick(void){
@@ -74,6 +89,7 @@ int srcswitch_send_source(int mode){
 static struct { int active; int mode; uint32_t t0, gone_at; } g_dacx;
 static void leave_end(const char *why){
     tm_stop(&g_leave.tm);
+    tx_fail(why);
     if(why) E->toast(why);
     notify(SRCSWITCH_EV_ABANDONED);
 }
@@ -179,11 +195,50 @@ static int switch_in_progress(void){
     return outroute_pick_pending() || g_leave.tm.on || g_dacx.active || g_dbgx.active || usbdbg_busy() || sd_switch_pending();
 }
 int modes_source_switch_busy(void){ return switch_in_progress() || g_pend.tm.on; }
+
+srcswitch_status_t srcswitch_status(void){
+    int cur = session_source_mode();
+    srcswitch_status_t s = { SRCSWITCH_STATE_IDLE, cur, cur, cur, 0, NULL };
+    if(!g_tx.active){
+        if(g_tx.failed){
+            s.failed = 1; s.reason = g_tx.reason;
+            s.from = g_tx.from; s.to = g_tx.to; s.mode = g_tx.mode;
+        }
+        return s;
+    }
+    s.from = g_tx.from; s.to = g_tx.to; s.mode = g_tx.mode; s.reason = g_tx.reason;
+    if(g_pend.tm.on) s.state = SRCSWITCH_STATE_WAITING;
+    else if(g_dacx.active || g_dbgx.active || g_leave.tm.on) s.state = SRCSWITCH_STATE_LEAVING;
+    else if(outroute_pick_pending() || sd_switch_pending() || usbdbg_busy()) s.state = SRCSWITCH_STATE_ENTERING;
+    else s.state = SRCSWITCH_STATE_SETTLING;
+    return s;
+}
+
+static void tx_tick(void){
+    if(!g_tx.active) return;
+    if(switch_in_progress() || g_pend.tm.on) return;
+    if(elapsed(g_tx.started_at) < TX_SETTLE_MS) return;
+    int observed = g_tx.to;
+    if(g_tx.to == SRCSWITCH_MODE_USB_DEBUG || g_tx.to == SRCSWITCH_MODE_USB_AUDIO)
+        observed = session_source_mode();
+    else if((g_tx.to == SRCSWITCH_MODE_LOCAL || g_tx.to == SRCSWITCH_MODE_USB_DAC || g_tx.to == SRCSWITCH_MODE_USB_STORAGE) && E->detected_mode)
+        observed = E->detected_mode();
+    g_tx.active = 0;
+    g_tx.mode = observed;
+    if((g_tx.to == SRCSWITCH_MODE_LOCAL || g_tx.to == SRCSWITCH_MODE_USB_DAC || g_tx.to == SRCSWITCH_MODE_USB_STORAGE) && observed != g_tx.to){
+        g_tx.failed = 1;
+        g_tx.reason = "Mode didn't switch";
+        E->toast(g_tx.reason);
+    }
+    notify(SRCSWITCH_EV_CHANGED);
+}
+
 static void pending_tick(void){
     uint32_t age = elapsed(g_pend.t0);
     int m = g_pend.mode;
     if(age >= PENDING_MAX_MS){
         tm_stop(&g_pend.tm);
+        tx_fail("Couldn't continue the mode switch - pick it again");
         E->toast("Couldn't continue the mode switch - pick it again");
         notify(SRCSWITCH_EV_CHANGED);
         return;
@@ -259,7 +314,16 @@ static int source_switch(int mode, int exit_done){
     session_save_source(mode);
     return 0;
 }
-int ui_set_source_mode(int mode){ return source_switch(mode, 0); }
+int ui_set_source_mode(int mode){
+    int from = session_source_mode();
+    int rc = source_switch(mode, 0);
+    if(rc == 0){
+        g_tx.active = 1; g_tx.failed = 0; g_tx.reason = NULL;
+        g_tx.from = from; g_tx.to = mode; g_tx.mode = mode;
+        g_tx.started_at = now_nonzero(now_ms());
+    }
+    return rc;
+}
 
 void srcswitch_init(void){ sd_init(); usbdbg_set_listener(dbg_event); usbdbg_init(); }
 
@@ -271,6 +335,7 @@ void srcswitch_tick(void){
     dac_exit_tick();
     usbdbg_tick();
     dbg_exit_tick();
+    tx_tick();
     if(g_dac_vol_due && (int32_t)(now_ms() - g_dac_vol_due) >= 0){ g_dac_vol_due = 0; dac_volume_cb(); }
     sd_tick();
 }

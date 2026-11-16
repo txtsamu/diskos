@@ -14,6 +14,7 @@ struct srcswitch_env {
     void (*set_volume)(int volume);
     int  (*seek_to)(long ms);
     int  (*external_power)(void);
+    int  (*detected_mode)(void);
 };
 
 #define SRCSWITCH_MODE_LOCAL        0
@@ -40,6 +41,25 @@ typedef enum {
     SRCSWITCH_EV_ABANDONED,
 } srcswitch_event_t;
 void srcswitch_set_listener(void (*cb)(srcswitch_event_t));
+
+typedef enum {
+    SRCSWITCH_STATE_IDLE,
+    SRCSWITCH_STATE_LEAVING,
+    SRCSWITCH_STATE_WAITING,
+    SRCSWITCH_STATE_ENTERING,
+    SRCSWITCH_STATE_SETTLING,
+} srcswitch_state_t;
+
+typedef struct {
+    srcswitch_state_t state;
+    int from;
+    int to;
+    int mode;
+    int failed;
+    const char *reason;
+} srcswitch_status_t;
+
+srcswitch_status_t srcswitch_status(void);
 
 int  srcswitch_dac_level_settled(void);
 
