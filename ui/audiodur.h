@@ -113,6 +113,8 @@ static long long ad_mp3(FILE *f, off_t fsz){
         uint32_t frames = ad_be32(v + 14);
         return frames ? ad_muldiv((unsigned long long)frames * (unsigned)m.spf, 1000ULL, (unsigned)m.sr) : 0;
     }
+    if(end > fr && m.br > 0)
+        return ad_muldiv((unsigned long long)(end - fr) * 8ULL, 1000ULL, (unsigned)m.br);
     return 0;
 }
 
@@ -484,6 +486,49 @@ static long long ad_opus_tail(FILE *f, off_t fsz, off_t tags_end, uint32_t seria
 done:
     free(reach); free(t); return result;
 }
+static long long ad_opus_last(FILE *f, off_t fsz){
+    unsigned char h[27];
+    if(fsz < 27 || !ad_read_at(f, 0, h, 27) || memcmp(h, "OggS", 4) || h[4] || !h[26]) return 0;
+    unsigned ns = h[26];
+    size_t hs = 27 + ns;
+    if(hs > 27 + 255) return 0;
+    unsigned char *pg = malloc(hs + 65025);
+    if(!pg) return 0;
+    if(!ad_read_at(f, 0, pg, hs)){ free(pg); return 0; }
+    size_t body = 0;
+    for(unsigned i = 0; i < ns; i++) body += pg[27 + i];
+    if(body > 65025 || !ad_read_at(f, hs, pg + hs, body)){ free(pg); return 0; }
+    size_t plen = 0;
+    unsigned seg = 0;
+    while(seg < ns && pg[27 + seg] == 255){ plen += 255; seg++; }
+    if(seg >= ns){ free(pg); return 0; }
+    plen += pg[27 + seg];
+    if(plen < 19 || memcmp(pg + hs, "OpusHead", 8) || !ad_opus_head(pg + hs, plen)){ free(pg); return 0; }
+    unsigned skip = pg[hs + 10] | ((unsigned)pg[hs + 11] << 8);
+    uint32_t serial = ad_le32(pg + 14);
+    free(pg);
+    off_t start = fsz > 256 * 1024 ? fsz - 256 * 1024 : 0;
+    size_t n = (size_t)(fsz - start);
+    unsigned char *t = malloc(n);
+    if(!t) return 0;
+    if(fseeko(f, start, SEEK_SET) != 0 || fread(t, 1, n, f) != n){ free(t); return 0; }
+    long long out = 0;
+    for(size_t i = n - 27 + 1; i-- > 0; ){
+        if(memcmp(t + i, "OggS", 4) || t[i + 4] || !t[i + 26]) continue;
+        unsigned ns2 = t[i + 26];
+        if(i + 27 + ns2 > n) continue;
+        size_t sz = 27 + ns2;
+        for(unsigned k = 0; k < ns2; k++) sz += t[i + 27 + k];
+        if(sz > n - i) continue;
+        if(ad_ogg_crc(t + i, sz) != ad_le32(t + i + 22)) continue;
+        if(ad_le32(t + i + 14) != serial) continue;
+        unsigned long long g = (unsigned long long)ad_le32(t + i + 6) | (unsigned long long)ad_le32(t + i + 10) << 32;
+        if(g > skip) out = ad_muldiv(g - skip, 1000, 48000);
+        break;
+    }
+    free(t);
+    return out;
+}
 static long long ad_opus(FILE *f, unsigned char **tags, uint32_t *taglen,
                          ad_cancel_fn cancel, void *ctx){
     enum { PACKET_MAX=1024*1024, PAGE_MAX=27+255+65025 };
@@ -537,7 +582,7 @@ static long long ad_opus(FILE *f, unsigned char **tags, uint32_t *taglen,
                 if(pages || i+1!=ns || flags!=2 || granule || !ad_opus_head(pkt,plen)) goto done;
                 skip=pkt[10]|((unsigned)pkt[11]<<8); mapping=pkt[18];
             } else if(packets==1){
-                if(i+1!=ns || (flags&4) || granule || !ad_opus_tags(pkt,plen)) goto done;
+                if((flags&4) || !ad_opus_tags(pkt,plen)) goto done;
                 if(tags){ *tags=pkt; *taglen=plen; pkt=NULL; result=1; goto done; }
                 if(mapping) goto done;
                 tags_end=ftello(f);
@@ -568,9 +613,13 @@ static long long ad_opus(FILE *f, unsigned char **tags, uint32_t *taglen,
                 result=ad_opus_tail(f,fsz,tags_end,serial,seq-1,skip,previous,pkt,cancel,ctx);
                 goto done;
             }
-        } else if((flags&4) || (pending && granule!=~0ULL)) goto done;
+        } else if((flags&4) || (pending && granule!=~0ULL && granule!=0)) goto done;
     }
 done:
+    if(result == 0 || result == AD_DEFERRED){
+        long long last = ad_opus_last(f, fsz);
+        if(last > 0) result = last;
+    }
     free(pkt); free(page); return result;
 }
 

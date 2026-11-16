@@ -13450,6 +13450,21 @@ Length in ms of an open audio file (any position; it seeks), 0 if unknown. `fnam
 a READ error, distinct from a clean unknown result
 ~~~
 
+**Duration fallbacks (2026-11-16)** `ad_mp3()`, `ad_opus()`, `ad_opus_last()`
+
+~~~text
+A CBR MP3 with no Xing/Info or VBRI header used to return 0. It now falls back to
+(audio bytes * 8) / first-frame bitrate.
+
+Some valid Opus files pack the OpusTags packet and the start of an audio packet on
+the same page, and can put granule 0 on a page where no packet completes. The
+strict walk used to reject those. It now allows the tags packet to end before the
+last segment, allows granule 0 with a pending packet, and falls back to the last
+CRC-valid page's granule (minus pre-skip) when the page walk still returns 0 or
+AD_DEFERRED. The fallback is what fixed the 4.2 MB "Selepas Kau Pergi.opus"
+(249581 ms, ffprobe 249587 ms).
+~~~
+
 ## ui/books.c
 
 **L3** `#include "books.h"`
