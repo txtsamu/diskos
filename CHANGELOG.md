@@ -62,6 +62,12 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Fixed
 
+- **Shuffle** no longer sends a start index past the Player's queue. A stale library count could make `mq_player` loop forever
+  rebuilding `LIST_SONG_3` and querying `POS_ID 0`, with no audio until a reboot. The start is clamped to the Player's
+  `LIST_SONG_0` count and falls back to 1 when that count is unavailable.
+- **Durations** are read for CBR MP3 files with no Xing/Info or VBRI header, and for Opus files whose tags and first audio
+  packet share a page, whose page has granule 0 while a packet is pending, or whose packets exceed 5760 samples. A Rescan
+  Library now fills every row; before, those files stayed at 0:00.
 - A failed Custom EQ read keeps the previous curve and slot on screen and refuses editing until a later read succeeds, with an
   "EQ read failed, try again" toast. Before, a failed read showed a flat placeholder. The curve and its parametric check are read
   together from one database snapshot (ported from upstream 1.2.2). Custom EQ is still view-only on V2.57.
