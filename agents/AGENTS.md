@@ -87,6 +87,11 @@ Makefiles, tests or web files. Say what the code does with names, small function
   `E2xx` build, `E3xx` flash, `F1xx` writer failures, `F2xx` base-gate refusals).
   If you add a failure mode, give it a code and document it in [docs/INSTALL.md](../docs/INSTALL.md#error-codes).
 - **Cite file:line** when you summarize what changed, so a human can verify it.
+- **Flash requests carry a finish time.** When the user asks to flash, state the estimated local
+  wall-clock completion before starting the run: the current time plus the installer's build and
+  its "about 20 minutes" mask-ROM estimate. Repeat it when reporting the result. Keep the "do not
+  disconnect the USB cable or let the host sleep" warning, and if the result is unknown, say the
+  25-minute wait is required before recovery.
 
 ## Contributing
 
