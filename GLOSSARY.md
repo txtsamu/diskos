@@ -20,6 +20,10 @@ _Avoid_: boot mode, loading
 The Player's own configuration database (`sysconfig.db`, table SYSCONFIG, one row). The Player owns it and loads it at start: the UI reads it to seed its own settings, changes only AUTO_TIME in it directly, and resets the work mode column to Local at boot and before handing off to the Player. All access goes through one module (`sysconfig`).
 _Avoid_: sysconfig (a file and table name, not the concept), settings DB, stock config
 
+**Player view**:
+The UI's compact picture of what the Player is doing: title, artist, album, path, position, duration, play state, volume and track ids. It is distinct from the evidence the parser uses to decide whether that picture is current (raw ids, validity flags, the playback token, the Player generation and the sequence numbers). One module (`ipc`) owns both the view and the evidence.
+_Avoid_: player state, track state (the unqualified wire struct)
+
 **SD access**:
 Whether diskOS may read or write the SD card at all. One authority (`sdio`) combines the launcher's launch verdict, the boot-time hold, the storage phase (Local, draining, waiting for a computer, USB Storage, waiting to return, Unknown), the decoder-fault flag and quiesce into a single admission: readers (including art decoder children) and writers are counted together and the card is "drained" only when both reach zero. Fail-closed: Unknown or held stays closed until the next boot. The USB Storage handoff marker file makes the phase survive a UI restart.
 _Avoid_: SD lock, storage mode (that is the Source mode)
@@ -80,6 +84,10 @@ _Avoid_: port mode, network mode
 The path a Working Mode switch takes when it cannot go direct: return to Local Playback, wait for the Player to settle, then enter the target.
 _Avoid_: hop, bounce, auto-switch
 
+**Switch status**:
+The phase of one Working Mode switch as the picker and other callers see it: leaving, waiting for admission, entering, settling, or idle, plus the mode it is going to, the mode it landed on, and why it failed. Owned by `srcswitch`.
+_Avoid_: busy flag, pending (those are how callers used to infer it)
+
 **Output sequence**:
 The ordered set of commands that moves the Player to an output route, a source mode or a Bluetooth sink and leaves it with a valid Player work mode. Its order and timing matter; a sequence that fails part-way can leave the Player on a route the UI does not know about.
 _Avoid_: switch sequence, init
@@ -87,3 +95,13 @@ _Avoid_: switch sequence, init
 **Route policy**:
 What happens to playback when an Output sequence for a route fails part-way. "Recover" restores the internal DAC and resumes; "leave paused" reports the failure and leaves the Player paused. The two differ today by history, not by decision.
 _Avoid_: failure mode
+
+### Power and restart
+
+**Restart**:
+The ordered reboot of the Disc: quiesce SD access, stop readers, save the clock, wait for the card to drain, flush it, optionally arm **Flash mode**, then reboot. One module (`restart`).
+_Avoid_: reboot (the syscall), shutdown (that is power off)
+
+**Flash mode**:
+A restart that arms the mask-ROM USB boot path so the installer can run without holding Vol-Down. The screen stays black until the power key is held again. Chosen from the settings page or the installer.
+_Avoid_: bootloader mode, recovery (that is a different menu)
