@@ -19,6 +19,7 @@
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/reboot.h>
 #include <glob.h>
 #include <dirent.h>
 #include <linux/input.h>
@@ -37,6 +38,7 @@
 #include "usbhid.h"
 #include "session.h"
 #include "srcswitch.h"
+#include "restart.h"
 #include "usbdbg.h"
 #include "coverart.h"
 #include "admit.h"
@@ -457,6 +459,38 @@ static const struct sd_env g_sd_env = {
     .playing = env_playing, .scan_active = scanner_active, .scan_if_library_empty = env_scan_if_library_empty,
     .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
     .toast = ui_toast, .send_source = srcswitch_send_source,
+};
+static pid_t env_restart_spawn(const char *cmd){
+    pid_t p = 0;
+    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
+    return command_spawn(&p, argv) == 0 ? p : -1;
+}
+static int env_restart_wait(pid_t pid, int *status){ return (int)waitpid(pid, status, WNOHANG); }
+static void env_restart_kill(pid_t pid){
+    if(pid <= 0) return;
+    kill(pid, SIGKILL);
+    for(int i = 0; i < 20; i++){
+        if(waitpid(pid, NULL, WNOHANG) == pid) return;
+        usleep(100000);
+    }
+}
+static pid_t env_save_clock(void){
+    ui_timekeep_save_now();
+    return env_restart_spawn("hwclock -w 2>/dev/null");
+}
+static void env_stop_readers(void){ scanner_abort(); art_kill_all(); }
+static int env_reboot_device(void){
+    sync();
+    reboot(RB_AUTOBOOT);
+    char *a[] = { "reboot", NULL };
+    return run_bounded(a, 5000) == 0;
+}
+static const struct restart_env g_restart_env = {
+    .now = lv_tick_get, .card_drained = sd_drained,
+    .quiesce_begin = sd_quiesce_begin, .quiesce_end = sd_quiesce_end,
+    .stop_readers = env_stop_readers, .save_clock = env_save_clock,
+    .spawn = env_restart_spawn, .wait = env_restart_wait, .kill = env_restart_kill,
+    .reboot = env_reboot_device, .toast = ui_toast,
 };
 static void env_charge_limit_reapply(void){
     power_apply_charge(cfg_get_int("charge_protect", 0) ? 1 : 0);
@@ -1563,6 +1597,7 @@ int main(int argc, char **argv){
     outroute_init(&g_outroute_env);
     dacvol_init(&g_dacvol_env);
     srcswitch_set_env(&g_srcswitch_env);
+    restart_set_env(&g_restart_env);
     usbdbg_set_env(&g_usbdbg_env);
     sd_set_env(&g_sd_env);
     admit_set_env(&g_admit_env);

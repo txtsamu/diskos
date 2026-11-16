@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
-#include "command_spawn.h"
 #include "screens.h"
+#include "restart.h"
 #include "theme.h"
 #include "theme_kit.h"
 #include "config.h"
@@ -19,11 +19,9 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <sys/reboot.h>
 #include "sdio.h"
 #include "art.h"
 #include "coverart.h"
@@ -59,17 +57,6 @@ static void kill_and_reap(pid_t p){
     }
     for(int i = 0; i < RST_REAP_MAX; i++) if(g_rst_reap[i] <= 0){ g_rst_reap[i] = p; break; }
     if(!g_rst_reaper) g_rst_reaper = lv_timer_create(rst_reaper_cb, 1000, NULL);
-}
-
-static void bounded_detached(const char *cmd, int ms){
-    pid_t p = 0;
-    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
-    if(command_spawn(&p, argv) != 0 || p <= 0) return;
-    for(int i = 0; i < ms/100; i++){
-        if(waitpid(p, NULL, WNOHANG) == p) return;
-        usleep(100000);
-    }
-    kill_and_reap(p);
 }
 
 typedef enum { ST_TOGGLE, ST_SLIDER, ST_CYCLER, ST_READONLY, ST_ACTION, ST_CHOICE, ST_PAGE } st_type_t;
@@ -361,96 +348,28 @@ static void apply_boot_default(int v){
 
 static lv_obj_t *g_boot_modal;
 static void boot_modal_close(void){ if(g_boot_modal){ lv_obj_delete_async(g_boot_modal); g_boot_modal = NULL; } }
-static lv_timer_t *g_rst_timer;
-static int g_rst_flash;
-static void boot_cancel_cb(lv_event_t *e){ if(lv_event_get_code(e)==LV_EVENT_CLICKED && !g_rst_timer){ g_rst_flash = 0; boot_modal_close(); } }
-#define RESTART_WRITERS_MS 10000
-#define RESTART_SYNC_MS    15000
-static int         g_rst_phase;
-static uint32_t    g_rst_t0;
-static pid_t       g_rst_sync, g_rst_clock;
-static pid_t spawn_detached(const char *cmd){
-    pid_t p = 0;
-    char *argv[] = { "/bin/sh", "-c", (char *)cmd, NULL };
-    return command_spawn(&p, argv) == 0 ? p : -1;
-}
-static void stop_child(pid_t *p){ kill_and_reap(*p); *p = 0; }
-static void restart_fail(const char *why){
-    g_rst_flash = 0;
-    fprintf(stderr, "restart: not done: %s\n", why); fflush(stderr);
-    stop_child(&g_rst_sync); stop_child(&g_rst_clock);
-    if(g_rst_timer){ lv_timer_delete(g_rst_timer); g_rst_timer = NULL; }
-    sd_quiesce_end();
-    boot_modal_close();
-    ui_toast(why);
-}
-#ifdef DISKOS_SWB_FLASHMODE
-#define SWB_REG_PAGE 0x10000000u
-#define SWB_REG_OFF  0xCCu
-#define SWB_USB_BOOT 0x42575302u
-static int swb_arm(void){
-    int mem = open("/dev/mem", O_RDWR | O_SYNC);
-    if(mem < 0) return -1;
-    void *map = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, mem, SWB_REG_PAGE);
-    close(mem);
-    if(map == MAP_FAILED) return -1;
-    volatile uint32_t *reg = (volatile uint32_t *)((char *)map + SWB_REG_OFF);
-    *reg = SWB_USB_BOOT;
-    int ok = *reg == SWB_USB_BOOT;
-    munmap(map, 4096);
-    return ok ? 0 : -1;
-}
-#endif
-static void restart_tick(lv_timer_t *t){
+static int g_restart_next_flash;
+static void restart_poll_cb(lv_timer_t *t){
     (void)t;
-    rst_reap_sweep();
-    if(g_rst_phase == 0){
-        if(sd_drained()){
-            g_rst_sync = spawn_detached("sync");
-            if(g_rst_sync <= 0){ g_rst_sync = 0; restart_fail("Couldn't restart - try again"); return; }
-            g_rst_phase = 1; g_rst_t0 = lv_tick_get();
-        } else if(lv_tick_elaps(g_rst_t0) >= RESTART_WRITERS_MS){
-            restart_fail("Couldn't restart - card busy, try again");
-        }
-        return;
-    }
-    int st = 0;
-    pid_t w = waitpid(g_rst_sync, &st, WNOHANG);
-    if(w == g_rst_sync){
-        g_rst_sync = 0;
-        if(!WIFEXITED(st) || WEXITSTATUS(st) != 0){ restart_fail("Couldn't restart - card flush failed"); return; }
-        stop_child(&g_rst_clock);
-#ifdef DISKOS_SWB_FLASHMODE
-        if(g_rst_flash && swb_arm() != 0){ g_rst_flash = 0; restart_fail("Couldn't set flash mode - not restarted"); return; }
-#endif
-        fprintf(stderr, "restart: card drained and synced, rebooting the Disc now\n"); fflush(stderr);
-        reboot(RB_AUTOBOOT);
-        bounded_detached("reboot", 5000);
-        restart_fail("Couldn't restart - try again");
-        return;
-    }
-    if(lv_tick_elaps(g_rst_t0) >= RESTART_SYNC_MS) restart_fail("Couldn't restart - card busy, try again");
+    restart_tick();
+    if(!restart_busy()) lv_timer_delete(t);
 }
-static void restart_begin(void);
+static void restart_go(void){
+    restart_kind_t kind = g_restart_next_flash ? RESTART_FLASH : RESTART_UI;
+    g_restart_next_flash = 0;
+    if(restart_begin(kind) != 0) return;
+    lv_timer_create(restart_poll_cb, 100, NULL);
+}
+void settings_restart_now(void){
+    if(restart_begin(RESTART_UI) != 0) return;
+    lv_timer_create(restart_poll_cb, 100, NULL);
+}
+static void boot_cancel_cb(lv_event_t *e){
+    if(lv_event_get_code(e)==LV_EVENT_CLICKED && !restart_busy()){ g_restart_next_flash = 0; boot_modal_close(); }
+}
 static void boot_confirm_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
-    restart_begin();
-}
-void settings_restart_now(void){ restart_begin(); }
-static void restart_begin(void){
-    if(g_rst_timer) return;
-    if(rst_reap_free() < 3){ ui_toast("Couldn't restart - try again"); return; }
-    sd_quiesce_begin();
-    scanner_abort();
-    art_kill_all();
-    ui_timekeep_save_now();
-    g_rst_clock = spawn_detached("hwclock -w 2>/dev/null");
-    if(g_rst_clock < 0) g_rst_clock = 0;
-    g_rst_phase = 0; g_rst_t0 = lv_tick_get();
-    fprintf(stderr, "restart: requested (flash mode %d), draining the card\n", g_rst_flash); fflush(stderr);
-    g_rst_timer = lv_timer_create(restart_tick, 100, NULL);
-    if(!g_rst_timer){ restart_fail("Couldn't restart - try again"); return; }
-    ui_toast("Restarting...");
+    restart_go();
 }
 static void boot_modal_pill(lv_obj_t *card, int x, const char *txt, theme_color_role_t col, lv_event_cb_t cb){
     lv_obj_t *b = lv_button_create(card);
@@ -472,7 +391,7 @@ static void apply_restart_flash(int v);
 #endif
 static const char *g_restart_note;
 static void apply_restart(int v){ (void)v;
-    g_rst_flash = 0;
+    g_restart_next_flash = 0;
     boot_modal_close();
     g_boot_modal = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(g_boot_modal);
@@ -856,7 +775,7 @@ void settings_diskos_id(char *buf, int n){ read_about(buf, n); }
 static void apply_restart_flash(int v){
     g_restart_note = "Restarts into flash mode for the diskOS installer. The screen stays black; hold the power key to leave.";
     apply_restart(v);
-    g_rst_flash = 1;
+    g_restart_next_flash = 1;
 }
 #endif
 void settings_restart_prompt(const char *note){ g_restart_note = note; apply_restart(0); }
