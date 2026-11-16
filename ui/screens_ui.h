@@ -114,7 +114,7 @@ void eqcustom_refresh(void);
 void settings_open_detail(int idx);
 void settings_open_key(const char *key);
 void search_create(lv_obj_t *root);
-int  ui_play_book(const char *path, long resume_ms);  
+int  ui_play_book(const char *path, long resume_ms);
 void ui_create(lv_obj_t *root);
 void ui_update(const player_view_t *st, const player_evidence_t *ev);
 void ui_art_poll(lv_timer_t *t);
