@@ -220,7 +220,7 @@ void outroute_bt_forget(void){
 
 static void out_resume(int moved){
     if(!g_osw.was_playing) return;
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     if(moved && (ipc_generation() != g_osw.gen || !st.have_track || strcmp(st.path, g_osw.path) != 0)){ E->toast("Output switched - press play"); return; }
     if(moved && g_osw.pos > 0 && E->seek_to(g_osw.pos) < 0){ E->toast("Couldn't resume - press play"); return; }
     if(ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) E->toast("Couldn't resume - press play");
@@ -345,7 +345,7 @@ static void osw_stop(const char *why, int resume){
     notify();
 }
 static void osw_tick(void){
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     if(ipc_generation() != g_osw.gen){ osw_stop("Player restarted - try again", 0); return; }
     if(strcmp(st.path, g_osw.path) != 0){ osw_stop("Track changed - try again", 0); return; }
     if(elapsed(g_osw.t0) >= OUT_WAIT_MS){ osw_stop("Player is busy - try again", 0); return; }
@@ -367,7 +367,7 @@ int outroute_pick(int target, outroute_how_t how){
     const char *why = E->switch_blocked();
     if(why){ outroute_set(outroute_route()); E->toast(why); return -1; }
     int was_playing = E->playing();
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     memset(&g_osw, 0, sizeof g_osw);
     g_osw.target = target; g_osw.was_playing = was_playing;
     g_osw.full = how != OUTROUTE_SETTING || target == OUT_USB || outroute_route() == OUT_USB;
@@ -396,7 +396,7 @@ void outroute_tick(void){
 typedef outseq_rc (*step_fn)(const outroute_held_t *held, void *arg);
 static int leave_paused_switch(step_fn step, void *arg, outroute_held_t *held){
     outroute_held_t h;
-    ipc_get_state(&h.st);
+    ipc_get_view(&h.st);
     h.was_playing = E->playing();
     if(held) *held = h;
     if(h.was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0) return OUTROUTE_NOT_PAUSED;

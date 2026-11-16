@@ -5,7 +5,7 @@
 #include "lvgl/lvgl.h"
 #include "ipc.h"
 void ui_create(lv_obj_t *root);
-void ui_update(const track_state_t *st);
+void ui_update(const player_view_t *st, const player_evidence_t *ev);
 const char *ui_current_cover_src(void);
 void ui_set_np_style(int vinyl);
 void ui_vinyl_spin(int want);

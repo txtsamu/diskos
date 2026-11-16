@@ -17,12 +17,13 @@ static char g_log[MAXF][48];
 static int g_n, k_send_rc, k_tx_waiting, g_note_playback, g_transport_at_admit;
 static uint32_t k_now;
 static unsigned k_gen = 1, k_tseq = 1;
-static track_state_t S;
+static player_view_t S;
+static player_evidence_t E;
 
 static uint32_t env_now(void){ return k_now; }
 static unsigned env_gen(void){ return k_gen; }
 static unsigned env_tseq(void){ return k_tseq; }
-static void env_state(track_state_t *out){ *out = S; }
+static void env_get_now(player_view_t *view, player_evidence_t *ev){ *view = S; *ev = E; }
 static int env_tx_waiting(void){ return k_tx_waiting; }
 static int env_send(const char *frame){
     assert(g_n < MAXF);
@@ -38,14 +39,15 @@ static admit_sent_t env_admit(admit_play_t kind){
 }
 static void env_note_playback(void){ g_note_playback++; }
 static const struct playreq_env k_env = {
-    .now = env_now, .generation = env_gen, .transport_seq = env_tseq, .get_state = env_state,
+    .now = env_now, .generation = env_gen, .transport_seq = env_tseq, .get_now = env_get_now,
     .tx_waiting = env_tx_waiting, .send = env_send, .admit_start = env_admit, .note_playback = env_note_playback,
 };
 
 static void setup(void){
     playreq_set_env(&k_env);
     k_now = 1000;
-    S = (track_state_t){ 0 };
+    S = (player_view_t){ 0 };
+    E = (player_evidence_t){ 0 };
 }
 static void expect_log(const char *what, const char *const *want, int n){
     int ok = g_n == n;
@@ -57,10 +59,10 @@ static void expect_log(const char *what, const char *const *want, int n){
         assert(0);
     }
 }
-static int tick_at(uint32_t t){ k_now = t; return playreq_tick(&S); }
+static int tick_at(uint32_t t){ k_now = t; return playreq_tick(&S, &E); }
 static void shows_track(uint64_t token, unsigned pos_seq, long pos){
-    S.have_track = 1; S.player_confirmed = 1; S.provisional = 0;
-    S.playback_token = token; S.path_seq = 1; S.pos_seq = pos_seq; S.position_ms = pos; S.duration_ms = 200000;
+    S.have_track = 1; E.player_confirmed = 1; E.provisional = 0;
+    E.playback_token = token; E.path_seq = 1; E.pos_seq = pos_seq; S.position_ms = pos; S.duration_ms = 200000;
 }
 static void arm_idle(void){
     setup();
@@ -270,7 +272,7 @@ static void pcm_observations_are_cached_for_half_a_second(void){
 }
 static void a_new_player_or_a_new_transport_attempt_supersedes_the_request(void){
     arm_idle();
-    S.player_generation = 3;
+    E.player_generation = 3;
     assert(tick_at(2000) == 0 && !playreq_pending());
     arm_idle();
     k_tseq++;

@@ -30,7 +30,7 @@ int ipc_send_cmd(const char *frame){
 unsigned ipc_generation(void){ return g_gen; }
 int ipc_is_ready(void){ return 1; }
 static struct { int have_track; long pos; int volume; unsigned volume_seq; char path[64]; } g_trk;
-void ipc_get_state(track_state_t *out){
+void ipc_get_view(player_view_t *out){
     memset(out, 0, sizeof *out);
     out->have_track = g_trk.have_track; out->position_ms = g_trk.pos; out->volume = g_trk.volume; out->volume_seq = g_trk.volume_seq;
     snprintf(out->path, sizeof out->path, "%s", g_trk.have_track ? g_trk.path : "");

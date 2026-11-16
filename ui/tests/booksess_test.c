@@ -12,7 +12,8 @@ static int fails = 0;
 #define OTHER "/mnt/sd/music/x.flac"
 
 static uint32_t now;
-static track_state_t st;
+static player_view_t st;
+static player_evidence_t ev;
 static int playing;
 static const char *admit_why;
 static int seeks, seek_rc, seek_last = -1;
@@ -29,7 +30,7 @@ static int ended_n, shutdown_n;
 
 static uint32_t f_now(void){ return now; }
 static const char *f_admit(void){ return admit_why; }
-static void f_get_state(track_state_t *out){ *out = st; }
+static void f_get_now(player_view_t *view, player_evidence_t *evout){ *view = st; *evout = ev; }
 static int f_playing(void){ return playing; }
 static int f_seek_to(long ms){ seeks++; seek_last = (int)ms; return seek_rc; }
 static int f_playpause(void){ playpauses++; return playpause_rc; }
@@ -42,7 +43,7 @@ static void f_ended(void){ ended_n++; }
 static void f_shutdown(void){ shutdown_n++; }
 
 static const struct booksess_env env = {
-    .now = f_now, .admit = f_admit, .get_state = f_get_state, .playing = f_playing, .seek_to = f_seek_to,
+    .now = f_now, .admit = f_admit, .get_now = f_get_now, .playing = f_playing, .seek_to = f_seek_to,
     .playpause = f_playpause, .is_book_path = f_is_book_path, .book_progress = f_progress, .book_save = f_save,
     .adopted = f_adopted, .sleep_action = f_sleep_action, .sleep_ended = f_ended, .shutdown = f_shutdown,
 };
@@ -53,8 +54,8 @@ static void track(const char *path, long pos, long dur){
     snprintf(st.path, sizeof st.path, "%s", path);
     st.position_ms = pos;
     st.duration_ms = dur;
-    st.path_seq = 10;
-    st.pos_seq = 11;
+    ev.path_seq = 10;
+    ev.pos_seq = 11;
 }
 
 static void clear_fakes(void){
@@ -119,7 +120,7 @@ static void test_confirm_and_checkpoint(void){
     track(B, 0, 100000);
     now += 20000; booksess_tick();
     CHECK(saves == 2, "checkpoint: zero position is never saved");
-    st.pos_seq = st.path_seq;
+    ev.pos_seq = ev.path_seq;
     st.position_ms = 70000;
     now += 20000; booksess_tick();
     CHECK(saves == 2, "checkpoint: stale position (pos_seq not after path_seq) is never saved");
@@ -325,7 +326,7 @@ static void test_cancel_flush(void){
     reset();
     booksess_begin(B, 0);
     track(B, 7000, 100000);
-    st.pos_seq = st.path_seq;
+    ev.pos_seq = ev.path_seq;
     ui_cancel_book_resume();
     CHECK(saves == 0, "cancel: stale position not flushed");
 

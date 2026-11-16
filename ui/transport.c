@@ -34,7 +34,7 @@ int ui_transport_command(const char *cmd)
     { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
     ui_defer_sleep();
     if(is_next || is_prev){
-        track_state_t st; ipc_get_state(&st);
+        player_view_t st; ipc_get_view(&st);
         if(mdb_is_book_path(st.path)){
             long tgt = st.position_ms + (is_next ? 30000 : -15000);
             if(tgt < 0) tgt = 0;

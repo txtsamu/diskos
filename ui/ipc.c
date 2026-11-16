@@ -17,6 +17,33 @@
 
 static mqd_t g_rx=(mqd_t)-1, g_tx=(mqd_t)-1;
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
+
+typedef struct {
+    char title[IPC_TITLE_CAPACITY];
+    char artist[160];
+    char album[160];
+    char playing_num[24];
+    char work_mode[24];
+    char path[256];
+    long duration_ms;
+    long position_ms;
+    int  state;
+    int  have_track;
+    int  pos_id;
+    int  sample_rate;
+    int  is_dsd;
+    int  is_favorite;
+    int  volume;
+    unsigned volume_seq;
+    uint64_t song_id_raw, pos_id_raw, playback_token;
+    unsigned song_id_valid, pos_id_valid, is_cue_valid, is_sacd_valid;
+    int is_cue, is_sacd, player_confirmed, provisional, title_ready;
+    unsigned player_generation;
+    unsigned seq;
+    unsigned path_seq;
+    unsigned pos_seq;
+} track_state_t;
+
 static track_state_t g_state;
 
 static pthread_mutex_t g_recov_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -26,7 +53,6 @@ static int g_rx_reopen   = 0;
 static int g_reconnected = 0;
 static unsigned g_rx_frames = 0;
 static unsigned g_generation = 0;
-static int g_player_mode = -1;
 static dev_t g_tx_dev = 0;  static ino_t g_tx_ino = 0;
 static int g_tx_stale    = 0;
 static int g_thread_started = 0;
@@ -382,11 +408,6 @@ static void parse_frame(const char*buf,int n){
         if(!all_hex(h,2)) return;
         int v=(int)strtol(h,0,16);
         pthread_mutex_lock(&g_mu); g_state.volume=v; g_state.volume_seq++; pthread_mutex_unlock(&g_mu);
-    } else if(buf[0]=='a'&&buf[1]=='6'&&buf[2]=='0'&&buf[3]=='7' && n>=12){
-        char h[5]={buf[8],buf[9],buf[10],buf[11],0};
-        if(!all_hex(h,4)) return;
-        int mode=(int)strtol(h,0,16);
-        pthread_mutex_lock(&g_recov_mu); g_player_mode=mode; pthread_mutex_unlock(&g_recov_mu);
     }
 }
 
@@ -413,7 +434,7 @@ static int rx_do_reopen(void){
     g_rx = nw;
     dev_t d=0; ino_t io=0; mq_identity(nw, &d, &io);
     pthread_mutex_lock(&g_recov_mu);
-    g_rx_dev = d; g_rx_ino = io; g_rx_ready = 1; g_reconnected = 1; g_player_mode = -1; screen_new_generation();
+    g_rx_dev = d; g_rx_ino = io; g_rx_ready = 1; g_reconnected = 1; screen_new_generation();
     unsigned generation=g_generation;
     pthread_mutex_unlock(&g_recov_mu);
     pthread_mutex_lock(&g_mu);
@@ -509,10 +530,6 @@ unsigned ipc_rx_frames(void){
     pthread_mutex_lock(&g_recov_mu); unsigned r=g_rx_frames; pthread_mutex_unlock(&g_recov_mu);
     return r;
 }
-int ipc_player_mode(void){
-    pthread_mutex_lock(&g_recov_mu); int r=g_player_mode; pthread_mutex_unlock(&g_recov_mu);
-    return r;
-}
 void ipc_screen_snapshot(int *on, unsigned *scr_seq, unsigned *poweroff_seq, unsigned *generation){
     pthread_mutex_lock(&g_recov_mu);
     if(on) *on=g_scr_on; if(scr_seq) *scr_seq=g_scr_seq; if(poweroff_seq) *poweroff_seq=g_aa03_seq;
@@ -523,45 +540,66 @@ unsigned ipc_generation(void){
     pthread_mutex_lock(&g_recov_mu); unsigned r=g_generation; pthread_mutex_unlock(&g_recov_mu);
     return r;
 }
-void ipc_get_state(track_state_t*out){
-    pthread_mutex_lock(&g_mu); *out=g_state; pthread_mutex_unlock(&g_mu);
+static void copy_view(player_view_t *v, const track_state_t *s){
+    memset(v, 0, sizeof *v);
+    snprintf(v->title, sizeof v->title, "%s", s->title);
+    snprintf(v->artist, sizeof v->artist, "%s", s->artist);
+    snprintf(v->album, sizeof v->album, "%s", s->album);
+    snprintf(v->playing_num, sizeof v->playing_num, "%s", s->playing_num);
+    snprintf(v->work_mode, sizeof v->work_mode, "%s", s->work_mode);
+    snprintf(v->path, sizeof v->path, "%s", s->path);
+    v->duration_ms = s->duration_ms;
+    v->position_ms = s->position_ms;
+    v->state = s->state;
+    v->have_track = s->have_track;
+    v->pos_id = s->pos_id;
+    v->sample_rate = s->sample_rate;
+    v->is_dsd = s->is_dsd;
+    v->is_favorite = s->is_favorite;
+    v->is_cue = s->is_cue;
+    v->is_sacd = s->is_sacd;
+    v->volume = s->volume;
+    v->volume_seq = s->volume_seq;
+    v->seq = s->seq;
+    v->title_ready = s->title_ready;
 }
+
+static void copy_evidence(player_evidence_t *e, const track_state_t *s){
+    *e = (player_evidence_t){
+        .song_id_raw = s->song_id_raw, .pos_id_raw = s->pos_id_raw, .playback_token = s->playback_token,
+        .song_id_valid = s->song_id_valid, .pos_id_valid = s->pos_id_valid,
+        .is_cue_valid = s->is_cue_valid, .is_sacd_valid = s->is_sacd_valid,
+        .player_generation = s->player_generation, .path_seq = s->path_seq, .pos_seq = s->pos_seq,
+        .player_confirmed = s->player_confirmed, .provisional = s->provisional,
+    };
+}
+
+void ipc_get_now(player_view_t *view, player_evidence_t *ev){
+    pthread_mutex_lock(&g_mu);
+    if(view) copy_view(view, &g_state);
+    if(ev) copy_evidence(ev, &g_state);
+    pthread_mutex_unlock(&g_mu);
+}
+void ipc_get_view(player_view_t *view){ ipc_get_now(view, NULL); }
 void ipc_get_title_event(ipc_title_event *out){
     pthread_mutex_lock(&g_mu);
-    out->state=g_state; strcpy(out->player_title,g_stock_title); out->evidence_revision=g_title_revision;
+    copy_view(&out->view, &g_state); copy_evidence(&out->ev, &g_state);
+    strcpy(out->player_title, g_stock_title); out->evidence_revision = g_title_revision;
     pthread_mutex_unlock(&g_mu);
 }
 int ipc_publish_title(ipc_title_event *event, const char *title, int freeze){
     pthread_mutex_lock(&g_mu);
-    int accepted=g_state.player_confirmed && g_state.playback_token==event->state.playback_token &&
-        g_title_revision==event->evidence_revision;
+    int accepted = g_state.player_confirmed && g_state.playback_token == event->ev.playback_token &&
+        g_title_revision == event->evidence_revision;
     if(accepted){
-        snprintf(g_state.title,sizeof g_state.title,"%s",freeze ? title : g_stock_title);
-        g_title_frozen=freeze; g_title_stock=!freeze; g_state.title_ready=1; g_state.seq++;
+        snprintf(g_state.title, sizeof g_state.title, "%s", freeze ? title : g_stock_title);
+        g_title_frozen = freeze; g_title_stock = !freeze; g_state.title_ready = 1; g_state.seq++;
     } else {
-        event->state=g_state; strcpy(event->player_title,g_stock_title);
-        event->evidence_revision=g_title_revision;
+        copy_view(&event->view, &g_state); copy_evidence(&event->ev, &g_state);
+        strcpy(event->player_title, g_stock_title); event->evidence_revision = g_title_revision;
     }
     pthread_mutex_unlock(&g_mu);
     return accepted;
-}
-void ipc_seed_state(const track_state_t *s){
-    if(!s) return;
-    pthread_mutex_lock(&g_mu);
-    if(!g_state.have_track){
-        snprintf(g_state.title,  sizeof g_state.title,  "%s", s->title);
-        snprintf(g_state.artist, sizeof g_state.artist, "%s", s->artist);
-        snprintf(g_state.album,  sizeof g_state.album,  "%s", s->album);
-        snprintf(g_state.path,   sizeof g_state.path,   "%s", s->path);
-        g_state.duration_ms = s->duration_ms;
-        g_state.position_ms = s->position_ms;
-        g_state.state       = s->state;
-        g_state.is_favorite = s->is_favorite;
-        g_state.have_track  = 1;
-        g_state.provisional = 1; g_state.player_confirmed = 0; g_state.title_ready = 0;
-        g_state.seq++;
-    }
-    pthread_mutex_unlock(&g_mu);
 }
 static volatile int g_send_err = 0;
 
@@ -681,8 +719,6 @@ int ipc_send_cmd(const char*frame){
     if(g_quiet_n > 0){ int r = ipc_send_internal(frame, 1); if(r < 0) g_quiet_fails++; return r; }
     return ipc_send_internal(frame, 0);
 }
-int ipc_send_cmd_unsafe(const char*frame){ return ipc_send_raw(frame, 0); }
-int ipc_send_quiet(const char*frame){ return ipc_send_internal(frame, 1); }
 int ipc_send_probe(const char*frame){
     long d = tx_depth();
     if(g_txn > 0 || d >= 2) return 0;

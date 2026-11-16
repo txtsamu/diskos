@@ -24,7 +24,7 @@ int ipc_send_cmd(const char *frame){
 }
 unsigned ipc_generation(void){ return 1; }
 int ipc_is_ready(void){ return 1; }
-void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); }
+void ipc_get_view(player_view_t *out){ memset(out, 0, sizeof *out); }
 static struct { char key[24]; int v; } g_cfg[8]; static int g_ncfg;
 int cfg_get_int(const char *key, int def){ for(int i = 0; i < g_ncfg; i++) if(!strcmp(g_cfg[i].key, key)) return g_cfg[i].v; return def; }
 int cfg_set_int(const char *key, int v){

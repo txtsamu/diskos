@@ -11,7 +11,7 @@
 struct booksess_env {
     uint32_t    (*now)(void);
     const char *(*admit)(void);
-    void        (*get_state)(track_state_t *out);
+    void        (*get_now)(player_view_t *view, player_evidence_t *ev);
     int         (*playing)(void);
     int         (*seek_to)(long ms);
     int         (*playpause)(void);

@@ -383,7 +383,7 @@ int ui_np_seek_release(int x, int y){
     (void)x; (void)y;
     int consumed = 0;
     if(g_seek_on && g_scrub_path[0]){
-        track_state_t s; ipc_get_state(&s);
+        player_view_t s; ipc_get_view(&s);
         if(strcmp(g_scrub_path, s.path) != 0){
             g_seek_cand = 0; g_seek_on = 0; g_scrubbing = 0;
             seek_show(shown_progress);
@@ -826,7 +826,7 @@ static uint32_t    g_accent_color = 0xF23260;
 static uint32_t    g_static_last  = 0xFFFFFFFFu;
 int ui_accent_is_static(void){ return g_accent_mode == 1; }
 
-static void update_accent_seed(const track_state_t *st)
+static void update_accent_seed(const player_view_t *st)
 {
     if(g_accent_mode == 1){
         if(g_static_last != g_accent_color){
@@ -938,7 +938,7 @@ static chapter_t g_chaps[NP_MAXCHAP];
 static int       g_nchaps;
 static char      g_chap_path[256];
 
-static int book_meta_line(const track_state_t *st, char *out, int cap)
+static int book_meta_line(const player_view_t *st, char *out, int cap)
 {
     if(!mdb_is_book_path(st->path)) return 0;
     if(strcmp(g_chap_path, st->path) != 0){
@@ -967,7 +967,7 @@ static void np_transport_glyphs(int book)
     lv_label_set_text(btn_next, book ? "+30" : LV_SYMBOL_NEXT);
 }
 
-static long book_cur_chapter_end(const track_state_t *st)
+static long book_cur_chapter_end(const player_view_t *st)
 {
     if(strcmp(g_chap_path, st->path) != 0){
         g_nchaps = scan_read_chapters(st->path, g_chaps, NP_MAXCHAP);
@@ -980,7 +980,7 @@ static long book_cur_chapter_end(const track_state_t *st)
     return st->duration_ms > 0 ? st->duration_ms : g_chaps[cur].start_ms;
 }
 
-static int book_chapter_window(const track_state_t *st, long *lo, long *hi)
+static int book_chapter_window(const player_view_t *st, long *lo, long *hi)
 {
     if(!mdb_is_book_path(st->path)) return 0;
     if(strcmp(g_chap_path, st->path) != 0){
@@ -1012,7 +1012,7 @@ static void sleep_opt_cb(lv_event_t *e)
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     int v = (int)(intptr_t)lv_event_get_user_data(e);
     if(v == -1){
-        track_state_t st; ipc_get_state(&st);
+        player_view_t st; ipc_get_view(&st);
         if(!mdb_is_book_path(st.path)){ ui_set_sleep_timer(0); ui_np_close_overlays(); return; }
         long tgt = book_cur_chapter_end(&st);
         int at_end = (st.duration_ms > 0 && tgt >= st.duration_ms);
@@ -1088,7 +1088,7 @@ static void sleep_click_cb(lv_event_t *e)
     }
 }
 
-static void make_art_key(const track_state_t *st, char *out, int cap)
+static void make_art_key(const player_view_t *st, char *out, int cap)
 {
     if(mdb_is_book_path(st->path)){ snprintf(out, cap, "%s", st->path); return; }
     char dir[256]; snprintf(dir, sizeof dir, "%s", st->path);
@@ -1109,16 +1109,16 @@ void ui_np_enter(void)
     if (!strcmp(theme_kit()->id, "bauhaus")) sharp_cover_request();
 }
 
-static void update_cover_for_path(const track_state_t *st)
+static void update_cover_for_path(const player_view_t *st, const player_evidence_t *ev)
 {
     int path_changed = strcmp(last_path, st->path) != 0;
-    int identity_changed = st->playback_token != g_art_token ||
-                           st->player_generation != g_art_generation;
+    int identity_changed = ev->playback_token != g_art_token ||
+                           ev->player_generation != g_art_generation;
     if(path_changed) g_np_small_valid = 0;
     sharp_cover_set_source(st->path);
     if(path_changed || identity_changed){
-        g_art_token = st->playback_token;
-        g_art_generation = st->player_generation;
+        g_art_token = ev->playback_token;
+        g_art_generation = ev->player_generation;
         g_art_title_pending = st->have_track && !st->title_ready &&
                               cfg_get_int("online_art", 0);
     }
@@ -1176,7 +1176,7 @@ void ui_art_poll(lv_timer_t *t)
 {
     (void)t;
     if(g_art_title_pending){
-        track_state_t st; ipc_get_state(&st); update_cover_for_path(&st);
+        player_view_t st; player_evidence_t ev; ipc_get_now(&st, &ev); update_cover_for_path(&st, &ev);
     }
     if(coverart_online_ready(last_path, cfg_get_int("online_art", 0))) ui_art_retry();
     coverart_job_t res;
@@ -1533,7 +1533,7 @@ void ui_create(lv_obj_t *root)
     ui_set_np_style(cfg_get_int("np_style", 0));
 }
 
-void ui_update(const track_state_t *st)
+void ui_update(const player_view_t *st, const player_evidence_t *ev)
 {
     char elapsed_buf[12];
     char remain_core[12];
@@ -1568,7 +1568,7 @@ void ui_update(const track_state_t *st)
         return;
     }
 
-    update_cover_for_path(st);
+    update_cover_for_path(st, ev);
     update_accent_seed(st);
 
     if(st->state==2 && st->path[0] && strcmp(g_stat_path, st->path) != 0){

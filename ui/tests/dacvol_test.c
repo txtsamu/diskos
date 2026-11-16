@@ -9,7 +9,7 @@
 #include <string.h>
 
 static struct { int vol; unsigned seq; } g_p;
-void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); out->volume = g_p.vol; out->volume_seq = g_p.seq; }
+void ipc_get_view(player_view_t *out){ memset(out, 0, sizeof *out); out->volume = g_p.vol; out->volume_seq = g_p.seq; }
 static struct { char key[24]; int v; } g_cfg[8]; static int g_ncfg;
 int cfg_get_int(const char *key, int def){ for(int i = 0; i < g_ncfg; i++) if(!strcmp(g_cfg[i].key, key)) return g_cfg[i].v; return def; }
 int cfg_set_int(const char *key, int v){

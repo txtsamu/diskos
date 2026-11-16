@@ -311,12 +311,14 @@ static int show_timed(const char *lrc)
     return 1;
 }
 
+typedef struct { player_view_t view; player_evidence_t ev; } now_state_t;
+
 static long lyrics_position(void)
 {
-    track_state_t st; ipc_get_state(&st);
+    now_state_t st; ipc_get_now(&st.view, &st.ev);
     uint32_t now = lv_tick_get();
-    if(st.pos_seq != g_last_pos_seq || st.position_ms != g_pos_base){
-        g_last_pos_seq = st.pos_seq; g_pos_base = st.position_ms; g_pos_tick = now;
+    if(st.ev.pos_seq != g_last_pos_seq || st.view.position_ms != g_pos_base){
+        g_last_pos_seq = st.ev.pos_seq; g_pos_base = st.view.position_ms; g_pos_tick = now;
     }
     long est = g_pos_base;
     if(ui_is_playing()){ uint32_t d = now - g_pos_tick; est += d > 1500 ? 1500 : (long)d; }
@@ -351,12 +353,12 @@ static void scroll_cb(lv_event_t *e)
         { g_holding = 1; g_hold_until = lv_tick_get() + 4000; }
 }
 
-static void lyrics_query(const track_state_t *st)
+static void lyrics_query(const now_state_t *st)
 {
     char title[IPC_TITLE_CAPACITY] = "", artist[200] = "";
-    int ready = !st->have_track || st->title_ready;
-    if(ready) snprintf(title, sizeof title, "%s", st->title);
-    snprintf(artist, sizeof artist, "%s", st->artist);
+    int ready = !st->view.have_track || st->view.title_ready;
+    if(ready) snprintf(title, sizeof title, "%s", st->view.title);
+    snprintf(artist, sizeof artist, "%s", st->view.artist);
     if(ready && !title[0]){
         mdb_song_t cur; int pm, pl;
         if(mdb_current_play(&cur, &pm, &pl)){
@@ -372,11 +374,11 @@ static void lyrics_query(const track_state_t *st)
 void lyrics_open(void)
 {
     g_req++;
-    track_state_t st; ipc_get_state(&st);
+    now_state_t st; ipc_get_now(&st.view, &st.ev);
     g_local_done = g_local_found = 0;
-    g_title_pending = st.have_track && !st.title_ready;
-    g_token = st.playback_token; g_generation = st.player_generation;
-    snprintf(g_path, sizeof g_path, "%s", st.path);
+    g_title_pending = st.view.have_track && !st.view.title_ready;
+    g_token = st.ev.playback_token; g_generation = st.ev.player_generation;
+    snprintf(g_path, sizeof g_path, "%s", st.view.path);
     lyrics_query(&st);
     show_text("Checking SD card...", 1);
     screen_show(SCR_LYRICS);
@@ -384,14 +386,14 @@ void lyrics_open(void)
     else show_text("No track playing.", 1);
 }
 
-static void lyrics_commit_title(const track_state_t *st)
+static void lyrics_commit_title(const now_state_t *st)
 {
-    if(!st->have_track){ g_title_pending = 0; return; }
-    if(st->playback_token != g_token || st->player_generation != g_generation){
-        g_token = st->playback_token; g_generation = st->player_generation;
-        g_title_pending = !st->title_ready;
+    if(!st->view.have_track){ g_title_pending = 0; return; }
+    if(st->ev.playback_token != g_token || st->ev.player_generation != g_generation){
+        g_token = st->ev.playback_token; g_generation = st->ev.player_generation;
+        g_title_pending = !st->view.title_ready;
     }
-    if(!g_title_pending || !st->title_ready || strcmp(st->path, g_path)) return;
+    if(!g_title_pending || !st->view.title_ready || strcmp(st->view.path, g_path)) return;
     pthread_mutex_lock(&g_ly_mu);
     int waiting = g_linflight || g_lready;
     pthread_mutex_unlock(&g_ly_mu);
@@ -406,8 +408,8 @@ void lyrics_poll(lv_timer_t *t)
 {
     (void)t;
     if(screen_current() == SCR_LYRICS){
-        track_state_t st; ipc_get_state(&st);
-        if(st.path[0] && strcmp(st.path, g_path)){ lyrics_open(); return; }
+        now_state_t st; ipc_get_now(&st.view, &st.ev);
+        if(st.view.path[0] && strcmp(st.view.path, g_path)){ lyrics_open(); return; }
         lyrics_commit_title(&st);
     }
     int on = screen_current() == SCR_LYRICS;

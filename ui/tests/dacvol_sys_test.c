@@ -16,7 +16,7 @@
 #define D DACVOL_TEST_DIR
 
 #include "ipc.h"
-void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); }
+void ipc_get_view(player_view_t *out){ memset(out, 0, sizeof *out); }
 int cfg_get_int(const char *key, int def){ (void)key; return def; }
 int cfg_set_int(const char *key, int v){ (void)key; (void)v; return 0; }
 

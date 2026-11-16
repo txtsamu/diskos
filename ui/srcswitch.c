@@ -306,7 +306,7 @@ static int source_switch(int mode, int exit_done){
     if(sd_host_owned()) return sd_return_begin(mode);
     int was_playing = E->playing();
     if(was_playing && ipc_send_cmd(PLAYER_CMD_PLAYPAUSE) < 0){ E->toast("Player is busy - try again"); return -1; }
-    if(session_source_mode() == SRCSWITCH_MODE_LOCAL && mode != SRCSWITCH_MODE_LOCAL){ track_state_t vs; ipc_get_state(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }
+    if(session_source_mode() == SRCSWITCH_MODE_LOCAL && mode != SRCSWITCH_MODE_LOCAL){ player_view_t vs; ipc_get_view(&vs); if(vs.volume > 0) g_dac_carry_vol = vs.volume; }
     if(srcswitch_send_source(mode) < 0){ E->toast("Couldn't switch mode"); return -1; }
     session_set_source_mode(mode);
     if(mode == SRCSWITCH_MODE_USB_DAC){ g_dac_enter_t = now_ms(); g_dac_vol_due = g_dac_enter_t + 4500; if(!g_dac_vol_due) g_dac_vol_due = 1; }

@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix="diskos-storage-tests-") as tmp:
 #include "sdio.h"
 #include "outseq.h"
 #include "outroute.h" /* OUT_USB, outroute_init(): the Output route the module reads and writes */
-#include "ipc.h"     /* track_state_t, ipc_get_state(), ipc_send_cmd() */
+#include "ipc.h"     /* player_view_t, ipc_get_view(), ipc_send_cmd() */
 #include "config.h"  /* cfg_get_int() */
 #include "session.h" /* the real session.c is linked: Source mode and Output route */
 #include "srcswitch.h"
@@ -64,7 +64,7 @@ int cfg_set_int(const char *key, int v){
     assert(test_ncfg<8); snprintf(test_cfg[test_ncfg].key,sizeof test_cfg[0].key,"%s",key); test_cfg[test_ncfg++].v=v; return 0;
 }
 static int test_local_vol;
-void ipc_get_state(track_state_t *out){ memset(out, 0, sizeof *out); out->volume = test_local_vol; }
+void ipc_get_view(player_view_t *out){ memset(out, 0, sizeof *out); out->volume = test_local_vol; }
 unsigned ipc_generation(void){ return 1; }
 int ipc_is_ready(void){ return 1; }
 const char *admit_check(admit_what_t what){ (void)what; return NULL; }   /* no output switch in flight */

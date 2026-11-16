@@ -41,7 +41,7 @@ int ipc_send_cmd(const char *frame){
 }
 unsigned ipc_generation(void){ return g_gen; }
 int ipc_is_ready(void){ return 1; }
-void ipc_get_state(track_state_t *out){
+void ipc_get_view(player_view_t *out){
     memset(out, 0, sizeof *out);
     out->have_track = 1; snprintf(out->path, sizeof out->path, "/music/a.flac");
     out->position_ms = 0; out->volume = 40;

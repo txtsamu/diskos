@@ -88,7 +88,7 @@ static int qtile_is_on(int id){
         case QT_DRE:     return cfg_get_int("audio_dre", 1) == 1;
         case QT_OUTDOOR: return theme_outdoor();
         case QT_DEBUG:   return debug_ssh_on();
-        case QT_FAV:   { track_state_t st; ipc_get_state(&st); return st.path[0] && st.is_favorite; }
+        case QT_FAV:   { player_view_t st; ipc_get_view(&st); return st.path[0] && st.is_favorite; }
         default:         return 0;
     }
 }
@@ -154,7 +154,7 @@ static void tile_short_cb(lv_event_t *e){
             tile_recolor(QT_SHUFFLE, on); ui_toast(on ? "Shuffle on" : "Shuffle off");
         } break;
         case QT_FAV: {
-            track_state_t st; ipc_get_state(&st);
+            player_view_t st; ipc_get_view(&st);
             if(!st.path[0] || ui_book_active()){ ui_toast("No track playing"); break; }
             int nv = !st.is_favorite; ui_set_favorite(nv);
             tile_recolor(QT_FAV, nv); ui_toast(nv ? "Loved" : "Unloved");

@@ -29,16 +29,18 @@ static char     g_sleep_eoc_path[256];
 static long     g_sleep_eoc_lastpos = -1;
 static int      g_sleep_eoc_atend = 0;
 
+typedef struct { player_view_t view; player_evidence_t ev; } now_state_t;
+
 void booksess_set_env(const struct booksess_env *env){ E = env; }
 
 int ui_book_active(void){ return g_book_sess[0] != 0; }
 
 void ui_cancel_book_resume(void){
     if(g_book_sess[0] && g_book_ckpt_ok){
-        track_state_t s; E->get_state(&s);
-        if(s.have_track && strcmp(s.path, g_book_sess) == 0 && s.position_ms > 0
-           && (int32_t)(s.pos_seq - s.path_seq) > 0)
-            E->book_save(g_book_sess, s.position_ms);
+        now_state_t s; E->get_now(&s.view, &s.ev);
+        if(s.view.have_track && strcmp(s.view.path, g_book_sess) == 0 && s.view.position_ms > 0
+           && (int32_t)(s.ev.pos_seq - s.ev.path_seq) > 0)
+            E->book_save(g_book_sess, s.view.position_ms);
     }
     g_book_sess[0] = 0;
     g_book_resume_ms = -1;
@@ -100,13 +102,13 @@ void booksess_tick(void){
     if(E->admit()) return;
     if(!g_book_sess[0]){
         if(DISKOS_AUDIOBOOKS && E->now() >= g_book_noadopt_until){
-            track_state_t s; E->get_state(&s);
-            if(s.have_track && E->is_book_path(s.path) && E->playing()){
-                long cur = (s.position_ms < 0) ? 0 : s.position_ms;
+            now_state_t s; E->get_now(&s.view, &s.ev);
+            if(s.view.have_track && E->is_book_path(s.view.path) && E->playing()){
+                long cur = (s.view.position_ms < 0) ? 0 : s.view.position_ms;
                 long saved = 0;
-                int have_bm = E->book_progress(s.path, &saved);
+                int have_bm = E->book_progress(s.view.path, &saved);
                 if(have_bm < 0) return;
-                snprintf(g_book_sess, sizeof g_book_sess, "%s", s.path);
+                snprintf(g_book_sess, sizeof g_book_sess, "%s", s.view.path);
                 g_book_confirmed = 1;
                 g_book_was_playing = 1; g_book_pause_tick = 0;
                 g_book_last_save = E->now();
@@ -122,10 +124,10 @@ void booksess_tick(void){
         }
         return;
     }
-    track_state_t st; E->get_state(&st);
+    now_state_t st; E->get_now(&st.view, &st.ev);
     uint32_t now = E->now();
     int past_deadline = (int32_t)(now - g_book_deadline) >= 0;
-    int is_ours = (st.path[0] && strcmp(st.path, g_book_sess) == 0);
+    int is_ours = (st.view.path[0] && strcmp(st.view.path, g_book_sess) == 0);
     if(!is_ours){
         if(g_book_confirmed){ ui_cancel_book_resume(); return; }
         if(past_deadline) ui_cancel_book_resume();
@@ -134,9 +136,9 @@ void booksess_tick(void){
     if(!g_book_confirmed){ g_book_confirmed = 1; return; }
     if(!g_book_resume_done){
         if(g_book_resume_ms > 0){
-            if(st.duration_ms <= 0 && !past_deadline) return;
+            if(st.view.duration_ms <= 0 && !past_deadline) return;
             long rt = g_book_resume_ms;
-            if(st.duration_ms > 0 && rt > st.duration_ms - 2000){ rt = st.duration_ms - 2000; if(rt < 0) rt = 0; }
+            if(st.view.duration_ms > 0 && rt > st.view.duration_ms - 2000){ rt = st.view.duration_ms - 2000; if(rt < 0) rt = 0; }
             g_book_resume_target = rt;
             if(E->seek_to(rt) != 0) return;
         }
@@ -150,28 +152,28 @@ void booksess_tick(void){
         if(g_book_was_playing && !np){ g_book_pause_tick = now; }
         else if(!g_book_was_playing && np && g_book_pause_tick){
             long rw = ui_smart_rewind_ms((long)((E->now() - g_book_pause_tick) / 1000u));
-            if(rw > 0){ long t = st.position_ms - rw; if(t < 0) t = 0; E->seek_to(t); }
+            if(rw > 0){ long t = st.view.position_ms - rw; if(t < 0) t = 0; E->seek_to(t); }
             g_book_pause_tick = 0;
         }
         g_book_was_playing = np;
     }
-    if((int32_t)(st.pos_seq - st.path_seq) <= 0) return;
+    if((int32_t)(st.ev.pos_seq - st.ev.path_seq) <= 0) return;
     int seek_guarded = E->now() < g_sleep_seek_guard;
-    if(!seek_guarded && g_book_last_pos >= 0 && st.position_ms < g_book_last_pos - 35000){
+    if(!seek_guarded && g_book_last_pos >= 0 && st.view.position_ms < g_book_last_pos - 35000){
         g_book_ckpt_ok = 0;
         ui_cancel_book_resume();
         return;
     }
-    g_book_last_pos = st.position_ms;
-    if(st.position_ms <= 0) return;
-    if(st.duration_ms > 0 && st.position_ms > st.duration_ms + 2000){ g_book_ckpt_ok = 0; ui_cancel_book_resume(); return; }
+    g_book_last_pos = st.view.position_ms;
+    if(st.view.position_ms <= 0) return;
+    if(st.view.duration_ms > 0 && st.view.position_ms > st.view.duration_ms + 2000){ g_book_ckpt_ok = 0; ui_cancel_book_resume(); return; }
     if(!g_book_ckpt_ok){
-        if(labs(st.position_ms - g_book_resume_target) <= 3000) g_book_ckpt_ok = 1;
+        if(labs(st.view.position_ms - g_book_resume_target) <= 3000) g_book_ckpt_ok = 1;
         else return;
     }
     if(!E->playing()) return;
     if((int32_t)(now - g_book_last_save) < 10000) return;
-    if(E->book_save(g_book_sess, st.position_ms) == 0) return;
+    if(E->book_save(g_book_sess, st.view.position_ms) == 0) return;
     g_book_last_save = now;
 }
 
@@ -221,13 +223,13 @@ void booksess_sleep_tick(void){
     case PW_SLEEP_WAIT: break;
     }
     if(g_sleep_eoc >= 0){
-        track_state_t sst; E->get_state(&sst);
-        if(strcmp(sst.path, g_sleep_eoc_path) != 0){
+        now_state_t sst; E->get_now(&sst.view, &sst.ev);
+        if(strcmp(sst.view.path, g_sleep_eoc_path) != 0){
             int completed = (g_sleep_eoc_atend && g_sleep_eoc_lastpos >= 0 && g_sleep_eoc_lastpos >= g_sleep_eoc - 8000);
             if(!(completed && playing && E->playpause() != 0)) ui_disarm_book_eoc();
         } else {
-            g_sleep_eoc_lastpos = sst.position_ms;
-            if(sst.position_ms >= g_sleep_eoc && !sleep_guarded){
+            g_sleep_eoc_lastpos = sst.view.position_ms;
+            if(sst.view.position_ms >= g_sleep_eoc && !sleep_guarded){
                 if(!playing){ ui_disarm_book_eoc(); }
                 else if(E->playpause() == 0){ ui_disarm_book_eoc(); }
             }

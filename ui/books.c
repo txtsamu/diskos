@@ -196,7 +196,7 @@ static void chap_row_cb(lv_event_t *e){
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     if(i < 0 || i >= g_chlist_n) return;
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     if(!st.path[0] || strcmp(st.path, g_chlist_path) != 0){ screen_show(SCR_NOWPLAYING); return; }
     long tgt = g_chlist[i].start_ms;
     if(st.duration_ms > 0 && tgt >= st.duration_ms) tgt = st.duration_ms - 1;
@@ -219,7 +219,7 @@ static void chapters_rebuild(void){
     if(!g_chap_list) return;
     lv_obj_clean(g_chap_list);
     g_chlist_n = 0; g_chlist_path[0] = 0;
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     if(!st.path[0] || !mdb_is_book_path(st.path)){ chap_empty("No audiobook playing"); return; }
     snprintf(g_chlist_path, sizeof g_chlist_path, "%s", st.path);
     g_chlist_n = scan_read_chapters(st.path, g_chlist, CHAPS_MAX);

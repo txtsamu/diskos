@@ -577,23 +577,23 @@ static void opus_title_tick(void){
     ipc_title_event event; ipc_get_title_event(&event);
     if(!attempted){ worker=otw_create(NULL,NULL); attempted=1; }
     if(!worker){
-        if(event.state.player_confirmed && !event.state.title_ready)
+        if(event.ev.player_confirmed && !event.view.title_ready)
             ipc_publish_title(&event,event.player_title,1);
         return;
     }
     otw_library_commit(worker,ipc_library_epoch());
     for(unsigned polls=0;;polls++){
-        track_state_t *s=&event.state;
-        if(token!=s->playback_token){ otw_identity_end(worker); token=s->playback_token; active=0; }
-        otw_player_generation(worker,s->player_generation);
-        if(s->player_confirmed && (active || !s->title_ready)){
+        player_view_t *v=&event.view; player_evidence_t *e=&event.ev;
+        if(token!=e->playback_token){ otw_identity_end(worker); token=e->playback_token; active=0; }
+        otw_player_generation(worker,e->player_generation);
+        if(e->player_confirmed && (active || !v->title_ready)){
             active=1;
-            unsigned flags=((s->is_cue_valid && s->is_sacd_valid) ||
-                (s->is_cue_valid && s->is_cue) || (s->is_sacd_valid && s->is_sacd) ? OTW_KIND_KNOWN : 0) |
-                (s->is_cue_valid && s->is_cue ? OTW_CUE : 0) |
-                (s->is_sacd_valid && s->is_sacd ? OTW_SACD : 0);
-            otw_identity id={s->player_generation,s->song_id_raw,s->pos_id_raw,s->song_id_valid,s->pos_id_valid};
-            otw_submit(worker,id,s->path,event.player_title,flags);
+            unsigned flags=((e->is_cue_valid && e->is_sacd_valid) ||
+                (e->is_cue_valid && v->is_cue) || (e->is_sacd_valid && v->is_sacd) ? OTW_KIND_KNOWN : 0) |
+                (e->is_cue_valid && v->is_cue ? OTW_CUE : 0) |
+                (e->is_sacd_valid && v->is_sacd ? OTW_SACD : 0);
+            otw_identity id={e->player_generation,e->song_id_raw,e->pos_id_raw,e->song_id_valid,e->pos_id_valid};
+            otw_submit(worker,id,v->path,event.player_title,flags);
         }
         if(polls==2) return;
         struct timespec now; clock_gettime(CLOCK_MONOTONIC,&now);
@@ -640,7 +640,7 @@ static void boot_autoplay_pause_cb(lv_timer_t *t){
 }
 static int startup_admitted(void){ return admit_check(ADMIT_LOCAL_INIT) == NULL; }
 static int startup_play_starting(void){ return playreq_pending() || book_session_active(); }
-static int startup_have_track(void){ track_state_t st; ipc_get_state(&st); return st.have_track; }
+static int startup_have_track(void){ player_view_t st; ipc_get_view(&st); return st.have_track; }
 static int startup_route_analog(void){ return route_analog(1); }
 static const struct session_startup_env g_startup_env = {
     .admitted = startup_admitted, .rx_frames = ipc_rx_frames, .play_starting = startup_play_starting,
@@ -706,7 +706,7 @@ static const struct admit_env g_admit_env = {
 };
 void system_ota_note_playback(void);
 static const struct playreq_env g_playreq_env = {
-    .now = lv_tick_get, .generation = ipc_generation, .transport_seq = ipc_transport_seq, .get_state = ipc_get_state,
+    .now = lv_tick_get, .generation = ipc_generation, .transport_seq = ipc_transport_seq, .get_now = ipc_get_now,
     .tx_waiting = ipc_tx_waiting, .send = ipc_send_cmd, .admit_start = admit_play_start,
     .note_playback = system_ota_note_playback,
 };
@@ -848,7 +848,7 @@ int ui_play_book(const char *path, long resume_ms){
 }
 
 static const char *book_env_admit(void){ return admit_check(ADMIT_LOCAL_PLAYBACK); }
-static void book_env_get_state(track_state_t *out){ ipc_get_state(out); }
+static void book_env_get_state(player_view_t *view, player_evidence_t *ev){ ipc_get_now(view, ev); }
 static int book_env_playpause(void){ return ipc_send_cmd(PLAYER_CMD_PLAYPAUSE); }
 static int book_env_progress(const char *key, long *position_ms){ return mdb_book_progress(key, NULL, 0, position_ms, NULL, NULL); }
 static int book_env_save(const char *key, long position_ms){ return mdb_book_save(key, key, position_ms, 0); }
@@ -857,7 +857,7 @@ static int book_env_sleep_action(void){ return cfg_get_int("sleep_action", POWER
 static void book_env_sleep_ended(void){ cfg_set_int("sleep_idx", 0); }
 static void book_env_shutdown(void){ power_shutdown_request(); }
 static const struct booksess_env g_booksess_env = {
-    .now = lv_tick_get, .admit = book_env_admit, .get_state = book_env_get_state, .playing = ui_is_playing,
+    .now = lv_tick_get, .admit = book_env_admit, .get_now = book_env_get_state, .playing = ui_is_playing,
     .seek_to = ui_seek_to, .playpause = book_env_playpause, .is_book_path = mdb_is_book_path,
     .book_progress = book_env_progress, .book_save = book_env_save, .adopted = book_env_adopted,
     .sleep_action = book_env_sleep_action, .sleep_ended = book_env_sleep_ended, .shutdown = book_env_shutdown,
@@ -955,31 +955,31 @@ static void advance_probe_tick(int visible){
     static int active, used, have_pos, was_visible = 1;
     uint32_t now = lv_tick_get();
     unsigned tx = ipc_transport_seq();
-    track_state_t s; ipc_get_state(&s);
+    player_view_t s; player_evidence_t e; ipc_get_now(&s, &e);
     int wake = visible && !was_visible;
     was_visible = visible;
-    int changed = s.playback_token != token;
+    int changed = e.playback_token != token;
     if(changed){
-        token = s.playback_token; active = used = have_pos = 0; pos_seq = 0;
+        token = e.playback_token; active = used = have_pos = 0; pos_seq = 0;
     }
     if(!changed && tx != transport){
         if(active){ active = used = 0; }
-        have_pos = 0; pos_seq = s.pos_seq;
+        have_pos = 0; pos_seq = e.pos_seq;
     }
     if(playreq_pending() || book_session_active()){
         active = 0; used = 1;
     }
     transport = tx;
     int forward = 0;
-    if(s.pos_seq != pos_seq && (int32_t)(s.pos_seq - s.path_seq) > 0){
+    if(e.pos_seq != pos_seq && (int32_t)(e.pos_seq - e.path_seq) > 0){
         forward = have_pos && (uint32_t)(now - pos_at) <= 3000 && s.position_ms > position;
         if(have_pos && s.position_ms < position) active = 0;
-        position = s.position_ms; pos_at = now; pos_seq = s.pos_seq; have_pos = 1;
+        position = s.position_ms; pos_at = now; pos_seq = e.pos_seq; have_pos = 1;
     }
     if(active && (uint32_t)(now - started) >= 60000) active = 0;
     if(!visible) return;
     if(wake){ ipc_send_probe("02020008"); sent = now; }
-    if(!s.have_track || !s.player_confirmed || s.provisional){ active = 0; return; }
+    if(!s.have_track || !e.player_confirmed || e.provisional){ active = 0; return; }
     if(!used && forward && s.duration_ms > 1000 && s.position_ms >= s.duration_ms - 1000){
         used = active = 1; started = now;
         if(!wake){ ipc_send_probe("02020008"); sent = now; }
@@ -1716,7 +1716,7 @@ int main(int argc, char **argv){
     if(argc>1 && !strcmp(argv[1],"lyrics")) lyrics_open();
     printf("diskOS up (screen %d)\n", start); fflush(stdout);
 
-    track_state_t st; unsigned last=~0u;
+    player_view_t st; player_evidence_t ev; unsigned last=~0u;
     lv_indev_state_t prev_ts = LV_INDEV_STATE_RELEASED;
     int sx=0, sy=0, lastx=0, lasty=0; uint32_t sms=0; int s_press_scr=SCR_HOME;
     int cover_tap=0;
@@ -1777,7 +1777,7 @@ int main(int argc, char **argv){
         admit_tick();
         if(bootstate_take_change()) last = ~0u;
         opus_title_tick();
-        ipc_get_state(&st);
+        ipc_get_now(&st, &ev);
         wifi_supervise();
         dacvol_tick();
         int vol_shown = -1;
@@ -1795,14 +1795,14 @@ int main(int argc, char **argv){
             if(screen_current()==SCR_SAVER) screen_back();
             ui_show_volume(vol_shown);
         }
-        int play_failed = playreq_tick(&st);
+        int play_failed = playreq_tick(&st, &ev);
         int playing = playreq_playing();
         st.state = playing ? 2 : 1;
         if(play_failed) ui_toast("Couldn't start playback");
         ui_np_title_scroll(bl_state != 2);
         if(bl_state != 2 && (g_draw_dark || st.seq != last || playing != last_playing || ui_take_art_force())){
             last = st.seq; last_playing = playing;
-            ui_update(&st);
+            ui_update(&st, &ev);
             home_set_now_playing(st.have_track?ipc_display_title(&st):NULL,
                                  st.have_track?st.artist:NULL,
                                  ui_current_accent(), playing);

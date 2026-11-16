@@ -17,7 +17,7 @@ static uint32_t now;
 static long requested_seek, hold_target = -2;
 static int glyph_playing = -1, glyph_sets;
 static char toast[100];
-static track_state_t state;
+static player_view_t state;
 static int cancel_ok = 1, cancels;
 
 uint32_t lv_tick_get(void){ return now; }
@@ -32,7 +32,7 @@ void ui_np_seek_hold(long t){ hold_target = t; }
 void ui_np_pp_refresh(int playing){ glyph_playing = playing; glyph_sets++; }
 const char *admit_check(admit_what_t w){ (void)w; return local ? NULL : "Return to local playback first"; }
 int ui_seek_to(long p){ seeks++; requested_seek = p; return send_fail ? -1 : 0; }
-void ipc_get_state(track_state_t *s){ *s = state; }
+void ipc_get_view(player_view_t *s){ *s = state; }
 int ipc_send_cmd(const char *s){ (void)s; commands++; return send_fail ? -1 : 0; }
 int mdb_is_book_path(const char *s){ (void)s; return book; }
 int scanner_active(void){ return scan_busy; }

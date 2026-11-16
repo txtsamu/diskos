@@ -188,7 +188,7 @@ static void enter_probe(void){
 }
 
 static int player_volume(unsigned *seq){
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     if(seq) *seq = st.volume_seq;
     return st.volume_seq ? st.volume : -1;
 }

@@ -266,7 +266,7 @@ static void si_show(lv_obj_t *cell, int on)
     }
 }
 
-void songinfo_set(const track_state_t *st)
+void songinfo_set(const player_view_t *st)
 {
     if(!g_val[0]) return;
     if(!st || !st->have_track){

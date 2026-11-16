@@ -45,18 +45,20 @@ static void un_empty(const char *msg){
     theme_kit()->empty_state(KIT_EMPTY_UPNEXT, un_note(msg));
 }
 
+typedef struct { player_view_t view; player_evidence_t ev; } now_state_t;
+
 static int un_still_current(void){
-    track_state_t st; ipc_get_state(&st);
-    if(!st.have_track || st.path_seq != g_un_seq || strcmp(st.path, g_un_path) != 0) return 0;
-    return st.pos_id == g_un_pos && ui_play_mode_now() == g_un_mode;
+    now_state_t st; ipc_get_now(&st.view, &st.ev);
+    if(!st.view.have_track || st.ev.path_seq != g_un_seq || strcmp(st.view.path, g_un_path) != 0) return 0;
+    return st.view.pos_id == g_un_pos && ui_play_mode_now() == g_un_mode;
 }
 
-static void un_update_title(const track_state_t *st){
+static void un_update_title(const now_state_t *st){
     if(!g_un_title) return;
     const char *text = "";
-    if(st->have_track && st->path_seq == g_un_seq && st->pos_id == g_un_pos &&
-       !strcmp(st->path, g_un_path) && !strcmp(st->path, g_un_rows[0].path))
-        text = st->title_ready ? (st->title[0] ? st->title : "Untitled") : "";
+    if(st->view.have_track && st->ev.path_seq == g_un_seq && st->view.pos_id == g_un_pos &&
+       !strcmp(st->view.path, g_un_path) && !strcmp(st->view.path, g_un_rows[0].path))
+        text = st->view.title_ready ? (st->view.title[0] ? st->view.title : "Untitled") : "";
     if(strcmp(lv_label_get_text(g_un_title), text)) lv_label_set_text(g_un_title, text);
 }
 
@@ -88,7 +90,7 @@ static void un_add_row(int i){
     lv_obj_t *t = lv_label_create(r);
     if(cur){
         g_un_title = t;
-        track_state_t st; ipc_get_state(&st); un_update_title(&st);
+        now_state_t st; ipc_get_now(&st.view, &st.ev); un_update_title(&st);
     } else lv_label_set_text(t, q->title[0] ? q->title : "Untitled");
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
     lv_obj_set_pos(t, 14, 6); lv_obj_set_size(t, 186, 21);
@@ -150,15 +152,15 @@ static void un_rebuild(void){
     lv_obj_clean(g_un_list);
     lv_obj_scroll_to_y(g_un_list, 0, LV_ANIM_OFF);
     g_un_n = 0; g_un_more = 0; g_un_path[0] = 0; g_un_pos = 0; g_un_retry = 0; g_un_mode = -1;
-    track_state_t st; ipc_get_state(&st);
-    g_un_seq = st.path_seq;
-    g_un_pos = st.pos_id;
+    now_state_t st; ipc_get_now(&st.view, &st.ev);
+    g_un_seq = st.ev.path_seq;
+    g_un_pos = st.view.pos_id;
     int mode = ui_play_mode_now();
     g_un_mode = mode;
-    if(!st.have_track || !st.path[0]){ un_empty("Nothing playing"); return; }
-    if(mdb_is_book_path(st.path)){ un_empty("Audiobooks play one book at a time - use Chapters"); return; }
-    snprintf(g_un_path, sizeof g_un_path, "%s", st.path);
-    int n = mode < 0 ? MDB_UPNEXT_NOTFOUND : mdb_upnext(mode == 1, st.pos_id, st.path, g_un_rows, UN_SHOW + 1, &g_un_more);
+    if(!st.view.have_track || !st.view.path[0]){ un_empty("Nothing playing"); return; }
+    if(mdb_is_book_path(st.view.path)){ un_empty("Audiobooks play one book at a time - use Chapters"); return; }
+    snprintf(g_un_path, sizeof g_un_path, "%s", st.view.path);
+    int n = mode < 0 ? MDB_UPNEXT_NOTFOUND : mdb_upnext(mode == 1, st.view.pos_id, st.view.path, g_un_rows, UN_SHOW + 1, &g_un_more);
     if(n == MDB_UPNEXT_NOTFOUND || n == MDB_UPNEXT_BUSY){
         g_un_retry = 1;
         un_empty(g_un_retries < UN_RETRY ? "Queue updating..." : "The queue isn't available right now");
@@ -180,8 +182,8 @@ static void un_watch_cb(lv_timer_t *t){
     (void)t;
     if(screen_current() != SCR_UPNEXT){ lv_timer_delete(g_un_watch); g_un_watch = NULL; return; }
     if(g_un_retry && g_un_retries < UN_RETRY){ g_un_retries++; un_rebuild(); return; }
-    track_state_t st; ipc_get_state(&st);
-    if(st.path_seq != g_un_seq || st.pos_id != g_un_pos || ui_play_mode_now() != g_un_mode){ g_un_retries = 0; un_rebuild(); }
+    now_state_t st; ipc_get_now(&st.view, &st.ev);
+    if(st.ev.path_seq != g_un_seq || st.view.pos_id != g_un_pos || ui_play_mode_now() != g_un_mode){ g_un_retries = 0; un_rebuild(); }
     else un_update_title(&st);
 }
 

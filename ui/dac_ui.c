@@ -33,7 +33,7 @@ static void refresh(void){
         set_note("USB DAC mode is off", 1);
         return;
     }
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     dac_stream_t s = dacinfo_get();
 
     char vb[24]; snprintf(vb, sizeof vb, "Volume  %d", st.volume);

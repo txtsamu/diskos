@@ -51,7 +51,7 @@ int  outroute_pick_pending(void);
 void outroute_adopt(void);
 void outroute_tick(void);
 
-typedef struct { int was_playing; track_state_t st; } outroute_held_t;
+typedef struct { int was_playing; player_view_t st; } outroute_held_t;
 #define OUTROUTE_OK            0
 #define OUTROUTE_NOT_PAUSED  (-1)
 #define OUTROUTE_STEP_FAILED (-2)

@@ -89,24 +89,26 @@ static struct {
     int have_track, playing, provisional;
 } g_pre;
 
-static void arm(const track_state_t *cur, int was_playing){
+typedef struct { player_view_t view; player_evidence_t ev; } now_state_t;
+
+static void arm(const now_state_t *cur, int was_playing){
     g_pending = E->now();
     if(!g_pending) g_pending = 1;
 
     g_pre.serial++;
     g_pre.request = g_pre.at = g_pending;
-    g_pre.pos_seq = cur->pos_seq;
-    g_pre.position = cur->position_ms;
-    g_pre.generation = cur->player_generation;
+    g_pre.pos_seq = cur->ev.pos_seq;
+    g_pre.position = cur->view.position_ms;
+    g_pre.generation = cur->ev.player_generation;
     g_pre.transport = E->transport_seq();
-    g_pre.token = cur->playback_token;
-    g_pre.duration = cur->duration_ms;
-    g_pre.have_track = cur->have_track;
+    g_pre.token = cur->ev.playback_token;
+    g_pre.duration = cur->view.duration_ms;
+    g_pre.have_track = cur->view.have_track;
     g_pre.playing = was_playing;
-    g_pre.provisional = cur->provisional;
+    g_pre.provisional = cur->ev.provisional;
 }
 
-static int start_failed(const track_state_t *st, uint32_t now){
+static int start_failed(const now_state_t *st, uint32_t now){
     static uint32_t request, progress, pos_at, adv_at;
     static unsigned serial, pos_seq, generation, transport;
     static uint64_t token;
@@ -141,68 +143,68 @@ static int start_failed(const track_state_t *st, uint32_t now){
                         (!had_track || position <= 1500);
         } else {
             pos_at = now;
-            pos_seq = st->pos_seq;
-            position = st->position_ms;
-            generation = st->player_generation;
+            pos_seq = st->ev.pos_seq;
+            position = st->view.position_ms;
+            generation = st->ev.player_generation;
             transport = E->transport_seq();
-            token = st->playback_token;
-            duration = st->duration_ms;
-            had_track = st->have_track;
+            token = st->ev.playback_token;
+            duration = st->view.duration_ms;
+            had_track = st->view.have_track;
         }
     }
 
-    if(generation != st->player_generation ||
+    if(generation != st->ev.player_generation ||
        transport != E->transport_seq()){
         g_pending = 0;
         active = 0;
         return 0;
     }
 
-    if(seed && st->player_confirmed){
+    if(seed && st->ev.player_confirmed){
         seed = 0;
         attrib = 0;
         advances = 0;
         progress = now;
-        token = st->playback_token;
-        duration = st->duration_ms;
-        had_track = st->have_track;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
+        token = st->ev.playback_token;
+        duration = st->view.duration_ms;
+        had_track = st->view.have_track;
+        pos_seq = st->ev.pos_seq;
+        position = st->view.position_ms;
         pos_at = now;
-    } else if(token != st->playback_token ||
-              had_track != st->have_track){
+    } else if(token != st->ev.playback_token ||
+              had_track != st->view.have_track){
         progress = now;
         advances = 0;
-        attrib = !seed && st->have_track &&
-                 st->player_confirmed && !st->provisional;
-        token = st->playback_token;
-        duration = st->duration_ms;
-        had_track = st->have_track;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
+        attrib = !seed && st->view.have_track &&
+                 st->ev.player_confirmed && !st->ev.provisional;
+        token = st->ev.playback_token;
+        duration = st->view.duration_ms;
+        had_track = st->view.have_track;
+        pos_seq = st->ev.pos_seq;
+        position = st->view.position_ms;
         pos_at = now;
-    } else if(duration != st->duration_ms){
+    } else if(duration != st->view.duration_ms){
         progress = now;
         advances = 0;
-        duration = st->duration_ms;
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
+        duration = st->view.duration_ms;
+        pos_seq = st->ev.pos_seq;
+        position = st->view.position_ms;
         pos_at = now;
     }
 
-    if(st->pos_seq != pos_seq){
-        long long delta = (long long)st->position_ms - position;
+    if(st->ev.pos_seq != pos_seq){
+        long long delta = (long long)st->view.position_ms - position;
         uint32_t gap = now - pos_at;
         long long slack = (long long)gap + 1500;
-        int fresh = st->have_track && st->player_confirmed &&
-                    !st->provisional &&
-                    (int32_t)(st->pos_seq - st->path_seq) > 0;
+        int fresh = st->view.have_track && st->ev.player_confirmed &&
+                    !st->ev.provisional &&
+                    (int32_t)(st->ev.pos_seq - st->ev.path_seq) > 0;
         int wrap = delta < 0 && duration > 0 &&
                    position >= 0 && position <= duration &&
-                   st->position_ms >= 0 &&
-                   st->position_ms <= duration &&
+                   st->view.position_ms >= 0 &&
+                   st->view.position_ms <= duration &&
                    (long long)duration - position +
-                       st->position_ms <= slack;
+                       st->view.position_ms <= slack;
 
         if(fresh && delta != 0) progress = now;
         if(fresh && ((delta > 0 && delta <= slack) || wrap)){
@@ -217,8 +219,8 @@ static int start_failed(const track_state_t *st, uint32_t now){
                 attrib = 1;
         }
 
-        pos_seq = st->pos_seq;
-        position = st->position_ms;
+        pos_seq = st->ev.pos_seq;
+        position = st->view.position_ms;
         pos_at = now;
         if(advances >= 2 && (attrib || possible)){
             g_pending = 0;
@@ -252,7 +254,7 @@ static int start_failed(const track_state_t *st, uint32_t now){
     return 1;
 }
 
-static int advancing(const track_state_t *st, uint32_t now){
+static int advancing(const player_view_t *st, uint32_t now){
     if(!st->have_track){ g_pos.last_pos_ms = -1; return 0; }
     if(g_pos.last_pos_ms < 0){
         g_pos.last_pos_ms = st->position_ms;
@@ -265,15 +267,16 @@ static int advancing(const track_state_t *st, uint32_t now){
     return st->position_ms > 0 && (unsigned)(now - g_pos.change_tick) < PLAYING_GRACE;
 }
 
-int playreq_tick(const track_state_t *st){
+int playreq_tick(const player_view_t *view, const player_evidence_t *ev){
+    now_state_t st = { *view, *ev };
     uint32_t now = E->now();
-    g_playing = advancing(st, now);
+    g_playing = advancing(&st.view, now);
     if(g_playing) playreq_note_transport(E->generation(), now);
     if(g_pending && E->tx_waiting()){
         g_pending = now ? now : 1;
         g_pre.request = g_pre.at = g_pending;
     }
-    if(!start_failed(st, now)) return 0;
+    if(!start_failed(&st, now)) return 0;
     g_pending = 0;
     return 1;
 }
@@ -281,8 +284,8 @@ int playreq_tick(const track_state_t *st){
 static int send_play(const char *frame, int track){
     playreq_note_transport(E->generation(), E->now());
     (void)E->admit_start(ADMIT_PLAY_LIST);
-    track_state_t cur;
-    if(track) E->get_state(&cur);
+    now_state_t cur;
+    if(track) E->get_now(&cur.view, &cur.ev);
     int rc = E->send(frame);
     if(rc != 0) return rc;
     g_sent_gen = E->generation();

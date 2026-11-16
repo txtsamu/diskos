@@ -25,7 +25,7 @@ static lv_obj_t *g_fav_lbl;
 static void fav_refresh(void){
     ui_label_set_changed(g_fav_lbl, tr(g_fav ? "Remove from Favourites" : "Add to Favourites"));
 }
-void npmenu_set(const track_state_t *st, int playing, const void *thumb_src){
+void npmenu_set(const player_view_t *st, int playing, const void *thumb_src){
     (void)playing; (void)thumb_src;
     g_have = st && st->have_track;
     snprintf(g_album,  sizeof g_album,  "%s", g_have ? st->album  : "");
@@ -102,7 +102,7 @@ static void plpick_reload(void);
 static void ctx_addpl_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     if(!g_path[0]){ ui_toast("No song to add"); return; }
-    track_state_t now; ipc_get_state(&now);
+    player_view_t now; ipc_get_view(&now);
     if(now.have_track && strcmp(now.path, g_path) == 0) g_pos_id = now.pos_id; else g_pos_id = 0;
     plpick_set_song(g_path, g_pos_id, now.have_track ? now.title : "");
     plpick_reload();
@@ -307,7 +307,7 @@ static lv_obj_t *g_hub_list;
 static void nphub_populate(void){
     if(!g_hub_list) return;
     lv_obj_clean(g_hub_list);
-    track_state_t st; ipc_get_state(&st);
+    player_view_t st; ipc_get_view(&st);
     int book = st.path[0] && mdb_is_book_path(st.path);
     if(book){
         menu_row(g_hub_list, "Chapters",        hub_chapters_cb, NULL);
