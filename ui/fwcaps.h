@@ -7,6 +7,7 @@ int fw_os_ver(void);
 
 int fw_needs_localplayer_init(void);
 int fw_needs_direct_sd_mount(void);
+int fw_has_usb_audio(void);
 
 const char *fw_gain_tag(void);
 

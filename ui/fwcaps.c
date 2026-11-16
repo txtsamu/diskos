@@ -46,6 +46,7 @@ int fw_os_ver(void){
 
 int fw_needs_localplayer_init(void){ int v = fw_os_ver(); return v == 240 || v == 257; }
 int fw_needs_direct_sd_mount(void){  int v = fw_os_ver(); return v == 240 || v == 257; }
+int fw_has_usb_audio(void){        int v = fw_os_ver(); return v == 240 || v == 257; }
 
 int fw_custom_peq_writable(void){ int v = fw_os_ver(); return v == 209 || v == 228 || v == 240; }
 

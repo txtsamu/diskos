@@ -10,6 +10,7 @@
 #include "config.h"
 #include "sdio.h"
 #include "usbdbg.h"
+#include "fwcaps.h"
 #include "i18n.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -22,9 +23,7 @@ static const modeinfo_t MODES[] = {
     [SRCSWITCH_MODE_BT_RECEIVING] = { "Bluetooth Receiving", "Play audio sent from a phone" },
     [SRCSWITCH_MODE_USB_STORAGE]  = { "USB Storage",         "Open the card on a computer" },
     [SRCSWITCH_MODE_USB_DEBUG]    = { "USB Debug",           "Shell over the USB cable" },
-#ifdef DISKOS_TEST_OUTPUTS
     [SRCSWITCH_MODE_USB_AUDIO]    = { "USB Audio",           "Play to an external USB DAC" },
-#endif
 };
 #define N_MODES ((int)(sizeof(MODES)/sizeof(MODES[0])))
 #define ROW_USB_DEBUG SRCSWITCH_MODE_USB_DEBUG
@@ -37,7 +36,7 @@ static lv_obj_t *g_dbg_info;
 
 static int shown_mode(int src){
     if(usbdbg_state() != USBDBG_OFF) return ROW_USB_DEBUG;
-    return (src == SRCSWITCH_MODE_LOCAL && N_MODES > ROW_USB_AUDIO && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src;
+    return (fw_has_usb_audio() && src == SRCSWITCH_MODE_LOCAL && outroute_route() == OUT_USB) ? ROW_USB_AUDIO : src;
 }
 
 static void debug_row_refresh(void){
@@ -103,6 +102,7 @@ static void on_switch_event(srcswitch_event_t ev){
 static void row_cb(lv_event_t *e){
     if(lv_event_get_code(e)!=LV_EVENT_CLICKED) return;
     int m = (int)(uintptr_t)lv_event_get_user_data(e);
+    if(m == ROW_USB_AUDIO && !fw_has_usb_audio()){ ui_toast("USB Audio needs firmware 2.40 or 2.57"); return; }
     if(srcswitch_status().state != SRCSWITCH_STATE_IDLE || (g_last_switch && lv_tick_elaps(g_last_switch) < 3000)){ ui_toast("Switching..."); return; }
     g_last_switch = lv_tick_get();
     if(ui_set_source_mode(m) == 0){
@@ -166,7 +166,8 @@ void modes_create(lv_obj_t *root){
         lv_obj_set_style_text_color(g_check[i], ui_current_accent(), 0);
         lv_obj_set_style_text_font(g_check[i], TF(UI_18), 0);
     }
-    if(N_MODES > ROW_USB_AUDIO) lv_obj_move_to_index(g_row[ROW_USB_AUDIO], 1);
+    lv_obj_move_to_index(g_row[ROW_USB_AUDIO], 1);
+    if(!fw_has_usb_audio()) lv_obj_add_flag(g_row[ROW_USB_AUDIO], LV_OBJ_FLAG_HIDDEN);
 
     g_dbg_info = lv_label_create(col);
     lv_obj_set_width(g_dbg_info, 268);

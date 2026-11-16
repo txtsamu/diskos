@@ -10767,7 +10767,7 @@ the code is written with (the MIPS32r2 target otherwise uses madd.s/madd.d).
 **L15** `CFLAGS += $(EXTRA_CFLAGS)`
 
 ~~~text
-Device-test builds only: make clean && make EXTRA_CFLAGS=-DDISKOS_TEST_OUTPUTS (shows SPDIF Output + USB Audio)
+SPDIF Output is test-build only: make clean && make EXTRA_CFLAGS=-DDISKOS_TEST_OUTPUTS. USB Audio is in the normal build on V2.40/V2.57.
 ~~~
 
 **L17** `LDFLAGS := -static -pthread -Wl,--gc-sections`
@@ -26082,13 +26082,13 @@ and modes_output_mode_switch(); the module tells the picker what happened throug
 **L19** `{ "USB Audio",           "Play to an external USB DAC" },` *(trailing)*
 
 ~~~text
-device-unverified: test builds only
+USB Audio is normal on V2.40/V2.57; SPDIF remains test-build only
 ~~~
 
 **L23** `#define ROW_USB_AUDIO 4` *(trailing)*
 
 ~~~text
-only present in DISKOS_TEST_OUTPUTS builds
+normal on V2.40/V2.57; SPDIF remains test-build only
 ~~~
 
 **L25** `static lv_obj_t *g_check[N_MODES];` *(trailing)*
@@ -26306,9 +26306,8 @@ While USB Debug is on (or starting or stopping) the check mark is on its row eve
 **L6** `enum { OUT_INTERNAL = 0, OUT_SPDIF = 1, OUT_USB = 2 };`
 
 ~~~text
-Output route (stock: Settings > SPDIF, Working Mode > USB AUDIO). The SPDIF row and the USB Audio picker row exist only
-in builds made with -DDISKOS_TEST_OUTPUTS (device-unverified); the code is always built and is a no-op equivalent of
-the old preamble while the route is the internal DAC. The switching itself (modes_output_*, ui_set_source_mode) lives
+Output route (stock: Settings > SPDIF, Working Mode > USB AUDIO). The USB Audio picker row is in the normal build on
+V2.40/V2.57; the SPDIF row remains test-build only. The switching itself (modes_output_*, ui_set_source_mode) lives
 in srcswitch.c / srcswitch.h, which this header re-exports for the files that include it for those names; modes.c is
 only the Working Mode picker screen.
 ~~~
@@ -39527,7 +39526,7 @@ until you pick a value diskOS sends nothing + the player keeps its own setting.
 **L696** `#ifdef DISKOS_TEST_OUTPUTS` *(trailing)*
 
 ~~~text
-device-unverified: test builds only
+USB Audio is normal on V2.40/V2.57; SPDIF remains test-build only
 ~~~
 
 **L809** `g_set_prev = get_val(s);`
@@ -40654,7 +40653,7 @@ PCM proven quiet for OUT_QUIET_MS -> route -> work mode -> resume. Leaving USB a
 sink, 0x47c040), so diskOS re-checks it right before the frames and refuses instead.
 If a send fails after the route moved, the internal sequence is retried until it fully lands on a live player
 connection (recovery-pending: every play/route/source command is refused meanwhile).
-Output route: Internal DAC / SPDIF / USB Audio (SPDIF row + USB Audio picker row: -DDISKOS_TEST_OUTPUTS builds only).
+Output route: Internal DAC / SPDIF / USB Audio (USB Audio picker row normal on V2.40/V2.57; SPDIF row test-build only).
 ~~~
 
 **L43** `#define OUT_USB_CARD "/proc/asound/card1"` *(trailing)*

@@ -92,10 +92,11 @@ Makefiles, tests or web files. Say what the code does with names, small function
   its "about 20 minutes" mask-ROM estimate. Repeat it when reporting the result. Keep the "do not
   disconnect the USB cable or let the host sleep" warning, and if the result is unknown, say the
   25-minute wait is required before recovery.
-- **Test-output builds carry the SPDIF and USB Audio rows.** Those controls exist only with
-  `-DDISKOS_TEST_OUTPUTS`; a plain `make` intentionally hides them. When the user expects them,
-  build with `make EXTRA_CFLAGS=-DDISKOS_TEST_OUTPUTS` (the local, ignored `ui/config.mk` may pin
-  it) and say which variant was built. The flashed image must be built from that same binary.
+- **USB Audio is a normal row; SPDIF is not.** The Working Mode picker shows USB Audio on V2.40
+  and V2.57 without any build flag. The Settings SPDIF Output row still needs
+  `-DDISKOS_TEST_OUTPUTS`; build with `make EXTRA_CFLAGS=-DDISKOS_TEST_OUTPUTS` only when that
+  row is wanted, and say which variant was built. The flashed image must be built from the same
+  binary.
 
 ## Contributing
 

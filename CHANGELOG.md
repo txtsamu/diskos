@@ -20,7 +20,7 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 - **Headset click gestures** for USB Audio: a USB IEM or DAC with a single button now maps one click to
   play/pause, two clicks to next and three clicks to previous. Dedicated next, previous and volume keys
   still act at once. Play/pause lands about 350 ms after the click while diskOS waits for more clicks.
-  Needs a build that shows the USB Audio route, and is not yet checked on a device.
+  Not yet checked with a real USB IEM or DAC on the normal build.
 - **Pet** app on the Apps page: a Tamagotchi-style virtual pet (Agumon line) that lives in real
   time, with Feed, Play, Clean, Sleep and Heal, mood and sickness, and a Digi-Egg to start over.
 - **Persistent debug** checkbox in Debug Mode: keeps Wi-Fi on and re-enables SSH at every boot.
@@ -78,6 +78,8 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
   left/right cycler (as in upstream 1.2.2)
 - Settings > Audio > Max Volume has round left/right buttons that lower or raise the cap by 10, and a round slider knob
 - Quick Settings shows the battery level (and a charge mark while charging) at the bottom
+- USB Audio (external USB DAC output) is now in the normal build on V2.40 and V2.57. The Working Mode row no longer
+  needs `-DDISKOS_TEST_OUTPUTS`; SPDIF Output remains a test-build setting.
 - USB Audio: the volume keys did nothing when Double click was set to Switch Track. A single click now adjusts the DAC volume
   whatever the double-click action is, a double click stays a track skip without nudging the volume, and holding a volume
   key repeats the change on the DAC when Long press is set to Adjust Volume
