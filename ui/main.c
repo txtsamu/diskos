@@ -39,6 +39,7 @@
 #include "session.h"
 #include "srcswitch.h"
 #include "restart.h"
+#include "nowplay.h"
 #include "usbdbg.h"
 #include "coverart.h"
 #include "admit.h"
@@ -491,6 +492,36 @@ static const struct restart_env g_restart_env = {
     .stop_readers = env_stop_readers, .save_clock = env_save_clock,
     .spawn = env_restart_spawn, .wait = env_restart_wait, .kill = env_restart_kill,
     .reboot = env_reboot_device, .toast = ui_toast,
+};
+static void np_sink_view(const player_view_t *view, const player_evidence_t *ev, int playing){ (void)playing; ui_update(view, ev); }
+static void np_sink_home(const player_view_t *view, int playing){
+    home_set_now_playing(view->have_track ? ipc_display_title(view) : NULL,
+                         view->have_track ? view->artist : NULL, ui_current_accent(), playing != 0);
+}
+static void np_sink_progress(const player_view_t *view, int playing){
+    (void)playing;
+    void home_set_progress(int, int); int ui_np_progress(void);
+    home_set_progress(ui_np_progress(), view->have_track);
+}
+static void np_sink_saver_state(int playing){ void saver_set_playing(int); saver_set_playing(playing); }
+static void np_sink_art(const player_view_t *view){
+    (void)view;
+    home_set_art_src(ui_current_thumb_src());
+    home_set_backdrop(ui_current_backdrop_src());
+}
+static void np_sink_track(const player_view_t *view, int playing){
+    (void)playing;
+    saver_set_track(view->have_track ? ipc_display_title(view) : NULL,
+                    view->have_track ? view->artist : NULL,
+                    ui_current_backdrop_src(), view->have_track ? view->path : NULL);
+}
+static void np_sink_quick(int playing){ quicksettings_refresh(playing); }
+static void np_sink_info(const player_view_t *view){ songinfo_set(view); }
+static void np_sink_menu(const player_view_t *view, int playing){ npmenu_set(view->have_track ? view : NULL, playing, ui_current_thumb_src()); }
+static const struct nowplay_env g_nowplay_env = {
+    .view = np_sink_view, .home = np_sink_home, .progress = np_sink_progress,
+    .saver_state = np_sink_saver_state, .art = np_sink_art, .track = np_sink_track,
+    .quick = np_sink_quick, .info = np_sink_info, .menu = np_sink_menu,
 };
 static void env_charge_limit_reapply(void){
     power_apply_charge(cfg_get_int("charge_protect", 0) ? 1 : 0);
@@ -1716,15 +1747,12 @@ int main(int argc, char **argv){
     if(argc>1 && !strcmp(argv[1],"lyrics")) lyrics_open();
     printf("diskOS up (screen %d)\n", start); fflush(stdout);
 
-    player_view_t st; player_evidence_t ev; unsigned last=~0u;
+    player_view_t st; player_evidence_t ev;
     lv_indev_state_t prev_ts = LV_INDEV_STATE_RELEASED;
     int sx=0, sy=0, lastx=0, lasty=0; uint32_t sms=0; int s_press_scr=SCR_HOME;
     int cover_tap=0;
     int fsart_touch=0;
     int sleep_touch=0;
-    int last_playing=-1;
-    char np_last_path[256] = "";
-    char np_last_title[sizeof st.title] = "", np_last_artist[sizeof st.artist] = "";
     static const int TMAP[5] = {0,30,60,120,300};
     uint32_t last_activity = lv_tick_get();
     int woke = 0;
@@ -1775,7 +1803,7 @@ int main(int argc, char **argv){
             ui_reapply_audio();
         }
         admit_tick();
-        if(bootstate_take_change()) last = ~0u;
+        if(bootstate_take_change()) nowplay_invalidate();
         opus_title_tick();
         ipc_get_now(&st, &ev);
         wifi_supervise();
@@ -1800,35 +1828,8 @@ int main(int argc, char **argv){
         st.state = playing ? 2 : 1;
         if(play_failed) ui_toast("Couldn't start playback");
         ui_np_title_scroll(bl_state != 2);
-        if(bl_state != 2 && (g_draw_dark || st.seq != last || playing != last_playing || ui_take_art_force())){
-            last = st.seq; last_playing = playing;
-            ui_update(&st, &ev);
-            home_set_now_playing(st.have_track?ipc_display_title(&st):NULL,
-                                 st.have_track?st.artist:NULL,
-                                 ui_current_accent(), playing);
-            { void home_set_progress(int, int); int ui_np_progress(void);
-              home_set_progress(ui_np_progress(), st.have_track); }
-            { void saver_set_playing(int); saver_set_playing(playing); }
-            const char *idnow = st.have_track ? st.path : "";
-            const char *tnow = st.have_track ? ipc_display_title(&st) : "", *anow = st.have_track ? st.artist : "";
-            int art_changed = strcmp(idnow, np_last_path) != 0;
-            int song_changed = strcmp(tnow, np_last_title) != 0 || strcmp(anow, np_last_artist) != 0;
-            if(art_changed){
-                snprintf(np_last_path, sizeof np_last_path, "%s", idnow);
-                home_set_art_src(ui_current_thumb_src());
-                home_set_backdrop(ui_current_backdrop_src());
-            }
-            if(art_changed || song_changed){
-                snprintf(np_last_title, sizeof np_last_title, "%s", tnow);
-                snprintf(np_last_artist, sizeof np_last_artist, "%s", anow);
-                saver_set_track(st.have_track?ipc_display_title(&st):NULL,
-                                st.have_track?st.artist:NULL,
-                                ui_current_backdrop_src(), st.have_track?st.path:NULL);
-            }
-            quicksettings_refresh(playing);
-            songinfo_set(&st);
-            npmenu_set(st.have_track ? &st : NULL, playing, ui_current_thumb_src());
-        }
+        nowplay_publish(&g_nowplay_env, &st, &ev, playing, bl_state != 2,
+                        bl_state != 2 && (g_draw_dark || ui_take_art_force()));
         if(bl_state != 2 && g_draw_dark){
             ui_art_poll(NULL);
             lv_timer_pause(g_t_art);
@@ -1870,7 +1871,7 @@ int main(int argc, char **argv){
             g_app_pending = 0;
             screen_back();
             app_run(g_app_exec);
-            last = ~0u;
+            nowplay_invalidate();
             last_activity = lv_tick_get();
         }
 
