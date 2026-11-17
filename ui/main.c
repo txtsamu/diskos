@@ -498,12 +498,29 @@ static int env_reboot_device(void){
     char *a[] = { "reboot", NULL };
     return run_bounded(a, 5000) == 0;
 }
+int env_unmount_card(void *ctx){
+    (void)ctx;
+    if(umount("/tmp/sdcard") == 0){ bootlog_event("card unmounted before shutdown or restart"); return 0; }
+    int e = errno;
+    if(e == EINVAL || e == ENOENT){ bootlog_event("card not mounted before shutdown or restart"); return 0; }
+    bootlog_event("card busy errno=%d(%s), asking the player to release it", e, strerror(e));
+    srcswitch_send_source(SRCSWITCH_MODE_USB_STORAGE);
+    for(int i = 0; i < 20; i++){
+        usleep(100000);
+        if(umount("/tmp/sdcard") == 0){ bootlog_event("card unmounted after player release in %d tries", i + 1); return 0; }
+        if(errno == EINVAL || errno == ENOENT){ bootlog_event("card not mounted after player release"); return 0; }
+    }
+    if(umount2("/tmp/sdcard", MNT_DETACH) == 0){ bootlog_event("card lazily detached, still busy errno=%d(%s)", e, strerror(e)); return 1; }
+    bootlog_event("card unmount failed errno=%d(%s), continuing", errno, strerror(errno));
+    return -1;
+}
+static int env_restart_unmount(void){ return env_unmount_card(NULL); }
 static const struct restart_env g_restart_env = {
     .now = lv_tick_get, .card_drained = sd_drained,
     .quiesce_begin = sd_quiesce_begin, .quiesce_end = sd_quiesce_end,
     .stop_readers = env_stop_readers, .save_clock = env_save_clock,
     .spawn = env_restart_spawn, .wait = env_restart_wait, .kill = env_restart_kill,
-    .reboot = env_reboot_device, .toast = ui_toast,
+    .reboot = env_reboot_device, .unmount_card = env_restart_unmount, .toast = ui_toast,
 };
 static void np_sink_view(const player_view_t *view, const player_evidence_t *ev, int playing){ (void)playing; ui_update(view, ev); }
 static void np_sink_home(const player_view_t *view, int playing){

@@ -37,6 +37,7 @@ typedef struct power_ops {
     int      (*send)(void *ctx, const char *frame);
     uint32_t (*now_ms)(void *ctx);
     void     (*toast)(void *ctx, const char *msg);
+    int      (*unmount_card)(void *ctx);
     void     *ctx;
 } power_ops_t;
 #define POWER_DRAIN_MS   8000u
@@ -49,6 +50,7 @@ pw_phase_t power_shutdown_phase(void);
 void power_shutdown_new_generation(void);
 
 #ifndef POWER_CORE_ONLY
+int  env_unmount_card(void *ctx);
 int  power_apply_charge(int on);
 int  power_shutdown_request(void);
 void power_tick(uint32_t last_input_ms, int playing);

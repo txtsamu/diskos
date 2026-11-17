@@ -86,6 +86,7 @@ void restart_tick(void){
         g_sync = 0;
         if(!WIFEXITED(st) || WEXITSTATUS(st) != 0){ fail("Couldn't restart - card flush failed"); return; }
         if(g_clock > 0){ E->kill(g_clock); g_clock = 0; }
+        if(E->unmount_card) E->unmount_card();
         if(g_kind == RESTART_FLASH){
             int arm = E->flash_arm ? E->flash_arm() : flash_arm_builtin();
             if(arm != 0){ fail("Couldn't set flash mode - not restarted"); return; }
