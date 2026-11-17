@@ -498,20 +498,29 @@ static int env_reboot_device(void){
     char *a[] = { "reboot", NULL };
     return run_bounded(a, 5000) == 0;
 }
+static int card_flush(void){
+    int fd = open("/dev/mmcblk0p1", O_RDONLY | O_CLOEXEC);
+    if(fd < 0) return -1;
+    int rc = fsync(fd);
+    int e = errno;
+    close(fd);
+    if(rc != 0) bootlog_event("card flush failed errno=%d(%s)", e, strerror(e));
+    return rc;
+}
 int env_unmount_card(void *ctx){
     (void)ctx;
-    if(umount("/tmp/sdcard") == 0){ bootlog_event("card unmounted before shutdown or restart"); return 0; }
+    if(umount("/tmp/sdcard") == 0){ card_flush(); bootlog_event("card unmounted before shutdown or restart"); return 0; }
     int e = errno;
-    if(e == EINVAL || e == ENOENT){ bootlog_event("card not mounted before shutdown or restart"); return 0; }
+    if(e == EINVAL || e == ENOENT){ card_flush(); bootlog_event("card not mounted before shutdown or restart"); return 0; }
     bootlog_event("card busy errno=%d(%s), asking the player to release it", e, strerror(e));
     int sw = srcswitch_send_source(SRCSWITCH_MODE_USB_STORAGE);
     if(sw < 0) bootlog_event("player refused the storage switch (rc=%d), retrying the unmount", sw);
     for(int i = 0; i < 40; i++){
         usleep(100000);
-        if(umount("/tmp/sdcard") == 0){ bootlog_event("card unmounted after player release in %d tries", i + 1); return 0; }
-        if(errno == EINVAL || errno == ENOENT){ bootlog_event("card not mounted after player release"); return 0; }
+        if(umount("/tmp/sdcard") == 0){ card_flush(); bootlog_event("card unmounted after player release in %d tries", i + 1); return 0; }
+        if(errno == EINVAL || errno == ENOENT){ card_flush(); bootlog_event("card not mounted after player release"); return 0; }
     }
-    if(umount2("/tmp/sdcard", MNT_DETACH) == 0){ bootlog_event("card lazily detached, still busy errno=%d(%s)", e, strerror(e)); return 1; }
+    if(umount2("/tmp/sdcard", MNT_DETACH) == 0){ card_flush(); bootlog_event("card lazily detached, still busy errno=%d(%s)", e, strerror(e)); return 1; }
     bootlog_event("card unmount failed errno=%d(%s), continuing", errno, strerror(errno));
     return -1;
 }
