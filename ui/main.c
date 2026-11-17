@@ -65,6 +65,7 @@
 #include "scanner.h"
 #include "playreq.h"
 #include "sdio.h"
+#include "sdfs.h"
 #include "art.h"
 #include "power.h"
 #include "vbus.h"
@@ -1476,7 +1477,13 @@ static void *coldplug_thread(void *arg){
             }
             else {
                 mkdir("/tmp/sdcard", 0755);
-                if(sd_cold_mount_allowed() && sd_mount_utf8("exfat") == 0){
+                const char *pref = sdfs_detect("/dev/mmcblk0p1");
+                const char *fstype[2] = { "exfat", "vfat" };
+                if(pref && !strcmp(pref, "vfat")){ fstype[0] = "vfat"; fstype[1] = "exfat"; }
+                const char *mounted_type = NULL;
+                for(int k = 0; k < 2 && !mounted_type; k++)
+                    if(sd_cold_mount_allowed() && sd_mount_utf8(fstype[k]) == 0) mounted_type = fstype[k];
+                if(mounted_type){
                     if(sd_exported_to_host()){
                         if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
                             coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
@@ -1484,17 +1491,8 @@ static void *coldplug_thread(void *arg){
                             coldplug_log("post-mount export detected -> unmounted, host owns card (one-shot gives up)");
                         sd_coldplug_end(); return NULL;
                     }
-                    coldplug_log("SD direct-mounted (V2.40 exfat)"); sd_coldplug_end(); return NULL;
-                }
-                else if(sd_cold_mount_allowed() && sd_mount_utf8("vfat") == 0){
-                    if(sd_exported_to_host()){
-                        if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
-                            coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
-                        else
-                            coldplug_log("post-mount export detected -> unmounted, host owns card (one-shot gives up)");
-                        sd_coldplug_end(); return NULL;
-                    }
-                    coldplug_log("SD direct-mounted (V2.40 vfat)"); sd_coldplug_end(); return NULL;
+                    { char b[64]; snprintf(b, sizeof b, "SD direct-mounted (V2.40 %s)", mounted_type); coldplug_log(b); }
+                    sd_coldplug_end(); return NULL;
                 }
                 if(!sd_cold_mount_allowed()){
                     sd_coldplug_end();
