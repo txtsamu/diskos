@@ -20,6 +20,7 @@ struct restart_env {
     void (*kill)(pid_t pid);
     int  (*flash_arm)(void);
     int  (*reboot)(void);
+    int  (*unmount_card)(void);
     void (*toast)(const char *msg);
 };
 

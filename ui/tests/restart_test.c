@@ -8,13 +8,20 @@
 
 static uint32_t g_now;
 static int g_drained, g_quiesced, g_unqueued, g_stopped, g_killed;
-static int g_flash_rc, g_rebooted;
+static int g_flash_rc, g_rebooted, g_unmounted, g_unmount_rc;
 static pid_t g_clock = 900;
 static char g_spawned[8][16];
 static int g_nspawn, g_ntoast;
 static char g_toast[8][96];
+static char g_order[8];
+static int g_norder;
 static struct { pid_t pid; int running, status; } g_child;
 
+static void order(char c){
+    assert(g_norder < 7);
+    g_order[g_norder++] = c;
+    g_order[g_norder] = 0;
+}
 static uint32_t env_now(void){ return g_now; }
 static int env_drained(void){ return g_drained; }
 static void env_quiesce(void){ g_quiesced++; }
@@ -34,8 +41,9 @@ static int env_wait(pid_t pid, int *status){
     return (int)pid;
 }
 static void env_kill(pid_t pid){ (void)pid; g_killed++; }
-static int env_flash(void){ return g_flash_rc; }
-static int env_reboot(void){ g_rebooted++; return 1; }
+static int env_flash(void){ order('F'); return g_flash_rc; }
+static int env_unmount(void){ order('U'); g_unmounted++; return g_unmount_rc; }
+static int env_reboot(void){ order('R'); g_rebooted++; return 1; }
 static void env_toast(const char *s){
     assert(g_ntoast < 8);
     snprintf(g_toast[g_ntoast++], sizeof g_toast[0], "%s", s);
@@ -46,13 +54,15 @@ static const struct restart_env env = {
     .quiesce_begin = env_quiesce, .quiesce_end = env_unquiesce,
     .stop_readers = env_stop, .save_clock = env_clock,
     .spawn = env_spawn, .wait = env_wait, .kill = env_kill,
-    .flash_arm = env_flash, .reboot = env_reboot, .toast = env_toast,
+    .flash_arm = env_flash, .reboot = env_reboot, .unmount_card = env_unmount, .toast = env_toast,
 };
 
 static void setup(void){
     g_now = 1000; g_drained = 0; g_quiesced = g_unqueued = g_stopped = g_killed = 0;
     g_flash_rc = 0; g_rebooted = 0; g_clock = 900;
-    g_nspawn = g_ntoast = 0; memset(&g_child, 0, sizeof g_child);
+    g_unmounted = 0; g_unmount_rc = 0;
+    g_nspawn = g_ntoast = g_norder = 0; memset(g_order, 0, sizeof g_order);
+    memset(&g_child, 0, sizeof g_child);
     restart_set_env(&env);
 }
 static void run(int ms){ for(int t = 0; t < ms; t += 100){ g_now += 100; restart_tick(); } }
@@ -75,11 +85,13 @@ static void drain_sync_and_reboot(void){
     assert(restart_begin(RESTART_UI) == 0);
     restart_tick();
     assert(g_nspawn == 1 && !strcmp(g_spawned[0], "sync") && restart_busy());
+    assert(g_unmounted == 0);
     run(1000);
-    assert(restart_busy() && !g_rebooted);
+    assert(restart_busy() && !g_rebooted && g_unmounted == 0);
     g_child.running = 0; g_child.status = 0;
     restart_tick();
     assert(!restart_busy() && g_rebooted == 1 && g_unqueued == 1 && g_killed == 1);
+    assert(g_unmounted == 1 && !strcmp(g_order, "UR"));
     assert(!toasted("Couldn't restart - card busy, try again"));
 }
 
@@ -90,6 +102,7 @@ static void sync_failure_stops_the_restart(void){
     g_child.running = 0; g_child.status = 1 << 8;
     restart_tick();
     assert(!restart_busy() && !g_rebooted && g_unqueued == 1 && g_killed == 1);
+    assert(g_unmounted == 0);
     assert(toasted("Couldn't restart - card flush failed"));
 }
 
@@ -111,6 +124,7 @@ static void flash_arm_failure_stops_the_restart(void){
     g_child.running = 0; g_child.status = 0;
     restart_tick();
     assert(!restart_busy() && !g_rebooted && g_unqueued == 1 && g_killed == 1);
+    assert(g_unmounted == 1 && !strcmp(g_order, "UF"));
     assert(toasted("Couldn't set flash mode - not restarted"));
 }
 
@@ -128,6 +142,18 @@ static void flash_arm_then_reboot(void){
     g_child.running = 0; g_child.status = 0;
     restart_tick();
     assert(!restart_busy() && g_rebooted == 1 && g_unqueued == 1);
+    assert(g_unmounted == 1 && !strcmp(g_order, "UFR"));
+}
+
+static void unmount_failure_still_reboots(void){
+    setup(); g_drained = 1; g_unmount_rc = -1;
+    assert(restart_begin(RESTART_UI) == 0);
+    restart_tick();
+    g_child.running = 0; g_child.status = 0;
+    restart_tick();
+    assert(!restart_busy() && g_rebooted == 1 && g_unqueued == 1 && g_unmount_rc == -1);
+    assert(g_unmounted == 1 && !strcmp(g_order, "UR"));
+    assert(!toasted("Couldn't restart - try again") && g_ntoast == 1);
 }
 
 int main(void){
@@ -138,6 +164,7 @@ int main(void){
     flash_arm_failure_stops_the_restart();
     abort_cleans_up_a_started_restart();
     flash_arm_then_reboot();
+    unmount_failure_still_reboots();
     puts("restart_test: ok");
     return 0;
 }

@@ -23,6 +23,9 @@ nowplay_test: ../nowplay.c nowplay_test.c ../nowplay.h ../ipc.h
 restart_test: ../restart.c restart_test.c ../restart.h
 	$(CC) $(CFLAGS) -I.. ../restart.c restart_test.c -o $@
 
+power_test: ../power.c power_test.c ../power.h
+	$(CC) $(CFLAGS) -DPOWER_CORE_ONLY -I.. ../power.c power_test.c -o $@
+
 session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c -o $@
 
@@ -121,7 +124,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: uiread_test sysconfig_test transport_test config_test restart_test nowplay_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: uiread_test sysconfig_test transport_test config_test power_test restart_test nowplay_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	./ipc_guard_test
 	./ipc_tx_test
@@ -138,6 +141,8 @@ run: uiread_test sysconfig_test transport_test config_test restart_test nowplay_
 	./srcswitch_test
 	@echo "--- restart ---"
 	./restart_test
+	@echo "--- power ---"
+	./power_test
 	@echo "--- nowplay ---"
 	./nowplay_test
 	@echo "--- playreq ---"
@@ -190,7 +195,7 @@ run: uiread_test sysconfig_test transport_test config_test restart_test nowplay_
 	./coverart_pipeline_test
 
 clean:
-	rm -f uiread_test restart_test nowplay_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f uiread_test restart_test power_test nowplay_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard

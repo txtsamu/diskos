@@ -112,6 +112,7 @@ pw_phase_t power_shutdown_tick(void){
         int r = g_pw.ops.sync_poll(g_pw.ops.ctx);
         if(r < 0){ pw_fail("Couldn't shut down - card flush failed"); break; }
         if(r == 1){
+            if(g_pw.ops.unmount_card) g_pw.ops.unmount_card(g_pw.ops.ctx);
             if(g_pw.ops.send(g_pw.ops.ctx, "0806000C0001") != 0){ pw_fail("Couldn't shut down - try again"); break; }
             g_pw.phase = PW_HANDOFF; g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
         } else if(pw_elapsed() >= POWER_SYNC_MS){ g_pw.ops.sync_kill(g_pw.ops.ctx); pw_fail("Couldn't shut down - card busy, try again"); }
@@ -211,7 +212,7 @@ int power_shutdown_request(void){
     if(power_shutdown_phase() == PW_PROTECTED){ ui_toast("Shutdown didn't complete - restart the Disc to use the card"); return -1; }
     ui_timekeep_save_now();
     power_ops_t o = { real_quiesce_begin, real_drained, real_quiesce_end, real_sync_start, real_sync_poll, real_sync_kill,
-                      real_send, real_now, real_toast, NULL };
+                      real_send, real_now, real_toast, env_unmount_card, NULL };
     return power_shutdown_begin(&o);
 }
 
