@@ -504,8 +504,9 @@ int env_unmount_card(void *ctx){
     int e = errno;
     if(e == EINVAL || e == ENOENT){ bootlog_event("card not mounted before shutdown or restart"); return 0; }
     bootlog_event("card busy errno=%d(%s), asking the player to release it", e, strerror(e));
-    srcswitch_send_source(SRCSWITCH_MODE_USB_STORAGE);
-    for(int i = 0; i < 20; i++){
+    int sw = srcswitch_send_source(SRCSWITCH_MODE_USB_STORAGE);
+    if(sw < 0) bootlog_event("player refused the storage switch (rc=%d), retrying the unmount", sw);
+    for(int i = 0; i < 40; i++){
         usleep(100000);
         if(umount("/tmp/sdcard") == 0){ bootlog_event("card unmounted after player release in %d tries", i + 1); return 0; }
         if(errno == EINVAL || errno == ENOENT){ bootlog_event("card not mounted after player release"); return 0; }
