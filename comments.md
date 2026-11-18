@@ -17672,6 +17672,213 @@ exec path with argv = { argv0, NULL }; if the exec fails, _exit(127) so the firm
 returns. Async-signal-safe. The exec itself goes through handoff_execv, which a host test points at a fake (the seam).
 ~~~
 
+## ui/idlegov.h
+
+**L7** `#define IDLEGOV_TMAP_N 5`
+
+~~~text
+Settings cyclers pick a timeout by index; 5 rows (Off, 30 s, 60 s, 120 s, 300 s).
+~~~
+
+**L8** `#define IDLEGOV_BLPOLL_MS 250u`
+
+~~~text
+PW-10 backlight-rail poll cadence: the shared 250 ms gate behind both the V2.57
+screen-frame relevel and the legacy two-pass brightness poll.
+~~~
+
+**L9** `#define IDLEGOV_INJECT_DELAY_MS 300u`
+
+~~~text
+the player's sleep takes ~240 ms after its frame (two 120 ms waits): wait 300 before
+sending the wake press, so it lands after the sleep has finished.
+~~~
+
+**L11** `enum { IDLEGOV_PK_NONE, IDLEGOV_PK_OFF, IDLEGOV_PK_WAKE, IDLEGOV_PK_RELEVEL };`
+
+~~~text
+what one observed brightness value means: nothing, the player slept its panel
+(powers diskOS's rail down), the player woke it (light at the USER's level), or the
+player rewrote a level on a showing screen (keep diskOS's).
+~~~
+
+**L15** `typedef struct { int seen; int player_off; unsigned off_seq; } idlegov_keys_t;`
+
+~~~text
+seen: brightness last seen; player_off: panel asleep; off_seq: diskOS's write count when it went to sleep.
+The power button belongs to the player (it grabs event0). A short press toggles the player's screen: to sleep it
+suspends the LCD panel (SUSPEND_CMD on /dev/lcd_st77916) and the touch chip (CST8xx) and writes brightness 0; to wake
+it resumes both and writes its own saved level (mq_player V2.57 lcd_handler.c / echo_panel_sleep_in / _out strings;
+device-measured 2026-10-07: 6 -> 0 -> 9). diskOS can only follow: brightness is the one trace it can read, and a
+backlight lit over a sleeping panel shows nothing (device test 2026-10-07: a "wake" on the 0 write flashed and went
+black). So: the player sleeping (0) powers diskOS's rail down; the player waking (its level after a 0) lights the
+screen at the USER's level (it came back at the player's 9 instead of the user's 23). After diskOS's own Screen Off
+(rail down, panel still awake) the first press only sleeps the panel and the second wakes it. A write that is neither
+(the player rewriting a level while awake) keeps diskOS's level. A press that writes the value already there is
+invisible here (e.g. a user level equal to the player's).
+~~~
+
+**L18** `int bl_state;` *(trailing)*
+
+~~~text
+0 = normal, 1 = saver-dim, 2 = off
+~~~
+
+**L20** `unsigned scr_seq_seen, aa03_seq_seen, gen_seen, inject_for, inject_gen;`
+
+~~~text
+V2.57: the player's own screen frames (aa23) drive the state; aa03 = it is powering off or prompting to (never
+inject until the player restarts). The cursors start at 0 like the ipc counters, so frames that arrived during
+startup are handled on the first pass, not skipped.
+~~~
+
+**L23** `int manual_sleep;` *(trailing)*
+
+~~~text
+Manual "Sleep" (Quick Settings tile): a deliberate screen-off request that must dim+power the
+panel even when the auto-screensaver is Off, so it can't ride the saver_timeout>0 path. Armed
+via idlegov_request_sleep(); idlegov_saver() honours it and clears it once the panel is woken.
+~~~
+
+## ui/idlegov.c
+
+**L5** `static const int TMAP[IDLEGOV_TMAP_N] = {0,30,60,120,300};`
+
+~~~text
+screensaver + screen-off timeouts come from the Settings cyclers (index ->
+seconds via TMAP); the callers re-read each loop so changes apply live.
+~~~
+
+**L7** `int idlegov_saver_secs(int idx){ return (idx >= 0 && idx < IDLEGOV_TMAP_N) ? TMAP[idx] : 60; }`
+
+~~~text
+out-of-range index falls back to the cycler's default (60 s saver, 120 s screen-off)
+~~~
+
+**L10** `void idlegov_boot(idlegov_t *g, int boot_br, int startup_deferred, int written, uint32_t now){`
+
+~~~text
+A late fallback zero stays untouched until the player's wake. Early boot zeros are treated as startup,
+not sleep: light promptly and follow the next player write without retaining a stale sleep flag.
+off_seq 0: no diskOS write yet when boot_br was read.
+~~~
+
+**L23** `void idlegov_request_sleep(idlegov_t *g, uint32_t now){`
+
+~~~text
+armed from the Sleep tile (main.c's ui_request_sleep); the ladder runs the dim/off countdown from
+this timestamp, independent of the (possibly disabled) auto-saver timer
+~~~
+
+**L28** `int idlegov_screen_frame_step(int on, int bl_state, int *player_off, int poweroff_inhibit){`
+
+~~~text
+V2.57: one player screen frame (aa23 0 = it slept its panel and touch, 1 = it woke them) -> what diskOS does.
+Dark with the player awake can only be diskOS's own Screen Off, so a sleep frame then is a press meant to WAKE:
+the player is asked to undo its sleep (SF_INJECT; its wake frame follows), unless it is powering off. The press is
+sent only after the player's sleep has finished (~240 ms: two 120 ms waits after the frame) and only if no newer
+screen frame came in meanwhile (a USB plug or a library scan can wake the player on its own; a toggle then would
+put it back to sleep). That narrows, but cannot close, the window for such a wake - an event already queued in
+the key device cannot be recalled.
+~~~
+
+**L36** `void idlegov_screen(idlegov_t *g, int on, unsigned sq, unsigned pq, unsigned gen, uint32_t now, idlegov_screen_out_t *out){`
+
+~~~text
+facts in (one screen snapshot, the injected clock), decisions out: a generation change resets the
+cursors, the inhibit and player_off; a fresh aa03 count inhibits the inject; a new aa23 seq is
+consumed (note_input out, so the caller restarts the idle power-off countdown) and mapped through
+idlegov_screen_frame_step.
+~~~
+
+**L46** `g->inject_pending = 0;` *(trailing)*
+
+~~~text
+a newer frame cancels a press not yet sent
+~~~
+
+**L65** `int idlegov_inject_pending(const idlegov_t *g, uint32_t now){`
+
+~~~text
+due when the player's sleep has finished (~240 ms after the frame; armed at now+300)
+~~~
+
+**L69** `int idlegov_inject_take(idlegov_t *g, int on, unsigned sq, unsigned pq, unsigned gen){`
+
+~~~text
+the press is spent no matter what; it is sent only if the SAME sleep frame still stands
+(generation, seq, still off, the aa03 count unmoved) and the player is not powering off
+~~~
+
+**L74** `int idlegov_blpoll_due(idlegov_t *g, uint32_t now){`
+
+~~~text
+the shared PW-10 rail-poll gate (both firmware paths); lv_tick_elaps semantics, one clock fact
+~~~
+
+**L80** `int idlegov_foreign_relevel(const idlegov_t *g, int cbr, int written){`
+
+~~~text
+a foreign level with the player awake and the panel showing: keep the user's (lit or dimmed);
+the player's sleep (player_off) is left alone - only its own button wakes that
+~~~
+
+**L87** `int idlegov_powerkey_step(idlegov_keys_t *k, int cbr, int ours, unsigned ours_seq, int dark){`
+
+~~~text
+ours / ours_seq: the value and write count of diskOS's own brightness writes. After a player sleep, a level is the
+player's wake unless diskOS has written since (its startup write, a tap) - so a player level that EQUALS the
+user's still wakes the screen. panel asleep (0); diskOS's own write while the panel sleeps is not a wake;
+the player rewrote a level - keep ours.
+~~~
+
+**L99** `int idlegov_powerkey_pass(idlegov_t *g, int cbr, int ours, unsigned ours_seq, int dark, unsigned write_seq){`
+
+~~~text
+the first observed value (boot brightness read failed, seen < 0) is adopted without acting,
+so a mid-boot press doesn't light or dark the panel from a stale baseline
+~~~
+
+**L110** `int idlegov_touch_wake(idlegov_t *g, int any, uint32_t now){`
+
+~~~text
+any raw touch event while dimmed/off is a wake (LVGL may coalesce the tap); the player's own
+sleep (player_off) is excluded - only its button wakes that
+~~~
+
+**L117** `void idlegov_saver(idlegov_t *g, uint32_t now, int in_saver, int saver_ok, int saver_secs, int off_secs, idlegov_saver_out_t *out){`
+
+~~~text
+manual sleep runs its dim/off countdown from the tile tap, independent of the
+(possibly disabled) auto-saver timer; a manual Sleep request ends the moment the
+panel is woken (not in SCR_SAVER).
+~~~
+
+**L124** `if(past_dim && !in_saver && g->bl_state==0 && (saver_ok || manual)){`
+
+~~~text
+auto-enter only in timeout mode AND only when the saver is appropriate now (art
+savers need playback). The Sleep tile already opened SCR_SAVER (manual).
+Gate on bl_state==0: enter ONLY from the fully-lit state. Once dimmed (1) or off (2)
+we never (re-)enter - after full-off we deliberately LEAVE the saver, and
+re-entering each loop would churn screen_show and revive saver animation behind a
+dark panel.
+~~~
+
+**L127** `if((in_saver || past_dim || manual) && g->bl_state==0){`
+
+~~~text
+dim once idle past the timeout (manual: immediately) - whether or not a saver
+screen is up, so a suppressed art saver still sleeps the screen normally.
+~~~
+
+**L130** `uint32_t off_at = manual ? (uint32_t)(off_secs > 0 ? off_secs : 10)*1000`
+
+~~~text
+full off after the screen-off delay. Manual sleep uses the configured Screen Off
+delay when set, else a 10s default so the tile actually powers the panel down.
+~~~
+
 ## ui/home.c
 
 **L13** `int ui_label_input_changed(lv_obj_t *obj, const char *txt);` *(trailing)*
@@ -21462,13 +21669,13 @@ a 2nd, RAW read-only fd on the touch evdev, used ONLY to
                                           raw stream where ANY event means "a finger touched".
 ~~~
 
-**L70** `static volatile int g_manual_sleep = 0;`
+**L85** `void ui_request_sleep(void){ idlegov_request_sleep(&g_idle, lv_tick_get()); }`
 
 ~~~text
 Manual "Sleep" (Quick Settings tile): a deliberate screen-off request. It must dim+power
 the panel even when the auto-screensaver is Off, so it can't ride the saver_timeout>0 path.
-g_manual_sleep is armed by ui_request_sleep(); the saver block below honours it and clears
-it once the panel is woken (touch takes us off SCR_SAVER).
+Arms the idlegov machine (which owns the flag); idlegov_saver() honours it and clears it
+once the panel is woken (touch takes us off SCR_SAVER).
 ~~~
 
 **L74** `void ui_backlight_hold(void);` *(trailing)*
@@ -21597,82 +21804,11 @@ same clamp as the setter
 small sysfs int reader (backlight brightness/bl_power polling for the power-button rail fix).
 ~~~
 
-**L153** `typedef struct { int seen; int player_off; unsigned off_seq; } powerkey_t;`
-
-~~~text
-The power button belongs to the player (it grabs event0). A short press toggles the player's screen: to sleep it
-suspends the LCD panel (SUSPEND_CMD on /dev/lcd_st77916) and the touch chip (CST8xx) and writes brightness 0; to wake
-it resumes both and writes its own saved level (mq_player V2.57 lcd_handler.c / echo_panel_sleep_in / _out strings;
-device-measured 2026-10-07: 6 -> 0 -> 9). diskOS can only follow: brightness is the one trace it can read, and a
-backlight lit over a sleeping panel shows nothing (device test 2026-10-07: a "wake" on the 0 write flashed and went
-black). So: the player sleeping (0) powers diskOS's rail down; the player waking (its level after a 0) lights the
-screen at the USER's level (it came back at the player's 9 instead of the user's 23). After diskOS's own Screen Off
-(rail down, panel still awake) the first press only sleeps the panel and the second wakes it. A write that is neither
-(the player rewriting a level while awake) keeps diskOS's level. A press that writes the value already there is
-invisible here (e.g. a user level equal to the player's).
-~~~
-
-**L154** `enum { PK_NONE, PK_OFF, PK_WAKE, PK_RELEVEL };`
-
-~~~text
-seen: brightness last seen; player_off: panel asleep; off_seq: diskOS's write count when it went to sleep
-~~~
-
-**L155** `static int powerkey_step(powerkey_t *k, int cbr, int ours, unsigned ours_seq, int dark){`
-
-~~~text
-ours / ours_seq: the value and write count of diskOS's own brightness writes. After a player sleep, a level is the
-player's wake unless diskOS has written since (its startup write, a tap) - so a player level that EQUALS the
-user's still wakes the screen.
-~~~
-
-**L158** `if(cbr == 0){ k->player_off = 1; k->off_seq = ours_seq; return dark ? PK_NONE : PK_OFF; }` *(trailing)*
-
-~~~text
-panel asleep
-~~~
-
-**L160** `if(cbr == ours && ours_seq != k->off_seq) return PK_NONE;` *(trailing)*
-
-~~~text
-diskOS's own write while the panel sleeps
-~~~
-
-**L161** `k->player_off = 0; return PK_WAKE;` *(trailing)*
-
-~~~text
-panel awake again: light it at the user's level
-~~~
-
-**L163** `if(cbr == ours) return PK_NONE;` *(trailing)*
-
-~~~text
-our own write landing
-~~~
-
-**L164** `return PK_RELEVEL;` *(trailing)*
-
-~~~text
-the player rewrote a level - keep ours
-~~~
-
 **L166** `static int powerkey_defer_startup(int brightness){`
 
 ~~~text
 Zero during early boot may precede the player's first level. Prefer a lit boot if uptime is unknown too.
 After a conservative 150s boot window, preserve zero so an equal-level wake remains observable.
-~~~
-
-**L172** `enum { SF_NONE, SF_OFF, SF_WAKE, SF_INJECT };`
-
-~~~text
-V2.57: one player screen frame (aa23 0 = it slept its panel and touch, 1 = it woke them) -> what diskOS does.
-Dark with the player awake can only be diskOS's own Screen Off, so a sleep frame then is a press meant to WAKE:
-the player is asked to undo its sleep (SF_INJECT; its wake frame follows), unless it is powering off. The press is
-sent only after the player's sleep has finished (~240 ms: two 120 ms waits after the frame) and only if no newer
-screen frame came in meanwhile (a USB plug or a library scan can wake the player on its own; a toggle then would
-put it back to sleep). That narrows, but cannot close, the window for such a wake - an event already queued in
-the key device cannot be recalled.
 ~~~
 
 **L180** `static int power_key_inject(void){`
@@ -25177,50 +25313,21 @@ play/pause inference (playstate.c, host-tested)
 last track whose art/backdrop was pushed - so a mere position tick doesn't re-invalidate the 360px backdrop
 ~~~
 
-**L2089** `static const int TMAP[5] = {0,30,60,120,300};`
-
-~~~text
-screensaver + screen-off timeouts come from the Settings cyclers (index ->
-seconds via TMAP), re-read each loop so changes apply live.
-~~~
-
 **L2091** `int woke = 0;` *(trailing)*
 
 ~~~text
 a press that only wakes the saver is swallowed
 ~~~
 
-**L2092** `int bl_state = 0;` *(trailing)*
+**L1781** `idlegov_boot(&g_idle, boot_br, startup_deferred, ui_backlight_written(), lv_tick_get());`
 
 ~~~text
-0 = normal, 1 = saver-dim, 2 = off
-~~~
-
-**L2093** `uint32_t last_blpoll = 0;` *(trailing)*
-
-~~~text
-PW-10 backlight-rail poll cadence
-~~~
-
-**L2094** `powerkey_t pk = { boot_br, boot_br == 0, 0 };`
-
-~~~text
-A late fallback zero stays untouched until the player's wake. Early boot zeros are treated as startup,
-not sleep: light promptly and follow the next player write without retaining a stale sleep flag.
-~~~
-
-**L2094** `powerkey_t pk = { boot_br, boot_br == 0, 0 };` *(trailing)*
-
-~~~text
-off_seq 0: no diskOS write yet when boot_br was read
-~~~
-
-**L2099** `unsigned scr_seq_seen = 0, aa03_seq_seen = 0, screen_gen_seen = 0, inject_for = 0, inject_gen = 0;`
-
-~~~text
-V2.57: the player's own screen frames (aa23) drive the state; aa03 = it is powering off or prompting to (never
-inject until the player restarts). The cursors start at 0 like the ipc counters, so frames that arrived during
-startup are handled on the first pass, not skipped.
+The idle machine's starting state: pk.seen from the boot brightness read (a late fallback
+zero stays untouched until the player's wake; early boot zeros are treated as startup,
+not sleep), bl_state 2 when the startup was deferred (the player owns the first light-up),
+cursors at 0 like the ipc counters so frames that arrived during startup are handled on
+the first pass, not skipped. ui_backlight_written() is read AFTER settings_apply_startup,
+so pk.seen sees the startup brightness write.
 ~~~
 
 **L2102** `srcswitch_restart_deadline();`
@@ -25823,40 +25930,36 @@ else: send failed -> keep armed, retry
 **L2372** `if(fw_power_key_driveable()){`
 
 ~~~text
-PW-10: power-button presses, seen only as the player's brightness writes - see powerkey_step().
+PW-10: power-button presses, seen only as the player's screen frames / brightness writes - the
+decisions are idlegov's (idlegov_screen below, idlegov_powerkey_pass in the else arm); this loop
+only fetches the facts and applies what comes back.
 ~~~
 
-**L2381** `inject_pending = 0;` *(trailing)*
-
-~~~text
-a newer frame cancels a press not yet sent
-~~~
-
-**L2382** `power_note_input();` *(trailing)*
+**L1996** `if(so.note_input) power_note_input();` *(trailing)*
 
 ~~~text
 a press is input: restarts the idle power-off countdown
 ~~~
 
-**L2385** `case SF_OFF:` *(trailing)*
+**L1997** `if(so.act == IDLEGOV_SF_OFF){` *(trailing)*
 
 ~~~text
 the player slept its panel: power the rail down to match
 ~~~
 
-**L2391** `case SF_WAKE:` *(trailing)*
+**L2002** `} else if(so.act == IDLEGOV_SF_WAKE){` *(trailing)*
 
 ~~~text
 the player woke its panel: light it at the user's level
 ~~~
 
-**L2399** `if(inject_pending && (int32_t)(lv_tick_get() - inject_due) >= 0){` *(trailing)*
+**L2007** `if(idlegov_inject_pending(&g_idle, lv_tick_get())){` *(trailing)*
 
 ~~~text
 the player's sleep has finished
 ~~~
 
-**L2404** `if(lv_tick_elaps(last_blpoll) >= 250){`
+**L2011** `if(idlegov_blpoll_due(&g_idle, lv_tick_get())){`
 
 ~~~text
 the player writes its own level ~50 ms after its wake frame: keep the user's (lit or dimmed)
@@ -25875,31 +25978,31 @@ a press our own write overwrote since the last poll first (a tap or the dim time
 then the live value
 ~~~
 
-**L2421** `if(act != PK_NONE) power_note_input();` *(trailing)*
+**L2421** `if(act != IDLEGOV_PK_NONE) power_note_input();` *(trailing)*
 
 ~~~text
 a press is input: restarts the idle power-off countdown
 ~~~
 
-**L2423** `case PK_OFF:` *(trailing)*
+**L2025** `if(act == IDLEGOV_PK_OFF){` *(trailing)*
 
 ~~~text
 the player put the panel to sleep: power the rail down to match
 ~~~
 
-**L2429** `case PK_WAKE:` *(trailing)*
+**L2030** `} else if(act == IDLEGOV_PK_WAKE){` *(trailing)*
 
 ~~~text
 the player woke the panel: light it at the user's level (Outdoor: full), not the player's
 ~~~
 
-**L2434** `case PK_RELEVEL:` *(trailing)*
+**L2034** `} else if(act == IDLEGOV_PK_RELEVEL){` *(trailing)*
 
 ~~~text
 the player rewrote a level on a showing screen: keep diskOS's (lit or dimmed)
 ~~~
 
-**L2443** `int si = cfg_get_int("saver_idx", 2), oi = cfg_get_int("screenoff_idx", 3);`
+**L2041** `int saver_secs = idlegov_saver_secs(cfg_get_int("saver_idx", 2));`
 
 ~~~text
 screensaver + backlight power saving (the screen is the biggest drain):
@@ -25923,7 +26026,7 @@ a dark panel needed many taps to wake). Drained every loop (even awake) so it ne
 up; only acts when the panel is dimmed/off (bl_state != 0).
 ~~~
 
-**L2449** `if(any && bl_state && !pk.player_off){` *(trailing)*
+**L2046** `if(idlegov_touch_wake(&g_idle, any, lv_tick_get())){` *(trailing)*
 
 ~~~text
 the player's sleep (panel off): only its button wakes
@@ -25953,12 +26056,6 @@ the charging screen may dim/blank but never idle-powers-off
 AFTER all input is consumed (a pending touch must win the race): SD-safe shutdown, diskOS idle power-off, temperature notice
 ~~~
 
-**L2460** `if(g_manual_sleep && !in_saver) g_manual_sleep = 0;`
-
-~~~text
-a manual Sleep request ends the moment the panel is woken (we leave SCR_SAVER)
-~~~
-
 **L2462** `int sstyle    = cfg_get_int("saver_style", 0);`
 
 ~~~text
@@ -25968,44 +26065,22 @@ they shouldn't). Time/info savers (analog=1, minim=2, weather=3) stay useful idl
 A suppressed art saver still power-saves the backlight below.
 ~~~
 
-**L2466** `uint32_t idle = manual ? lv_tick_elaps(g_manual_sleep_at) : lv_tick_elaps(last_activity);`
+**L2059** `idlegov_saver(&g_idle, lv_tick_get(), screen_current()==SCR_SAVER, saver_ok, saver_secs, off_secs, &lo);`
 
 ~~~text
-manual sleep runs its dim/off countdown from the tile tap, independent of the
-(possibly disabled) auto-saver timer
+the saver ladder, turn by turn: past_dim -> show saver + dim (only from the fully-lit
+state), in_saver/past_dim/manual + lit -> dim, then bl_state==1 past saver+screenoff
+(manual: the Screen Off delay, else 10 s) -> off. A manual Sleep request ends the
+moment the panel is woken (not in SCR_SAVER); its countdown runs from the tile tap,
+independent of the (possibly disabled) auto-saver timer.
 ~~~
 
-**L2468** `if(past_dim && !in_saver && bl_state==0 && (saver_ok || manual)){`
-
-~~~text
-auto-enter only in timeout mode AND only when the saver is appropriate now (art
-savers need playback). The Sleep tile already opened SCR_SAVER (manual).
-Gate on bl_state==0: enter ONLY from the fully-lit state. Once dimmed (1) or off (2)
-we never (re-)enter - after full-off we deliberately LEAVE the saver (below), and
-re-entering each loop would churn screen_show and revive saver animation behind a
-dark panel.
-~~~
-
-**L2471** `if((in_saver || past_dim || manual) && bl_state==0){`
-
-~~~text
-dim once idle past the timeout (manual: immediately) - whether or not a saver
-screen is up, so a suppressed art saver still sleeps the screen normally.
-~~~
-
-**L2472** `ui_backlight(dim_level()); bl_state = 1;`
+**L2061** `if(lo.dim) ui_backlight(dim_level());`
 
 ~~~text
 the vinyl art-showcase saver stays at the user's brightness; everything else
 (incl. a suppressed art saver just dimming the current screen) crushes to a
 low dim. bl_state still -> 1 so the screen-off timer powers the panel down.
-~~~
-
-**L2474** `uint32_t off_at = manual ? (uint32_t)(screenoff_extra > 0 ? screenoff_extra : 10)*1000`
-
-~~~text
-full off after the screen-off delay. Manual sleep uses the configured Screen Off
-delay when set, else a 10s default so the tile actually powers the panel down.
 ~~~
 
 **L2480** `if(screen_current()==SCR_SAVER) screen_back();`
