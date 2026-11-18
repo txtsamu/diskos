@@ -73,9 +73,9 @@ void ui_on(lv_obj_t *obj, lv_event_cb_t cb, lv_event_code_t code, void *user_dat
 #endif
 }
 
-const char *ui_transport_action(const char *cmd, const char *prefix, char *buf, int cap){
-    const char *what = !cmd ? "cmd" : !strcmp(cmd, "0201000C0002") ? "prev" : !strcmp(cmd, "0201000C0000") ? "pp"
-                     : !strcmp(cmd, "0201000C0001") ? "next" : "cmd";
+const char *ui_transport_action(ui_transport_cmd_t cmd, const char *prefix, char *buf, int cap){
+    const char *what = cmd == UI_TRANSPORT_PREV ? "prev" : cmd == UI_TRANSPORT_PLAYPAUSE ? "pp"
+                     : cmd == UI_TRANSPORT_NEXT ? "next" : "cmd";
     lv_snprintf(buf, cap, "%s.%s", prefix, what);
     return buf;
 }

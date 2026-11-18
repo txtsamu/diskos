@@ -16,7 +16,7 @@ static int scan_busy, scan_fail, sd_allowed = 1, scans;
 static uint32_t now;
 static long requested_seek, hold_target = -2;
 static int glyph_playing = -1, glyph_sets;
-static char toast[100];
+static char toast[100], sent_frame[32];
 static player_view_t state;
 static int cancel_ok = 1, cancels;
 
@@ -33,7 +33,7 @@ void ui_np_pp_refresh(int playing){ glyph_playing = playing; glyph_sets++; }
 const char *admit_check(admit_what_t w){ (void)w; return local ? NULL : "Return to local playback first"; }
 int ui_seek_to(long p){ seeks++; requested_seek = p; return send_fail ? -1 : 0; }
 void ipc_get_view(player_view_t *s){ *s = state; }
-int ipc_send_cmd(const char *s){ (void)s; commands++; return send_fail ? -1 : 0; }
+int ipc_send_cmd(const char *s){ snprintf(sent_frame, sizeof sent_frame, "%s", s); commands++; return send_fail ? -1 : 0; }
 int mdb_is_book_path(const char *s){ (void)s; return book; }
 int scanner_active(void){ return scan_busy; }
 int scanner_cancel(void){ cancels++; return cancel_ok; }
@@ -42,11 +42,13 @@ int sd_io_allowed(void){ return sd_allowed; }
 
 int main(void){
     g_playing = 1; now = 1000;
-    assert(ui_transport_command(PLAYER_CMD_PLAYPAUSE) == 0);
+    assert(ui_transport_command(UI_TRANSPORT_NONE) == -1 && commands == 0);
+    assert(ui_transport_command(UI_TRANSPORT_PLAYPAUSE) == 0);
+    assert(!strcmp(sent_frame, PLAYER_CMD_PLAYPAUSE));
     assert(glyph_playing == 0 && ui_pp_icon_playing(1) == 0);
-    now = 1100; assert(ui_transport_command(PLAYER_CMD_PLAYPAUSE) == 0);
+    now = 1100; assert(ui_transport_command(UI_TRANSPORT_PLAYPAUSE) == 0);
     assert(glyph_playing == 1 && ui_pp_icon_playing(0) == 1);
-    now = 1200; assert(ui_transport_command(PLAYER_CMD_PLAYPAUSE) == 0);
+    now = 1200; assert(ui_transport_command(UI_TRANSPORT_PLAYPAUSE) == 0);
     assert(ui_pp_icon_playing(1) == 0);
     now = 3000; assert(ui_pp_icon_playing(0) == 0);
     now = 3401; assert(ui_pp_icon_playing(1) == 1);
@@ -55,22 +57,25 @@ int main(void){
     puts("PASS instant feedback, rapid repeated taps, reconciliation and tick wrap");
 
     now = 10000; assert(ui_pp_icon_playing(0) == 0 && ui_pp_icon_playing(1) == 1);
-    send_fail = 1; glyph_sets = 0; assert(ui_transport_command(PLAYER_CMD_PLAYPAUSE) < 0);
+    send_fail = 1; glyph_sets = 0; assert(ui_transport_command(UI_TRANSPORT_PLAYPAUSE) < 0);
     assert(ui_pp_icon_playing(0) == 0 && ui_pp_icon_playing(1) == 1 && glyph_sets == 0 && !strcmp(toast, "Player busy - try again"));
     int sent = commands; local = 0;
-    assert(ui_transport_command(PLAYER_CMD_PLAYPAUSE) < 0);
-    assert(ui_transport_command("0201000C0001") < 0);
+    assert(ui_transport_command(UI_TRANSPORT_PLAYPAUSE) < 0);
+    assert(ui_transport_command(UI_TRANSPORT_NEXT) < 0);
     assert(commands == sent && seeks == 0);
     puts("PASS no optimistic success on IPC failure and no commands during USB ownership");
 
     local = 1; send_fail = 0; book = 1; state.position_ms = 10000; state.duration_ms = 20000;
-    assert(ui_transport_command("0201000C0002") == 0 && requested_seek == 0 && hold_target == 0);
-    assert(ui_transport_command("0201000C0001") == 0 && requested_seek == 20000 && hold_target == 20000);
+    assert(ui_transport_command(UI_TRANSPORT_PREV) == 0 && requested_seek == 0 && hold_target == 0);
+    assert(ui_transport_command(UI_TRANSPORT_NEXT) == 0 && requested_seek == 20000 && hold_target == 20000);
     assert(commands == sent && hints == 2 && !cancelled && !disarmed);
     hold_target = -2;
-    send_fail = 1; assert(ui_transport_command("0201000C0001") < 0 && hints == 2 && hold_target == -2);
-    book = 0; assert(ui_transport_command("0201000C0001") < 0 && !cancelled && !disarmed);
-    send_fail = 0; assert(ui_transport_command("0201000C0001") == 0 && cancelled == 1 && disarmed == 1);
+    send_fail = 1; assert(ui_transport_command(UI_TRANSPORT_NEXT) < 0 && hints == 2 && hold_target == -2);
+    book = 0; assert(ui_transport_command(UI_TRANSPORT_NEXT) < 0 && !cancelled && !disarmed);
+    send_fail = 0; assert(ui_transport_command(UI_TRANSPORT_NEXT) == 0 && cancelled == 1 && disarmed == 1);
+    assert(!strcmp(sent_frame, "0201000C0001"));
+    assert(ui_transport_command(UI_TRANSPORT_PREV) == 0 && cancelled == 2 && disarmed == 2 && hold_target == -2);
+    assert(!strcmp(sent_frame, "0201000C0002"));
     puts("PASS bounded book seeks, failed seek preserves resume, successful music skip clears it");
 
     local = 0; ui_rescan_library(); assert(scans == 0);

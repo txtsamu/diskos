@@ -37,7 +37,7 @@ class OutseqGuard(unittest.TestCase):
     def test_playpause_frame_spelled_once(self):
         offenders = []
         for path in sorted(APP.glob('*.c')) + sorted(APP.glob('*.h')):
-            if path.name in ('ipc.h', 'theme_kit.c', 'sqlite3.c') or path.name.startswith('font_'):
+            if path.name in ('ipc.h', 'sqlite3.c') or path.name.startswith('font_'):
                 continue
             for n, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
                 if '0201000C0000' in line:

@@ -70,7 +70,7 @@ dacvol_sys_test: ../dacvol_sys.c ../dacvol.c ../command_spawn.c dacvol_sys_test.
 	  -DDACVOL_KEY_SYSFS='"$(TDIR)/dacvol/sys/event%d/name"' -DDACVOL_KEY_DEV='"$(TDIR)/dacvol/dev/event%d"' -I.. \
 	  ../dacvol_sys.c ../dacvol.c ../command_spawn.c dacvol_sys_test.c -lm -o $@
 
-clicks_test: ../clicks.c clicks_test.c ../clicks.h
+clicks_test: ../clicks.c clicks_test.c ../clicks.h ../transport.h
 	$(CC) $(CFLAGS) -I.. ../clicks.c clicks_test.c -o $@
 
 transport_test: ../transport.c ../bootstate.c transport_test.c ../transport.h ../ipc.h ../admit.h

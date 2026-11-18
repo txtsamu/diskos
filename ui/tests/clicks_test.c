@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "clicks.h"
+#include "transport.h"
 
 static int fails = 0;
 #define CHECK(c,m) do{ if(!(c)){ printf("  FAIL: %s\n", m); fails++; } }while(0)
@@ -97,6 +98,15 @@ static void test_null(void){
     CHECK(clicks_poll(NULL, 0) == 0, "null: poll returns 0");
 }
 
+static void test_click_command(void){
+    CHECK(ui_transport_click_command(0) == UI_TRANSPORT_NONE, "command: no clicks resolve to no command");
+    CHECK(ui_transport_click_command(1) == UI_TRANSPORT_PLAYPAUSE, "command: one click plays or pauses");
+    CHECK(ui_transport_click_command(2) == UI_TRANSPORT_NEXT, "command: two clicks go next");
+    CHECK(ui_transport_click_command(3) == UI_TRANSPORT_PREV, "command: three clicks go previous");
+    CHECK(ui_transport_click_command(CLICKS_MAX) == UI_TRANSPORT_PREV, "command: the sequence cap is the third click");
+    CHECK(ui_transport_click_command(CLICKS_MAX + 1) == UI_TRANSPORT_NONE, "command: past the cap is no command");
+}
+
 int main(void){
     test_single();
     test_double();
@@ -108,6 +118,7 @@ int main(void){
     test_reset();
     test_wraparound();
     test_null();
+    test_click_command();
     printf("%s (%d failure%s)\n", fails ? "FAIL" : "PASS", fails, fails==1?"":"s");
     return fails ? 1 : 0;
 }
