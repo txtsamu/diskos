@@ -5,7 +5,23 @@
 
 #include <stdint.h>
 
-int  ui_transport_command(const char *cmd);
+typedef enum {
+    UI_TRANSPORT_NONE = 0,
+    UI_TRANSPORT_PLAYPAUSE,
+    UI_TRANSPORT_NEXT,
+    UI_TRANSPORT_PREV
+} ui_transport_cmd_t;
+
+int  ui_transport_command(ui_transport_cmd_t cmd);
+
+static inline ui_transport_cmd_t ui_transport_click_command(int clicks){
+    switch(clicks){
+    case 1: return UI_TRANSPORT_PLAYPAUSE;
+    case 2: return UI_TRANSPORT_NEXT;
+    case 3: return UI_TRANSPORT_PREV;
+    }
+    return UI_TRANSPORT_NONE;
+}
 
 void ui_pp_tap_hint(void);
 int  ui_pp_icon_playing(int real_playing);

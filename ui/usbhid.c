@@ -19,8 +19,6 @@
 #define CLICK_DEBOUNCE_MS 40
 #define VOL_STEP 2
 #define VOL_SETTLE_MS 600
-#define CMD_NEXT "0201000C0001"
-#define CMD_PREVIOUS "0201000C0002"
 
 static struct { int fd, idx; } g_dev[MAXFD];
 static int g_open_n, g_was_usb, g_vol = -1, g_click_dev;
@@ -67,15 +65,17 @@ static int step_volume(int dir){
     return v;
 }
 static int is_click_key(int c){ return c == KEY_PLAYPAUSE || c == KEY_PLAYCD || c == KEY_PAUSECD; }
-static void send_transport(int idx, int c, const char *cmd, const char *what){
+static void send_transport(int idx, int c, ui_transport_cmd_t cmd, const char *what){
     int rc = ui_transport_command(cmd);
     fprintf(stderr, "usbhid: event%d key %d -> %s (rc=%d)\n", idx, c, what, rc);
     fflush(stderr);
 }
 static void send_clicks(int idx, int c, int count){
-    if(count == 1) send_transport(idx, c, PLAYER_CMD_PLAYPAUSE, "play/pause");
-    else if(count == 2) send_transport(idx, c, CMD_NEXT, "next (double click)");
-    else if(count == 3) send_transport(idx, c, CMD_PREVIOUS, "previous (triple click)");
+    ui_transport_cmd_t cmd = ui_transport_click_command(count);
+    if(cmd == UI_TRANSPORT_NONE) return;
+    const char *what = cmd == UI_TRANSPORT_PLAYPAUSE ? "play/pause"
+                     : cmd == UI_TRANSPORT_NEXT ? "next (double click)" : "previous (triple click)";
+    send_transport(idx, c, cmd, what);
 }
 int usbhid_poll(int screen_lit){
     uint32_t now = lv_tick_get();
@@ -94,7 +94,7 @@ int usbhid_poll(int screen_lit){
             if(quiet) continue;
             for(int k = 0; k < (int)(n / (ssize_t)sizeof ev[0]); k++){
                 int c = ev[k].code, vol = c == KEY_VOLUMEUP || c == KEY_VOLUMEDOWN;
-                const char *cmd = NULL, *what = NULL;
+                ui_transport_cmd_t cmd = UI_TRANSPORT_NONE; const char *what = NULL;
                 if(ev[k].type != EV_KEY || ev[k].value < 1 || c < 0 || c >= 0x300) continue;
                 if(ev[k].value == 2 && !vol) continue;
                 if(is_click_key(c)){
@@ -107,8 +107,8 @@ int usbhid_poll(int screen_lit){
                     handled = 1;
                     continue;
                 }
-                if(c == KEY_NEXTSONG){ cmd = CMD_NEXT; what = "next"; }
-                else if(c == KEY_PREVIOUSSONG){ cmd = CMD_PREVIOUS; what = "previous"; }
+                if(c == KEY_NEXTSONG){ cmd = UI_TRANSPORT_NEXT; what = "next"; }
+                else if(c == KEY_PREVIOUSSONG){ cmd = UI_TRANSPORT_PREV; what = "previous"; }
                 else if(!vol) continue;
                 if((uint32_t)(now - g_key_ms[c]) < DEBOUNCE_MS) continue;
                 g_key_ms[c] = now;

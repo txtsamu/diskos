@@ -188,7 +188,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/procnet.h](#uiprocneth) | 2 |
 | [ui/prof.c](#uiprofc) | 3 |
 | [ui/prof.h](#uiprofh) | 2 |
-| [ui/quicksettings.c](#uiquicksettingsc) | 77 |
+| [ui/quicksettings.c](#uiquicksettingsc) | 78 |
 | [ui/radio.c](#uiradioc) | 6 |
 | [ui/radio.h](#uiradioh) | 30 |
 | [ui/radio_lv.c](#uiradiolvc) | 1 |
@@ -222,6 +222,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/boot_select_test.py](#uitestsbootselecttestpy) | 5 |
 | [ui/tests/bootlog_test.c](#uitestsbootlogtestc) | 1 |
 | [ui/tests/bootsel_driver.c](#uitestsbootseldriverc) | 2 |
+| [ui/tests/clicks_test.c](#uitestsclickstestc) | 1 |
 | [ui/tests/config_test.c](#uitestsconfigtestc) | 13 |
 | [ui/tests/coverart_pipeline_test.c](#uitestscoverartpipelinetestc) | 1 |
 | [ui/tests/coverart_test.c](#uitestscoverarttestc) | 1 |
@@ -246,12 +247,12 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tests/sysconfig_test.c](#uitestssysconfigtestc) | 1 |
 | [ui/tests/tama_test.c](#uiteststamatestc) | 102 |
 | [ui/tests/timekeep_test.c](#uiteststimekeeptestc) | 24 |
-| [ui/tests/transport_test.c](#uiteststransporttestc) | 7 |
+| [ui/tests/transport_test.c](#uiteststransporttestc) | 8 |
 | [ui/tests/vbus_test.c](#uitestsvbustestc) | 1 |
 | [ui/theme.c](#uithemec) | 62 |
 | [ui/theme.h](#uithemeh) | 54 |
 | [ui/theme_defs.c](#uithemedefsc) | 2 |
-| [ui/theme_kit.c](#uithemekitc) | 20 |
+| [ui/theme_kit.c](#uithemekitc) | 21 |
 | [ui/theme_kit.h](#uithemekith) | 57 |
 | [ui/theme_kits.c](#uithemekitsc) | 232 |
 | [ui/theme_model.h](#uithememodelh) | 15 |
@@ -268,15 +269,15 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tools/gen_theme_presets.py](#uitoolsgenthemepresetspy) | 16 |
 | [ui/tools/generate_i18n.py](#uitoolsgeneratei18npy) | 2 |
 | [ui/touchdisc.c](#uitouchdiscc) | 2 |
-| [ui/transport.c](#uitransportc) | 8 |
-| [ui/transport.h](#uitransporth) | 13 |
-| [ui/ui.c](#uiuic) | 403 |
+| [ui/transport.c](#uitransportc) | 9 |
+| [ui/transport.h](#uitransporth) | 15 |
+| [ui/ui.c](#uiuic) | 404 |
 | [ui/ui.h](#uiuih) | 1 |
 | [ui/ui_round.h](#uiuiroundh) | 8 |
 | [ui/upnext.c](#uiupnextc) | 27 |
 | [ui/usbdbg.c](#uiusbdbgc) | 6 |
 | [ui/usbdbg.h](#uiusbdbgh) | 2 |
-| [ui/usbhid.c](#uiusbhidc) | 9 |
+| [ui/usbhid.c](#uiusbhidc) | 10 |
 | [ui/usbhid.h](#uiusbhidh) | 1 |
 | [ui/vbus.c](#uivbusc) | 1 |
 | [ui/version.h](#uiversionh) | 1 |
@@ -32895,6 +32896,13 @@ upper-case bold captions, ring styling
 ---- optional transport row --------------------------------------------------------------------
 ~~~
 
+**L280** `static void build_transport(lv_obj_t *root, int y){` *(trailing)*
+
+~~~text
+the three buttons carry named commands (UI_TRANSPORT_PREV / PLAYPAUSE / NEXT, cast through intptr_t in tp_btn);
+the frames live in transport.c
+~~~
+
 **L285** `static void bright_change_cb(lv_event_t *e){ if(!theme_outdoor()) ui_backlight(lv_slider_get_valu...`
 
 ~~~text
@@ -43560,6 +43568,19 @@ blocked), which is what handoff_signal_reset() is for.
 the state a running diskOS is in: a pending watchdog timer, SIGALRM ignored and blocked
 ~~~
 
+## ui/tests/clicks_test.c
+
+**L5** `#include "clicks.h"`
+
+~~~text
+Host test for clicks.c, the pure 350 ms click counter (usbhid.c is the caller on the device; it is not host-built).
+The counter is linked real and every press/poll path is asserted, including the wrap. test_click_command also pins
+the Click gestures rule (GLOSSARY.md) through transport.h's ui_transport_click_command: one click plays or pauses,
+two go next, three go previous, the sequence caps at the third (CLICKS_MAX) and anything past it is no command - which
+is why the mapping is an inline in the header: this test links clicks.c only, without transport.c's process fakes.
+Build: make -C tests clicks_test
+~~~
+
 ## ui/tests/config_test.c
 
 **L3** `#define _GNU_SOURCE`
@@ -44047,7 +44068,8 @@ the pause and the resume half of every switch send the same toggle; it is ipc.h'
 **L38** `offenders = []`
 
 ~~~text
-(theme_kit.c only names the transport commands for the theme kits)
+(theme_kit.c named the commands by frame hex once; it takes the transport vocabulary now, so no exemption is needed
+and the play/pause spelling is ipc.h's alone)
 ~~~
 
 **L49** `facts = re.compile(r'\b(ui_local_playback_allowed|modes_output_busy|ui_output_blocked|ui_player_s...`
@@ -46390,6 +46412,13 @@ and prototypes come from the real headers, so a drifting struct or signature fai
 admit.c's rule for these two questions, with no output switch in flight: the transport path is under test
 ~~~
 
+**L36** `int ipc_send_cmd(const char *s){ snprintf(sent_frame, sizeof sent_frame, "%s", s); commands++; return send_...`
+
+~~~text
+captures the frame: the assertions pin the exact bytes each named command sends - PLAYER_CMD_PLAYPAUSE straight from
+ipc.h, the next/prev hex spelled here - so a drifted mapping fails the test
+~~~
+
 **L39** `int scanner_cancel(void){ cancels++; return cancel_ok; }` *(trailing)*
 
 ~~~text
@@ -47238,6 +47267,13 @@ below the swipe threshold's 20 px floor, so every recognised swipe is covered
 before the handler: see above
 ~~~
 
+**L76** `const char *ui_transport_action(ui_transport_cmd_t cmd, const char *prefix, char *buf, int cap){`
+
+~~~text
+a switch on the transport vocabulary, not strcmps on frame hex: the callers name commands, and this only names them
+again for the action log. Lives here rather than in the No-LVGL transport.c because lv_snprintf is an LVGL call.
+~~~
+
 **L83** `#define KIT_DONE LV_OBJ_FLAG_USER_4`
 
 ~~~text
@@ -47361,10 +47397,11 @@ a theme may drop it (tapping the art, the weather line when weather is reachable
 lv_obj_add_event_cb for a user action, with its stable name ("screen.thing[.gesture]") and tier
 ~~~
 
-**L14** `const char *ui_transport_action(const char *cmd, const char *prefix, char *buf, int cap);`
+**L15** `const char *ui_transport_action(ui_transport_cmd_t cmd, const char *prefix, char *buf, int cap);`
 
 ~~~text
-the action name of a player transport command ("np.prev", "np.pp", "np.next", else "np.cmd")
+the action name of a named transport command ("np.prev", "np.pp", "np.next", else "np.cmd"); transport.h (included
+here) owns the command type it takes
 ~~~
 
 **L17** `const char *ui_action_of(const lv_obj_t *obj);` *(trailing)*
@@ -50811,6 +50848,15 @@ window lapsed -> trust real
 still lagging -> show prediction
 ~~~
 
+**L27** `static const char *transport_frame(ui_transport_cmd_t cmd){`
+
+~~~text
+The wire side of the command vocabulary (ui/transport.h). Callers name a command and this file alone turns the name
+into the frame: play/pause is ipc.h's PLAYER_CMD_PLAYPAUSE (the switch dance, boot pause and the tests spell it too),
+next/prev are the two literals here and nowhere else in the UI sources. A name that is not a command (NONE, or a
+garbage enum) maps to NULL and ui_transport_command refuses it, the way the old NULL/unknown-frame string check did.
+~~~
+
 **L60** `if(scanner_active()){ if(scanner_cancel()) ui_toast("Cancelling scan..."); return; }` *(trailing)*
 
 ~~~text
@@ -50825,7 +50871,17 @@ the row reads "Stop" while a scan runs
 
 ## ui/transport.h
 
-**L8** `int  ui_transport_command(const char *cmd);`
+**L8** `typedef enum {`
+
+~~~text
+The transport command vocabulary: NONE (no command, and the value button user data casts back from a NULL), PLAYPAUSE,
+NEXT, PREV. Everything that asks the Player for a transport action names one: the on-screen buttons pass it through
+LVGL user data as an intptr_t, usbhid's click gestures pick theirs by click count, its dedicated keys and the
+home / Now Playing callbacks pass it directly. The frames the names stand for are mapped in transport.c
+(transport_frame) and spelled nowhere else; ipc.h keeps PLAYER_CMD_PLAYPAUSE as the play/pause wire encoding.
+~~~
+
+**L15** `int  ui_transport_command(ui_transport_cmd_t cmd);`
 
 ~~~text
 Transport commands and their feedback, shared by Now Playing, the drawer, the quick settings and the hardware keys:
@@ -50835,11 +50891,19 @@ through the prototypes below (main.c, ui.c, toast.c, admit.c, ipc.c, scanner.c, 
 links fakes of.
 ~~~
 
-**L8** `int  ui_transport_command(const char *cmd);`
+**L15** `int  ui_transport_command(ui_transport_cmd_t cmd);` *(trailing)*
 
 ~~~text
-Send a transport command (PLAYER_CMD_PLAYPAUSE or a next/prev frame). 0 = sent, -1 = refused or the send failed
+Send a named transport command; transport.c maps the name to its frame. 0 = sent, -1 = refused or the send failed
 (the user is told); on failure nothing optimistic is shown.
+~~~
+
+**L17** `static inline ui_transport_cmd_t ui_transport_click_command(int clicks){`
+
+~~~text
+The Click gestures rule (GLOSSARY.md): one click plays or pauses, two go next, three go previous, and anything else
+(a not-yet-resolved 0, or past CLICKS_MAX) is no command. An inline in this header so clicks_test can pin the mapping
+without linking transport.c's process fakes; usbhid.c's send_clicks is its caller.
 ~~~
 
 **L10** `void ui_pp_tap_hint(void);`
@@ -51448,6 +51512,14 @@ the finger owns the arc while scrubbing
 
 ~~~text
 What transport.c asks of this screen (transport.h): the seek-echo hold and the transport glyph.
+~~~
+
+**L485** `static void make_clickable(lv_obj_t *o, ui_transport_cmd_t cmd)`
+
+~~~text
+The Now Playing transport buttons carry a named command (transport.h) in the event user data, cast through
+intptr_t like the quicksettings tile ids; transport_cb casts it back and ui_transport_command turns the name into
+the frame. No frame hex in this file.
 ~~~
 
 **L441** `static int g_cover_px, g_cover_py;`
@@ -53872,6 +53944,14 @@ open every USB-attached evdev node we are not already reading
 
 ~~~text
 0 = x2000_key, 1 = cst816t touch: never ours
+~~~
+
+**L73** `static void send_clicks(int idx, int c, int count){`
+
+~~~text
+the counted clicks name their command through transport.h's ui_transport_click_command (1 = play/pause, 2 = next,
+3 = previous); the frames themselves live in transport.c now, and KEY_NEXTSONG / KEY_PREVIOUSSONG below name
+UI_TRANSPORT_NEXT / UI_TRANSPORT_PREV the same way
 ~~~
 
 **L72** `if(quiet) continue;` *(trailing)*

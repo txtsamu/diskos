@@ -253,10 +253,11 @@ static void build_tile(lv_obj_t *root, int id, int x, int y){
 }
 
 static void cmd_cb(lv_event_t *e){
-    const char *c = (const char*)lv_event_get_user_data(e); if(!c) return;
+    ui_transport_cmd_t c = (ui_transport_cmd_t)(intptr_t)lv_event_get_user_data(e);
+    if(!c) return;
     if(ui_transport_command(c) == 0) quicksettings_refresh(ui_is_playing());
 }
-static lv_obj_t *tp_btn(lv_obj_t *root, const char *sym, const lv_font_t *font, int x, int y, int sz, void *cmd){
+static lv_obj_t *tp_btn(lv_obj_t *root, const char *sym, const lv_font_t *font, int x, int y, int sz, ui_transport_cmd_t cmd){
     lv_obj_t *b = lv_button_create(root);
     lv_obj_remove_style_all(b);
     lv_obj_set_size(b, sz, sz);
@@ -267,7 +268,7 @@ static lv_obj_t *tp_btn(lv_obj_t *root, const char *sym, const lv_font_t *font, 
     lv_obj_set_style_bg_color(b, TC(SURFACE_PRESSED), LV_STATE_PRESSED);
     lv_obj_set_ext_click_area(b, 6);
     char an[24];
-    ui_on(b, cmd_cb, LV_EVENT_CLICKED, cmd, ui_transport_action(cmd, "qs", an, sizeof an), UI_CORE);
+    ui_on(b, cmd_cb, LV_EVENT_CLICKED, (void *)(intptr_t)cmd, ui_transport_action(cmd, "qs", an, sizeof an), UI_CORE);
     lv_obj_t *l = lv_label_create(b);
     lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE);
     lv_label_set_text(l, sym);
@@ -277,9 +278,9 @@ static lv_obj_t *tp_btn(lv_obj_t *root, const char *sym, const lv_font_t *font, 
     return l;
 }
 static void build_transport(lv_obj_t *root, int y){
-    g_prev_glyph = tp_btn(root, LV_SYMBOL_PREV, TF(UI_22), -84, y + 5, 46, (void*)"0201000C0002");
-    g_pp_glyph = tp_btn(root, LV_SYMBOL_PAUSE, TF(UI_28), 0, y, 56, (void*)PLAYER_CMD_PLAYPAUSE);
-    g_next_glyph = tp_btn(root, LV_SYMBOL_NEXT, TF(UI_22), 84, y + 5, 46, (void*)"0201000C0001");
+    g_prev_glyph = tp_btn(root, LV_SYMBOL_PREV, TF(UI_22), -84, y + 5, 46, UI_TRANSPORT_PREV);
+    g_pp_glyph = tp_btn(root, LV_SYMBOL_PAUSE, TF(UI_28), 0, y, 56, UI_TRANSPORT_PLAYPAUSE);
+    g_next_glyph = tp_btn(root, LV_SYMBOL_NEXT, TF(UI_22), 84, y + 5, 46, UI_TRANSPORT_NEXT);
     if(g_pp_glyph) ui_pp_glyph(g_pp_glyph, ui_is_playing());
 }
 

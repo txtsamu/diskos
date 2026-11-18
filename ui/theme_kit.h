@@ -3,6 +3,7 @@
 #ifndef THEME_KIT_H
 #define THEME_KIT_H
 #include "lvgl/lvgl.h"
+#include "transport.h"
 
 typedef enum {
     UI_CORE,
@@ -11,7 +12,7 @@ typedef enum {
 } ui_tier_t;
 
 void ui_on(lv_obj_t *obj, lv_event_cb_t cb, lv_event_code_t code, void *user_data, const char *action, ui_tier_t tier);
-const char *ui_transport_action(const char *cmd, const char *prefix, char *buf, int cap);
+const char *ui_transport_action(ui_transport_cmd_t cmd, const char *prefix, char *buf, int cap);
 
 #ifdef DISKOS_HOST
 const char *ui_action_of(const lv_obj_t *obj);

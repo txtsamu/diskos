@@ -8,7 +8,7 @@
 #include "sdio.h"
 #include "bootstate.h"
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
 
 static int      g_pp_hint = -1;
 static uint32_t g_pp_hint_until = 0;
@@ -24,19 +24,27 @@ int ui_pp_icon_playing(int real_playing){
     return real_playing;
 }
 
-int ui_transport_command(const char *cmd)
+static const char *transport_frame(ui_transport_cmd_t cmd){
+    switch(cmd){
+    case UI_TRANSPORT_PLAYPAUSE: return PLAYER_CMD_PLAYPAUSE;
+    case UI_TRANSPORT_NEXT:     return "0201000C0001";
+    case UI_TRANSPORT_PREV:     return "0201000C0002";
+    case UI_TRANSPORT_NONE:     break;
+    }
+    return NULL;
+}
+
+int ui_transport_command(ui_transport_cmd_t cmd)
 {
-    if(!cmd) return -1;
-    int is_next = !strcmp(cmd, "0201000C0001");
-    int is_prev = !strcmp(cmd, "0201000C0002");
-    int is_toggle = !strcmp(cmd, PLAYER_CMD_PLAYPAUSE);
-    if(!is_next && !is_prev && !is_toggle) return -1;
+    const char *frame = transport_frame(cmd);
+    if(!frame) return -1;
+    int is_toggle = cmd == UI_TRANSPORT_PLAYPAUSE;
     { const char *why = admit_check(ADMIT_PLAYER_COMMAND); if(why){ ui_toast(why); return -1; } }
     ui_defer_sleep();
-    if(is_next || is_prev){
+    if(!is_toggle){
         player_view_t st; ipc_get_view(&st);
         if(mdb_is_book_path(st.path)){
-            long tgt = st.position_ms + (is_next ? 30000 : -15000);
+            long tgt = st.position_ms + (cmd == UI_TRANSPORT_NEXT ? 30000 : -15000);
             if(tgt < 0) tgt = 0;
             if(st.duration_ms > 0 && tgt > st.duration_ms) tgt = st.duration_ms;
             if(ui_seek_to(tgt) < 0){ ui_toast("Couldn't seek - try again"); return -1; }
@@ -46,7 +54,7 @@ int ui_transport_command(const char *cmd)
         }
     }
     ui_note_transport_sent();
-    if(ipc_send_cmd(cmd) < 0){ ui_toast("Player busy - try again"); return -1; }
+    if(ipc_send_cmd(frame) < 0){ ui_toast("Player busy - try again"); return -1; }
     if(is_toggle){
         ui_pp_tap_hint();
         ui_np_pp_refresh(ui_pp_icon_playing(ui_is_playing()));

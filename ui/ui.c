@@ -433,7 +433,7 @@ void ui_np_seek_hold(long target_ms){
 void ui_np_pp_refresh(int playing){ ui_pp_glyph(btn_pp, playing); }
 static void transport_cb(lv_event_t *e)
 {
-    ui_transport_command((const char *)lv_event_get_user_data(e));
+    ui_transport_command((ui_transport_cmd_t)(intptr_t)lv_event_get_user_data(e));
 }
 
 static int g_cover_px, g_cover_py;
@@ -482,12 +482,12 @@ static void cover_click_cb(lv_event_t *e)
         if(id){ lv_point_t p; lv_indev_get_point(id, &p); g_cover_px = p.x; g_cover_py = p.y; }
     }
 }
-static void make_clickable(lv_obj_t *o, const char *cmd)
+static void make_clickable(lv_obj_t *o, ui_transport_cmd_t cmd)
 {
     lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(o, 18);
     char an[24];
-    ui_on(o, transport_cb, LV_EVENT_CLICKED, (void *)cmd, ui_transport_action(cmd, "np", an, sizeof an), UI_CORE);
+    ui_on(o, transport_cb, LV_EVENT_CLICKED, (void *)(intptr_t)cmd, ui_transport_action(cmd, "np", an, sizeof an), UI_CORE);
 }
 
 static void apply_accent(void)
@@ -1443,9 +1443,9 @@ void ui_create(lv_obj_t *root)
         lv_obj_align(btn_prev, LV_ALIGN_TOP_MID, -70, 274);
         lv_obj_align(btn_next, LV_ALIGN_TOP_MID, 70, 274);
     }
-    make_clickable(btn_prev, "0201000C0002");
-    make_clickable(btn_pp,   PLAYER_CMD_PLAYPAUSE);
-    make_clickable(btn_next, "0201000C0001");
+    make_clickable(btn_prev, UI_TRANSPORT_PREV);
+    make_clickable(btn_pp,   UI_TRANSPORT_PLAYPAUSE);
+    make_clickable(btn_next, UI_TRANSPORT_NEXT);
     lv_obj_set_ext_click_area(btn_prev, 14);
     lv_obj_set_ext_click_area(btn_next, 14);
     lv_obj_set_ext_click_area(btn_pp, 12);
