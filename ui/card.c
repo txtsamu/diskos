@@ -143,7 +143,8 @@ int card_exported_to_host(void){
     int exported = 0; struct dirent *e;
     while(!exported && (e = readdir(d))){
         if(strncmp(e->d_name, "mass_storage.", 13) != 0) continue;
-        char lunp[300]; snprintf(lunp, sizeof lunp, "%s/%s/lun.0/file", fndir, e->d_name);
+        char lunp[300];
+        if(snprintf(lunp, sizeof lunp, "%s/%s/lun.0/file", fndir, e->d_name) >= (int)sizeof lunp){ exported = 1; break; }
         FILE *g = fopen(lunp, "r");
         if(!g){ exported = 1; break; }
         char l[300] = {0}; size_t m = fread(l, 1, sizeof l - 1, g); int rerr = ferror(g); fclose(g);
