@@ -47,6 +47,12 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
   next and previous commands, so the transport hex literals now live only in `ipc.h` and `transport.c`; `idlegov` owns
   the power-key, backlight and saver poll decisions. `ui/main.c` keeps only wiring. Behavior is unchanged apart from the
   unified drain timeout; host-tested only, not yet checked on a flashed Disc.
+- **Build harness**: adding a host test is now one declaration block in `ui/tests/Makefile` (name, sources, optional
+  defines) instead of four hand-edited lists; the run, clean and prerequisite lists all derive from it. Test temp roots
+  moved from the shared `/tmp/diskos_cfgtest` directory to a per-test directory inside the checkout, so two checkouts can
+  run the suite at the same time (the cover art pipeline is the one exception: it must stage on `/tmp` and is keyed per
+  checkout). `ui/Makefile` builds the device source list by glob with an explicit nine-file exclusion set. The sources
+  are unchanged; only the link order is now sorted, so the binary bytes differ from the previous hand-written order.
 - Working Mode: every switch between two modes other than Local Playback now goes through Local Playback by itself, with the
   usual toasts: USB DAC to Bluetooth Receiving or USB Storage, Bluetooth Receiving to USB DAC, USB Storage, USB Audio or USB Debug,
   and any of them to the USB Audio row (which used to say "Return to local playback first"). Leaving USB Storage restarts the UI,
