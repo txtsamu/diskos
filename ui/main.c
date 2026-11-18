@@ -68,6 +68,7 @@
 #include "sdfs.h"
 #include "art.h"
 #include "power.h"
+#include "idlegov.h"
 #include "vbus.h"
 #include "bootlog.h"
 
@@ -79,9 +80,9 @@ static lv_indev_t *g_touch = NULL;
 static int         g_screen_off = 0;
 static int         g_touch_raw = -1;
 
-static volatile int g_manual_sleep = 0;
-static uint32_t g_manual_sleep_at = 0;
-void ui_request_sleep(void){ g_manual_sleep = 1; g_manual_sleep_at = lv_tick_get(); }
+static idlegov_t g_idle;
+
+void ui_request_sleep(void){ idlegov_request_sleep(&g_idle, lv_tick_get()); }
 int ui_screen_backlight_on(void){ return !g_screen_off; }
 void ui_backlight_hold(void);
 void ui_backlight_release(int fallback);
@@ -162,32 +163,11 @@ static int read_int_file(const char *path){
     int v = -1; if(fscanf(f, "%d", &v) != 1) v = -1; fclose(f); return v;
 }
 
-typedef struct { int seen; int player_off; unsigned off_seq; } powerkey_t;
-enum { PK_NONE, PK_OFF, PK_WAKE, PK_RELEVEL };
-static int powerkey_step(powerkey_t *k, int cbr, int ours, unsigned ours_seq, int dark){
-    if(cbr < 0 || cbr == k->seen) return PK_NONE;
-    k->seen = cbr;
-    if(cbr == 0){ k->player_off = 1; k->off_seq = ours_seq; return dark ? PK_NONE : PK_OFF; }
-    if(k->player_off){
-        if(cbr == ours && ours_seq != k->off_seq) return PK_NONE;
-        k->player_off = 0; return PK_WAKE;
-    }
-    if(cbr == ours) return PK_NONE;
-    return PK_RELEVEL;
-}
 static int powerkey_defer_startup(int brightness){
     if(brightness != 0 || fw_power_key_driveable()) return 0;
     double up = -1; FILE *f = fopen("/proc/uptime", "r");
     if(f){ if(fscanf(f, "%lf", &up) != 1) up = -1; fclose(f); }
     return up > 150.0;
-}
-enum { SF_NONE, SF_OFF, SF_WAKE, SF_INJECT };
-static int screen_frame_step(int on, int bl_state, int *player_off, int poweroff_inhibit){
-    if(on){ *player_off = 0; return SF_WAKE; }
-    int own_off = bl_state == 2 && !*player_off;
-    *player_off = 1;
-    if(own_off) return poweroff_inhibit ? SF_NONE : SF_INJECT;
-    return SF_OFF;
 }
 static int power_key_inject(void){
     char path[64], name[32];
@@ -1797,18 +1777,9 @@ int main(int argc, char **argv){
     int cover_tap=0;
     int fsart_touch=0;
     int sleep_touch=0;
-    static const int TMAP[5] = {0,30,60,120,300};
-    uint32_t last_activity = lv_tick_get();
     int woke = 0;
-    int bl_state = 0;
-    uint32_t last_blpoll = 0;
-    powerkey_t pk = { boot_br, boot_br == 0, 0 };
-    if(boot_br == 0 && !startup_deferred){
-        pk.seen = ui_backlight_written(); pk.player_off = 0;
-    }
-    if(startup_deferred){ ui_backlight(0); bl_state = 2; g_screen_off = 1; }
-    unsigned scr_seq_seen = 0, aa03_seq_seen = 0, screen_gen_seen = 0, inject_for = 0, inject_gen = 0;
-    int poweroff_inhibit = 0, inject_pending = 0; uint32_t inject_due = 0;
+    idlegov_boot(&g_idle, boot_br, startup_deferred, ui_backlight_written(), lv_tick_get());
+    if(startup_deferred){ ui_backlight(0); g_screen_off = 1; }
     unsigned last_vol_seq = 0;
     sd_restart_deadline();
     lv_timer_create(srcswitch_tick_cb, 100, NULL);
@@ -1825,7 +1796,7 @@ int main(int argc, char **argv){
         fprintf(stderr, "startup: Player already in USB DAC mode - adopted, no restore (gen %u)\n", ipc_generation()); fflush(stderr);
     }
     lv_refr_now(NULL);
-    if(bl_state == 2) draw_set_dark(1);
+    if(g_idle.bl_state == 2) draw_set_dark(1);
     if(sd_held()){
         bootlog_event("sd held at first frame: SD protection unavailable toast");
         ui_toast("SD protection unavailable - library and artwork are off");
@@ -1862,8 +1833,8 @@ int main(int argc, char **argv){
             }
         }
         { int dv; if(dacvol_take_change(&dv)){ power_note_input(); vol_shown = dv; } }
-        if(vol_shown >= 0 && bl_state == 0){
-            last_activity = lv_tick_get();
+        if(vol_shown >= 0 && g_idle.bl_state == 0){
+            g_idle.last_activity = lv_tick_get();
             if(screen_current()==SCR_SAVER) screen_back();
             ui_show_volume(vol_shown);
         }
@@ -1871,15 +1842,15 @@ int main(int argc, char **argv){
         int playing = playreq_playing();
         st.state = playing ? 2 : 1;
         if(play_failed) ui_toast("Couldn't start playback");
-        ui_np_title_scroll(bl_state != 2);
-        nowplay_publish(&g_nowplay_env, &st, &ev, playing, bl_state != 2,
-                        bl_state != 2 && (g_draw_dark || ui_take_art_force()));
-        if(bl_state != 2 && g_draw_dark){
+        ui_np_title_scroll(g_idle.bl_state != 2);
+        nowplay_publish(&g_nowplay_env, &st, &ev, playing, g_idle.bl_state != 2,
+                        g_idle.bl_state != 2 && (g_draw_dark || ui_take_art_force()));
+        if(g_idle.bl_state != 2 && g_draw_dark){
             ui_art_poll(NULL);
             lv_timer_pause(g_t_art);
             clock_tick(NULL);
         }
-        if(bl_state != 2 && ui_take_art_applied()){
+        if(g_idle.bl_state != 2 && ui_take_art_applied()){
             home_set_art_src(ui_current_thumb_src());
             home_set_backdrop(ui_current_backdrop_src());
             saver_set_track(st.have_track?ipc_display_title(&st):NULL,
@@ -1887,10 +1858,10 @@ int main(int argc, char **argv){
                             ui_current_backdrop_src(), st.have_track?st.path:NULL);
             npmenu_set(st.have_track ? &st : NULL, playing, ui_current_thumb_src());
         }
-        ui_vinyl_spin(playing && screen_current()==SCR_NOWPLAYING && bl_state==0);
-        saver_vinyl_spin(playing && screen_current()==SCR_SAVER && bl_state != 2);
+        ui_vinyl_spin(playing && screen_current()==SCR_NOWPLAYING && g_idle.bl_state==0);
+        saver_vinyl_spin(playing && screen_current()==SCR_SAVER && g_idle.bl_state != 2);
 
-        if(bl_state != 2){
+        if(g_idle.bl_state != 2){
             if(cfg_take_save_error())       ui_toast("Couldn't save settings");
             else if(ipc_take_send_error())  ui_toast("Player didn't respond");
         }
@@ -1898,11 +1869,11 @@ int main(int argc, char **argv){
 #ifdef DISKOS_PROFILE
         struct timespec pa, pb; clock_gettime(CLOCK_MONOTONIC, &pa);
 #endif
-        mclock_sync(bl_state != 2);
-        kit_cursor_sync(bl_state != 2);
-        albumwall_poll_sync(bl_state != 2);
+        mclock_sync(g_idle.bl_state != 2);
+        kit_cursor_sync(g_idle.bl_state != 2);
+        albumwall_poll_sync(g_idle.bl_state != 2);
         uint32_t wait = lv_timer_handler();
-        if(bl_state != 2 && g_draw_dark){
+        if(g_idle.bl_state != 2 && g_draw_dark){
             lv_timer_resume(g_t_art);
             draw_set_dark(0);
         }
@@ -1916,7 +1887,7 @@ int main(int argc, char **argv){
             screen_back();
             app_run(g_app_exec);
             nowplay_invalidate();
-            last_activity = lv_tick_get();
+            g_idle.last_activity = lv_tick_get();
         }
 
         if(g_touch){
@@ -1924,9 +1895,9 @@ int main(int argc, char **argv){
             lv_point_t p; lv_indev_get_point(g_touch, &p);
             if(kbinput_active()){
             } else if(ts==LV_INDEV_STATE_PRESSED && prev_ts==LV_INDEV_STATE_RELEASED){
-                last_activity = lv_tick_get();
+                g_idle.last_activity = lv_tick_get();
                 if(screen_current()==SCR_SAVER){
-                    if(bl_state && !pk.player_off){ wake_backlight(ui_effective_brightness()); bl_state = 0; g_screen_off = 0; }
+                    if(g_idle.bl_state && !g_idle.pk.player_off){ wake_backlight(ui_effective_brightness()); g_idle.bl_state = 0; g_screen_off = 0; }
                     screen_back();
                     woke = 1;
                 } else {
@@ -1953,7 +1924,7 @@ int main(int argc, char **argv){
                     }
                 }
             } else if(ts==LV_INDEV_STATE_PRESSED){
-                last_activity = lv_tick_get();
+                g_idle.last_activity = lv_tick_get();
                 lastx=p.x; lasty=p.y; g_press_lx=p.x; g_press_ly=p.y;
                 if(screen_current()==SCR_NOWPLAYING && !ui_np_fsart_active() && !sleep_touch) ui_np_seek_move(p.x, p.y);
                 else if(rim_move(p.x, p.y)){ }
@@ -2020,126 +1991,91 @@ int main(int argc, char **argv){
 
         if(fw_power_key_driveable()){
             int on; unsigned sq, pq, gen; ipc_screen_snapshot(&on, &sq, &pq, &gen);
-            if(gen != screen_gen_seen){
-                screen_gen_seen = gen; scr_seq_seen = aa03_seq_seen = 0;
-                poweroff_inhibit = inject_pending = 0; pk.player_off = 0;
+            idlegov_screen_out_t so;
+            idlegov_screen(&g_idle, on, sq, pq, gen, lv_tick_get(), &so);
+            if(so.note_input) power_note_input();
+            if(so.act == IDLEGOV_SF_OFF){
+                ui_backlight(0); g_screen_off = 1;
+                mclock_sync(0);
+                kit_cursor_sync(0);
+                if(screen_current() == SCR_SAVER) screen_back();
+            } else if(so.act == IDLEGOV_SF_WAKE){
+                wake_backlight(ui_effective_brightness());
+                g_screen_off = 0; g_idle.last_activity = lv_tick_get();
+                if(screen_current() == SCR_SAVER) screen_back();
             }
-            if(pq != aa03_seq_seen){ aa03_seq_seen = pq; poweroff_inhibit = 1; }
-            if(on >= 0 && sq != scr_seq_seen){
-                scr_seq_seen = sq;
-                inject_pending = 0;
-                power_note_input();
-                switch(screen_frame_step(on, bl_state, &pk.player_off, poweroff_inhibit)){
-                case SF_INJECT: inject_pending = 1; inject_for = sq; inject_gen = gen; inject_due = lv_tick_get() + 300; break;
-                case SF_OFF:
-                    ui_backlight(0); bl_state = 2; g_screen_off = 1;
-                    mclock_sync(0);
-                    kit_cursor_sync(0);
-                    if(screen_current() == SCR_SAVER) screen_back();
-                    break;
-                case SF_WAKE:
-                    wake_backlight(ui_effective_brightness());
-                    bl_state = 0; g_screen_off = 0; last_activity = lv_tick_get();
-                    if(screen_current() == SCR_SAVER) screen_back();
-                    break;
-                default: break;
-                }
-            }
-            if(inject_pending && (int32_t)(lv_tick_get() - inject_due) >= 0){
-                inject_pending = 0;
+            if(idlegov_inject_pending(&g_idle, lv_tick_get())){
                 int on2; unsigned sq2, pq2, gen2; ipc_screen_snapshot(&on2, &sq2, &pq2, &gen2);
-                if(gen2 == inject_gen && sq2 == inject_for && on2 == 0 && pq2 == aa03_seq_seen && !poweroff_inhibit) (void)power_key_inject();
+                if(idlegov_inject_take(&g_idle, on2, sq2, pq2, gen2)) (void)power_key_inject();
             }
-            if(lv_tick_elaps(last_blpoll) >= 250){
-                last_blpoll = lv_tick_get();
+            if(idlegov_blpoll_due(&g_idle, lv_tick_get())){
                 int cbr = read_int_file("/sys/class/backlight/backlight/brightness");
                 (void)ui_backlight_take_foreign(NULL, NULL);
-                if(cbr > 0 && cbr != ui_backlight_written() && !pk.player_off){
-                    if(bl_state == 0) wake_backlight(ui_effective_brightness());
-                    else if(bl_state == 1) wake_backlight(dim_level());
-                }
+                int rl = idlegov_foreign_relevel(&g_idle, cbr, ui_backlight_written());
+                if(rl == IDLEGOV_RL_FULL) wake_backlight(ui_effective_brightness());
+                else if(rl == IDLEGOV_RL_DIM) wake_backlight(dim_level());
             }
-        } else if(lv_tick_elaps(last_blpoll) >= 250){
-            last_blpoll = lv_tick_get();
+        } else if(idlegov_blpoll_due(&g_idle, lv_tick_get())){
             for(int pass = 0; pass < 2; pass++){
-                int was_dark = bl_state == 2; unsigned at_seq = ui_backlight_write_seq();
+                int was_dark = g_idle.bl_state == 2; unsigned at_seq = ui_backlight_write_seq();
                 int cbr = pass == 0 ? ui_backlight_take_foreign(&was_dark, &at_seq) : read_int_file("/sys/class/backlight/backlight/brightness");
                 if(cbr < 0) continue;
-                if(pk.seen < 0){ pk.seen = cbr; pk.player_off = (cbr == 0); pk.off_seq = ui_backlight_write_seq(); continue; }
-                int act = powerkey_step(&pk, cbr, pass == 0 ? -1 : ui_backlight_written(), at_seq, was_dark);
-                if(act != PK_NONE) power_note_input();
-                switch(act){
-                case PK_OFF:
-                    ui_backlight(0); bl_state = 2; g_screen_off = 1;
+                int act = idlegov_powerkey_pass(&g_idle, cbr, pass == 0 ? -1 : ui_backlight_written(), at_seq, was_dark, ui_backlight_write_seq());
+                if(act != IDLEGOV_PK_NONE) power_note_input();
+                if(act == IDLEGOV_PK_OFF){
+                    ui_backlight(0); g_screen_off = 1;
                     mclock_sync(0);
                     kit_cursor_sync(0);
                     if(screen_current() == SCR_SAVER) screen_back();
-                    break;
-                case PK_WAKE:
+                } else if(act == IDLEGOV_PK_WAKE){
                     wake_backlight(ui_effective_brightness());
-                    bl_state = 0; g_screen_off = 0; last_activity = lv_tick_get();
+                    g_screen_off = 0; g_idle.last_activity = lv_tick_get();
                     if(screen_current() == SCR_SAVER) screen_back();
-                    break;
-                case PK_RELEVEL:
-                    if(bl_state == 0) wake_backlight(ui_effective_brightness());
-                    else if(bl_state == 1) wake_backlight(dim_level());
-                    break;
-                default: break;
+                } else if(act == IDLEGOV_PK_RELEVEL){
+                    if(g_idle.bl_state == 0) wake_backlight(ui_effective_brightness());
+                    else if(g_idle.bl_state == 1) wake_backlight(dim_level());
                 }
             }
         }
 
-        int si = cfg_get_int("saver_idx", 2), oi = cfg_get_int("screenoff_idx", 3);
-        int saver_timeout   = (si>=0 && si<5) ? TMAP[si] : 60;
-        int screenoff_extra = (oi>=0 && oi<5) ? TMAP[oi] : 120;
+        int saver_secs = idlegov_saver_secs(cfg_get_int("saver_idx", 2));
+        int off_secs   = idlegov_screenoff_secs(cfg_get_int("screenoff_idx", 3));
         if(g_touch_raw >= 0){
             char rb[512]; int any = 0;
             while(read(g_touch_raw, rb, sizeof rb) > 0) any = 1;
-            if(any && bl_state && !pk.player_off){
-                last_activity = lv_tick_get();
-                wake_backlight(ui_effective_brightness()); bl_state = 0; g_screen_off = 0;
+            if(idlegov_touch_wake(&g_idle, any, lv_tick_get())){
+                wake_backlight(ui_effective_brightness()); g_screen_off = 0;
                 if(screen_current() == SCR_SAVER) screen_back();
             }
         }
-        if(kbinput_active()) last_activity = lv_tick_get();
-        if(usbhid_poll(bl_state == 0) && bl_state == 0) last_activity = lv_tick_get();
+        if(kbinput_active()) g_idle.last_activity = lv_tick_get();
+        if(usbhid_poll(g_idle.bl_state == 0) && g_idle.bl_state == 0) g_idle.last_activity = lv_tick_get();
         { static int cm_boot; if(!cm_boot){ cm_boot = 1; if(session_entry() == SESSION_COLD_BOOT) chargemode_boot(); } chargemode_tick(); }
-        power_tick(chargemode_active() ? lv_tick_get() : last_activity, playing);   
-        int in_saver = (screen_current()==SCR_SAVER);
-        if(g_manual_sleep && !in_saver) g_manual_sleep = 0;
-        int manual = g_manual_sleep;
+        power_tick(chargemode_active() ? lv_tick_get() : g_idle.last_activity, playing);   
         int sstyle    = cfg_get_int("saver_style", 0);
         int art_saver = (sstyle == 0 || sstyle == 4);
         int saver_ok  = (!art_saver || playing);
-        if(saver_timeout > 0 || manual){
-            uint32_t idle = manual ? lv_tick_elaps(g_manual_sleep_at) : lv_tick_elaps(last_activity);
-            int past_dim = (saver_timeout > 0 && idle > (uint32_t)saver_timeout*1000);
-            if(past_dim && !in_saver && bl_state==0 && (saver_ok || manual)){
-                screen_show(SCR_SAVER); in_saver = 1;
-            }
-            if((in_saver || past_dim || manual) && bl_state==0){
-                ui_backlight(dim_level()); bl_state = 1;
-            }
-            uint32_t off_at = manual ? (uint32_t)(screenoff_extra > 0 ? screenoff_extra : 10)*1000
-                                     : (uint32_t)(saver_timeout+screenoff_extra)*1000;
-            if(bl_state==1 && (manual || screenoff_extra > 0) && idle > off_at){
-                ui_backlight(0); bl_state = 2; g_screen_off = 1;
-                mclock_sync(0);
-                kit_cursor_sync(0);
-                if(screen_current()==SCR_SAVER) screen_back();
-            }
+        idlegov_saver_out_t lo;
+        idlegov_saver(&g_idle, lv_tick_get(), screen_current()==SCR_SAVER, saver_ok, saver_secs, off_secs, &lo);
+        if(lo.show_saver) screen_show(SCR_SAVER);
+        if(lo.dim) ui_backlight(dim_level());
+        if(lo.off){
+            ui_backlight(0); g_screen_off = 1;
+            mclock_sync(0);
+            kit_cursor_sync(0);
+            if(screen_current()==SCR_SAVER) screen_back();
         }
 
-        mclock_sync(bl_state != 2);
-        kit_cursor_sync(bl_state != 2);
-        polls_set_paused(bl_state == 2);
-        if(bl_state == 2) draw_set_dark(1);
-        albumwall_poll_sync(bl_state != 2);
-        g_screen_off = (bl_state == 2);
-        advance_probe_tick(bl_state != 2);
-        g_bl_idle = (bl_state >= 1);
+        mclock_sync(g_idle.bl_state != 2);
+        kit_cursor_sync(g_idle.bl_state != 2);
+        polls_set_paused(g_idle.bl_state == 2);
+        if(g_idle.bl_state == 2) draw_set_dark(1);
+        albumwall_poll_sync(g_idle.bl_state != 2);
+        g_screen_off = (g_idle.bl_state == 2);
+        advance_probe_tick(g_idle.bl_state != 2);
+        g_bl_idle = (g_idle.bl_state >= 1);
         int busy = lv_anim_count_running() > 0 || prev_ts == LV_INDEV_STATE_PRESSED;
-        if(bl_state == 2){
+        if(g_idle.bl_state == 2){
             wait = 200;
         } else {
             uint32_t cap = busy ? 5 : 30;
@@ -2148,7 +2084,7 @@ int main(int argc, char **argv){
 #ifdef DISKOS_PROFILE
         { struct timespec pc; clock_gettime(CLOCK_MONOTONIC, &pc);
           unsigned long long body = (unsigned long long)(pc.tv_sec - pa.tv_sec) * 1000000000ULL + (unsigned long long)(pc.tv_nsec - pa.tv_nsec) - prof_h;
-          prof_loop(busy, bl_state, lv_anim_count_running(), prof_h, body); }
+          prof_loop(busy, g_idle.bl_state, lv_anim_count_running(), prof_h, body); }
 #endif
         usleep(wait*1000);
     }
