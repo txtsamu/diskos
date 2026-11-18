@@ -157,7 +157,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/library.c](#uilibraryc) | 144 |
 | [ui/lrc.h](#uilrch) | 43 |
 | [ui/lyrics.c](#uilyricsc) | 77 |
-| [ui/main.c](#uimainc) | 668 |
+| [ui/main.c](#uimainc) | 630 |
 | [ui/md5.h](#uimd5h) | 1 |
 | [ui/modes.c](#uimodesc) | 36 |
 | [ui/modes.h](#uimodesh) | 2 |
@@ -182,6 +182,8 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/phonehome.h](#uiphonehomeh) | 1 |
 | [ui/playlistview.c](#uiplaylistviewc) | 51 |
 | [ui/playreq.c](#uiplayreqc) | 8 |
+| [ui/playerset.c](#uiplayersetc) | 43 |
+| [ui/playerset.h](#uiplayerseth) | 3 |
 | [ui/power.c](#uipowerc) | 27 |
 | [ui/power.h](#uipowerh) | 33 |
 | [ui/procnet.c](#uiprocnetc) | 2 |
@@ -21913,119 +21915,10 @@ defined below (killable child + hard timeout)
 defined below: starts the RTC save WITHOUT waiting for it
 ~~~
 
-**L258** `int ui_apply_eq(int preset){`
-
-~~~text
----- IPC command frames (decoded from mq_player's command table @0x7b7c90
-and live-verified against the player log oracle) --------------------------
-Frame = TAG(4) + LEN(4hex total strlen) + DATA.  DATA field classes:
-  class1: <idx 4hex>          + string
-  class2: <f1 4hex><f2 4hex>  + string
-SEEK     : 0103 (class2) <ms hi16><ms lo16>   e.g. 0103001000001388 = 5000ms  [VERIFIED]
-PLAY     : 0100 (class2) <startpos-1 4hex><list_type 4hex><name>             [VERIFIED]
-           list_type 0001=all-songs 0002=artist 0003=album 0006=favourites
-           000A=genre (0000=resume current, no rebuild); player rebuilds
-           LIST_SONG_0 from SONG via its own SQL, then starts at the track.
-WORKMODE : 0102 000C <4-hex mode>   (Roon loop/shuffle; no-op in LOCAL - verify by ear)
-EQ       : 0689 000C <4-hex preset> (selector - verify)
-RESCAN   : 0622000C0001 (NAS-family; unverified)
-(ui_seek_to, the SEEK sender, lives in admit.c with the other Player-touching rules.)
-~~~
-
-**L259** `if(preset < 0) preset = 0; if(preset > 20) preset = 20;`
-
-~~~text
-0..10 = built-in presets (off..retro, sibilance 1/2); 11..20 = user/custom PEQ slots
-(User 1 = 11). Cap at 20 so the custom EQ can select its slot. Returns the send rc
-(<0 = the 0689 select never reached the player) so the editor can report honestly.
-~~~
-
-**L265** `int ui_eq_select(int preset){`
-
-~~~text
-Central EQ selection used by the drawer, Settings, Tune and the editor so all four stay in sync.
-Applies the preset, and ONLY on a successful send persists eq_preset + remembers the last non-off
-preset (eq_last) for the drawer's A/B toggle. Returns 0 on success, -1 if the send failed (nothing
-persisted, so callers can keep their previous state).
-~~~
-
-**L270** `cfg_flush();` *(trailing)*
-
-~~~text
-both keys in one rewrite
-~~~
-
-**L274** `void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C00...`
-
-~~~text
---- Audio/DAC cluster (commands reverse-engineered 2026-06-30, RE_CATALOGUE section 5c) ---------
-These apply LIVE only; the player persists to SYSCONFIG on shutdown, not on the command.
-So diskOS owns persistence: settings.c stores the chosen value in diskos.conf and we
-re-send the commands once the player is ready (ui_reapply_audio). A value of -1 in cfg =
-"unmanaged / System default" -> we send nothing (don't change the user's sound).
-~~~
-
-**L274** `void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C00...` *(trailing)*
-
-~~~text
-on=0000, off=0001
-~~~
-
-**L275** `void ui_set_gain(int high){     if(high<0) return; const char *tag=fw_gain_tag(); if(!tag){ fprin...` *(trailing)*
-
-~~~text
-Low=0, High=1; tag firmware-gated (V2.09=0645, V2.28=0649); fail closed on unknown fw
-~~~
-
 **L276** `void ui_set_output(int spdif){  if(spdif<0) return; modes_output_switch(spdif ? OUT_SPDIF : OUT_I...` *(trailing)*
 
 ~~~text
 stop -> 0666 route -> 0657 -> resume, see modes.c
-~~~
-
-**L278** `void ui_set_replay_gain(int v){ if(v<0||v>2) return; char f[16]; snprintf(f,sizeof f,"0718000C%04...`
-
-~~~text
-ReplayGain / volume-levelling: 0718 (RE-confirmed, on-device-safe 2026-08-24). 0=Off 1=Track 2=Album.
-~~~
-
-**L279** `void ui_set_gapless(int on){   if(on<0) return; ipc_send_cmd(on ? "0647000C0001" : "0647000C0000"...`
-
-~~~text
-more settings decoded 2026-06-30 (RE_CATALOGUE section 5d) - config/mixer commands, applied on
-live user change only (never blind-sent at boot).
-~~~
-
-**L280** `int ui_set_artist_class(int album_artist){`
-
-~~~text
-Artist / Album Artist grouping (0648, the player's ARTIST_CLASS_TYPE): the player builds its artist queues with it,
-so the Artists view switches with it. Returns 0 sent, -1 not sent (unknown firmware or the send failed).
-~~~
-
-**L287** `int ui_set_folder_jump(int on){`
-
-~~~text
-Play Through Folders (0687): at the end of an artist/album/folder/genre queue the player continues with the next
-one (folder_jump_server; list once / shuffle / list loop only). Returns 0 sent, -1 not (firmware or send).
-~~~
-
-**L291** `void ui_set_track_display(int on){ if(fw_track_display_settable()) ipc_send_cmd(on ? "064d000C000...`
-
-~~~text
-Track Numbers: diskOS draws them itself; 064d only keeps the player's saved TRACK_DISPLAY in step with it.
-~~~
-
-**L294** `void ui_set_balance(int v){ if(v < -10 || v > 10) return;`
-
-~~~text
-balance: v in -N..+N; 0=center, v>0 -> 0x00NN (one side), v<0 -> 0x01NN (other side).
-~~~
-
-**L294** `void ui_set_balance(int v){ if(v < -10 || v > 10) return;` *(trailing)*
-
-~~~text
-enforce UI range; avoids -INT_MIN UB
 ~~~
 
 **L298** `static void route_uppercase(const char *in, char *out, int cap);`
@@ -22221,139 +22114,11 @@ settings.c
 fwd: an audiobook is the active playback context (defined with the book statics)
 ~~~
 
-**L521** `static int g_mode_applied = -2;`
+**L563** `static void reapply_retry_shim(lv_timer_t *t){ (void)t; g_reapply_tmr = NULL; playerset_reapply_retry(); }` *(trailing)*
 
 ~~~text
-Re-send every MANAGED audio setting (cfg value >= 0). Called once the player is confirmed
-ready and again on reconnect; unmanaged (-1) settings are left as the player has them.
-~~~
-
-**L521** `static int g_mode_applied = -2;`
-
-~~~text
-The play mode the player was last SENT successfully (0..4), -1 = unknown (player reconnect until the re-send, a
-failed send), -2 = nothing sent yet by THIS UI process. cfg work_mode is the user's PREFERRED mode; this is the
-applied one, which Up Next needs to pick the right order. Every 0102 send goes through send_play_mode.
-~~~
-
-**L528** `int ui_play_mode_now(void){`
-
-~~~text
-The mode the player is using now, -1 if unknown. A UI restart under a still-running player (crash respawn, deploy)
-gets no reconnect and so no re-send: the player is then still on the mode the previous UI process sent, which it
-stored in cfg BEFORE sending. If diskOS has never stored a mode it never sends one, so the player is on its own
-saved PLAY_MODE.
-~~~
-
-**L542** `static void reapply_send_all(void){` *(trailing)*
-
-~~~text
-the sends, quietly; a failure schedules another try
-~~~
-
-**L550** `void ui_reapply_audio(void){`
-
-~~~text
-Re-sync the managed settings after a player (re)start. Silent: the player is still waking and its queue can be full
-for a moment; anything that didn't go through is sent again a little later (3 tries), never a "didn't respond" toast.
-Only the first pass resets the cached player state (mode, output route); a retry just sends again, so a choice made
-in between (an output switch) is never undone.
-~~~
-
-**L551** `if(g_reapply_tmr){ lv_timer_delete(g_reapply_tmr); g_reapply_tmr = NULL; }` *(trailing)*
-
-~~~text
-a new (re)start supersedes old retries
-~~~
-
-**L557** `(void)t; g_reapply_tmr = NULL;` *(trailing)*
-
-~~~text
-one-shot: LVGL deletes it after this call
-~~~
-
-**L558** `if(admit_check(ADMIT_OUTPUT_IDLE)){ reapply_later(); return; }` *(trailing)*
-
-~~~text
-an output switch owns the player right now: try later
-~~~
-
-**L562** `g_mode_applied = -1;`
-
-~~~text
-NOTE: the v2.40 local-init (0666 route + 0657 LOCALPLAYER work-mode, which fixes the "g_fiio_local
-is null" / NO_WORK_MODE start_local failure) is DELIBERATELY NOT sent here. This runs at boot-ready
-and on reconnect, when a freshly-booted player is still idle-fresh - sending 0666 then either wedges
-it or doesn't stick (device-verified: work-mode stayed NULL despite this running at cold boot). The
-local-init is instead handled by the v2.40 work-mode handshake (localplayer_workmode_cb), which uses the
-player's a607 mode oracle to set + confirm LOCALPLAYER once the player is ready - see there.
-~~~
-
-**L562** `g_mode_applied = -1;`
-
-~~~text
-defaults match the device's observed current state (DRE on, Gain low, analog out,
-Slow-LL filter) so a boot re-apply doesn't change the sound until the user does.
-~~~
-
-**L562** `g_mode_applied = -1;` *(trailing)*
-
-~~~text
-a fresh or reconnected player: unknown until the mode below is re-sent
-~~~
-
-**L563** `modes_output_reset();` *(trailing)*
-
-~~~text
-a fresh or reconnected player is on the internal DAC: the SPDIF setting mirrors that
-~~~
-
-**L568** `ui_set_dac_filter(cfg_get_int("audio_filter", 1));`
-
-~~~text
-Output route (raw 0666) is deliberately NOT reapplied here: this also runs on player
-RECONNECT, and sending 0666 to a freshly-booted player can wedge it (see the reconnect
-warning below). Analog is the boot default; SPDIF / USB audio are chosen per player run
-(modes.c, never persisted), so there is no output route to restore here.
-~~~
-
-**L570** `{`
-
-~~~text
-The rest of the managed settings, reapplied so a player restart/reconnect can't leave the
-player out of sync with what Settings shows. Each is sent ONLY when
-a real value is stored - the setters have inconsistent unmanaged handling, so guard here
-rather than trust their internal clamps (e.g. ui_set_maxvol(-1) would send volume 0).
-~~~
-
-**L572** `if(book_session_active()) send_play_mode(4);` *(trailing)*
-
-~~~text
-an active book must stay in Single mode across a reconnect, not be reset to the music mode
-~~~
-
-**L573** `else if(wm >= 0 && wm <= 4) ui_set_workmode(wm);` *(trailing)*
-
-~~~text
-stored play mode; don't let a garbage cfg get rewritten to 0
-~~~
-
-**L574** `int mp = cfg_get_int("memory_play", -1); if(mp >= 0)             ui_set_memory(mp);` *(trailing)*
-
-~~~text
-Resume Playback
-~~~
-
-**L576** `int mv = cfg_get_int("max_vol", -1);     if(mv >= 10)            ui_set_maxvol(mv);` *(trailing)*
-
-~~~text
-<10 or unset = skip
-~~~
-
-**L577** `int bl = cfg_get_int("balance", -100);   if(bl >= -10 && bl<=10) ui_set_balance(bl);` *(trailing)*
-
-~~~text
--1 is a VALID balance
+one-shot: LVGL deletes it after this call; the retry rules live in playerset.c,
+the timer handle stays here with the env_retry_arm / env_retry_cancel shims
 ~~~
 
 **L580** `static void opus_title_tick(void){`
@@ -22634,26 +22399,6 @@ truth instead of re-deriving play/pause from position deltas.
 The environment admit.c asks about: what only this process knows (the rest it reads from session.c and ipc.c).
 ~~~
 
-**L943** `int ui_set_volume(int vol){`
-
-~~~text
-set absolute volume 0..120 via the decoded 0715 command (class-2:
-0715 + LEN(000C) + <level 4hex>).  The player maps this through the same
-cs43131 gain path as the hardware vol keys.
-~~~
-
-**L945** `{ int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }` *(trailing)*
-
-~~~text
-0715 itself is not clamped by the player's MAX_VOL
-~~~
-
-**L949** `return rc;` *(trailing)*
-
-~~~text
-0 = queued OK, -1 = send failed (caller can retry)
-~~~
-
 **L951** `void ui_disarm_book_eoc(void);`
 
 ~~~text
@@ -22829,7 +22574,7 @@ NOT Single.
 not a book
 ~~~
 
-**L1000** `send_play_mode(cfg_get_int("work_mode", 0));` *(trailing)*
+**L1000** `playerset_send_play_mode(cfg_get_int("work_mode", 0));` *(trailing)*
 
 ~~~text
 set the music play-mode explicitly - a song-row tap in a playlist does not, and a prior book left Single
@@ -22879,12 +22624,6 @@ the position is taken. Returns 1 if a play was sent (0 when ui_play_list_ex refu
 
 ~~~text
 every failure path toasts once (here or in ui_play_list_ex), so callers only return
-~~~
-
-**L1038** `void ui_set_favorite(int on){ ipc_send_cmd(on ? "0104000C0001" : "0104000C0000"); }`
-
-~~~text
-Favourite/unfavourite the CURRENT song (0104: 1=love -> MY_LOVE, 0=unlove).
 ~~~
 
 **L1039** `static int on_song_play(int id){`
@@ -23174,7 +22913,7 @@ LOCALPLAYER work-mode only (fixes NO_WORK_MODE). NOT 0666: we're already on
 the local route, and a redundant out_dev re-init pauses the stream ~1.5s in.
 ~~~
 
-**L1123** `if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }` *(trailing)*
+**L1123** `if(playerset_send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }` *(trailing)*
 
 ~~~text
 Single play-mode is REQUIRED for clean EOF isolation; if it can't be set, don't start the book unguarded
@@ -23266,7 +23005,7 @@ over the deep bookmark. (35s margin matches the loop/restart backward-jump guard
 saved bookmark is at/behind the current position, adopt normally and checkpoint from here.
 ~~~
 
-**L1160** `send_play_mode(4);` *(trailing)*
+**L1160** `playerset_send_play_mode(4);` *(trailing)*
 
 ~~~text
 an adopted book must be in Single mode too
@@ -23476,27 +23215,6 @@ library and must not inherit a stale Library album/artist/genre drill context.
 
 ~~~text
 lt=1 = full library
-~~~
-
-**L1224** `if(mode < 0 || mode > 4) mode = 0;`
-
-~~~text
-LOCAL play-mode setter = command 0102 (class 1): 0102 000C <mode 4hex>.
-GROUND TRUTH captured 2026-06-25 by strace'ing the stock UI's mq_timedsend
-while tapping its play-mode control (see COMMAND_MAP.md). Stock cycles 5
-modes 0..4: 0=Sequential, 1=Shuffle, 2=Repeat One, 3=Repeat All, 4=Single.
-(This replaces the WRONG 0657, which is the audio SOURCE switch and could
-wedge the device.)
-~~~
-
-**L1225** `cfg_set_int("work_mode", mode);`
-
-~~~text
-Persist here so cfg is the single source of truth: every play path that sets the
-mode (Playlist Play/Shuffle, Library long-press, NP toggle, Settings, Tune) goes
-through here, so the NP icon / Settings / Tune (all read cfg) can't drift from the
-mode the player is actually using. Redundant cfg_set_int() at other call sites are
-harmless.
 ~~~
 
 **L1230** `static uint32_t g_sleep_start=0, g_sleep_ms=0;`
@@ -32148,6 +31866,360 @@ The main loop's only call: the playing inference (position advancing, 1600 ms gr
 Order: note transport, admit_start(LIST), read state, send, record sent, arm. arm copies the track fields before the send (the transport epoch includes the successfully queued request; the serial distinguishes requests at one tick).
 
 Known, preserved: ui_play_playlist, ui_play_plan (type 5) and ui_play_book call playreq_reserve_slot() (admit_play_start RESERVED_SLOT) and then the list start (admit_play_start LIST). On V2.40 with local route, not playing and no recent play this sends 0657 twice with a 0666 between (unverified on a device). Playlist/plan send 0102 before the reserved-slot start, book after.
+~~~
+
+## ui/playerset.c
+
+**L7** `static const struct playerset_env *E;`
+
+~~~text
+The Player's own setting frames and their reapply orchestration, moved out of ui/main.c
+(one module for what used to be the scattered ui_set_* senders). Everything outside arrives
+through playerset_env: main.c wires g_playerset_env (ipc send/quiet, cfg get/set, fwcaps'
+gain tag + firmware gates, dacvol ownership, musicdb's artist mode + the library refresh,
+outroute_reset, the book latch, sysconfig's saved play mode, admit's output-idle gate) and
+owns the retry lv_timer, so tests/playerset_test.c can drive the whole module with a fake env.
+~~~
+
+**L10** `int playerset_frame_eq(char *buf, size_t n, int preset){`
+
+~~~text
+Small named frame builders, one per setting, so a host test can assert each format.
+The value guards live in the builders: eq clamps 0..20, dac filter allows 0..5, replay gain
+0..2, memory 0..2, maxvol clamps 0..VOL_MAX, balance -10..10, dre/gapless refuse a negative;
+a refused value never sends. The firmware-gated setters (artist class, folder jump, track
+display) keep their env gate in the setter, not the builder.
+~~~
+
+**L15** `int playerset_frame_dre(char *buf, size_t n, int on){` *(trailing)*
+
+~~~text
+DRE: on=0000, off=0001 (inverted)
+~~~
+
+**L19** `int playerset_frame_gain(char *buf, size_t n, const char *tag, int high){` *(trailing)*
+
+~~~text
+the tag is consumed from fwcaps' GAIN_MAP through the env (main.c wires fw_gain_tag);
+the map is not duplicated here and a NULL tag refuses the frame
+~~~
+
+**L53** `int playerset_frame_balance(char *buf, size_t n, int v){`
+
+~~~text
+balance: v in -N..+N; 0=center, v>0 -> 0x00NN (one side), v<0 -> 0x01NN (other side).
+~~~
+
+**L54** `if(v < -10 || v > 10) return -1;` *(trailing)*
+
+~~~text
+enforce UI range; avoids -INT_MIN UB
+~~~
+
+**L58** `int playerset_frame_play_mode(char *buf, size_t n, int mode){`
+
+~~~text
+LOCAL play-mode setter = command 0102 (class 1): 0102 000C <mode 4hex>.
+GROUND TRUTH captured 2026-06-25 by strace'ing the stock UI's mq_timedsend
+while tapping its play-mode control (see COMMAND_MAP.md). Stock cycles 5
+modes 0..4: 0=Sequential, 1=Shuffle, 2=Repeat One, 3=Repeat All, 4=Single.
+(This replaces the WRONG 0657, which is the audio SOURCE switch and could
+wedge the device.)
+~~~
+
+**L61** `int playerset_frame_volume(char *buf, size_t n, int vol){` *(trailing)*
+
+~~~text
+formats the level exactly as given: the clamp to 0..VOL_MAX is the senders' job
+(playerset_send_volume clamps; outroute.c's bt_step passes the player-reported
+level verbatim so a BT route re-sends exactly what the player had)
+~~~
+
+**L74** `return rc;` *(trailing)*
+
+~~~text
+0 = queued OK, -1 = send failed (caller can retry)
+~~~
+
+**L82** `static int g_mode_applied = -2;`
+
+~~~text
+The play mode the player was last SENT successfully (0..4), -1 = unknown (player reconnect until the re-send, a
+failed send), -2 = nothing sent yet by THIS UI process. cfg work_mode is the user's PREFERRED mode; this is the
+applied one, which Up Next needs to pick the right order. Every 0102 send goes through playerset_send_play_mode.
+~~~
+
+**L90** `int ui_play_mode_now(void){`
+
+~~~text
+The mode the player is using now, -1 if unknown. A UI restart under a still-running player (crash respawn, deploy)
+gets no reconnect and so no re-send: the player is then still on the mode the previous UI process sent, which it
+stored in cfg BEFORE sending. If diskOS has never stored a mode it never sends one, so the player is on its own
+saved PLAY_MODE.
+~~~
+
+**L99** `int ui_apply_eq(int preset){`
+
+~~~text
+---- IPC command frames (decoded from mq_player's command table @0x7b7c90
+and live-verified against the player log oracle) --------------------------
+Frame = TAG(4) + LEN(4hex total strlen) + DATA.  DATA field classes:
+  class1: <idx 4hex>          + string
+  class2: <f1 4hex><f2 4hex>  + string
+SEEK     : 0103 (class2) <ms hi16><ms lo16>   e.g. 0103001000001388 = 5000ms  [VERIFIED]
+PLAY     : 0100 (class2) <startpos-1 4hex><list_type 4hex><name>             [VERIFIED]
+           list_type 0001=all-songs 0002=artist 0003=album 0006=favourites
+           000A=genre (0000=resume current, no rebuild); player rebuilds
+           LIST_SONG_0 from SONG via its own SQL, then starts at the track.
+WORKMODE : 0102 000C <4-hex mode>   (Roon loop/shuffle; no-op in LOCAL - verify by ear)
+EQ       : 0689 000C <4-hex preset> (selector - verify)
+RESCAN   : 0622000C0001 (NAS-family; unverified)
+(ui_seek_to, the SEEK sender, lives in admit.c with the other Player-touching rules.)
+~~~
+
+**L100** `if(preset < 0) preset = 0;`
+
+~~~text
+0..10 = built-in presets (off..retro, sibilance 1/2); 11..20 = user/custom PEQ slots
+(User 1 = 11). Cap at 20 so the custom EQ can select its slot. Returns the send rc
+(<0 = the 0689 select never reached the player) so the editor can report honestly.
+~~~
+
+**L108** `int ui_eq_select(int preset){`
+
+~~~text
+Central EQ selection used by the drawer, Settings, Tune and the editor so all four stay in sync.
+Applies the preset, and ONLY on a successful send persists eq_preset + remembers the last non-off
+preset (eq_last) for the drawer's A/B toggle. Returns 0 on success, -1 if the send failed (nothing
+persisted, so callers can keep their previous state).
+~~~
+
+**L114** `E->cfg_flush();` *(trailing)*
+
+~~~text
+both keys in one rewrite
+~~~
+
+**L117** `void ui_set_dre(int on){`
+
+~~~text
+--- Audio/DAC cluster (commands reverse-engineered 2026-06-30, RE_CATALOGUE section 5c) ---------
+These apply LIVE only; the player persists to SYSCONFIG on shutdown, not on the command.
+So diskOS owns persistence: settings.c stores the chosen value in diskos.conf and we
+re-send the commands once the player is ready (ui_reapply_audio). A value of -1 in cfg =
+"unmanaged / System default" -> we send nothing (don't change the user's sound).
+~~~
+
+**L124** `const char *tag = E->gain_tag();` *(trailing)*
+
+~~~text
+Low=0, High=1; tag firmware-gated (V2.09=0645, V2.28=0649); fail closed on unknown fw
+~~~
+
+**L136** `void ui_set_replay_gain(int v){`
+
+~~~text
+ReplayGain / volume-levelling: 0718 (RE-confirmed, on-device-safe 2026-08-24). 0=Off 1=Track 2=Album.
+~~~
+
+**L141** `void ui_set_gapless(int on){`
+
+~~~text
+more settings decoded 2026-06-30 (RE_CATALOGUE section 5d) - config/mixer commands, applied on
+live user change only (never blind-sent at boot).
+~~~
+
+**L146** `int ui_set_artist_class(int album_artist){`
+
+~~~text
+Artist / Album Artist grouping (0648, the player's ARTIST_CLASS_TYPE): the player builds its artist queues with it,
+so the Artists view switches with it. Returns 0 sent, -1 not sent (unknown firmware or the send failed).
+~~~
+
+**L155** `int ui_set_folder_jump(int on){`
+
+~~~text
+Play Through Folders (0687): at the end of an artist/album/folder/genre queue the player continues with the next
+one (folder_jump_server; list once / shuffle / list loop only). Returns 0 sent, -1 not (firmware or send).
+~~~
+
+**L161** `void ui_set_track_display(int on){`
+
+~~~text
+Track Numbers: diskOS draws them itself; 064d only keeps the player's saved TRACK_DISPLAY in step with it.
+~~~
+
+**L181** `int ui_set_volume(int vol){`
+
+~~~text
+set absolute volume 0..120 via the decoded 0715 command (class-2:
+0715 + LEN(000C) + <level 4hex>).  The player maps this through the same
+cs43131 gain path as the hardware vol keys.
+~~~
+
+**L183** `{ int mv = E->get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }` *(trailing)*
+
+~~~text
+0715 itself is not clamped by the player's MAX_VOL
+~~~
+
+**L187** `void ui_set_favorite(int on){`
+
+~~~text
+Favourite/unfavourite the CURRENT song (0104: 1=love -> MY_LOVE, 0=unlove).
+~~~
+
+**L194** `E->set_int("work_mode", mode);`
+
+~~~text
+Persist here so cfg is the single source of truth: every play path that sets the
+mode (Playlist Play/Shuffle, Library long-press, NP toggle, Settings, Tune) goes
+through here, so the NP icon / Settings / Tune (all read cfg) can't drift from the
+mode the player is actually using. Redundant cfg_set_int() at other call sites are
+harmless.
+~~~
+
+**L200** `static void reapply_sends(void){`
+
+~~~text
+defaults match the device's observed current state (DRE on, Gain low, analog out,
+Slow-LL filter) so a boot re-apply doesn't change the sound until the user does.
+~~~
+
+**L204** `if(filter >= 0) ui_set_dac_filter(filter);`
+
+~~~text
+Output route (raw 0666) is deliberately NOT reapplied here: this also runs on player
+RECONNECT, and sending 0666 to a freshly-booted player can wedge it (see the reconnect
+warning below). Analog is the boot default; SPDIF / USB audio are chosen per player run
+(modes.c, never persisted), so there is no output route to restore here.
+~~~
+
+**L206** `{`
+
+~~~text
+The rest of the managed settings, reapplied so a player restart/reconnect can't leave the
+player out of sync with what Settings shows. Each is sent ONLY when
+a real value is stored - the setters have inconsistent unmanaged handling, so guard here
+rather than trust their internal clamps (e.g. ui_set_maxvol(-1) would send volume 0).
+~~~
+
+**L208** `if(E->book_active()) playerset_send_play_mode(4);` *(trailing)*
+
+~~~text
+an active book must stay in Single mode across a reconnect, not be reset to the music mode
+~~~
+
+**L209** `else if(wm >= 0 && wm <= 4) ui_set_workmode(wm);` *(trailing)*
+
+~~~text
+stored play mode; don't let a garbage cfg get rewritten to 0
+~~~
+
+**L210** `int mp = E->get_int("memory_play", -1); if(mp >= 0)             ui_set_memory(mp);` *(trailing)*
+
+~~~text
+Resume Playback
+~~~
+
+**L212** `int mv = E->get_int("max_vol", -1);     if(mv >= 10)            ui_set_maxvol(mv);` *(trailing)*
+
+~~~text
+<10 or unset = skip
+~~~
+
+**L213** `int bl = E->get_int("balance", -100);   if(bl >= -10 && bl<=10) ui_set_balance(bl);` *(trailing)*
+
+~~~text
+-1 is a VALID balance
+~~~
+
+**L217** `g_mode_applied = -1;`
+
+~~~text
+NOTE: the v2.40 local-init (0666 route + 0657 LOCALPLAYER work-mode, which fixes the "g_fiio_local
+is null" / NO_WORK_MODE start_local failure) is DELIBERATELY NOT sent here. This runs at boot-ready
+and on reconnect, when a freshly-booted player is still idle-fresh - sending 0666 then either wedges
+it or doesn't stick (device-verified: work-mode stayed NULL despite this running at cold boot). The
+local-init is instead handled by the v2.40 work-mode handshake (localplayer_workmode_cb), which uses the
+player's a607 mode oracle to set + confirm LOCALPLAYER once the player is ready - see there.
+~~~
+
+**L217** `g_mode_applied = -1;` *(trailing)*
+
+~~~text
+a fresh or reconnected player: unknown until the mode below is re-sent
+~~~
+
+**L218** `E->route_reset();` *(trailing)*
+
+~~~text
+a fresh or reconnected player is on the internal DAC: the SPDIF setting mirrors that
+~~~
+
+**L221** `static void reapply_send_all(void){` *(trailing)*
+
+~~~text
+the sends, quietly; a failure schedules another try
+~~~
+
+**L225** `if(fails && g_reapply_tries < PLAYERSET_RETRY_MAX){ g_reapply_tries++; reapply_later(); }` *(trailing)*
+
+~~~text
+the retry rule: a failed quiet round re-arms while fewer than PLAYERSET_RETRY_MAX tries
+have been spent, then resets the count (a blocked output defers without spending one)
+~~~
+
+**L229** `void ui_reapply_audio(void){`
+
+~~~text
+Re-send every MANAGED audio setting (cfg value >= 0). Called once the player is confirmed
+ready and again on reconnect; unmanaged (-1) settings are left as the player has them.
+~~~
+
+**L229** `void ui_reapply_audio(void){`
+
+~~~text
+Re-sync the managed settings after a player (re)start. Silent: the player is still waking and its queue can be full
+for a moment; anything that didn't go through is sent again a little later (3 tries), never a "didn't respond" toast.
+Only the first pass resets the cached player state (mode, output route); a retry just sends again, so a choice made
+in between (an output switch) is never undone.
+~~~
+
+**L230** `E->retry_cancel();` *(trailing)*
+
+~~~text
+a new (re)start supersedes old retries (main.c's env_retry_cancel deletes the pending one-shot)
+~~~
+
+**L236** `if(E->output_idle_blocked()){ reapply_later(); return; }` *(trailing)*
+
+~~~text
+an output switch owns the player right now: try later
+~~~
+
+## ui/playerset.h
+
+**L7** `#define PLAYERSET_RETRY_MS  1500u` *(trailing)*
+
+~~~text
+the reapply retry cadence; main.c's env_retry_arm builds the one-shot lv_timer with it
+and its callback clears the handle before the module decides what to do
+~~~
+
+**L8** `#define PLAYERSET_RETRY_MAX 3` *(trailing)*
+
+~~~text
+armed retries per (re)start before a still-failing round stops re-arming
+~~~
+
+**L10** `struct playerset_env {` *(trailing)*
+
+~~~text
+the seam: send + quiet (ipc), cfg get/set, fwcaps' gain tag and firmware gates, dacvol
+ownership, artist mode + library refresh, route reset, the book latch, sysconfig's saved
+play mode, the output-idle gate, and the retry timer hooks (main.c's lv_timer one-shots).
+screens.h includes this header, so every existing ui_set_* caller keeps compiling unchanged.
 ~~~
 
 ## ui/power.c
