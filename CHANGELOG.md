@@ -38,6 +38,15 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Changed
 
+- **Composition root split**: six modules came out of `ui/main.c`, each with its own host tests. `card` owns the card's
+  physical facts and mutations (mount with the filesystem preference, the release-ladder unmount that asks the Player and
+  retries for up to 4 s, the flush, and the boot-time cold mount with its export rollback); `cardclose` owns the drain,
+  sync and unmount steps that power off and Restart share, with one set of timeouts (the drain is unified at 10 s; it was
+  8 s in power off and 10 s in Restart); `playerset` owns the fourteen Player setting frame senders and the reapply
+  order, and the volume frame is built in one place (outroute no longer repeats it); `transport.h` names the play/pause,
+  next and previous commands, so the transport hex literals now live only in `ipc.h` and `transport.c`; `idlegov` owns
+  the power-key, backlight and saver poll decisions. `ui/main.c` keeps only wiring. Behavior is unchanged apart from the
+  unified drain timeout; host-tested only, not yet checked on a flashed Disc.
 - Working Mode: every switch between two modes other than Local Playback now goes through Local Playback by itself, with the
   usual toasts: USB DAC to Bluetooth Receiving or USB Storage, Bluetooth Receiving to USB DAC, USB Storage, USB Audio or USB Debug,
   and any of them to the USB Audio row (which used to say "Return to local playback first"). Leaving USB Storage restarts the UI,

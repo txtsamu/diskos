@@ -20,6 +20,10 @@ _Avoid_: boot mode, loading
 The Player's own configuration database (`sysconfig.db`, table SYSCONFIG, one row). The Player owns it and loads it at start: the UI reads it to seed its own settings, changes only AUTO_TIME in it directly, and resets the work mode column to Local at boot and before handing off to the Player. All access goes through one module (`sysconfig`).
 _Avoid_: sysconfig (a file and table name, not the concept), settings DB, stock config
 
+**Setting apply**:
+Pushing one stored setting to the Player as a frame, and re-sending the managed set (up to three tries) after a mode switch or a Player restart. One module (`playerset`) owns the frame formats and the reapply order.
+_Avoid_: ui_set (call names), reapply (one step of it)
+
 **Player view**:
 The UI's compact picture of what the Player is doing: title, artist, album, path, position, duration, play state, volume and track ids. It is distinct from the evidence the parser uses to decide whether that picture is current (raw ids, validity flags, the playback token, the Player generation and the sequence numbers). One module (`ipc`) owns both the view and the evidence.
 _Avoid_: player state, track state (the unqualified wire struct)
@@ -27,6 +31,22 @@ _Avoid_: player state, track state (the unqualified wire struct)
 **SD access**:
 Whether diskOS may read or write the SD card at all. One authority (`sdio`) combines the launcher's launch verdict, the boot-time hold, the storage phase (Local, draining, waiting for a computer, USB Storage, waiting to return, Unknown), the decoder-fault flag and quiesce into a single admission: readers (including art decoder children) and writers are counted together and the card is "drained" only when both reach zero. Fail-closed: Unknown or held stays closed until the next boot. The USB Storage handoff marker file makes the phase survive a UI restart.
 _Avoid_: SD lock, storage mode (that is the Source mode)
+
+**Card**:
+The physical card facts that SD access decides on, and the mutations of them: mounted, exported to a computer, host-confirmed, player-guarded, mount with the filesystem preference, unmount through the **Release ladder**, and the flush. One module (`card`) owns the facts and the mutations, including the **Cold mount** at boot.
+_Avoid_: SD card state (that is SD access's admission view), storage (that is the Source mode)
+
+**Release ladder**:
+The ordered way a busy card is unmounted: ask the Player to release it (a USB Storage request), retry the unmount for up to 4 s, then fall back to a lazy detach. Owned by `card`.
+_Avoid_: unmount retry, storage switch (that is the Source mode change)
+
+**Card close**:
+The ordered steps power off and **Restart** share before either cuts power: wait for SD access to drain, run the sync child, unmount through the **Release ladder**. One module (`cardclose`) with one set of timeouts (10 s drain, 15 s sync); each ending adds its own last step.
+_Avoid_: shutdown sequence, drain step
+
+**Cold mount**:
+The boot-time mount of the card: wait for the launcher verdict inside the early uptime window, detect the filesystem first, mount in the preferred order, and roll the mount back if the card turns out to be exported. Owned by `card`.
+_Avoid_: coldplug (the thread name), boot mount
 
 **Cover art**:
 The cover image for the current track plus the accent colour derived from it, kept warm in the art cache and in the music database so Now Playing, the screensaver, the album wall and the library can show them without waiting for a decode. One module (`coverart`) owns requesting, caching, the online fallback, background prewarming and accent extraction.
@@ -98,8 +118,12 @@ _Avoid_: failure mode
 
 ### Power and restart
 
+**Idle governor**:
+The screen's awake, dim and off states, the power-key adoption, and the saver and screen-off timeout ladder between them. One module (`idlegov`) owns the decisions; the main loop and settings apply them.
+_Avoid_: backlight state, saver timer
+
 **Restart**:
-The ordered reboot of the Disc: quiesce SD access, stop readers, save the clock, wait for the card to drain, flush it, optionally arm **Flash mode**, then reboot. One module (`restart`).
+The ordered reboot of the Disc: quiesce SD access, stop readers, save the clock, the shared **Card close** (drain, sync, unmount), optionally arm **Flash mode**, then reboot. One module (`restart`) owns the ending.
 _Avoid_: reboot (the syscall), shutdown (that is power off)
 
 **Flash mode**:
