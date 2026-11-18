@@ -9,7 +9,9 @@
 #include <sys/wait.h>
 #include "config.h"
 
+#ifndef TDIR
 #define TDIR "/tmp/diskos_cfgtest"
+#endif
 #define CFGP TDIR "/diskos.conf"
 
 static int file_has(const char *needle){

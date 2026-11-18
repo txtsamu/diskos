@@ -25,6 +25,7 @@ mq_ui.manifest
 tests/config_test
 tests/playreq_test
 tests/session_test
+tests/.tmp/
 
 # UI and FreeType build products
 mq_ui
