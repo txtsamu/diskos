@@ -7,6 +7,7 @@
 #include "ipc.h"
 #include "fontchain.h"
 #include "transport.h"
+#include "playerset.h"
 #include <stdbool.h>
 enum { SCR_HOME, SCR_LIBRARY, SCR_NOWPLAYING, SCR_SETTINGS, SCR_SETTING_DETAIL, SCR_SEARCH, SCR_SAVER, SCR_QUICK, SCR_SONGINFO, SCR_NPMENU, SCR_TUNE, SCR_EQ, SCR_APPS, SCR_NPHUB, SCR_PLPICK, SCR_PLVIEW, SCR_WIFI, SCR_WIFI_INFO, SCR_BT, SCR_BT_INFO, SCR_WEATHER, SCR_LYRICS, SCR_COLORPICK, SCR_WORKMODE, SCR_DEBUG, SCR_FOLDER, SCR_BOOKS, SCR_CHAPTERS, SCR_SETLIST, SCR_QSCONFIG, SCR_ALBUMWALL, SCR_UPNEXT, SCR_DATETIME, SCR_TAMA, SCR_DAC, SCR_SETSUB, SCR_COUNT };
 void screens_init(void);
@@ -32,7 +33,6 @@ void chargemode_boot(void);
 void chargemode_tick(void);
 int  chargemode_active(void);
 int  ui_detect_source_mode(void);
-void ui_set_favorite(int on);
 #define CFG_PDBG "pdbg"
 void ui_timekeep_save_now(void);
 const char *ui_route_mac(void);
@@ -43,18 +43,9 @@ lv_obj_t *ui_header(lv_obj_t *root, const char *title);
 lv_obj_t *ui_header_cb(lv_obj_t *root, const char *title, lv_event_cb_t back_cb);
 int  ui_run_bounded(char *const argv[], int timeout_ms);
 
-void ui_set_dre(int on);
-void ui_set_gain(int high);
 void ui_set_output(int spdif);
 int  ui_route_bt(const char *mac);
 int  ui_route_analog(void);
-void ui_set_dac_filter(int idx);
-void ui_set_replay_gain(int v);
-void ui_set_gapless(int on);
-void ui_set_memory(int mode);
-void ui_set_maxvol(int v);
-void ui_set_balance(int v);
-void ui_reapply_audio(void);
 void ui_request_sleep(void);
 void ui_set_brightness(int v);
 int  ui_get_brightness(void);
@@ -80,18 +71,13 @@ void ui_clock_refresh(void);
 int ui_seek_to(long ms);
 void ui_cancel_book_resume(void);
 void ui_book_user_seeked(long target_ms);
-int  ui_set_volume(int vol);
-void ui_set_workmode(int mode);
-int ui_apply_eq(int preset);
-int ui_eq_select(int preset);
 int ui_is_playing(void);
 void ui_pp_glyph(lv_obj_t *label, int playing);
 int  ui_glyph_ink_dy(const lv_font_t *f, uint32_t cp);
 void ui_glyph_center_ink(lv_obj_t *label);
 const char *ui_eq_name(int i);
 int  ui_theme_reload(const char *screen);
-int  ui_play_mode_now(void);
-int  ui_queue_jump(int ord1);
+int ui_queue_jump(int ord1);
 int  ui_play_list(int list_type, const char *name, int pos1);
 int  ui_play_favorite(int love_id, int pos1);
 int  ui_press_travel(void);

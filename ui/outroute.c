@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include "outroute.h"
 #include "config.h"
+#include "playerset.h"
 
 #ifndef OUT_USB_CARD
 #define OUT_USB_CARD "/proc/asound/card1"
@@ -409,7 +410,7 @@ static int leave_paused_switch(step_fn step, void *arg, outroute_held_t *held){
 static outseq_rc bt_step(const outroute_held_t *held, void *frame){
     outseq_rc rc = outseq_bt_sink((const char *)frame);
     if(rc != OUTSEQ_REFUSED) outroute_reset();
-    if(rc == OUTSEQ_OK && held->st.volume_seq){ char v[16]; snprintf(v, sizeof v, "0715000C%04X", held->st.volume); ipc_send_cmd(v); }
+    if(rc == OUTSEQ_OK && held->st.volume_seq){ char v[16]; playerset_frame_volume(v, sizeof v, held->st.volume); ipc_send_cmd(v); }
     return rc;
 }
 static outseq_rc analog_step(const outroute_held_t *held, void *arg){ (void)held; (void)arg; return outseq_analog(); }

@@ -68,6 +68,7 @@
 #include "sdfs.h"
 #include "art.h"
 #include "power.h"
+#include "playerset.h"
 #include "vbus.h"
 #include "bootlog.h"
 
@@ -267,53 +268,7 @@ void ui_status_refresh(void){ status_poll_cb(NULL); }
 static int run_bounded(char *const argv[], int timeout_ms);
 static void hwclock_save_tick(lv_timer_t *t);
 
-int ui_apply_eq(int preset){
-    if(preset < 0) preset = 0; if(preset > 20) preset = 20;
-    char f[16]; snprintf(f, sizeof f, "0689000C%04X", preset);
-    int rc = ipc_send_cmd(f);
-    fprintf(stderr,"eq %d -> %s\n", preset, f); fflush(stderr);
-    return rc;
-}
-int ui_eq_select(int preset){
-    if(preset < 0) preset = 0; if(preset > 20) preset = 20;
-    if(ui_apply_eq(preset) < 0) return -1;
-    if(preset > 0) cfg_set_int_deferred("eq_last", preset);
-    cfg_set_int_deferred("eq_preset", preset);
-    cfg_flush();
-    return 0;
-}
-
-void ui_set_dre(int on){        if(on<0) return; ipc_send_cmd(on   ? "0812000C0000" : "0812000C0001"); }
-void ui_set_gain(int high){
-    if(high < 0) return;
-    const char *tag = fw_gain_tag();
-    if(!tag){ fprintf(stderr, "gain: unverified firmware (MAIN_OS_VER=%d) -> not sending\n", fw_os_ver()); fflush(stderr); return; }
-    char f[16]; snprintf(f, sizeof f, "%s000C%04X", tag, high ? 1 : 0);
-    int rc = ipc_send_cmd(f);
-    fprintf(stderr, "gain: %s -> %s (rc=%d)\n", f, high ? "high" : "low", rc); fflush(stderr);
-}
 void ui_set_output(int spdif){  if(spdif<0) return; outroute_pick(spdif ? OUT_SPDIF : OUT_INTERNAL, OUTROUTE_SETTING); }
-void ui_set_dac_filter(int idx){ if(idx<0||idx>5) return; char f[16]; snprintf(f,sizeof f,"0653000C%04X",idx); ipc_send_cmd(f); }
-void ui_set_replay_gain(int v){ if(v<0||v>2) return; char f[16]; snprintf(f,sizeof f,"0718000C%04X",(unsigned)v); ipc_send_cmd(f); }
-void ui_set_gapless(int on){   if(on<0) return; ipc_send_cmd(on ? "0647000C0001" : "0647000C0000"); }
-int ui_set_artist_class(int album_artist){
-    if(!fw_artist_class_settable()){ fprintf(stderr, "artist class: unverified firmware (MAIN_OS_VER=%d)\n", fw_os_ver()); return -1; }
-    if(ipc_send_cmd(album_artist ? "0648000C0001" : "0648000C0000") < 0) return -1;
-    mdb_set_artist_mode(album_artist);
-    library_artist_mode_changed();
-    return 0;
-}
-int ui_set_folder_jump(int on){
-    if(!fw_folder_jump_settable()){ fprintf(stderr, "folder jump: unverified firmware (MAIN_OS_VER=%d)\n", fw_os_ver()); return -1; }
-    return ipc_send_cmd(on ? "0687000C0001" : "0687000C0000") < 0 ? -1 : 0;
-}
-void ui_set_track_display(int on){ if(fw_track_display_settable()) ipc_send_cmd(on ? "064d000C0001" : "064d000C0000"); }
-void ui_set_memory(int mode){  if(mode<0||mode>2) return; char f[16]; snprintf(f,sizeof f,"0684000C%04X",mode); ipc_send_cmd(f); }
-static int maxvol_send(int v){ if(v<0) v=0; if(v>120) v=120; char f[16]; snprintf(f,sizeof f,"0711000C%04X",v); return ipc_send_cmd(f); }
-void ui_set_maxvol(int v){     if(dacvol_owns_volume()) return; maxvol_send(v); }
-void ui_set_balance(int v){ if(v < -10 || v > 10) return;
-                            int fv = (v>0) ? (v & 0xFF) : (v<0) ? (0x0100 | ((-v) & 0xFF)) : 0;
-                            char f[16]; snprintf(f,sizeof f,"0713000C%04X",fv); ipc_send_cmd(f); }
 
 static void route_uppercase(const char *in, char *out, int cap){
     int j=0; for(int i=0; in[i] && j<cap-1; i++){ char c=in[i]; if(c>='a'&&c<='z') c-=32; out[j++]=c; } out[j]=0;
@@ -588,66 +543,39 @@ static void srcswitch_tick_cb(lv_timer_t *t){ (void)t; srcswitch_tick(); }
 
 static int book_session_active(void);
 
-static int g_mode_applied = -2;
-static int send_play_mode(int mode){
-    char m[16]; snprintf(m, sizeof m, "0102000C%04X", mode & 0xFFFF);
-    int rc = ipc_send_cmd(m);
-    g_mode_applied = (rc == 0 && mode >= 0 && mode <= 4) ? mode : -1;
-    return rc;
-}
-int ui_play_mode_now(void){
-    if(g_mode_applied >= 0) return g_mode_applied;
-    if(book_session_active()) return -1;
-    int wm = cfg_get_int("work_mode", -1);
-    if(wm < 0) return sysconfig_get(SC_PLAY_MODE);
-    if(g_mode_applied == -2 && wm <= 4) return wm;
-    return -1;
-}
-static void reapply_audio_body(void);
-static void reapply_sends(void);
-static int g_reapply_tries;
+static const char *env_gain_tag(void){ return fw_gain_tag(); }
+static int env_os_ver(void){ return fw_os_ver(); }
+static int env_artist_class_settable(void){ return fw_artist_class_settable(); }
+static int env_folder_jump_settable(void){ return fw_folder_jump_settable(); }
+static int env_track_display_settable(void){ return fw_track_display_settable(); }
+static int env_cfg_get_int(const char *key, int def){ return cfg_get_int(key, def); }
+static void env_cfg_set_int(const char *key, int v){ cfg_set_int(key, v); }
+static void env_cfg_set_int_deferred(const char *key, int v){ cfg_set_int_deferred(key, v); }
+static void env_cfg_flush(void){ cfg_flush(); }
+static int env_dacvol_owns_volume(void){ return dacvol_owns_volume(); }
+static int env_dacvol_set_user(int level){ return dacvol_set_user(level); }
+static void env_artist_mode_set(int album_artist){ mdb_set_artist_mode(album_artist); }
+static void env_artist_mode_changed(void){ library_artist_mode_changed(); }
+static void env_route_reset(void){ outroute_reset(); }
+static int env_saved_play_mode(void){ return sysconfig_get(SC_PLAY_MODE); }
+static int env_output_idle_blocked(void){ return admit_check(ADMIT_OUTPUT_IDLE) != NULL; }
 static lv_timer_t *g_reapply_tmr;
-static void reapply_retry_cb(lv_timer_t *t);
-static void reapply_later(void){ g_reapply_tmr = lv_timer_create(reapply_retry_cb, 1500, NULL); if(g_reapply_tmr) lv_timer_set_repeat_count(g_reapply_tmr, 1); }
-static void reapply_send_all(void){
-    ipc_quiet_begin();
-    reapply_sends();
-    int fails = ipc_quiet_end();
-    if(fails && g_reapply_tries < 3){ g_reapply_tries++; reapply_later(); }
-    else g_reapply_tries = 0;
-    if(fails) fprintf(stderr, "reapply: %d sends failed (try %d)\n", fails, g_reapply_tries);
-}
-void ui_reapply_audio(void){
-    if(g_reapply_tmr){ lv_timer_delete(g_reapply_tmr); g_reapply_tmr = NULL; }
-    g_reapply_tries = 0;
-    reapply_audio_body();
-    reapply_send_all();
-}
-static void reapply_retry_cb(lv_timer_t *t){
-    (void)t; g_reapply_tmr = NULL;
-    if(admit_check(ADMIT_OUTPUT_IDLE)){ reapply_later(); return; }
-    reapply_send_all();
-}
-static void reapply_audio_body(void){
-    g_mode_applied = -1;
-    outroute_reset();
-}
-static void reapply_sends(void){
-    int dre = cfg_get_int("audio_dre", -1), gain = cfg_get_int("audio_gain", -1), filter = cfg_get_int("audio_filter", -1);
-    if(dre >= 0)    ui_set_dre(dre);
-    if(gain >= 0)   ui_set_gain(gain);
-    if(filter >= 0) ui_set_dac_filter(filter);
-    ui_set_replay_gain(cfg_get_int("replay_gain", 0));
-    {
-        int wm = cfg_get_int("work_mode", -1);
-        if(book_session_active()) send_play_mode(4);
-        else if(wm >= 0 && wm <= 4) ui_set_workmode(wm);
-        int mp = cfg_get_int("memory_play", -1); if(mp >= 0)             ui_set_memory(mp);
-        int gp = cfg_get_int("gapless", -1);     if(gp >= 0)             ui_set_gapless(gp);
-        int mv = cfg_get_int("max_vol", -1);     if(mv >= 10)            ui_set_maxvol(mv);
-        int bl = cfg_get_int("balance", -100);   if(bl >= -10 && bl<=10) ui_set_balance(bl);
-    }
-}
+static void reapply_retry_shim(lv_timer_t *t){ (void)t; g_reapply_tmr = NULL; playerset_reapply_retry(); }
+static void env_retry_arm(void){ g_reapply_tmr = lv_timer_create(reapply_retry_shim, PLAYERSET_RETRY_MS, NULL); if(g_reapply_tmr) lv_timer_set_repeat_count(g_reapply_tmr, 1); }
+static void env_retry_cancel(void){ if(g_reapply_tmr){ lv_timer_delete(g_reapply_tmr); g_reapply_tmr = NULL; } }
+static const struct playerset_env g_playerset_env = {
+    .send = ipc_send_cmd, .quiet_begin = ipc_quiet_begin, .quiet_end = ipc_quiet_end,
+    .gain_tag = env_gain_tag, .os_ver = env_os_ver,
+    .artist_class_settable = env_artist_class_settable, .folder_jump_settable = env_folder_jump_settable,
+    .track_display_settable = env_track_display_settable,
+    .get_int = env_cfg_get_int, .set_int = env_cfg_set_int,
+    .set_int_deferred = env_cfg_set_int_deferred, .cfg_flush = env_cfg_flush,
+    .dacvol_owns_volume = env_dacvol_owns_volume, .dacvol_set_user = env_dacvol_set_user,
+    .artist_mode_set = env_artist_mode_set, .artist_mode_changed = env_artist_mode_changed,
+    .route_reset = env_route_reset, .book_active = book_session_active,
+    .saved_play_mode = env_saved_play_mode, .output_idle_blocked = env_output_idle_blocked,
+    .retry_arm = env_retry_arm, .retry_cancel = env_retry_cancel,
+};
 static void opus_title_tick(void){
     static opus_title_worker *worker;
     static int attempted, active;
@@ -789,22 +717,9 @@ static const struct playreq_env g_playreq_env = {
     .note_playback = system_ota_note_playback,
 };
 
-static int player_volume_send(int vol){
-    vol = vol < 0 ? 0 : vol > VOL_MAX ? VOL_MAX : vol;
-    char f[16]; snprintf(f, sizeof f, "0715000C%04X", vol);
-    int rc = ipc_send_cmd(f);
-    fprintf(stderr,"set volume %d -> %s (rc=%d)\n", vol, f, rc); fflush(stderr);
-    return rc;
-}
-int ui_set_volume(int vol){
-    vol = vol < 0 ? 0 : vol > VOL_MAX ? VOL_MAX : vol;
-    { int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && vol > mv) vol = mv; }
-    if(dacvol_set_user(vol)) return 0;
-    return player_volume_send(vol);
-}
 static int dacvol_env_usb_ready(void){ return outroute_usb_ready() && session_source_mode() == 0 && power_shutdown_phase() == PW_OFF; }
-static int dacvol_env_player_maxvol(int v){ return maxvol_send(v); }
-static void dacvol_env_maxvol_restore(void){ int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && mv < VOL_MAX) maxvol_send(mv); }
+static int dacvol_env_player_maxvol(int v){ return playerset_send_maxvol(v); }
+static void dacvol_env_maxvol_restore(void){ int mv = cfg_get_int("max_vol", -1); if(mv >= 10 && mv < VOL_MAX) playerset_send_maxvol(mv); }
 static int dacvol_env_keys_adjust_volume(void){
     return cfg_get_int("key_single", CTL_ACT_VOLUME) == CTL_ACT_VOLUME || cfg_get_int("key_long", CTL_ACT_VOLUME) == CTL_ACT_VOLUME;
 }
@@ -816,7 +731,7 @@ static const struct dacvol_env g_dacvol_env = {
     .now = lv_tick_get, .usb_ready = dacvol_env_usb_ready, .usb_card = outroute_usb_card,
     .mixer_probe = dacvol_sys_mixer_probe, .mixer_probe_poll = dacvol_sys_mixer_probe_poll,
     .mixer_set = dacvol_sys_mixer_set, .mixer_state = dacvol_sys_mixer_state,
-    .player_send = player_volume_send, .player_maxvol = dacvol_env_player_maxvol, .player_maxvol_restore = dacvol_env_maxvol_restore,
+    .player_send = playerset_send_volume, .player_maxvol = dacvol_env_player_maxvol, .player_maxvol_restore = dacvol_env_maxvol_restore,
     .key_active = dacvol_sys_key_active, .key_poll = dacvol_sys_key_poll,
     .keys_adjust_volume = dacvol_env_keys_adjust_volume, .single_click_volume = dacvol_env_single_click_volume, .long_press_volume = dacvol_env_long_press_volume, .user_cap = dacvol_env_user_cap, .log = dacvol_env_log,
 };
@@ -829,7 +744,7 @@ static int ui_play_list_ex(int list_type, const char *name, int pos1, int build_
     ui_disarm_book_eoc();
     booksess_hold_off_adopt();
     if(list_type != 5 && g_book_single_mode){
-        send_play_mode(cfg_get_int("work_mode", 0));
+        playerset_send_play_mode(cfg_get_int("work_mode", 0));
         g_book_single_mode = 0;
     }
     int sent = playreq_play_list(list_type, name, pos1, build_idx);
@@ -848,7 +763,7 @@ int ui_play_playlist(long pid, int pos){
     int n = mdb_reserved_slot_set_playlist(pid);
     if(n <= 0){ ui_toast("Playlist is empty"); return 0; }
     g_book_single_mode = 0;
-    send_play_mode(cfg_get_int("work_mode", 0));
+    playerset_send_play_mode(cfg_get_int("work_mode", 0));
     playreq_reserve_slot();
     if(pos < 1) pos = 1;
     int ppos = mdb_reserved_slot_player_pos(pid, pos);
@@ -871,7 +786,7 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
         int pos = mdb_plan_pos(plan, song_id);
         if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
         g_book_single_mode = 0;
-        send_play_mode(cfg_get_int("work_mode", 0));
+        playerset_send_play_mode(cfg_get_int("work_mode", 0));
         playreq_reserve_slot();
         return ui_play_list_ex(5, "", pos, -1);
     }
@@ -880,7 +795,6 @@ int ui_play_plan(mdb_plan_t *plan, int song_id){
     if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
     return ui_play_list_ex(plan->list_type, plan->name, pos, -1);
 }
-void ui_set_favorite(int on){ ipc_send_cmd(on ? "0104000C0001" : "0104000C0000"); }
 static int on_song_play(int id){
     int lt = 0; char name[256] = "";
     if(!library_drill_context(&lt, name, sizeof name)){
@@ -917,7 +831,7 @@ int ui_play_book(const char *path, long resume_ms){
     if(strlen(path) >= BOOKSESS_PATH_MAX - 4){ ui_toast("Path too long"); return 0; }
     if(!mdb_reserved_slot_set(path)){ ui_toast("Couldn't start book"); return 0; }
     playreq_reserve_slot();
-    if(send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }
+    if(playerset_send_play_mode(4) != 0){ ui_toast("Couldn't start book"); return 0; }
     g_book_single_mode = 1;
     if(!ui_play_list(5, "", 1)) return 0;
     playreq_clear();
@@ -930,7 +844,7 @@ static void book_env_get_state(player_view_t *view, player_evidence_t *ev){ ipc_
 static int book_env_playpause(void){ return ipc_send_cmd(PLAYER_CMD_PLAYPAUSE); }
 static int book_env_progress(const char *key, long *position_ms){ return mdb_book_progress(key, NULL, 0, position_ms, NULL, NULL); }
 static int book_env_save(const char *key, long position_ms){ return mdb_book_save(key, key, position_ms, 0); }
-static void book_env_adopted(void){ g_book_single_mode = 1; send_play_mode(4); }
+static void book_env_adopted(void){ g_book_single_mode = 1; playerset_send_play_mode(4); }
 static int book_env_sleep_action(void){ return cfg_get_int("sleep_action", POWER_SLEEP_PAUSE); }
 static void book_env_sleep_ended(void){ cfg_set_int("sleep_idx", 0); }
 static void book_env_shutdown(void){ power_shutdown_request(); }
@@ -947,13 +861,6 @@ static int on_search_play(int id){
     if(pos < 1){ ui_toast("Couldn't find that song"); return 0; }
     return ui_play_list(1, "", pos);
 }
-void ui_set_workmode(int mode){
-    if(mode < 0 || mode > 4) mode = 0;
-    cfg_set_int("work_mode", mode);
-    int rc = send_play_mode(mode);
-    fprintf(stderr,"workmode %d -> 0102000C%04X (rc=%d)\n", mode, mode, rc); fflush(stderr);
-}
-
 static char g_app_exec[256];
 static int  g_app_pending = 0;
 void app_launch(const char *exec){ snprintf(g_app_exec, sizeof g_app_exec, "%s", exec); g_app_pending = 1; }
@@ -1669,6 +1576,7 @@ int main(int argc, char **argv){
     if(!rmguard_ensure()){ sd_hold(); bootlog_event("SD held: SD guard could not be established"); fprintf(stderr,"SD guard could NOT be established -> diskOS SD activity held this boot\n"); fflush(stderr); }
     system("[ -x /usr/data/sshd/start-ssh.sh ] && /usr/data/sshd/start-ssh.sh >/dev/null 2>&1 &");
     (void)fw_os_ver();
+    playerset_set_env(&g_playerset_env);
     outroute_init(&g_outroute_env);
     dacvol_init(&g_dacvol_env);
     srcswitch_set_env(&g_srcswitch_env);
