@@ -10797,6 +10797,29 @@ widgets, draw backends, sqlite fns) with NO behavior change - only unreachable s
 sorted: find order depends on the disk, link order must not
 ~~~
 
+**L21** `APP_EXCLUDE := $(APP)/fbshot.c $(APP)/mqcap.c $(APP)/mqfeed.c $(APP)/mqsend.c $(APP)/prof.c...`
+
+~~~text
+The do-not-build list for the APP_SRCS glob on the next line: exactly the top-level ui/*.c that
+the old hand-written APP_SRCS never contained. fbshot.c, mqcap.c, mqfeed.c, mqsend.c, psend.c,
+touchcap.c and touchdisc.c are standalone host utilities (each has its own main() and is compiled
+by hand; their binaries are in ui/.gitignore), prof.c is a 53-line DISKOS_PROFILE-gated
+instrumentation shim that is not part of the default device build, and sqlite3.c is the vendored
+amalgamation compiled separately as $(APP)/sqlite3.o with SQLITE_FLAGS. Everything else in ui/ is a
+real app source: md5.c, the generated i18n_tables.c and the generated font_*.c stay in the glob,
+and the vendored trees (ui/lvgl/, ui/third_party/) are not matched by a top-level *.c glob at all.
+~~~
+
+**L22** `APP_SRCS := $(filter-out $(APP_EXCLUDE),$(sort $(wildcard $(APP)/*.c)))` *(trailing)*
+
+~~~text
+was a 3.3 kB hand-maintained list: every new module was an edit to that one line and parallel work
+kept conflicting on it. Now a new source dropped into ui/ is picked up with no Makefile edit; the
+only edit a non-device source ever needs is an APP_EXCLUDE entry. $(sort ...) keeps the link order,
+OBJS and the manifest's src_md5 deterministic (same rule as LVGL_SRCS above). Verified against the
+old list at the change: the same 164 files, nothing added, nothing dropped.
+~~~
+
 **L22** `SQLITE_FLAGS := -Os -pipe -static -ffunction-sections -fdata-sections -DSQLITE_THREADSAFE=1 -DSQL...`
 
 ~~~text
@@ -43266,94 +43289,170 @@ two lines (result + round) must clear Cancel at y 130
 **L3** `CC ?= cc`
 
 ~~~text
-Off-device host tests for diskOS pure-logic modules (arch#5 harness).
+Off-device host tests for diskOS pure-logic modules (arch#5 harness). Declare-once: each test is one
 ~~~
 
 **L3** `CC ?= cc`
 
 ~~~text
-Native x86-64 build with sanitizers + CFG_* paths pointed at a temp dir. Does NOT touch the
+block - TESTS += <name> plus whichever of <name>_SRCS (compiled closure), _DEPS (extra rebuild
 ~~~
 
 **L3** `CC ?= cc`
 
 ~~~text
-device build (separate dir, separate Makefile). Run: make -C tests run (C tests), make -C tests run-py (Python tests),
+triggers, headers or #included .c files), _OBJS (extra linked objects), _DEFS, _FLAGS, _LIBS,
 ~~~
 
 **L3** `CC ?= cc`
 
 ~~~text
-make -C tests check (both). Every test links or includes the real module sources; none slices a file by marker text.
+_PRE (run-time setup shell) and _POST it needs. Everything else is derived from those names: the
 ~~~
 
-**L21** `srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h...`
+**L3** `CC ?= cc`
+
+~~~text
+build rule from the TEST_RULE template, run's prerequisite list and body, clean. Adding a test is
+~~~
+
+**L3** `CC ?= cc` *(trailing)*
+
+~~~text
+exactly its block, nothing else. Native x86-64 build with sanitizers; does NOT touch the device build
+(separate dir, separate Makefile). Run: make -C tests run (C tests), run-py (Python), check (both).
+Every test links or includes the real module sources; none slices a file by marker text.
+~~~
+
+**L6** `TMP := .tmp`
+
+~~~text
+Per-test temp roots, relative so they are checkout-location independent: every -D path that used to
+point at the shared /tmp/diskos_cfgtest or /tmp/diskos_arttest now points into .tmp/<test name>/.
+Two checkouts can no longer clobber each other (each holds its own .tmp), and the run rule wipes and
+recreates each root before its test, so back-to-back runs start from the same state as the first run.
+ui/.gitignore keeps tests/.tmp/ out of git. Relative is also a buffer requirement: config.c renames
+through a char tmp[64] (CFG_PATH + ".tmp") and coverart_job_t.out is char[40] (coverart.h), so a
+deep absolute worktree path would truncate where the old short /tmp path once fit.
+~~~
+
+**L7** `TMPABS := $(TESTS_DIR)/.tmp`
+
+~~~text
+card_test needs its tree absolute: card.c accepts a player only if its environ PATH entry starts with
+'/' (card_player_guarded), so the fake guard dir the test plants must be an absolute path. The
+closure's buffers (card.c p[320], rmguard.c p[256], the test's guardpath[400]) all fit the
+worktree-length paths.
+~~~
+
+**L8** `CPT_TMP := /tmp/diskos-cpt-$(shell printf %s '$(TESTS_DIR)' | md5sum | cut -c1-8)`
+
+~~~text
+coverart_pipeline_test cannot use the in-checkout root: art.c (production code, untouchable here)
+stages decode output in a hardcoded mkdtemp("/tmp/.diskos-artdec-XXXXXX") and then rename(2)s the
+staged files onto the job destinations - /tmp is a different filesystem from the checkout, so those
+renames fail with EXDEV (verified: stat shows device 50 vs 51). Its whole CA_TMP space therefore
+lives under /tmp, suffixed with a hash of the tests dir so two checkouts stay isolated; the block's
+_PRE wipes and recreates it (idempotent) and clean removes it. 24 chars total keeps the 40-byte
+coverart_job_t.out in budget, and CACHE_ROOT stays CA_TMP-derived so the test's own path checks agree.
+~~~
+
+**L50** `config_test_DEFS := -DTDIR='"$(TMP)/config_test"' -DCFG_PATH='"$(TMP)/config_test/diskos.conf"' ...`
+
+~~~text
+-DTDIR is new: the test reads the conf file back and flips directory permissions itself, so it must
+follow the same root the Makefile points config.c at (see ui/tests/config_test.c L12).
+~~~
+
+**L219** `TESTS := $(sort $(TESTS))` *(trailing)*
+
+~~~text
+sorted: run order, link lines and make -n output stay byte-identical between runs, the same way
+ui/Makefile sorts LVGL_SRCS so the link order never depends on the disk.
+~~~
+
+**L224** `$(TMP)/artdec_fake: artdec_fake.c coverart_synth.h`
+
+~~~text
+Host helper binary the pipeline test execs via ARTDEC_PATH. It sits at the .tmp root, outside every
+per-test root, so the run rule's per-test wipe never deletes it between runs.
+~~~
+
+**L228** `define TEST_RULE`
+
+~~~text
+The one build rule for every test, expanded once per TESTS entry by the $(eval $(call TEST_RULE,$(t)))
+line under it. It must not be a static pattern rule: make expands a static pattern rule's prerequisite
+list once at parse time with $* empty, so computed prereqs like $(sort $($(1)_SRCS)) silently expand
+to nothing - the recipe still works (its $* is bound at execution time) but the binaries would never
+rebuild on source changes. The eval template bakes each test's real closure into a normal explicit rule.
+~~~
+
+**L236** `run: $(TESTS)` *(trailing)*
+
+~~~text
+One shell line unrolled from the sorted TESTS list: for each test, echo the separator, wipe and
+recreate its .tmp/<name> root, run the block's _PRE if set, run the binary, run _POST if set
+(outseq's python guard rides on _POST). set -e stops the suite at the first failure exactly like
+the old per-line recipes did.
+~~~
+
+**L239** `clean:` *(trailing)*
+
+~~~text
+rm -f $(TESTS) sqlite3_host.o, derived from the same names; also removes the whole .tmp tree and
+the coverart-pipeline /tmp root.
+~~~
+
+**L243** `PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage`
+
+~~~text
+The Python tests: thin drivers that compile and run the real modules (and, for boot_select, the shipped
+shell helper), plus source-policy guards. Each one that prints a final "COMPLETE <name>" line must reach
+it, so an early clean exit fails. CC is passed through (the tests read $CC). `make run` already includes
+outseq_guard_test.py on outseq_test's _POST; run-py repeats it so this target is the whole Python set.
+~~~
+
+**L254** `check: run run-py`
+
+~~~text
+Everything: the C tests, then the Python tests.
+~~~
+
+**L178** `srcswitch_test_SRCS := ../srcswitch.c ../usbdbg.c ../bootstate.c ../session.c ../outroute.c ...`
 
 ~~~text
 srcswitch.c, session.c, outseq.c and sdio.c are the real modules; ipc, cfg and the environment table are faked in the test.
 ~~~
 
-**L32** `card_test: ../card.c ../sdfs.c ../rmguard.c ../bootlog.c card_test.c ../card.h ../sdfs.h ../rmguard.h...`
+**L32** `card_test_SRCS := ../card.c ../sdfs.c ../rmguard.c ../bootlog.c card_test.c`
 
 ~~~text
-card.c is the real module with every CARD_* path pointed at the temp tree; sdfs.c, rmguard.c and bootlog.c are
-linked real so the fstype detection, the guard script check and the journal lines are the shipped ones.
-power_test and restart_test link ../cardclose.c: the close spine both cores now drive through cardclose_ops.
+card.c is the real module with every CARD_* path pointed at the temp tree (absolute, see L7); sdfs.c,
+rmguard.c and bootlog.c are linked real so the fstype detection, the guard script check and the journal
+lines are the shipped ones. power_test and restart_test link ../cardclose.c: the close spine both cores
+now drive through cardclose_ops.
 ~~~
 
-**L23** `restart_test: ../restart.c ../cardclose.c restart_test.c ../restart.h ../cardclose.h`
+**L156** `restart_test_SRCS := ../restart.c ../cardclose.c restart_test.c`
 
 ~~~text
 restart.c drives the cardclose transaction with adapters over its own restart_env, so the test's spawn/wait/kill
 fakes keep working unchanged; power.c does the same from power_ops_t.
 ~~~
 
-**L21** `srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h...`
+**L178** `srcswitch_test_DEFS := -D_GNU_SOURCE -DOUT_USB_CARD='"$(TMP)/srcswitch_test/card1"' ...`
 
 ~~~text
-The USB card node, the card glob and the SD handoff marker point at the temp dir.
+The USB card node, the card glob and the SD handoff marker point at the test's own temp root.
 ~~~
 
-**L47** `ipc_guard_test: ../ipc.c ipc_guard_test.c ../ipc.h`
+**L105** `ipc_guard_test_SRCS := ../ipc.c ipc_guard_test.c`
 
 ~~~text
-ipc.c is the real module; ipc_guard_test links it, ipc_tx_test compiles all of it into the test (it reads ipc.c's statics)
-~~~
-
-**L47** `ipc_guard_test: ../ipc.c ipc_guard_test.c ../ipc.h`
-
-~~~text
+ipc.c is the real module; ipc_guard_test links it, ipc_tx_test compiles all of it into the test (it reads
+ipc.c's statics, so its _SRCS holds only the test file while ../ipc.c rides in _DEPS as a rebuild trigger)
 and fakes only mq_*.
-~~~
-
-**L86** `PY_COMPLETE := boot_probe boot_select font_coverage launcher storage`
-
-~~~text
-The Python tests: thin drivers that compile and run the real modules (and, for boot_select, the shipped shell helper),
-~~~
-
-**L86** `PY_COMPLETE := boot_probe boot_select font_coverage launcher storage`
-
-~~~text
-plus source-policy guards. Each one that prints a final "COMPLETE <name>" line must reach it, so an early clean exit fails.
-~~~
-
-**L86** `PY_COMPLETE := boot_probe boot_select font_coverage launcher storage`
-
-~~~text
-CC is passed through (the tests read $CC). `make run` already includes outseq_guard_test.py; it is repeated here so this
-~~~
-
-**L86** `PY_COMPLETE := boot_probe boot_select font_coverage launcher storage`
-
-~~~text
-target is the whole Python set.
-~~~
-
-**L97** `check: run run-py`
-
-~~~text
-Everything: the C tests, then the Python tests.
 ~~~
 
 ## ui/tests/admit_test.c
@@ -43924,9 +44023,17 @@ Build: make -C tests clicks_test
 
 ~~~text
 Off-device host test for config.c. Compiled natively (x86-64) with the CFG_* paths overridden to
-a temp dir (see tests/Makefile), under ASan/UBSan. Each case runs in a fork()ed child so config.c's
+the per-test root .tmp/config_test (see tests/Makefile), under ASan/UBSan. Each case runs in a fork()ed child so config.c's
 file-static state (g_cfg/g_n/g_dirty/g_save_err/g_loaded) starts fresh. This is the arch#5 harness
 seed: pure-logic modules get tested off-device against the audit's failure sequences.
+~~~
+
+**L12** `#ifndef TDIR` *(trailing)*
+
+~~~text
+TDIR is where the test itself reads the conf file back and flips directory permissions, so it must be
+the same root the Makefile points config.c at; the harness always passes -DTDIR, and the guarded
+fallback keeps a hand compile without the define from failing on an undefined macro.
 ~~~
 
 **L23** `#define CASE_OK 42`
