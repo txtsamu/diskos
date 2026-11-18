@@ -20,11 +20,22 @@ outroute_test: ../outroute.c ../outseq.c outroute_test.c ../outroute.h ../outseq
 nowplay_test: ../nowplay.c nowplay_test.c ../nowplay.h ../ipc.h
 	$(CC) $(CFLAGS) -I.. ../nowplay.c nowplay_test.c -o $@
 
-restart_test: ../restart.c restart_test.c ../restart.h
-	$(CC) $(CFLAGS) -I.. ../restart.c restart_test.c -o $@
+restart_test: ../restart.c ../cardclose.c restart_test.c ../restart.h ../cardclose.h
+	$(CC) $(CFLAGS) -I.. ../restart.c ../cardclose.c restart_test.c -o $@
 
-power_test: ../power.c power_test.c ../power.h
-	$(CC) $(CFLAGS) -DPOWER_CORE_ONLY -I.. ../power.c power_test.c -o $@
+power_test: ../power.c ../cardclose.c power_test.c ../power.h ../cardclose.h
+	$(CC) $(CFLAGS) -DPOWER_CORE_ONLY -I.. ../power.c ../cardclose.c power_test.c -o $@
+
+cardclose_test: ../cardclose.c cardclose_test.c ../cardclose.h
+	$(CC) $(CFLAGS) -I.. ../cardclose.c cardclose_test.c -o $@
+
+card_test: ../card.c ../sdfs.c ../rmguard.c ../bootlog.c card_test.c ../card.h ../sdfs.h ../rmguard.h ../bootlog.h
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -DCARD_TEST_ROOT='"$(TDIR)/card"' -DCARD_PROC_ROOT='"$(TDIR)/card/proc"' \
+	  -DCARD_MNT='"$(TDIR)/card/mnt"' -DCARD_DEV='"$(TDIR)/card/dev"' -DCARD_DEV_WHOLE='"$(TDIR)/card/disk"' \
+	  -DCARD_UEVENT='"$(TDIR)/card/uevent"' -DCARD_GADGET_DIR='"$(TDIR)/card/gadget"' -DCARD_LOG_PATH='"$(TDIR)/card/coldplug.log"' \
+	  -DBOOTLOG_MAIN_PATH='"$(TDIR)/card/boot.log"' -DBOOTLOG_JOURNAL_PATH='"$(TDIR)/card/journal.log"' \
+	  -DBOOTLOG_DMESG_PATH='"$(TDIR)/card/dmesg.log"' -I.. \
+	  ../card.c ../sdfs.c ../rmguard.c ../bootlog.c card_test.c -o $@ -pthread
 
 session_test: ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c ../session.h ../outroute.h ../outseq.h ../playreq.h
 	$(CC) $(CFLAGS) -I.. ../session.c ../outroute.c ../outseq.c ../playreq.c session_test.c -o $@
@@ -127,7 +138,7 @@ coverart_pipeline_test: ../coverart.c ../coverart_accent.c ../art.c ../artcache.
 	  -DMIN_FREE_BYTES=4096ULL -I.. ../coverart.c ../coverart_accent.c ../art.c ../artcache.c coverart_pipeline_test.c -o $@ -lm
 
 .PHONY: run run-py check clean
-run: uiread_test sysconfig_test transport_test config_test power_test restart_test nowplay_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test sdfs_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+run: uiread_test sysconfig_test transport_test config_test power_test restart_test cardclose_test card_test nowplay_test playreq_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test sdfs_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test bootlog_test vbus_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 	./config_test
 	./ipc_guard_test
 	./ipc_tx_test
@@ -144,6 +155,11 @@ run: uiread_test sysconfig_test transport_test config_test power_test restart_te
 	./srcswitch_test
 	@echo "--- restart ---"
 	./restart_test
+	@echo "--- cardclose ---"
+	./cardclose_test
+	@echo "--- card ---"
+	@mkdir -p $(TDIR)
+	./card_test
 	@echo "--- power ---"
 	./power_test
 	@echo "--- nowplay ---"
@@ -200,7 +216,7 @@ run: uiread_test sysconfig_test transport_test config_test power_test restart_te
 	./coverart_pipeline_test
 
 clean:
-	rm -f uiread_test power_test restart_test nowplay_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test sdfs_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
+	rm -f uiread_test power_test restart_test cardclose_test card_test nowplay_test vbus_test bootlog_test sysconfig_test sqlite3_host.o playreq_test transport_test config_test ipc_guard_test ipc_tx_test outseq_test outroute_test session_test srcswitch_test sdio_test sdfs_test admit_test bootstate_test shuffle_test dacinfo_test timekeep_test tama_test keyssh_test radio_test clicks_test booksess_test coverart_test coverart_pipeline_test dacvol_test dacvol_sys_test
 
 PY_COMPLETE := boot_probe boot_select font_coverage gadget_list launcher settings_tree storage
 PY_UNITTEST := outseq_guard rmguard
