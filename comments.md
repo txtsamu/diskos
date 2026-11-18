@@ -118,6 +118,10 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/bootsel.h](#uibootselh) | 3 |
 | [ui/bootstate.c](#uibootstatec) | 3 |
 | [ui/bt.c](#uibtc) | 163 |
+| [ui/card.c](#uicardc) | 38 |
+| [ui/card.h](#uicardh) | 1 |
+| [ui/cardclose.c](#uicardclosec) | 2 |
+| [ui/cardclose.h](#uicardcloseh) | 3 |
 | [ui/chargemode.c](#uichargemodec) | 6 |
 | [ui/colorpick.c](#uicolorpickc) | 18 |
 | [ui/command_spawn.c](#uicommandspawnc) | 4 |
@@ -157,7 +161,7 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/library.c](#uilibraryc) | 144 |
 | [ui/lrc.h](#uilrch) | 43 |
 | [ui/lyrics.c](#uilyricsc) | 77 |
-| [ui/main.c](#uimainc) | 630 |
+| [ui/main.c](#uimainc) | 580 |
 | [ui/md5.h](#uimd5h) | 1 |
 | [ui/modes.c](#uimodesc) | 36 |
 | [ui/modes.h](#uimodesh) | 2 |
@@ -217,13 +221,15 @@ Not touched: vendored or third-party code (`ui/lvgl`, `ui/third_party`, `src/usb
 | [ui/tama.c](#uitamac) | 66 |
 | [ui/tama.h](#uitamah) | 41 |
 | [ui/tama_ui.c](#uitamauic) | 46 |
-| [ui/tests/Makefile](#uitestsmakefile) | 13 |
+| [ui/tests/Makefile](#uitestsmakefile) | 15 |
 | [ui/tests/admit_test.c](#uitestsadmittestc) | 52 |
 | [ui/tests/booksess_test.c](#uitestsbooksesstestc) | 1 |
 | [ui/tests/boot_probe_test.py](#uitestsbootprobetestpy) | 22 |
 | [ui/tests/boot_select_test.py](#uitestsbootselecttestpy) | 5 |
 | [ui/tests/bootlog_test.c](#uitestsbootlogtestc) | 1 |
 | [ui/tests/bootsel_driver.c](#uitestsbootseldriverc) | 2 |
+| [ui/tests/card_test.c](#uitestscardtestc) | 1 |
+| [ui/tests/cardclose_test.c](#uitestscardclosetestc) | 1 |
 | [ui/tests/clicks_test.c](#uitestsclickstestc) | 1 |
 | [ui/tests/config_test.c](#uitestsconfigtestc) | 13 |
 | [ui/tests/coverart_pipeline_test.c](#uitestscoverartpipelinetestc) | 1 |
@@ -14953,6 +14959,389 @@ timeout, so observing an externally-enabled radio (or a
 flaky bt_on() probe) can't kill a working controller.
 ~~~
 
+## ui/card.c
+
+**L1** `#include "card.h"`
+
+~~~text
+The card's physical lifecycle, one module (moved out of ui/main.c; the seam is ui/card.h): is the microSD
+mounted, is it exported to a USB host, is the storage gadget really bound to the card, is the already-running
+player delete-guarded; the fsync-after-unmount close ladder power.c and restart.c call before ending the Disc;
+and the cold-boot worker that mounts an already-inserted card the stock player missed. Everything mutating or
+time-based (umount, mount, the source frame, the launcher verdict, the uptime window) comes through struct
+card_env; every sysfs/proc/mount shape is a #ifndef-overridable path, so the host test drives the real decisions.
+~~~
+
+**L12** `#include <sys/mount.h>`
+
+~~~text
+mount(): direct SD mount fallback when the player's uevent listener won't (V2.40); umount()/umount2(MNT_DETACH)
+in the close ladder and the post-mount rollback.
+~~~
+
+**L15** `#include <dirent.h>`
+
+~~~text
+opendir/readdir for the /proc scan of the player's environ and for the gadget functions dir; mkdir() creates the
+SD mount point.
+~~~
+
+**L26** `#ifndef CARD_PROC_ROOT`
+
+~~~text
+CARD_PROC_ROOT (/proc), CARD_MNT (/tmp/sdcard), CARD_DEV (/dev/mmcblk0p1), CARD_DEV_WHOLE (/dev/mmcblk0),
+CARD_UEVENT (/sys/block/mmcblk0/uevent), CARD_GADGET_DIR (.../usb_gadget/storage_demo), CARD_LOG_PATH
+(/usr/data/coldplug.log): the sysfs/proc/mount shapes, #ifndef so the host test points them at a temp tree
+(the outroute/vbus override pattern).
+~~~
+
+**L44** `static int card_flush(void){`
+
+~~~text
+fsync the block device after every successful unmount path: a released card must not carry the library's last
+writes in page cache when power is cut. The close transaction's `sync` child flushes filesystems; this is the
+belt-and-suspenders device-level flush. Opened read-only - fsync does not need write permission - and its
+failure is only journalled, never fatal.
+~~~
+
+**L54** `int card_unmount(void){`
+
+~~~text
+The card-close ladder (was main.c env_unmount_card): umount; EINVAL/ENOENT is "not mounted" and equally done;
+busy means the PLAYER still holds it (its storage session), so ask it to enter USB Storage - that switch handler
+releases the mount - then retry 40 x 100 ms. Still busy: MNT_DETACH, so this process can no longer touch the
+card even if the player never lets go and the Disc may be powered off; the return only reports how it went
+(0 unmounted, 1 lazily detached, -1 still busy) - both callers proceed to their ending either way.
+~~~
+
+**L71** `int card_player_guarded(void){`
+
+~~~text
+Verifying our own PATH is not enough: the already-running stock player can
+have inherited an unprotected environment from an older boot image.
+~~~
+
+**L100** `int card_mounted(void){`
+
+~~~text
+---- microSD coldplug worker (native thread) -------------------------------
+mq_player mounts the card by listening for the DISK 'add' uevent on
+/sys/block/mmcblk0 (device-verified: re-emitting the PARTITION uevent does
+nothing). Its Netlink listener isn't bound until ~100s into boot, so it MISSES
+the already-inserted card's boot-time add event and the library comes up empty
+until a physical reinsert. This worker re-emits the disk 'add' every few
+seconds until the card mounts (bounded), then exits - same effect as a reinsert.
+A native thread (not a shell subprocess) can't be orphaned/reaped ambiguously,
+runs on every UI generation, and logs observably.
+~~~
+
+**L115** `static int sd_mount_utf8(const char *fstype){`
+
+~~~text
+Mount the card the way the stock player does (`mount -o iocharset=utf8`). With no options the kernel uses
+iocharset=iso8859-1, which turns every Japanese/CJK/full-width character in a file name into '?': the scanner then
+records those '?' paths, and when the player later remounts with utf8 the library holds both spellings of each
+song - one of which can never be opened. Retry without options only if the option itself is rejected.
+~~~
+
+**L126** `int card_exported_to_host(void){`
+
+~~~text
+Is the mass-storage gadget exporting the card to a USB host (so the host owns /dev/mmcblk0 and a
+device-side mount would dual-access-corrupt exFAT)? Reads the REAL gadget state, not our session_source_mode
+mirror - the player can enter a USB mode without going through ui_set_source_mode(). storage_demo is
+NOT configured at boot (S99usbserial only builds the serial gadget); it appears only when a storage
+session starts. The stock storage_config.sh sets the LUN backing file BEFORE binding the UDC and blanks
+the UDC BEFORE clearing the LUN, so a blank UDC alone does NOT prove the card is free - we also check
+the LUN. Fail-CLOSED: node present but UDC unreadable -> assume exported.
+~~~
+
+**L131** `errno = 0; int have_udc = (stat(udcp, &sb) == 0); int udc_err = (!have_udc && errno != ENOENT);`
+
+~~~text
+FULLY fail-closed: only a confirmed ENOENT counts as "node absent"; any other stat/read failure is
+ambiguous gadget state -> assume exported. A path too long to build is the same ambiguity -> exported.
+~~~
+
+**L132** `if(udc_err) return 1;` *(trailing)*
+
+~~~text
+ambiguous -> exported
+~~~
+
+**L135** `if(!f) return 1;` *(trailing)*
+
+~~~text
+present but unreadable -> exported
+~~~
+
+**L137** `if(rerr) return 1;` *(trailing)*
+
+~~~text
+read error -> exported
+~~~
+
+**L138** `for(size_t i = 0; i < n; i++) if(b[i] > ' ') return 1;` *(trailing)*
+
+~~~text
+UDC bound -> exported
+~~~
+
+**L141** `errno = 0;`
+
+~~~text
+UDC blank/absent: the LUN backing file is authoritative during the blank-UDC transition windows.
+The mass-storage function name is path-dependent (RE'd player builder: mass_storage.0; stock
+storage_config.sh: mass_storage.msg) -> check EVERY mass_storage.* function. A function directory
+whose LUN file is missing/unreadable is a gadget mid-construction -> ambiguous -> exported.
+~~~
+
+**L144** `if(!d) return (errno == ENOENT) ? 0 : 1;` *(trailing)*
+
+~~~text
+functions dir genuinely absent -> not exported
+~~~
+
+**L151** `if(!g){ exported = 1; break; }` *(trailing)*
+
+~~~text
+function present, LUN unreadable -> exported
+~~~
+
+**L154** `if(rerr || (m && strstr(l, "mmcblk0"))) exported = 1;` *(trailing)*
+
+~~~text
+read error, or LUN backs /dev/mmcblk0 -> exported
+~~~
+
+**L156** `int card_host_confirmed(void){`
+
+~~~text
+A conservative "possibly exported" result cannot acknowledge our request.
+Require both a bound controller and the actual card backing file.
+~~~
+
+**L179** `static int cold_mount_allowed(void){`
+
+~~~text
+May the V2.40 worker direct-mount the card RIGHT NOW? Checked (under the sdio coldplug mutex, taken by
+card_coldplug_step) immediately before EACH mount attempt: absolute cold-boot window (fail-closed on
+unreadable uptime) AND the card is not exported to a host. Re-evaluated per attempt so a slow first mount can't
+let a second begin outside the window / after a host grabbed the card. The window matches coldplug_should_run()'s
+150s worker-start gate (a 45s cliff here starved first-boot mounts when the S97 install delay pushed mq_ui start
+past 45s: worker ran but every mount hit "window elapsed" -> SD never mounted). The authoritative host-safety
+guard is card_exported_to_host() (fail-closed UDC+LUN); the uptime bound is a belt-and-suspenders proxy.
+~~~
+
+**L184** `return (up >= 0.0 && up <= 150.0 && !card_exported_to_host() && E->writable());`
+
+~~~text
+sd_writable()==0 means a Storage export is intended/pending (quiesced) - exclude that window even if the
+gadget has not bound YET, so a mount can't race a queued-but-unexecuted export (M19).
+~~~
+
+**L187** `static int coldplug_act(int i, int direct, int *nudged){`
+
+~~~text
+One attempt of the mount worker, split from the thread so the host test can drive it: given the iteration
+index, the firmware's direct-mount flag and the one-way nudge latch, either direct-mount (fstype preference
+first) or emit the synthetic uevent. Returns 1 when the worker should stop (mounted, rolled back, or given
+up); 0 means "keep going, the mutex is released by card_coldplug_step".
+~~~
+
+**L189** `if(direct && !*nudged) coldplug_log("direct mount failed -> falling back to the player's ...`
+
+~~~text
+V2.09/V2.28: the player's uevent listener mounts the card (bound ~100s in) - bounded retries,
+each only while genuinely unmounted (checked above). V2.40/V2.57: fallback only, after ~30s
+of failed direct mounts, and one-way.
+~~~
+
+**L194** `}` *(trailing)*
+
+~~~text
+the nudge branch: never direct-mount in the same iteration
+~~~
+
+**L195** `mkdir(CARD_MNT, 0755);`
+
+~~~text
+Guard EACH mount attempt with cold_mount_allowed() (absolute cold-boot window + not
+exported), re-evaluated per attempt so a slow exfat mount can't let the vfat fallback
+begin outside the window or after a host grabbed the card. The window keeps the safety
+argument on "early boot, no storage session yet" rather than the check-then-act race
+(the stock Storage transition doesn't take the sdio coldplug mutex).
+~~~
+
+**L201** `if(cold_mount_allowed() && sd_mount_utf8(fstype[k]) == 0) mounted_type = fstype[k];`
+
+~~~text
+M19: the stock player owns the USB gadget cross-process - the sdio coldplug mutex cannot exclude
+it, so a mount can still race an export begun in the window after card_exported_to_host().
+Re-check the REAL gadget state AFTER a successful mount: if the card became host-exported,
+unmount immediately (fail-closed) rather than dual-access; the one-shot then gives up.
+~~~
+
+**L208** `return 1;` *(trailing)*
+
+~~~text
+explicit: don't fight the host
+~~~
+
+**L213** `if(!cold_mount_allowed()){` *(trailing)*
+
+~~~text
+window elapsed / card exported -> give up (one-shot)
+~~~
+
+**L221** `int card_coldplug_step(int i, int direct, int *nudged){`
+
+~~~text
+One worker iteration: take the sdio coldplug mutex (its begin returns the writable fact), run the attempt
+under the Local mirror + real gadget state + still-unmounted guard, and ALWAYS release the mutex again -
+every original iteration called sd_coldplug_end() on every path, and this split must not change that pairing.
+~~~
+
+**L230** `static void *coldplug_thread(void *arg){`
+
+~~~text
+Mount the already-inserted microSD at /tmp/sdcard at COLD boot. V2.09/V2.28: the player's uevent
+listener mounts it once bound (~100s in); we re-emit the disk 'add' to trigger it. V2.40: the
+player no longer mounts on that nudge, so we mount the card DIRECTLY. Either way this is ONE-SHOT:
+we exit as soon as it's mounted and never re-mount (an indefinite writable remounter is unsafe -
+it could mount during an async Storage->Local transition before the gadget detaches). Non-tethered
+users - the shipping case - keep the card mounted after this; the tethered "player releases it"
+case is dev-only. Every mount is under the sdio coldplug mutex AND gated on Local mirror + real
+gadget state (card_exported_to_host) so we never touch the block device while a USB host owns it.
+~~~
+
+**L233** `if(card_mounted()) return NULL;` *(trailing)*
+
+~~~text
+already mounted (player did it / warm restart)
+~~~
+
+**L235** `for(int w = 0; ; w++){`
+
+~~~text
+Do NOTHING to the card until the player launcher has published its verdict. We start before the
+player (fiio_init runs mq_ui, sleeps 2s, then the player), so acting on our own checks alone could
+mount and read the card before the launcher has established whether the delete guard is actually in
+effect. A failure verdict aborts the worker outright - including the synthetic insert event, which
+is itself what invokes the stock player's destructive cleanup. No verdict within the window is
+treated as a failure. This is a background thread, so waiting here never delays the UI.
+~~~
+
+**L242** `int nudged = 0;`
+
+~~~text
+SD-WIPE SAFETY (2026-09-21): the synthetic disk 'add' makes the stock player run its SD-mount routine,
+which does "umount /tmp/sdcard; rm -rf /tmp/sdcard" WITHOUT checking the umount - if the card is
+mounted and busy (our scan/prewarm/playback) that empties the card. The rootfs rm guard defuses the
+delete; independently we must never create the ordering "event queued -> we direct-mount and read ->
+event handled". So on direct-mount firmware the worker has two ONE-WAY phases: direct-mount attempts
+first (no event); only if those fail does it fall back to the event, and once an event has been
+emitted it NEVER direct-mounts again (a still-queued event could arrive after a later mount).
+~~~
+
+**L243** `for(int i = 0; i < 120; i++){` *(trailing)*
+
+~~~text
+~6 min cap (120 x 3s) covers the ~100s listener
+~~~
+
+**L252** `static int coldplug_should_run(void){`
+
+~~~text
+Only nudge on a genuine COLD boot, while the player's SD listener is not yet bound (~first 100s).
+On a late/bare mq_ui RESTART the listener is long up (a normal insert auto-mounts) AND the device
+may be in Storage/USB-DAC mode with the card EXPORTED to a USB host - re-emitting the disk 'add'
+then risks concurrent host/device access + SD corruption. Gate on system uptime (a restart-proof
+proxy for "cold boot") plus the Local-mode mirror.
+~~~
+
+**L258** `if(up < 0.0 || up > 150.0){ coldplug_log("skip: uptime unreadable or late (not a verified cold bo...`
+
+~~~text
+fail-closed: an unreadable/malformed uptime is NOT treated as a cold boot (0 would be fail-open,
+enabling the SD mount on a late restart where the card may be exported to a host).
+~~~
+
+**L263** `void card_coldplug_start(void){`
+
+~~~text
+Called from main.c's sd_features_gate_cb once the launcher verdict opens the SD gate; the worker is a
+detached thread, so the gate callback never blocks. main.c still warms fwcaps' static cache on the UI
+thread before this point (pthread_create is the barrier that makes that safe).
+~~~
+
+## ui/card.h
+
+**L7** `struct card_env {`
+
+~~~text
+The card module's seam: the mutating syscalls (umount, umount2 with MNT_DETACH, mount with the iocharset
+option), the 100 ms retry wait, the Player source frame (used to make the Player release a busy card), the
+launcher verdict, fwcaps' direct-mount flag, the session's Source-mode mirror, and sdio's writable fact plus
+the coldplug mutex pair. main.c wires the real ones (the libc umount/mount, srcswitch_send_source,
+launch_status_get, fw_needs_direct_sd_mount, session_source_mode, sd_writable, sd_coldplug_begin/end);
+ui/tests/card_test.c fakes the same table. The fact readers (card_mounted, card_exported_to_host,
+card_host_confirmed, card_player_guarded) are plain `int fn(void)` so they drop straight into struct sd_env
+and struct launcher_env; card_unmount backs restart_env's unmount_card and power.c's real_unmount op - the
+old forward declaration of env_unmount_card in power.h is gone with it.
+~~~
+
+## ui/cardclose.c
+
+**L25** `case CARD_CLOSE_DRAINING:`
+
+~~~text
+The card-close transaction (ui/cardclose.h for the constants and the phase set): quiesce stays with the
+callers - restart_begin must run stop_readers and save_clock between quiesce and drain (the device order),
+and quiesce_end is caller-owned in every ending (power.c's PW_PROTECTED recovery must keep the card closed) -
+so this module owns everything from the drain on. Timeouts use subtraction of uint32_t ticks, wrap-safe like
+every other timer here. Terminal phases are sticky until the next begin/abort.
+~~~
+
+**L35** `if(r == 1){`
+
+~~~text
+On a successful sync the unmount is attempted but its result is ignored, as both callers always did: the
+ladder itself decides whether the card is really unmounted (lazy detach still counts) and journals the
+outcome; a failed unmount must not stop the Disc from powering off or rebooting.
+~~~
+
+## ui/cardclose.h
+
+**L8** `#define CARDCLOSE_DRAIN_MS 10000u`
+
+~~~text
+One close spine for the two endings: wait for every SD writer (10 s), spawn and watch a `sync` child
+(15 s, killed on expiry), then unmount. power.c and restart.c both drive this transaction through
+cardclose_ops; their endings keep their own phases and frames. DRAIN 10000 ms is the restart value,
+unified 2026-11-18: power.c used to give up at 8000 ms, and 10 s is the more conservative wait before
+power is cut - the one intended behavior change of this split. SYNC stays 15000 ms for both, as it
+already was.
+~~~
+
+**L12** `typedef enum {`
+
+~~~text
+Off / draining / syncing / done, plus four terminal results the caller maps to its own failure handling:
+DRAIN_TIMEOUT and SYNC_TIMEOUT (power.c words them differently - "card busy, it reopens when free" vs
+"card busy, try again"; restart.c says "card busy, try again" for both), SYNC_FAILED (the child exited
+nonzero - no unmount: a failed flush must not release the card) and SPAWN_FAILED (couldn't even start
+`sync`). DONE means drained, synced and unmounted-attempted: do your ending now.
+~~~
+
+**L18** `struct cardclose_ops {`
+
+~~~text
+All members are required except unmount - both callers treat a missing unmount op as "skip it, still
+proceed", as power_ops_t always did. cardclose keeps the pointer, so the ops must outlive the transaction:
+power.c stores its adapted struct in g_pw and restart.c in a static, never on the stack.
+~~~
+
 ## ui/chargemode.c
 
 **L1** `#include "screens.h"`
@@ -21640,13 +22029,7 @@ mmap /dev/mem: read the Vol-Up GPIO pin level directly at boot
 **L20** `#include <sys/mount.h>` *(trailing)*
 
 ~~~text
-mount(): direct SD mount fallback when the player's uevent listener won't (V2.40)
-~~~
-
-**L23** `#include <dirent.h>` *(trailing)*
-
-~~~text
-mkdir() for the SD mount point
+umount()/umount2()/mount() references in the card env wiring (g_card_env); the direct-mount call itself lives in ui/card.c
 ~~~
 
 **L24** `#include <linux/input.h>` *(trailing)*
@@ -22078,21 +22461,7 @@ ONLY to show the picker checkmark, never to block a switch (Local must always be
 
 ~~~text
 The mode itself lives in session.c (an _Atomic there: WRITTEN on the UI thread by ui_set_source_mode, READ on the
-coldplug worker thread by coldplug_should_run / coldplug_thread).
-~~~
-
-**L455** `static int sd_exported_to_host(void);`
-
-~~~text
-The system side of the source-mode switch (srcswitch.c): sysfs and mount readers defined further down, plus what the
-switch needs to ask of the UI and the Player.
-~~~
-
-**L459** `static int storage_player_guarded(void){`
-
-~~~text
-Verifying our own PATH is not enough: the already-running stock player can
-have inherited an unprotected environment from an older boot image.
+coldplug worker thread by the card module's coldplug_should_run / worker loop).
 ~~~
 
 **L487** `static int usb_host_attached(void){`
@@ -24067,106 +24436,6 @@ past the bottom -> scroll up
 cover flow: snap to the nearest album
 ~~~
 
-**L1685** `static int coldplug_mounted(void){`
-
-~~~text
----- microSD coldplug worker (native thread) -------------------------------
-mq_player mounts the card by listening for the DISK 'add' uevent on
-/sys/block/mmcblk0 (device-verified: re-emitting the PARTITION uevent does
-nothing). Its Netlink listener isn't bound until ~100s into boot, so it MISSES
-the already-inserted card's boot-time add event and the library comes up empty
-until a physical reinsert. This worker re-emits the disk 'add' every few
-seconds until the card mounts (bounded), then exits - same effect as a reinsert.
-A native thread (not a shell subprocess) can't be orphaned/reaped ambiguously,
-runs on every UI generation, and logs observably.
-~~~
-
-**L1697** `static int sd_mount_utf8(const char *fstype){`
-
-~~~text
-Mount the card the way the stock player does (`mount -o iocharset=utf8`). With no options the kernel uses
-iocharset=iso8859-1, which turns every Japanese/CJK/full-width character in a file name into '?': the scanner then
-records those '?' paths, and when the player later remounts with utf8 the library holds both spellings of each
-song - one of which can never be opened. Retry without options only if the option itself is rejected.
-~~~
-
-**L1706** `static int sd_exported_to_host(void){`
-
-~~~text
-Is the mass-storage gadget exporting the card to a USB host (so the host owns /dev/mmcblk0 and a
-device-side mount would dual-access-corrupt exFAT)? Reads the REAL gadget state, not our session_source_mode
-mirror - the player can enter a USB mode without going through ui_set_source_mode(). storage_demo is
-NOT configured at boot (S99usbserial only builds the serial gadget); it appears only when a storage
-session starts. The stock storage_config.sh sets the LUN backing file BEFORE binding the UDC and blanks
-the UDC BEFORE clearing the LUN, so a blank UDC alone does NOT prove the card is free - we also check
-the LUN. Fail-CLOSED: node present but UDC unreadable -> assume exported.
-~~~
-
-**L1710** `errno = 0; int have_udc = (stat(udcp, &sb) == 0); int udc_err = (!have_udc && errno != ENOENT);`
-
-~~~text
-FULLY fail-closed: only a confirmed ENOENT counts as "node absent"; any other stat/read failure is
-ambiguous gadget state -> assume exported.
-~~~
-
-**L1711** `if(udc_err) return 1;` *(trailing)*
-
-~~~text
-ambiguous -> exported
-~~~
-
-**L1714** `if(!f) return 1;` *(trailing)*
-
-~~~text
-present but unreadable -> exported
-~~~
-
-**L1716** `if(rerr) return 1;` *(trailing)*
-
-~~~text
-read error -> exported
-~~~
-
-**L1717** `for(size_t i = 0; i < n; i++) if(b[i] > ' ') return 1;` *(trailing)*
-
-~~~text
-UDC bound -> exported
-~~~
-
-**L1719** `errno = 0;`
-
-~~~text
-UDC blank/absent: the LUN backing file is authoritative during the blank-UDC transition windows.
-The mass-storage function name is path-dependent (RE'd player builder: mass_storage.0; stock
-storage_config.sh: mass_storage.msg) -> check EVERY mass_storage.* function. A function directory
-whose LUN file is missing/unreadable is a gadget mid-construction -> ambiguous -> exported.
-~~~
-
-**L1721** `if(!d) return (errno == ENOENT) ? 0 : 1;` *(trailing)*
-
-~~~text
-functions dir genuinely absent -> not exported
-~~~
-
-**L1727** `if(!g){ exported = 1; break; }` *(trailing)*
-
-~~~text
-function present, LUN unreadable -> exported
-~~~
-
-**L1729** `if(rerr || (m && strstr(l, "mmcblk0"))) exported = 1;` *(trailing)*
-
-~~~text
-read error, or LUN backs /dev/mmcblk0 -> exported
-~~~
-
-**L1734** `static int storage_host_confirmed(void){`
-
-~~~text
-A conservative "possibly exported" result cannot acknowledge our request.
-Require both a bound controller and the actual card backing file.
-~~~
-
 **L1757** `static int uac_bound(void){`
 
 ~~~text
@@ -24191,136 +24460,7 @@ non-blank UDC -> bound
 ~~~text
 M17: detect the source mode from the REAL USB gadget state, not our intent mirror: Storage =
 storage_demo exported, USB-DAC = uac_demo bound, else no USB gadget (Local; BT sink is
-gadget-invisible so it reads as Local here).
-~~~
-
-**L1771** `static int sd_cold_mount_allowed(void){`
-
-~~~text
-May the V2.40 worker direct-mount the card RIGHT NOW? Checked (under g_sd_mode_mu) immediately before
-EACH mount attempt: absolute cold-boot window (fail-closed on unreadable uptime) AND the card is not
-exported to a host. Re-evaluated per attempt so a slow first mount can't let a second begin outside the
-window / after a host grabbed the card. The window matches coldplug_should_run()'s 150s worker-start
-gate (a 45s cliff here starved first-boot mounts when the S97 install delay pushed mq_ui start past
-45s: worker ran but every mount hit "window elapsed" -> SD never mounted). The authoritative host-safety
-guard is sd_exported_to_host() (fail-closed UDC+LUN); the uptime bound is a belt-and-suspenders proxy.
-~~~
-
-**L1774** `return (up >= 0.0 && up <= 150.0 && !sd_exported_to_host() && srcswitch_sd_writable());`
-
-~~~text
-g_sd_writable==0 means a Storage export is intended/pending (quiesced) - exclude that window even
-if the gadget has not bound YET, so a mount can't race a queued-but-unexecuted export (M19).
-~~~
-
-**L1779** `if(coldplug_mounted()) return NULL;`
-
-~~~text
-Mount the already-inserted microSD at /tmp/sdcard at COLD boot. V2.09/V2.28: the player's uevent
-listener mounts it once bound (~100s in); we re-emit the disk 'add' to trigger it. V2.40: the
-player no longer mounts on that nudge, so we mount the card DIRECTLY. Either way this is ONE-SHOT:
-we exit as soon as it's mounted and never re-mount (an indefinite writable remounter is unsafe -
-it could mount during an async Storage->Local transition before the gadget detaches). Non-tethered
-users - the shipping case - keep the card mounted after this; the tethered "player releases it"
-case is dev-only. Every mount is under g_sd_mode_mu AND gated on Local mirror + real gadget state
-(sd_exported_to_host) so we never touch the block device while a USB host owns it.
-~~~
-
-**L1779** `if(coldplug_mounted()) return NULL;` *(trailing)*
-
-~~~text
-already mounted (player did it / warm restart)
-~~~
-
-**L1781** `for(int w = 0; ; w++){`
-
-~~~text
-Do NOTHING to the card until the player launcher has published its verdict. We start before the
-player (fiio_init runs mq_ui, sleeps 2s, then the player), so acting on our own checks alone could
-mount and read the card before the launcher has established whether the delete guard is actually in
-effect. A failure verdict aborts the worker outright - including the synthetic insert event, which
-is itself what invokes the stock player's destructive cleanup. No verdict within the window is
-treated as a failure. This is a background thread, so waiting here never delays the UI.
-~~~
-
-**L1788** `int nudged = 0;`
-
-~~~text
-SD-WIPE SAFETY (2026-09-21): the synthetic disk 'add' makes the stock player run its SD-mount routine,
-which does "umount /tmp/sdcard; rm -rf /tmp/sdcard" WITHOUT checking the umount - if the card is
-mounted and busy (our scan/prewarm/playback) that empties the card. The rootfs rm guard defuses the
-delete; independently we must never create the ordering "event queued -> we direct-mount and read ->
-event handled". So on direct-mount firmware the worker has two ONE-WAY phases: direct-mount attempts
-first (no event); only if those fail does it fall back to the event, and once an event has been
-emitted it NEVER direct-mounts again (a still-queued event could arrive after a later mount).
-~~~
-
-**L1789** `for(int i = 0; i < 120; i++){` *(trailing)*
-
-~~~text
-~6 min cap (120 x 3s) covers the ~100s listener
-~~~
-
-**L1794** `if(direct_sd_mount && !nudged) coldplug_log("direct mount failed -> falling back to the player's ...`
-
-~~~text
-V2.09/V2.28: the player's uevent listener mounts the card (bound ~100s in) - bounded retries,
-each only while genuinely unmounted (checked above). V2.40/V2.57: fallback only, after ~30s
-of failed direct mounts, and one-way.
-~~~
-
-**L1799** `else {` *(trailing)*
-
-~~~text
-V2.40/V2.57: direct-mount phase (no event)
-~~~
-
-**L1800** `mkdir("/tmp/sdcard", 0755);`
-
-~~~text
-Guard EACH mount attempt with sd_cold_mount_allowed() (absolute cold-boot window + not
-exported), re-evaluated per attempt so a slow exfat mount can't let the vfat fallback
-begin outside the window or after a host grabbed the card. The window keeps the safety
-argument on "early boot, no storage session yet" rather than the check-then-act race
-(the stock Storage transition doesn't take g_sd_mode_mu).
-~~~
-
-**L1801** `if(sd_cold_mount_allowed() && sd_mount_utf8("exfat") == 0){`
-
-~~~text
-M19: the stock player owns the USB gadget cross-process - g_sd_mode_mu cannot exclude
-it, so a mount can still race an export begun in the window after sd_exported_to_host().
-Re-check the REAL gadget state AFTER a successful mount: if the card became host-exported,
-unmount immediately (fail-closed) rather than dual-access; the one-shot then gives up.
-~~~
-
-**L1807** `pthread_mutex_unlock(srcswitch_mode_mutex()); return NULL;` *(trailing)*
-
-~~~text
-explicit: don't fight the host
-~~~
-
-**L1821** `if(!sd_cold_mount_allowed()){` *(trailing)*
-
-~~~text
-window elapsed / card exported -> give up (one-shot)
-~~~
-
-**L1835** `static int coldplug_should_run(void){`
-
-~~~text
-Only nudge on a genuine COLD boot, while the player's SD listener is not yet bound (~first 100s).
-On a late/bare mq_ui RESTART the listener is long up (a normal insert auto-mounts) AND the device
-may be in Storage/USB-DAC mode with the card EXPORTED to a USB host - re-emitting the disk 'add'
-then risks concurrent host/device access + SD corruption. Gate on system uptime (a restart-proof
-proxy for "cold boot") plus the Local-mode mirror.
-~~~
-
-**L1839** `if(up < 0.0 || up > 150.0){ coldplug_log("skip: uptime unreadable or late (not a verified cold bo...`
-
-~~~text
-fail-closed: an unreadable/malformed uptime is NOT treated as a cold boot (0 would be fail-open,
-enabling the SD mount on a late restart where the card may be exported to a host).
+gadget-invisible so it reads as Local here). The storage fact comes from ui/card.c.
 ~~~
 
 **L1849** `static void launcher_kill_bounded(void){`
@@ -24363,7 +24503,7 @@ this OPENS admission: storage_tick resumes leases
 and runs the first-run scan through its own gate
 ~~~
 
-**L1873** `coldplug_start();` *(trailing)*
+**L1873** `card_coldplug_start();` *(trailing)*
 
 ~~~text
 auto-mount the already-inserted card
@@ -24633,7 +24773,7 @@ if /usr/data/sshd isn't present; start-ssh.sh no-ops if already running.
 **L1969** `(void)fw_os_ver();` *(trailing)*
 
 ~~~text
-populate fwcaps' static cache on THIS (main) thread before coldplug_start()
+populate fwcaps' static cache on THIS (main) thread before card_coldplug_start()
 creates the worker - pthread_create is a memory barrier, so the worker reads
 the already-initialised cache (no first-init data race between the threads).
 ~~~
@@ -24641,7 +24781,7 @@ the already-initialised cache (no first-init data race between the threads).
 **L1973** `{ unsigned seed=0; FILE *r=fopen("/dev/urandom","rb"); if(r){ if(fread(&seed,1,sizeof seed,r)!=si...`
 
 ~~~text
-coldplug_start() now runs from sd_features_gate_cb, after the launcher publishes its verdict
+card_coldplug_start() now runs from sd_features_gate_cb, after the launcher publishes its verdict
 ~~~
 
 **L1973** `{ unsigned seed=0; FILE *r=fopen("/dev/urandom","rb"); if(r){ if(fread(&seed,1,sizeof seed,r)!=si...` *(trailing)*
@@ -32302,19 +32442,24 @@ remember stock's value for a later restore; diskOS's own setting is untouched
 not a toggle: the seek guard does not apply
 ~~~
 
-**L97** `static struct { power_ops_t ops; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;`
+**L97** `static struct { power_ops_t ops; struct cardclose_ops cc; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;`
 
 ~~~text
 ---- SD-safe shutdown --------------------------------------------------------------------------------------------
 ~~~
 
-**L97** `static struct { power_ops_t ops; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;`
+**L72** `static struct { power_ops_t ops; struct cardclose_ops cc; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;`
 
 ~~~text
-Same order as the Restart action: close SD admission, wait for every admitted writer, a full `sync` that must
-succeed - and only then tell the player to power off. Any failure reopens the card and says so; nothing is powered off
-after a failed step. The player's own power-off routine kills mq_ui and calls `poweroff -f` with no sync of its own, so
-this sequence is what makes the card safe.
+Same order as the Restart action, and since the card-close split the shared spine is ONE transaction
+(ui/cardclose.c): close SD admission, wait for every admitted writer, a full `sync` that must succeed - and
+only then tell the player to power off. power.c adapts its ops members into the cardclose_ops table and maps
+the transaction's phases back onto PW_DRAIN/PW_SYNC so the test seams and observable phases are unchanged; the
+timeouts (10 s drain, 15 s sync) are the transaction's, and were unified with restart's in the process. Any
+failure reopens the card and says so; nothing is powered off after a failed step. The player's own power-off
+routine kills mq_ui and calls `poweroff -f` with no sync of its own, so this sequence is what makes the card
+safe. quiesce_begin and quiesce_end stay here: begin order (then toast) and the endings - including
+PW_PROTECTED, which must NOT quiesce_end - are power.c's.
 ~~~
 
 **L102** `g_pw.cancel_sent = g_pw.ops.send(g_pw.ops.ctx, "0806000C0000") == 0;`
@@ -32325,13 +32470,14 @@ the cancel can never be confirmed: keep the card CLOSED (a stock power-off may s
 has restarted or the Disc reboots.
 ~~~
 
-**L141** `if(g_pw.ops.send(g_pw.ops.ctx, "0806000C0001") != 0){ pw_fail("Couldn't shut down - try again"); ...`
+**L122** `if(g_pw.ops.send(g_pw.ops.ctx, "0806000C0001") != 0){ pw_fail("Couldn't shut down - try again"); ...`
 
 ~~~text
 0806 is the stock sleep timer: 1 s should make the player run its own power-off routine within about 2 s.
 UNVERIFIED: the player resets that counter every second while a separate state word equals 1
 (mq_player_257.dis 0x4f4558-0x4f4560, 0x4f46a4); its meaning is not identified. The hand-off timeout below
-covers it.
+covers it. The cardclose transaction has already unmounted by this point (its DONE phase), so the frame
+ordering "unmount, then hand off" is preserved without power.c re-implementing it.
 ~~~
 
 **L146** `if(!g_pw.cancel_sent && pw_elapsed() >= POWER_CANCEL_RETRY_MS){` *(trailing)*
@@ -32558,16 +32704,17 @@ start `sync`; 0 ok, -1 could not
 player frame; 0 = sent
 ~~~
 
-**L45** `#define POWER_DRAIN_MS   8000u` *(trailing)*
+**L42** `#define POWER_CANCEL_RETRY_MS 2000u` *(trailing)*
 
 ~~~text
-writers get this long to finish
+keep trying to queue the cancel; never reopens
 ~~~
 
-**L48** `#define POWER_HANDOFF_MS 20000u` *(trailing)*
+**L45** `#define POWER_HANDOFF_MS 20000u` *(trailing)*
 
 ~~~text
 after the player is told to power off, this long before we call it failed
+(the drain/sync timeouts moved to ui/cardclose.h with the shared transaction)
 ~~~
 
 **L49** `int  power_shutdown_begin(const power_ops_t *ops);` *(trailing)*
@@ -32588,10 +32735,12 @@ call often; PW_OFF when idle or finished-with-failure
 the player restarted (new ipc generation): clears PW_PROTECTED, reopens the card
 ~~~
 
-**L55** `int  power_apply_charge(int on);`
+**L54** `int  power_apply_charge(int on);`
 
 ~~~text
-product wiring (main.c / settings.c): real SD quiesce, `sync` child, ipc_send_cmd, toast
+product wiring (main.c / settings.c): real SD quiesce, `sync` child, ipc_send_cmd, toast, and card_unmount
+(the card module's close ladder) behind the unmount_card op - the old env_unmount_card forward declaration
+that reached into main.c is gone with it
 ~~~
 
 **L57** `void power_tick(uint32_t last_input_ms, int playing);` *(trailing)*
@@ -43144,6 +43293,21 @@ make -C tests check (both). Every test links or includes the real module sources
 srcswitch.c, session.c, outseq.c and sdio.c are the real modules; ipc, cfg and the environment table are faked in the test.
 ~~~
 
+**L32** `card_test: ../card.c ../sdfs.c ../rmguard.c ../bootlog.c card_test.c ../card.h ../sdfs.h ../rmguard.h...`
+
+~~~text
+card.c is the real module with every CARD_* path pointed at the temp tree; sdfs.c, rmguard.c and bootlog.c are
+linked real so the fstype detection, the guard script check and the journal lines are the shipped ones.
+power_test and restart_test link ../cardclose.c: the close spine both cores now drive through cardclose_ops.
+~~~
+
+**L23** `restart_test: ../restart.c ../cardclose.c restart_test.c ../restart.h ../cardclose.h`
+
+~~~text
+restart.c drives the cardclose transaction with adapters over its own restart_env, so the test's spawn/wait/kill
+fakes keep working unchanged; power.c does the same from power_ops_t.
+~~~
+
 **L21** `srcswitch_test: ../srcswitch.c ../session.c ../outseq.c ../sdio.c srcswitch_test.c ../srcswitch.h...`
 
 ~~~text
@@ -43713,6 +43877,32 @@ blocked), which is what handoff_signal_reset() is for.
 
 ~~~text
 the state a running diskOS is in: a pending watchdog timer, SIGALRM ignored and blocked
+~~~
+
+## ui/tests/card_test.c
+
+**L3** `#include "card.h"`
+
+~~~text
+Host test of the card module: the fact readers run against a fake /proc, gadget and block-device tree (the CARD_*
+paths pointed at the temp dir; sdfs.c, rmguard.c and bootlog.c linked real), and the close ladder and the coldplug
+decisions run against a faked card_env. Covers the release ladder (busy then free via the USB-Storage request), the
+EINVAL/ENOENT fast path, the lazy-detach fallback and the still-busy report, the fstype ordering after a REAL
+sdfs_detect (exfat/vfat preference, the EINVAL option retry, the cross-fstype fallback), the one-way uevent nudge,
+and the post-mount export rollback - including the export that appears DURING the mount (the fake mount call builds
+the gadget tree, the race the rollback exists for). The log lines are asserted from both sinks: the coldplug log and
+the boot journal.
+~~~
+
+## ui/tests/cardclose_test.c
+
+**L3** `#include "cardclose.h"`
+
+~~~text
+Host test of the card-close transaction through fake ops only: the unmount-after-sync ordering, the unified
+10000 ms drain expiry (8000 ms alone must not fail it), the 15000 ms sync timeout that kills the child exactly
+once, sync and spawn failure without an unmount, abort mid-sync, terminal-phase stickiness, and a fresh begin
+reusing the transaction.
 ~~~
 
 ## ui/tests/clicks_test.c

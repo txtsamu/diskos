@@ -1,12 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (C) 2026 diskOS contributors */
 #include "power.h"
+#include "cardclose.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 static uint32_t g_now;
+static int      g_drain;
 static int      g_poll;
+static int      g_start_rc;
+static int      g_kills;
 static int      g_unmount_rc;
 static int      g_unmounted;
 static int      g_nsend;
@@ -21,11 +25,11 @@ static void order(char c){
     g_order[g_norder] = 0;
 }
 static void fake_quiesce_begin(void *c){ (void)c; }
-static int  fake_drained(void *c){ (void)c; return 1; }
+static int  fake_drained(void *c){ (void)c; return g_drain; }
 static void fake_quiesce_end(void *c){ (void)c; }
-static int  fake_sync_start(void *c){ (void)c; return 0; }
+static int  fake_sync_start(void *c){ (void)c; return g_start_rc; }
 static int  fake_sync_poll(void *c){ (void)c; return g_poll; }
-static void fake_sync_kill(void *c){ (void)c; }
+static void fake_sync_kill(void *c){ (void)c; g_kills++; }
 static int  fake_send(void *c, const char *f){
     (void)c;
     snprintf(g_last_frame, sizeof g_last_frame, "%s", f);
@@ -51,12 +55,16 @@ static const power_ops_t ops_without_unmount = {
 
 static void reset(void){
     g_now = 1000;
+    g_drain = 1;
     g_poll = 1;
+    g_start_rc = 0;
+    g_kills = 0;
     g_unmount_rc = 0;
     g_unmounted = g_nsend = g_ntoast = g_norder = 0;
     memset(g_order, 0, sizeof g_order);
     memset(g_last_frame, 0, sizeof g_last_frame);
 }
+static void run(int ms){ for(int t = 0; t < ms; t += 100){ g_now += 100; power_shutdown_tick(); } }
 static void to_off(void){
     if(power_shutdown_phase() == PW_HANDOFF){
         g_now += POWER_HANDOFF_MS;
@@ -75,7 +83,7 @@ static void failed_sync_does_not_unmount(void){
     assert(power_shutdown_phase() == PW_SYNC);
     power_shutdown_tick();
     assert(power_shutdown_phase() == PW_OFF);
-    assert(g_unmounted == 0 && g_nsend == 0 && g_ntoast == 1);
+    assert(g_unmounted == 0 && g_nsend == 0 && g_ntoast == 1 && g_kills == 0);
 }
 
 static void sync_success_unmounts_before_send(void){
@@ -118,6 +126,47 @@ static void missing_unmount_still_sends(void){
     assert(g_unmounted == 0 && g_nsend == 1);
     assert(!strcmp(g_order, "S"));
     assert(!strcmp(g_last_frame, "0806000C0001"));
+    to_off();
+}
+
+static void drain_timeout_waits_the_unified_deadline(void){
+    reset();
+    g_drain = 0;
+    assert(power_shutdown_begin(&ops_with_unmount) == 0);
+    g_ntoast = 0;
+    power_shutdown_tick();
+    assert(power_shutdown_phase() == PW_DRAIN);
+    run(8000);
+    assert(power_shutdown_phase() == PW_DRAIN && g_ntoast == 0);
+    run(CARDCLOSE_DRAIN_MS - 8000 - 100);
+    assert(power_shutdown_phase() == PW_DRAIN && g_ntoast == 0);
+    run(100);
+    assert(power_shutdown_phase() == PW_OFF);
+    assert(g_unmounted == 0 && g_nsend == 0 && g_kills == 0 && g_ntoast == 1);
+}
+
+static void sync_timeout_kills_the_child(void){
+    reset();
+    g_poll = 0;
+    assert(power_shutdown_begin(&ops_with_unmount) == 0);
+    g_ntoast = 0;
+    power_shutdown_tick();
+    assert(power_shutdown_phase() == PW_SYNC);
+    run(CARDCLOSE_SYNC_MS - 1000);
+    assert(power_shutdown_phase() == PW_SYNC && g_kills == 0);
+    run(1000);
+    assert(power_shutdown_phase() == PW_OFF);
+    assert(g_kills == 1 && g_unmounted == 0 && g_nsend == 0 && g_ntoast == 1);
+}
+
+static void sync_spawn_failure_bails_out(void){
+    reset();
+    g_start_rc = -1;
+    assert(power_shutdown_begin(&ops_with_unmount) == 0);
+    g_ntoast = 0;
+    power_shutdown_tick();
+    assert(power_shutdown_phase() == PW_OFF);
+    assert(g_unmounted == 0 && g_nsend == 0 && g_kills == 0 && g_ntoast == 1);
 }
 
 int main(void){
@@ -125,6 +174,9 @@ int main(void){
     sync_success_unmounts_before_send();
     unmount_failure_still_sends();
     missing_unmount_still_sends();
+    drain_timeout_waits_the_unified_deadline();
+    sync_timeout_kills_the_child();
+    sync_spawn_failure_bails_out();
     puts("power_test: ok");
     return 0;
 }

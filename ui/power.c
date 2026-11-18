@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 diskOS contributors */
 #include "command_spawn.h"
 #include "power.h"
+#include "cardclose.h"
 #include <stdio.h>
 #include <string.h>
 #include "sysconfig.h"
@@ -68,7 +69,7 @@ int power_takeover_step(pw_take_t *t, int (*read_secs)(void), int (*send)(const 
     return 0;
 }
 
-static struct { power_ops_t ops; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;
+static struct { power_ops_t ops; struct cardclose_ops cc; pw_phase_t phase; uint32_t t0; int cancel_sent; } g_pw;
 
 static uint32_t pw_elapsed(void){ return g_pw.ops.now_ms(g_pw.ops.ctx) - g_pw.t0; }
 static void pw_fail(const char *msg){
@@ -82,12 +83,23 @@ static void pw_fail(const char *msg){
     g_pw.phase = PW_OFF;
     g_pw.ops.toast(g_pw.ops.ctx, msg);
 }
+static int      pw_cc_drained(void){ return g_pw.ops.drained(g_pw.ops.ctx); }
+static int      pw_cc_sync_start(void){ return g_pw.ops.sync_start(g_pw.ops.ctx); }
+static int      pw_cc_sync_poll(void){ return g_pw.ops.sync_poll(g_pw.ops.ctx); }
+static void     pw_cc_sync_kill(void){ g_pw.ops.sync_kill(g_pw.ops.ctx); }
+static int      pw_cc_unmount(void){ return g_pw.ops.unmount_card ? g_pw.ops.unmount_card(g_pw.ops.ctx) : 0; }
+static uint32_t pw_cc_now(void){ return g_pw.ops.now_ms(g_pw.ops.ctx); }
 int power_shutdown_begin(const power_ops_t *o){
     if(g_pw.phase != PW_OFF) return -1;
     if(!o || !o->quiesce_begin || !o->drained || !o->quiesce_end || !o->sync_start || !o->sync_poll || !o->sync_kill ||
        !o->send || !o->now_ms || !o->toast) return -1;
     g_pw.ops = *o;
     g_pw.ops.quiesce_begin(g_pw.ops.ctx);
+    g_pw.cc = (struct cardclose_ops){
+        .drained = pw_cc_drained, .sync_start = pw_cc_sync_start, .sync_poll = pw_cc_sync_poll,
+        .sync_kill = pw_cc_sync_kill, .unmount = pw_cc_unmount, .now = pw_cc_now,
+    };
+    if(cardclose_begin(&g_pw.cc) != 0) return -1;
     g_pw.phase = PW_DRAIN;
     g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
     g_pw.ops.toast(g_pw.ops.ctx, "Shutting down...");
@@ -102,20 +114,18 @@ void power_shutdown_new_generation(void){
 pw_phase_t power_shutdown_tick(void){
     switch(g_pw.phase){
     case PW_OFF: break;
-    case PW_DRAIN:
-        if(g_pw.ops.drained(g_pw.ops.ctx)){
-            if(g_pw.ops.sync_start(g_pw.ops.ctx) != 0){ pw_fail("Couldn't shut down - try again"); break; }
-            g_pw.phase = PW_SYNC; g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
-        } else if(pw_elapsed() >= POWER_DRAIN_MS) pw_fail("Couldn't shut down - card busy, it reopens when free");
-        break;
-    case PW_SYNC: {
-        int r = g_pw.ops.sync_poll(g_pw.ops.ctx);
-        if(r < 0){ pw_fail("Couldn't shut down - card flush failed"); break; }
-        if(r == 1){
-            if(g_pw.ops.unmount_card) g_pw.ops.unmount_card(g_pw.ops.ctx);
+    case PW_DRAIN: case PW_SYNC: {
+        int cc = cardclose_tick();
+        if(cc == CARD_CLOSE_DRAINING) g_pw.phase = PW_DRAIN;
+        else if(cc == CARD_CLOSE_SYNCING) g_pw.phase = PW_SYNC;
+        else if(cc == CARD_CLOSE_DONE){
             if(g_pw.ops.send(g_pw.ops.ctx, "0806000C0001") != 0){ pw_fail("Couldn't shut down - try again"); break; }
             g_pw.phase = PW_HANDOFF; g_pw.t0 = g_pw.ops.now_ms(g_pw.ops.ctx);
-        } else if(pw_elapsed() >= POWER_SYNC_MS){ g_pw.ops.sync_kill(g_pw.ops.ctx); pw_fail("Couldn't shut down - card busy, try again"); }
+        }
+        else if(cc == CARD_CLOSE_DRAIN_TIMEOUT) pw_fail("Couldn't shut down - card busy, it reopens when free");
+        else if(cc == CARD_CLOSE_SYNC_FAILED) pw_fail("Couldn't shut down - card flush failed");
+        else if(cc == CARD_CLOSE_SYNC_TIMEOUT) pw_fail("Couldn't shut down - card busy, try again");
+        else pw_fail("Couldn't shut down - try again");
         break; }
     case PW_PROTECTED:
         if(!g_pw.cancel_sent && pw_elapsed() >= POWER_CANCEL_RETRY_MS){
@@ -137,6 +147,7 @@ pw_phase_t power_shutdown_tick(void){
 #include "ipc.h"
 #include "art.h"
 #include "sdio.h"
+#include "card.h"
 #include "scanner.h"
 #include <stdlib.h>
 #include <unistd.h>
@@ -206,13 +217,14 @@ static void real_sync_kill(void *c){
 static int  real_send(void *c, const char *f){ (void)c; return ipc_send_cmd(f); }
 static uint32_t real_now(void *c){ (void)c; return lv_tick_get(); }
 static void real_toast(void *c, const char *m){ (void)c; ui_toast(m); }
+static int  real_unmount(void *c){ (void)c; return card_unmount(); }
 
 int power_shutdown_request(void){
     if(!power_supported()){ ui_toast("Not available on this firmware"); return -1; }
     if(power_shutdown_phase() == PW_PROTECTED){ ui_toast("Shutdown didn't complete - restart the Disc to use the card"); return -1; }
     ui_timekeep_save_now();
     power_ops_t o = { real_quiesce_begin, real_drained, real_quiesce_end, real_sync_start, real_sync_poll, real_sync_kill,
-                      real_send, real_now, real_toast, env_unmount_card, NULL };
+                      real_send, real_now, real_toast, real_unmount, NULL };
     return power_shutdown_begin(&o);
 }
 

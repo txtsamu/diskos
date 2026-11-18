@@ -8,7 +8,6 @@
 #include <math.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <pthread.h>
 #include <stdatomic.h>
 #include <ucontext.h>
 #include <fcntl.h>
@@ -21,7 +20,6 @@
 #include <sys/stat.h>
 #include <sys/reboot.h>
 #include <glob.h>
-#include <dirent.h>
 #include <linux/input.h>
 #include <net/if.h>
 #include "command_spawn.h"
@@ -65,7 +63,7 @@
 #include "scanner.h"
 #include "playreq.h"
 #include "sdio.h"
-#include "sdfs.h"
+#include "card.h"
 #include "art.h"
 #include "power.h"
 #include "idlegov.h"
@@ -282,38 +280,6 @@ static int route_analog(int force){
 int ui_route_analog(void){ return route_analog(0); }
 
 
-static int sd_exported_to_host(void);
-static int coldplug_mounted(void);
-static int storage_host_confirmed(void);
-
-static int storage_player_guarded(void){
-    DIR *d = opendir("/proc"); if(!d) return 0;
-    struct dirent *e; int found = 0, ok = 1;
-    while(ok && (e = readdir(d))){
-        if(e->d_name[0] < '0' || e->d_name[0] > '9') continue;
-        char p[320], comm[64]; snprintf(p, sizeof p, "/proc/%s/comm", e->d_name);
-        FILE *f = fopen(p, "r"); if(!f) continue;
-        char *got = fgets(comm, sizeof comm, f); fclose(f);
-        if(!got || strcmp(comm, "mq_player\n")) continue;
-        found++;
-        snprintf(p, sizeof p, "/proc/%s/environ", e->d_name);
-        f = fopen(p, "r"); if(!f){ ok = 0; break; }
-        char env[8192]; size_t n = fread(env, 1, sizeof env - 1, f);
-        int err = ferror(f); fclose(f); env[n] = 0;
-        if(err || n == sizeof env - 1){ ok = 0; break; }
-        int guarded = 0;
-        for(size_t i = 0; i < n; i += strlen(env + i) + 1){
-            if(strncmp(env + i, "PATH=", 5)) continue;
-            char *path = env + i + 5, *sep = strchr(path, ':');
-            if(sep) *sep = 0;
-            guarded = path[0] == '/' && rmguard_dir_ok(path);
-            break;
-        }
-        if(!guarded) ok = 0;
-    }
-    closedir(d);
-    return found > 0 && ok;
-}
 static int usb_host_attached(void){
     glob_t g; int on = 0;
     if(glob("/sys/class/udc/*/state", 0, NULL, &g) != 0) return 0;
@@ -401,8 +367,8 @@ static const struct srcswitch_env g_srcswitch_env = {
     .reapply_audio = env_reapply_audio,
 };
 static const struct sd_env g_sd_env = {
-    .now = lv_tick_get, .media_mounted = coldplug_mounted, .exported_to_host = sd_exported_to_host,
-    .host_confirmed = storage_host_confirmed, .player_guarded = storage_player_guarded,
+    .now = lv_tick_get, .media_mounted = card_mounted, .exported_to_host = card_exported_to_host,
+    .host_confirmed = card_host_confirmed, .player_guarded = card_player_guarded,
     .playing = env_playing, .scan_active = scanner_active, .scan_if_library_empty = env_scan_if_library_empty,
     .art_cancel = env_art_cancel, .card_returned = env_card_returned, .restart = env_restart,
     .toast = ui_toast, .send_source = srcswitch_send_source,
@@ -433,39 +399,19 @@ static int env_reboot_device(void){
     char *a[] = { "reboot", NULL };
     return run_bounded(a, 5000) == 0;
 }
-static int card_flush(void){
-    int fd = open("/dev/mmcblk0p1", O_RDONLY | O_CLOEXEC);
-    if(fd < 0) return -1;
-    int rc = fsync(fd);
-    int e = errno;
-    close(fd);
-    if(rc != 0) bootlog_event("card flush failed errno=%d(%s)", e, strerror(e));
-    return rc;
-}
-int env_unmount_card(void *ctx){
-    (void)ctx;
-    if(umount("/tmp/sdcard") == 0){ card_flush(); bootlog_event("card unmounted before shutdown or restart"); return 0; }
-    int e = errno;
-    if(e == EINVAL || e == ENOENT){ card_flush(); bootlog_event("card not mounted before shutdown or restart"); return 0; }
-    bootlog_event("card busy errno=%d(%s), asking the player to release it", e, strerror(e));
-    int sw = srcswitch_send_source(SRCSWITCH_MODE_USB_STORAGE);
-    if(sw < 0) bootlog_event("player refused the storage switch (rc=%d), retrying the unmount", sw);
-    for(int i = 0; i < 40; i++){
-        usleep(100000);
-        if(umount("/tmp/sdcard") == 0){ card_flush(); bootlog_event("card unmounted after player release in %d tries", i + 1); return 0; }
-        if(errno == EINVAL || errno == ENOENT){ card_flush(); bootlog_event("card not mounted after player release"); return 0; }
-    }
-    if(umount2("/tmp/sdcard", MNT_DETACH) == 0){ card_flush(); bootlog_event("card lazily detached, still busy errno=%d(%s)", e, strerror(e)); return 1; }
-    bootlog_event("card unmount failed errno=%d(%s), continuing", errno, strerror(errno));
-    return -1;
-}
-static int env_restart_unmount(void){ return env_unmount_card(NULL); }
+static void env_card_wait(void){ usleep(100000); }
+static const struct card_env g_card_env = {
+    .umount = umount, .umount_lazy = umount2, .mount = mount, .unmount_wait = env_card_wait,
+    .send_source = srcswitch_send_source, .launch_status = launch_status_get,
+    .fw_direct_mount = fw_needs_direct_sd_mount, .source_mode = session_source_mode,
+    .writable = sd_writable, .coldplug_begin = sd_coldplug_begin, .coldplug_end = sd_coldplug_end,
+};
 static const struct restart_env g_restart_env = {
     .now = lv_tick_get, .card_drained = sd_drained,
     .quiesce_begin = sd_quiesce_begin, .quiesce_end = sd_quiesce_end,
     .stop_readers = env_stop_readers, .save_clock = env_save_clock,
     .spawn = env_restart_spawn, .wait = env_restart_wait, .kill = env_restart_kill,
-    .reboot = env_reboot_device, .unmount_card = env_restart_unmount, .toast = ui_toast,
+    .reboot = env_reboot_device, .unmount_card = card_unmount, .toast = ui_toast,
 };
 static void np_sink_view(const player_view_t *view, const player_evidence_t *ev, int playing){ (void)playing; ui_update(view, ev); }
 static void np_sink_home(const player_view_t *view, int playing){
@@ -1275,78 +1221,6 @@ static int rim_release(void){
     rim_state=RIM_IDLE; rim_scroller=NULL; rim_cover=0; return owned;
 }
 
-static int coldplug_mounted(void){
-    FILE *m = fopen("/proc/mounts", "r");
-    if(!m) return 0;
-    char line[512], dev[128], target[128]; int ok = 0;
-    while(fgets(line, sizeof line, m)){
-        if(sscanf(line, "%127s %127s", dev, target) != 2) continue;
-        if(!strcmp(target, "/tmp/sdcard") &&
-           (!strcmp(dev, "/dev/mmcblk0p1") || !strcmp(dev, "/dev/mmcblk0"))){ ok = 1; break; }
-    }
-    fclose(m);
-    return ok;
-}
-static int sd_mount_utf8(const char *fstype){
-    if(mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, "iocharset=utf8") == 0) return 0;
-    if(errno != EINVAL) return -1;
-    return mount("/dev/mmcblk0p1", "/tmp/sdcard", fstype, 0, NULL);
-}
-static void coldplug_log(const char *msg){
-    FILE *f = fopen("/usr/data/coldplug.log", "a");
-    if(f){ fprintf(f, "%ld %s\n", (long)time(NULL), msg); fclose(f); }
-}
-static int sd_exported_to_host(void){
-    const char *udcp = "/sys/kernel/config/usb_gadget/storage_demo/UDC";
-    const char *fndir = "/sys/kernel/config/usb_gadget/storage_demo/functions";
-    struct stat sb;
-    errno = 0; int have_udc = (stat(udcp, &sb) == 0); int udc_err = (!have_udc && errno != ENOENT);
-    if(udc_err) return 1;
-    if(have_udc){
-        FILE *f = fopen(udcp, "r");
-        if(!f) return 1;
-        char b[64] = {0}; size_t n = fread(b, 1, sizeof b - 1, f); int rerr = ferror(f); fclose(f);
-        if(rerr) return 1;
-        for(size_t i = 0; i < n; i++) if(b[i] > ' ') return 1;
-    }
-    errno = 0;
-    DIR *d = opendir(fndir);
-    if(!d) return (errno == ENOENT) ? 0 : 1;
-    int exported = 0; struct dirent *e;
-    while(!exported && (e = readdir(d))){
-        if(strncmp(e->d_name, "mass_storage.", 13) != 0) continue;
-        char lunp[300]; snprintf(lunp, sizeof lunp, "%s/%s/lun.0/file", fndir, e->d_name);
-        FILE *g = fopen(lunp, "r");
-        if(!g){ exported = 1; break; }
-        char l[300] = {0}; size_t m = fread(l, 1, sizeof l - 1, g); int rerr = ferror(g); fclose(g);
-        if(rerr || (m && strstr(l, "mmcblk0"))) exported = 1;
-    }
-    closedir(d);
-    return exported;
-}
-static int storage_host_confirmed(void){
-    const char *base = "/sys/kernel/config/usb_gadget/storage_demo";
-    char p[512], b[320];
-    snprintf(p, sizeof p, "%s/UDC", base);
-    FILE *f = fopen(p, "r"); if(!f) return 0;
-    size_t n = fread(b, 1, sizeof b - 1, f); int err = ferror(f); fclose(f); b[n] = 0;
-    int bound = 0;
-    for(size_t i = 0; i < n; i++) if(b[i] > ' ') bound = 1;
-    if(err || !bound) return 0;
-    snprintf(p, sizeof p, "%s/functions", base);
-    DIR *d = opendir(p); if(!d) return 0;
-    struct dirent *e; int backed = 0;
-    while((e = readdir(d))){
-        if(strncmp(e->d_name, "mass_storage.", 13)) continue;
-        snprintf(p, sizeof p, "%s/functions/%s/lun.0/file", base, e->d_name);
-        f = fopen(p, "r"); if(!f) continue;
-        n = fread(b, 1, sizeof b - 1, f); err = ferror(f); fclose(f); b[n] = 0;
-        while(n && (b[n-1] == '\n' || b[n-1] == '\r')) b[--n] = 0;
-        if(!err && (!strcmp(b, "/dev/mmcblk0") || !strcmp(b, "/dev/mmcblk0p1"))) backed = 1;
-    }
-    closedir(d);
-    return backed;
-}
 static int uac_bound(void){
     const char *udc = "/sys/kernel/config/usb_gadget/uac_demo/UDC";
     FILE *f = fopen(udc, "r");
@@ -1357,83 +1231,9 @@ static int uac_bound(void){
     return 0;
 }
 int ui_detect_source_mode(void){
-    if(sd_exported_to_host()) return 3;
-    if(uac_bound())           return 1;
+    if(card_exported_to_host()) return 3;
+    if(uac_bound())             return 1;
     return 0;
-}
-static int sd_cold_mount_allowed(void){
-    double up = -1.0; FILE *pu = fopen("/proc/uptime", "r");
-    if(pu){ if(fscanf(pu, "%lf", &up) != 1) up = -1.0; fclose(pu); }
-    return (up >= 0.0 && up <= 150.0 && !sd_exported_to_host() && sd_writable());
-}
-static void *coldplug_thread(void *arg){
-    (void)arg;
-    const int direct_sd_mount = fw_needs_direct_sd_mount();
-    if(coldplug_mounted()) return NULL;
-    coldplug_log("coldplug worker start");
-    for(int w = 0; ; w++){
-        int v = launch_status_get();
-        if(v == 1) break;
-        if(v == 0){ coldplug_log("launcher reported unprotected/unconfirmed - SD left untouched this boot"); return NULL; }
-        if(w >= 40){ coldplug_log("no launcher verdict within 20s - SD left untouched this boot"); return NULL; }
-        struct timespec hs = { 0, 500L*1000*1000 }; nanosleep(&hs, NULL);
-    }
-    int nudged = 0;
-    for(int i = 0; i < 120; i++){
-        if(coldplug_mounted()){ coldplug_log("SD mounted - done"); return NULL; }
-        int cold_writable = sd_coldplug_begin();
-        if(cold_writable && session_source_mode() == 0 && !sd_exported_to_host() && !coldplug_mounted()){
-            if(!direct_sd_mount || nudged || i >= 10){
-                if(direct_sd_mount && !nudged) coldplug_log("direct mount failed -> falling back to the player's uevent listener (one-way: no more direct mounts)");
-                nudged = 1;
-                int fd = open("/sys/block/mmcblk0/uevent", O_WRONLY | O_CLOEXEC);
-                if(fd >= 0){ ssize_t w = write(fd, "add\n", 4); (void)w; close(fd); }
-            }
-            else {
-                mkdir("/tmp/sdcard", 0755);
-                const char *pref = sdfs_detect("/dev/mmcblk0p1");
-                const char *fstype[2] = { "exfat", "vfat" };
-                if(pref && !strcmp(pref, "vfat")){ fstype[0] = "vfat"; fstype[1] = "exfat"; }
-                const char *mounted_type = NULL;
-                for(int k = 0; k < 2 && !mounted_type; k++)
-                    if(sd_cold_mount_allowed() && sd_mount_utf8(fstype[k]) == 0) mounted_type = fstype[k];
-                if(mounted_type){
-                    if(sd_exported_to_host()){
-                        if(umount("/tmp/sdcard") != 0 && umount2("/tmp/sdcard", MNT_DETACH) != 0)
-                            coldplug_log("WARNING: post-mount export + unmount BOTH failed (card busy) - possible transient dual-access");
-                        else
-                            coldplug_log("post-mount export detected -> unmounted, host owns card (one-shot gives up)");
-                        sd_coldplug_end(); return NULL;
-                    }
-                    { char b[64]; snprintf(b, sizeof b, "SD direct-mounted (V2.40 %s)", mounted_type); coldplug_log(b); }
-                    sd_coldplug_end(); return NULL;
-                }
-                if(!sd_cold_mount_allowed()){
-                    sd_coldplug_end();
-                    coldplug_log("V2.40 SD one-shot: window elapsed or card exported (SD not mounted)");
-                    return NULL;
-                }
-                { char b[96]; snprintf(b, sizeof b, "SD direct-mount failed errno=%d(%s)", errno, strerror(errno)); coldplug_log(b); }
-            }
-        }
-        sd_coldplug_end();
-        struct timespec ts = { 3, 0 }; nanosleep(&ts, NULL);
-    }
-    coldplug_log("coldplug TIMEOUT - SD never mounted");
-    return NULL;
-}
-static int coldplug_should_run(void){
-    double up = -1.0;
-    FILE *u = fopen("/proc/uptime", "r");
-    if(u){ if(fscanf(u, "%lf", &up) != 1) up = -1.0; fclose(u); }
-    if(up < 0.0 || up > 150.0){ coldplug_log("skip: uptime unreadable or late (not a verified cold boot)"); return 0; }
-    if(session_source_mode() != 0){ coldplug_log("skip: not in Local mode (card may be exported to a host)"); return 0; }
-    return 1;
-}
-static void coldplug_start(void){
-    if(!coldplug_should_run()) return;
-    pthread_t th;
-    if(pthread_create(&th, NULL, coldplug_thread, NULL) == 0) pthread_detach(th);
 }
 
 static void launcher_kill_bounded(void){
@@ -1441,7 +1241,7 @@ static void launcher_kill_bounded(void){
     if(g_bounded_pid > 0) kill((pid_t)g_bounded_pid, SIGKILL);
 }
 static const struct launcher_env g_launcher_env = {
-    .sd_exported_to_host = sd_exported_to_host, .run_bounded = run_bounded,
+    .sd_exported_to_host = card_exported_to_host, .run_bounded = run_bounded,
     .rmguard_ensure = rmguard_ensure, .kill_bounded = launcher_kill_bounded,
 };
 
@@ -1458,7 +1258,7 @@ static void sd_features_gate_cb(lv_timer_t *t){
     if(gate == SD_GATE_WAIT) return;
     if(gate == SD_GATE_OPENED){
         bootlog_event("sd gate: opened at poll %d", polls);
-        coldplug_start();
+        card_coldplug_start();
         ui_art_retry();
         coverart_prewarm_start();
         albumwall_prewarm_seed();
@@ -1563,6 +1363,7 @@ int main(int argc, char **argv){
     restart_set_env(&g_restart_env);
     usbdbg_set_env(&g_usbdbg_env);
     sd_set_env(&g_sd_env);
+    card_set_env(&g_card_env);
     admit_set_env(&g_admit_env);
     booksess_set_env(&g_booksess_env);
     playreq_set_env(&g_playreq_env);
