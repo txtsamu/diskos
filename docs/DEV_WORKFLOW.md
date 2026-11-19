@@ -123,6 +123,25 @@ tools; see [INSTALL.md](INSTALL.md) for runtime requirements.
   `/proc/asound/card*/pcm*p/sub*/status` (`RUNNING` = active PCM stream).
 - **Raw player frames:** a sender such as `psend` must be installed separately; it is not bundled.
 
+## Card shutdown and the FAT dirty flag
+
+Power off and Restart unmount the microSD card before the MCU cuts power or the device reboots. The UI asks the stock
+Player to release the card (it keeps the last track open), retries the unmount for up to 4 s, falls back to a lazy
+detach, and flushes the block device. The journal records the outcome:
+
+```sh
+ssh root@<device-ip> 'grep "card " /usr/data/diskos_journal.log | tail -5'
+```
+
+A clean shutdown logs `card unmounted before shutdown or restart` or `card unmounted after player release in N tries`.
+
+If the next boot still prints `FAT-fs (mmcblk0p1): Volume was not properly unmounted`, the card was already marked dirty
+and the kernel will not clear that flag by itself. The FAT state is bit 0 of the boot-sector byte at offset `0x41` on
+FAT32. Clear it once with `sudo fsck.vfat -a /dev/sdX` in a card reader, then the UI shutdown paths keep it clean.
+
+A hardware long press bypasses the UI, so no unmount runs and the volume is marked dirty again. The stock Player also
+tries to delete the mount point when it leaves USB Storage; `diskos-rmguard` blocks that.
+
 ## Preview a UI build without reflashing
 
 A live preview is temporary. Build `mq_ui` as above, keep the Disc and computer on the same Wi-Fi network, and enable Debug Mode under Settings > System. The screen shows the Disc IP and a fresh SSH password. You may enter it interactively; `sshpass` is optional.

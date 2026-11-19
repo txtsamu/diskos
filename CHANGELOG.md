@@ -77,6 +77,15 @@ Changes in this fork since 1.2.1. Flashed and checked on a Snowsky Disc running 
 
 ### Fixed
 
+- **The microSD card is unmounted before power-off and before Restart.** Neither path called `umount`, so the kernel
+  never cleared the FAT clean bit and the next boot could report `Volume was not properly unmounted`. The stock player
+  keeps the last track open, so a plain unmount returns `EBUSY`; diskOS now asks the player to release the card through
+  its own USB Storage path, retries for up to 4 s, falls back to a lazy detach, and flushes the block device with
+  `fsync`. A failed unmount never blocks the shutdown. A card that was already marked dirty needs one `fsck.vfat -a` or
+  an equivalent flag clear, because the kernel refuses to clear an already-dirty volume.
+- **No more failed exFAT probe at boot.** diskOS used to try `exfat` first and fall back to `vfat`, which logged four
+  `exFAT-fs ... failed to mount! (-22)` lines per boot. It now reads the boot sector and tries the detected filesystem
+  first, keeping the old order for an unknown signature.
 - **Shuffle** no longer sends a start index past the Player's queue. A stale library count could make `mq_player` loop forever
   rebuilding `LIST_SONG_3` and querying `POS_ID 0`, with no audio until a reboot. The start is clamped to the Player's
   `LIST_SONG_0` count and falls back to 1 when that count is unavailable.
