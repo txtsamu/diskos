@@ -203,6 +203,12 @@ On this route the attached IEM or DAC's buttons arrive as a HID consumer-control
 input node under a `/usb` sysfs path; `ui/usbhid.c` reads it read-only and counts
 play/pause clicks into play/pause, next and previous. Which key code a given
 device sends is unverified until its press shows in the `usbhid:` log lines.
+The stock Player opens the DAC at the source file's native PCM rate; the UI does
+not resample. Build 7 with a FiiO JadeAudio JA11 on 2026-11-20 gave 96000 Hz for
+a 96 kHz / 24-bit FLAC and 44100 Hz for a 44.1 kHz / 16-bit FLAC, both `S32_LE`,
+and returned to 96000 with the 96 kHz track. A 32-bit container is not evidence
+of upsampling. Strict bit-perfect also depends on the EQ, DRE, gain and volume
+settings. The check commands are in [`DEV_WORKFLOW.md`](DEV_WORKFLOW.md).
 The stock player also provides a `storage_demo` card-reader gadget. Do not
 mount or access the SD locally while it is exported to a computer;
 concurrent access can corrupt the card.
@@ -283,6 +289,7 @@ expensive; the audiophile local-playback path is the tractable, high-value slice
 - Power: `cat /sys/class/power_supply/*/{type,capacity,voltage_now,status}`
 - Storage: `cat /proc/partitions /proc/mtd`
 - USB: `ls /sys/class/udc`, `cat /sys/class/udc/*/state`, `ls /sys/kernel/config/usb_gadget/*`
+- USB audio rate: `cat /proc/asound/card*/stream0`, `cat /proc/asound/card*/pcm0p/sub0/hw_params`
 - Wireless: `dmesg | grep -iE 'dhd|bcm|chip'`, `hciconfig -a`, `ls /lib/firmware/{wifi_bcm,bt_bcm}`
 - Display/input: `cat /sys/class/graphics/fb0/{name,virtual_size,bits_per_pixel}`, `ls /dev/fb*`, `cat /proc/bus/input/devices`
 - Engines: `ls /dev | grep -iE 'ipu|vpu|jpeg|adc|watchdog'`

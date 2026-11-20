@@ -142,6 +142,43 @@ FAT32. Clear it once with `sudo fsck.vfat -a /dev/sdX` in a card reader, then th
 A hardware long press bypasses the UI, so no unmount runs and the volume is marked dirty again. The stock Player also
 tries to delete the mount point when it leaves USB Storage; `diskos-rmguard` blocks that.
 
+## Check the USB audio sample rate
+
+The stock Player opens an external USB DAC at the source file's native rate, and the UI does not resample. Three reads
+show whether that happened: the Player's open file, the file header, and ALSA.
+
+```sh
+ssh root@<device-ip> 'ls -l /proc/$(pidof mq_player)/fd | grep sdcard'
+ssh root@<device-ip> 'cat /proc/asound/card1/pcm0p/sub0/hw_params'
+ssh root@<device-ip> 'cat /proc/asound/card1/stream0'
+```
+
+`hw_params` gives the rate and format the Player opened. `stream0` gives the alt setting, the packet size and the
+momentary feedback rate. The card number depends on the device; with one DAC attached it is `card1`.
+
+A FLAC file's native rate and depth are in STREAMINFO. The rate starts at byte 18 and the depth shares the same four
+bytes:
+
+```sh
+ssh root@<device-ip> 'f="/tmp/sdcard/Music/.../track.flac"; b=$(dd if="$f" bs=1 skip=18 count=4 2>/dev/null | od -An -tu1); set -- $b; echo "rate=$(( ($1<<12) | ($2<<4) | ($3>>4) )) bps=$(( ((($3&1)<<4)|($4>>4))+1 ))"'
+```
+
+To switch rates from a shell, send the same play-list frame `playreq_play_list()` builds: `0100`, the total length in
+four hex digits (`16 + album name length in bytes`), the zero-based start index in four hex digits, the list type in
+four hex digits (`3` = album), then the album name. The name is the album tag in the Player's database, not the folder name.
+Build the helper first, because `mqsend.c` is excluded from `mq_ui`:
+
+```sh
+mipsel-linux-musl-gcc -Os -static -o /tmp/mqsend ui/mqsend.c
+ssh root@<device-ip> 'cat > /tmp/mqsend && chmod 755 /tmp/mqsend' < /tmp/mqsend
+ssh root@<device-ip> '/tmp/mqsend "0100001700000003Friends"'
+```
+
+That example plays the first track of the album `Friends`, so it changes what is playing. On build 7 with a JA11 on
+2026-11-20, a 96 kHz / 24-bit FLAC gave `S32_LE` 96000 and a 44.1 kHz / 16-bit FLAC gave `S32_LE` 44100; the link
+returned to 96000 with the 96 kHz track. `S32_LE` is the container the kernel picked from the DAC's advertised formats,
+not evidence of upsampling.
+
 ## Preview a UI build without reflashing
 
 A live preview is temporary. Build `mq_ui` as above, keep the Disc and computer on the same Wi-Fi network, and enable Debug Mode under Settings > System. The screen shows the Disc IP and a fresh SSH password. You may enter it interactively; `sshpass` is optional.
